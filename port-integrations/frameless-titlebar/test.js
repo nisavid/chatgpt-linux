@@ -100,9 +100,9 @@ test("frameless-titlebar stays disabled until listed in integrations.json", () =
 
 test("frameless-titlebar removes current Linux overlay controls from primary and quick chat windows", () => {
   const source = [
-    "case`quickChat`:case`primary`:return n===`darwin`?{titleBarStyle:`hiddenInset`,trafficLightPosition:A9(r),...e===`quickChat`?{hasShadow:!0,resizable:!0,transparent:!0}:{},...t?{}:{vibrancy:`menu`}}:n===`win32`||n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:n===`linux`?codexLinuxTitleBarOverlay(r):j9(r),...e===`quickChat`?{resizable:!0}:{}}:{titleBarStyle:`default`,...e===`quickChat`?{resizable:!0}:{}};",
-    "setWindowZoom(e,t){let n=c.BrowserWindow.fromWebContents(e),r=n&&this.windowAppearances.get(n.id);n==null||r!==`primary`&&r!==`quickChat`||(process.platform===`darwin`?n.setWindowButtonPosition(A9(t)):(process.platform===`win32`||process.platform===`linux`)&&(this.windowZooms.set(n.id,t),n.setTitleBarOverlay(process.platform===`linux`?codexLinuxTitleBarOverlay(t):j9(t))))}",
-    "installApplicationMenuTitleBarOverlaySync(e,t){if(process.platform!==`win32`&&process.platform!==`linux`||t!==`primary`&&t!==`quickChat`)return;let n=()=>{e.isDestroyed()||e.setTitleBarOverlay(process.platform===`linux`?codexLinuxTitleBarOverlay(this.windowZooms.get(e.id)):j9(this.windowZooms.get(e.id)))};return c.nativeTheme.on(`updated`,n),n(),()=>{c.nativeTheme.off(`updated`,n)}}",
+    "case`quickChat`:case`primary`:return n===`darwin`?{titleBarStyle:`hiddenInset`,trafficLightPosition:A9(r),...e===`quickChat`?{hasShadow:!0,resizable:!0,transparent:!0}:{},...t?{}:{vibrancy:`menu`}}:n===`win32`||n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:n===`linux`?chatgptLinuxTitleBarOverlay(r):j9(r),...e===`quickChat`?{resizable:!0}:{}}:{titleBarStyle:`default`,...e===`quickChat`?{resizable:!0}:{}};",
+    "setWindowZoom(e,t){let n=c.BrowserWindow.fromWebContents(e),r=n&&this.windowAppearances.get(n.id);n==null||r!==`primary`&&r!==`quickChat`||(process.platform===`darwin`?n.setWindowButtonPosition(A9(t)):(process.platform===`win32`||process.platform===`linux`)&&(this.windowZooms.set(n.id,t),n.setTitleBarOverlay(process.platform===`linux`?chatgptLinuxTitleBarOverlay(t):j9(t))))}",
+    "installApplicationMenuTitleBarOverlaySync(e,t){if(process.platform!==`win32`&&process.platform!==`linux`||t!==`primary`&&t!==`quickChat`)return;let n=()=>{e.isDestroyed()||e.setTitleBarOverlay(process.platform===`linux`?chatgptLinuxTitleBarOverlay(this.windowZooms.get(e.id)):j9(this.windowZooms.get(e.id)))};return c.nativeTheme.on(`updated`,n),n(),()=>{c.nativeTheme.off(`updated`,n)}}",
     "(process.platform===`win32`||process.platform===`linux`)&&k.removeMenu(),",
   ].join("");
   let patched;
@@ -137,14 +137,14 @@ test("frameless-titlebar removes current Linux overlay controls from primary and
   );
   assert.doesNotMatch(
     patched,
-    /n===`linux`\?\{titleBarStyle:`hidden`,titleBarOverlay:codexLinuxTitleBarOverlay/,
+    /n===`linux`\?\{titleBarStyle:`hidden`,titleBarOverlay:chatgptLinuxTitleBarOverlay/,
   );
   assert.doesNotMatch(patched, /process\.platform===`linux`[^;]{0,300}setTitleBarOverlay/);
 });
 
 test("frameless-titlebar composes with the current native-titlebar patch shape", () => {
   const source =
-    "case`quickChat`:case`primary`:return n===`darwin`?{titleBarStyle:`hiddenInset`}:n===`win32`||n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:n===`linux`?codexLinuxTitleBarOverlay(r):j9(r),...e===`quickChat`?{resizable:!0}:{}}:{titleBarStyle:`default`,...e===`quickChat`?{resizable:!0}:{}};";
+    "case`quickChat`:case`primary`:return n===`darwin`?{titleBarStyle:`hiddenInset`}:n===`win32`||n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:n===`linux`?chatgptLinuxTitleBarOverlay(r):j9(r),...e===`quickChat`?{resizable:!0}:{}}:{titleBarStyle:`default`,...e===`quickChat`?{resizable:!0}:{}};";
   let patched;
   const warnings = captureWarnings(() => {
     patched = applyPatchTwice(applyFramelessTitlebarBranchPatch, source);
@@ -164,7 +164,7 @@ test("frameless-titlebar composes with the current native-titlebar patch shape",
 
 test("frameless-titlebar reports current main-process drift", () => {
   const titlebarSource =
-    "n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:codexLinuxTitleBarOverlay(r),...e===`quickChat`?{resizable:!1}:{}}:";
+    "n===`linux`?{titleBarStyle:`hidden`,titleBarOverlay:chatgptLinuxTitleBarOverlay(r),...e===`quickChat`?{resizable:!1}:{}}:";
   const overlaySource = [
     "setWindowZoom(e,t){(process.platform===`win32`||process.platform===`linux`)&&(this.windowZooms.set(n.id,t),n.setTitleBarOverlay(process.platform===`linux`?linuxOverlayV2(t):j9(t)))}",
     "installApplicationMenuTitleBarOverlaySync(e,t){if(process.platform!==`win32`&&process.platform!==`linux`||t!==`primary`&&t!==`quickChat`)return;let n=()=>{e.isDestroyed()||e.setTitleBarOverlay(process.platform===`linux`?linuxOverlayV2(this.windowZooms.get(e.id)):j9(this.windowZooms.get(e.id)))};return c.nativeTheme.on(`updated`,n),n(),()=>{c.nativeTheme.off(`updated`,n)}}",
@@ -209,9 +209,9 @@ test("frameless-titlebar retains standard end padding after the core safe-area p
   assert.equal(
     applyPatchTwice(
       applyFramelessTitlebarWebviewPatch,
-      "jsx(slot,{codexLinuxUseWindowControlsSafeArea:!t,side:`end`})",
+      "jsx(slot,{chatgptLinuxUseWindowControlsSafeArea:!t,side:`end`})",
     ),
-    "jsx(slot,{codexLinuxUseWindowControlsSafeArea:!1,side:`end`})",
+    "jsx(slot,{chatgptLinuxUseWindowControlsSafeArea:!1,side:`end`})",
   );
 });
 
@@ -241,7 +241,7 @@ test("frameless-titlebar reports each current webview sub-contract drift", () =>
   assert.deepEqual(
     captureWarnings(() =>
       applyFramelessTitlebarWebviewPatch(
-        "jsx(slot,{codexLinuxUseWindowControlsSafeArea:shouldReserveControls,side:`end`})",
+        "jsx(slot,{chatgptLinuxUseWindowControlsSafeArea:shouldReserveControls,side:`end`})",
       )),
     ["WARN: Could not disable the Linux window controls safe area - skipping frameless header padding patch"],
   );

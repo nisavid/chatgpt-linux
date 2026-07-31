@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Protected upstream ChatGPT Desktop macOS DMG surfaces that Linux packaging mirrors, patches, stages, or must explicitly classify before accepting a new upstream build.",
+  "description": "Protected official OpenAI ChatGPT DMG surfaces that Linux packaging mirrors, patches, stages, or must explicitly classify before accepting a new upstream build.",
   "surfaces": [
     {
       "id": "codex_chronicle",
@@ -525,12 +525,12 @@
         "browser-client\\.mjs",
         "config\\.toml",
         "site_status",
-        "codexLinuxFileUrlPolicy"
+        "chatgptLinuxFileUrlPolicy"
       ],
       "contentNeedles": [
         "config.toml",
         "/aura/site_status",
-        "codexLinuxFileUrlPolicy"
+        "chatgptLinuxFileUrlPolicy"
       ],
       "patchNamePatterns": [
         "file.*url",
@@ -562,13 +562,13 @@
       "pathPatterns": [
         "plugins/openai-bundled/plugins/chrome",
         "native[-_]messaging",
-        "codex-chrome-extension-host",
+        "chatgpt-chrome-extension-host",
         "chrome"
       ],
       "contentNeedles": [
         "nativeMessaging",
         "native-messaging",
-        "codex-chrome-extension-host",
+        "chatgpt-chrome-extension-host",
         "chrome-extension",
         "browser-client.mjs",
         "marketplace"
@@ -598,7 +598,7 @@
       ],
       "linuxSubstrate": {
         "requiredPaths": [
-          "computer-use-linux/src/bin/codex-chrome-extension-host.rs",
+          "computer-use-linux/src/bin/chatgpt-chrome-extension-host.rs",
           "scripts/lib/patch-chrome-plugin.js"
         ]
       }

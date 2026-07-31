@@ -1,4 +1,4 @@
-//! Binary entrypoint for the local Codex App update manager.
+//! Binary entrypoint for the local ChatGPT update manager.
 
 #[cfg(unix)]
 mod app;
@@ -69,6 +69,6 @@ async fn main() -> Result<()> {
 
 #[cfg(not(unix))]
 fn main() {
-    eprintln!("codex-app-updater supports Unix-like Linux package hosts only.");
+    eprintln!("chatgpt-updater supports Unix-like Linux package hosts only.");
     std::process::exit(1);
 }

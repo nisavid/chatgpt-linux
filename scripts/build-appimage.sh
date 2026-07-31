@@ -5,16 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$REPO_DIR/scripts/lib/package-common.sh"
 
-APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/codex-app}"
+APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
 APPDIR="${APPIMAGE_APPDIR_OVERRIDE:-$REPO_DIR/dist/appimage.AppDir}"
 APPRUN_TEMPLATE="$REPO_DIR/packaging/appimage/AppRun"
-DESKTOP_TEMPLATE="$REPO_DIR/packaging/appimage/codex-app.desktop"
-APPIMAGE_RUNTIME_TEMPLATE="$REPO_DIR/packaging/appimage/codex-appimage-runtime.sh"
+DESKTOP_TEMPLATE="$REPO_DIR/packaging/appimage/chatgpt.desktop"
+APPIMAGE_RUNTIME_TEMPLATE="$REPO_DIR/packaging/appimage/chatgpt-appimage-runtime.sh"
 CODEX_CLI_WRAPPER_TEMPLATE="$REPO_DIR/packaging/appimage/codex-cli-wrapper.sh"
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
-PACKAGE_DISPLAY_NAME="${PACKAGE_DISPLAY_NAME:-Codex App}"
-PACKAGE_COMMENT="${PACKAGE_COMMENT:-Run Codex App on Linux}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
+PACKAGE_DISPLAY_NAME="${PACKAGE_DISPLAY_NAME:-ChatGPT}"
+PACKAGE_COMMENT="${PACKAGE_COMMENT:-Run ChatGPT on Linux}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
 ICON_SOURCE="$(resolve_package_icon_source)"
 
@@ -63,7 +63,7 @@ render_template() {
 stage_bundled_codex_cli() {
     local arch="$1"
     local target="$APPDIR/opt/$PACKAGE_NAME/resources/codex-cli"
-    local cli_source="${CODEX_CLI_BUNDLE_SOURCE:-}"
+    local cli_source="${CHATGPT_CLI_BUNDLE_SOURCE:-}"
     local platform_package
     local platform_suffix
     local target_triple
@@ -162,7 +162,7 @@ prepare_appdir() {
         "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 
     cp -aT "$APP_DIR" "$APPDIR/opt/$PACKAGE_NAME"
-    mkdir -p "$APPDIR/opt/$PACKAGE_NAME/.codex-linux"
+    mkdir -p "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux"
     stage_bundled_codex_cli "$arch"
 
     render_template "$APPRUN_TEMPLATE" "$APPDIR/AppRun"
@@ -175,13 +175,13 @@ prepare_appdir() {
     cp "$ICON_SOURCE" "$APPDIR/$PACKAGE_NAME.png"
     cp "$ICON_SOURCE" "$APPDIR/.DirIcon"
     cp "$ICON_SOURCE" "$APPDIR/usr/share/icons/hicolor/256x256/apps/$PACKAGE_NAME.png"
-    cp "$ICON_SOURCE" "$APPDIR/opt/$PACKAGE_NAME/.codex-linux/$PACKAGE_NAME.png"
-    cp "$REPO_DIR/launcher/cli-launch-path.py" "$APPDIR/opt/$PACKAGE_NAME/.codex-linux/cli-launch-path.py"
+    cp "$ICON_SOURCE" "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/$PACKAGE_NAME.png"
+    cp "$REPO_DIR/launcher/cli-launch-path.py" "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/cli-launch-path.py"
 
     render_template \
         "$APPIMAGE_RUNTIME_TEMPLATE" \
-        "$APPDIR/opt/$PACKAGE_NAME/.codex-linux/codex-packaged-runtime.sh"
-    chmod 0644 "$APPDIR/opt/$PACKAGE_NAME/.codex-linux/codex-packaged-runtime.sh"
+        "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/chatgpt-packaged-runtime.sh"
+    chmod 0644 "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/chatgpt-packaged-runtime.sh"
     normalize_package_payload_permissions "$APPDIR"
     restore_port_integration_payload_permissions "$APPDIR"
 }

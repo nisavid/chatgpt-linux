@@ -12,7 +12,7 @@ play_sudo_alert_command() {
 play_sudo_alert() {
     local sound_file
 
-    sound_file="${CODEX_SUDO_ALERT_SOUND_FILE:-/usr/share/sounds/freedesktop/stereo/dialog-warning.oga}"
+    sound_file="${CHATGPT_SUDO_ALERT_SOUND_FILE:-/usr/share/sounds/freedesktop/stereo/dialog-warning.oga}"
     if command -v pw-play >/dev/null 2>&1 \
         && [ -r "$sound_file" ] \
         && play_sudo_alert_command pw-play "$sound_file" >/dev/null 2>&1; then
@@ -43,7 +43,7 @@ play_sudo_alert() {
     printf '\a' >&2 || true
 }
 
-if [ "${CODEX_SUDO_ALERT:-0}" != "1" ]; then
+if [ "${CHATGPT_SUDO_ALERT:-0}" != "1" ]; then
     exec sudo "$@"
 fi
 

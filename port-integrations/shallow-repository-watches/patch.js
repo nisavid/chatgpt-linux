@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const PATCH_MARKER = "codexLinuxShallowRepositoryWatches";
+const PATCH_MARKER = "chatgptLinuxShallowRepositoryWatches";
 const LOCAL_FILE_WATCH_METHOD =
   /async startFileWatch\((?<options>[A-Za-z_$][\w$]*)\)\{(?=let [^{}]{0,180}?await this\.platformPath\(\),[^{}]{0,180}?\(0,[A-Za-z_$][\w$]*\.watch\)\(this\.getFileSystemPath\(\k<options>\.path\),\{recursive:\k<options>\.recursive\})/gu;
 

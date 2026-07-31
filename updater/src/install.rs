@@ -11,8 +11,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub(crate) const PACKAGE_NAME: &str = "codex-app";
-const INSTALLED_UPDATER_BINARY: &str = "/usr/bin/codex-app-updater";
+pub(crate) const PACKAGE_NAME: &str = "chatgpt";
+const INSTALLED_UPDATER_BINARY: &str = "/usr/bin/chatgpt-updater";
 const APT_CANDIDATES: &[&str] = &["/usr/bin/apt", "/bin/apt"];
 const DNF_CANDIDATES: &[&str] = &["/usr/bin/dnf", "/bin/dnf", "/usr/bin/dnf5", "/bin/dnf5"];
 const DPKG_CANDIDATES: &[&str] = &["/usr/bin/dpkg", "/bin/dpkg"];
@@ -467,7 +467,7 @@ fn pkexec_command_with_updater_binary(
         PackageKind::Pacman => "install-pacman",
     };
     #[cfg(test)]
-    let pkexec_program = std::env::var_os("CODEX_APP_UPDATER_TEST_PKEXEC_PATH")
+    let pkexec_program = std::env::var_os("CHATGPT_UPDATER_TEST_PKEXEC_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("pkexec"));
     #[cfg(not(test))]
@@ -532,9 +532,9 @@ pub(crate) fn stage_package_for_privileged_install(path: &Path) -> Result<Staged
         "Package format changed while resolving {}",
         path.display()
     );
-    ensure_codex_package(&source_path)?;
+    ensure_chatgpt_package(&source_path)?;
 
-    let dir = PrivateStagingDir::create("codex-app-privileged-install-")
+    let dir = PrivateStagingDir::create("chatgpt-privileged-install-")
         .context("Failed to create private package staging directory")?;
     let staged_path = dir.path().join(stable_file_name(kind, &source_path)?);
     fs::copy(&source_path, &staged_path).with_context(|| {
@@ -550,7 +550,7 @@ pub(crate) fn stage_package_for_privileged_install(path: &Path) -> Result<Staged
         "Package format changed while stabilizing {}",
         path.display()
     );
-    ensure_codex_package(&staged_path)?;
+    ensure_chatgpt_package(&staged_path)?;
 
     Ok(StagedPackage {
         _dir: dir,
@@ -563,7 +563,7 @@ fn package_identity_path(path: &Path) -> Result<PathBuf> {
         .with_context(|| format!("Failed to resolve package path {}", path.display()))
 }
 
-pub(crate) fn ensure_codex_package(path: &Path) -> Result<()> {
+pub(crate) fn ensure_chatgpt_package(path: &Path) -> Result<()> {
     match PackageKind::from_path(path) {
         PackageKind::Deb => ensure_package_name(&deb_package_name(path)?, path),
         PackageKind::Rpm => ensure_package_name(&rpm_package_name(path)?, path),
@@ -626,8 +626,8 @@ fn package_version(path: &Path) -> Result<String> {
 
 fn stable_file_name(kind: PackageKind, path: &Path) -> Result<String> {
     match kind {
-        PackageKind::Deb => Ok("codex-app.deb".to_string()),
-        PackageKind::Rpm => Ok("codex-app.rpm".to_string()),
+        PackageKind::Deb => Ok("chatgpt.deb".to_string()),
+        PackageKind::Rpm => Ok("chatgpt.rpm".to_string()),
         PackageKind::Pacman => path
             .file_name()
             .with_context(|| format!("Pacman package path has no file name: {}", path.display()))
@@ -916,6 +916,11 @@ fn pacman_install_command(path: &Path) -> Command {
 }
 
 fn updater_binary_for_privileged_install() -> Result<PathBuf> {
+    #[cfg(test)]
+    if let Some(path) = std::env::var_os("CHATGPT_UPDATER_TEST_INSTALLED_BINARY") {
+        return Ok(PathBuf::from(path));
+    }
+
     let installed = PathBuf::from(INSTALLED_UPDATER_BINARY);
     validate_installed_updater_binary(&installed)
 }
@@ -1217,7 +1222,7 @@ mod tests {
     #[test]
     fn builds_pkexec_command_for_privileged_deb_install() {
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.deb"),
             None,
             false,
@@ -1230,7 +1235,7 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-deb",
                 "--path",
                 "/tmp/update.deb"
@@ -1241,7 +1246,7 @@ mod tests {
     #[test]
     fn builds_pkexec_command_for_privileged_rpm_install() {
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.rpm"),
             None,
             false,
@@ -1254,7 +1259,7 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-rpm",
                 "--path",
                 "/tmp/update.rpm"
@@ -1266,11 +1271,11 @@ mod tests {
     fn package_verification_args_are_passed_to_privileged_install_command() -> Result<()> {
         let expected = ExpectedPackage::new(
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
-            "codex-app",
+            "chatgpt",
             "26.429.20946",
         )?;
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.deb"),
             Some(&expected),
             false,
@@ -1283,14 +1288,14 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-deb",
                 "--path",
                 "/tmp/update.deb",
                 "--expected-sha256",
                 "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
                 "--expected-package-name",
-                "codex-app",
+                "chatgpt",
                 "--expected-package-version",
                 "26.429.20946"
             ]
@@ -1302,11 +1307,11 @@ mod tests {
     fn same_version_wrapper_install_is_explicitly_flagged() -> Result<()> {
         let expected = ExpectedPackage::new(
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
-            "codex-app",
+            "chatgpt",
             "26.429.20946",
         )?;
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.deb"),
             Some(&expected),
             true,
@@ -1329,7 +1334,7 @@ mod tests {
     #[test]
     fn rejects_uninstalled_updater_path_for_pkexec() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let missing = temp.path().join("missing-codex-app-updater");
+        let missing = temp.path().join("missing-chatgpt-updater");
 
         let error = validate_installed_updater_binary(&missing)
             .expect_err("missing installed updater should be rejected");
@@ -1339,21 +1344,21 @@ mod tests {
 
     #[test]
     fn builds_local_apt_install_command() -> Result<()> {
-        let command = apt_install_command(Path::new("/tmp/build/codex.deb"), false)?;
+        let command = apt_install_command(Path::new("/tmp/build/chatgpt.deb"), false)?;
         assert!(command.get_program().to_string_lossy().ends_with("apt"));
         assert_eq!(
             command
                 .get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["install", "-y", "./codex.deb"]
+            vec!["install", "-y", "./chatgpt.deb"]
         );
         Ok(())
     }
 
     #[test]
     fn builds_local_dnf_install_command() -> Result<()> {
-        let command = dnf_install_command(Path::new("/tmp/build/codex.rpm"), false)?;
+        let command = dnf_install_command(Path::new("/tmp/build/chatgpt.rpm"), false)?;
         let program = command.get_program().to_string_lossy();
         assert!(program.ends_with("dnf") || program.ends_with("dnf5"));
         assert_eq!(
@@ -1361,14 +1366,14 @@ mod tests {
                 .get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["install", "-y", "./codex.rpm"]
+            vec!["install", "-y", "./chatgpt.rpm"]
         );
         Ok(())
     }
 
     #[test]
     fn builds_local_zypper_install_command() -> Result<()> {
-        let command = zypper_install_command(Path::new("/tmp/build/codex.rpm"), false)?;
+        let command = zypper_install_command(Path::new("/tmp/build/chatgpt.rpm"), false)?;
         assert!(command.get_program().to_string_lossy().ends_with("zypper"));
         assert_eq!(
             command
@@ -1380,7 +1385,7 @@ mod tests {
                 "install",
                 "--allow-unsigned-rpm",
                 "-y",
-                "./codex.rpm"
+                "./chatgpt.rpm"
             ]
         );
         Ok(())
@@ -1388,23 +1393,23 @@ mod tests {
 
     #[test]
     fn same_version_installs_use_reinstall_command_shapes() -> Result<()> {
-        let apt = apt_install_command(Path::new("/tmp/build/codex.deb"), true)?;
+        let apt = apt_install_command(Path::new("/tmp/build/chatgpt.deb"), true)?;
         assert_eq!(
             apt.get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["reinstall", "-y", "./codex.deb"]
+            vec!["reinstall", "-y", "./chatgpt.deb"]
         );
 
-        let dnf = dnf_install_command(Path::new("/tmp/build/codex.rpm"), true)?;
+        let dnf = dnf_install_command(Path::new("/tmp/build/chatgpt.rpm"), true)?;
         assert_eq!(
             dnf.get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["reinstall", "-y", "./codex.rpm"]
+            vec!["reinstall", "-y", "./chatgpt.rpm"]
         );
 
-        let zypper = zypper_install_command(Path::new("/tmp/build/codex.rpm"), true)?;
+        let zypper = zypper_install_command(Path::new("/tmp/build/chatgpt.rpm"), true)?;
         assert_eq!(
             zypper
                 .get_args()
@@ -1416,16 +1421,16 @@ mod tests {
                 "--allow-unsigned-rpm",
                 "--force",
                 "-y",
-                "./codex.rpm"
+                "./chatgpt.rpm"
             ]
         );
 
-        let rpm = rpm_install_command(Path::new("/tmp/build/codex.rpm"), true);
+        let rpm = rpm_install_command(Path::new("/tmp/build/chatgpt.rpm"), true);
         assert_eq!(
             rpm.get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["-Uvh", "--replacepkgs", "--", "/tmp/build/codex.rpm"]
+            vec!["-Uvh", "--replacepkgs", "--", "/tmp/build/chatgpt.rpm"]
         );
         Ok(())
     }
@@ -1433,7 +1438,7 @@ mod tests {
     #[test]
     fn rejects_unreadable_privileged_install_package_metadata() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let source = temp.path().join("codex-app_26.429.20946_amd64.deb");
+        let source = temp.path().join("chatgpt_26.429.20946_amd64.deb");
         fs::write(&source, b"validated bytes")?;
 
         let error = match stage_package_for_privileged_install(&source) {
@@ -1449,18 +1454,18 @@ mod tests {
     fn stable_file_name_uses_safe_names_for_deb_and_rpm() -> Result<()> {
         assert_eq!(
             stable_file_name(PackageKind::Deb, Path::new("-evil.deb"))?,
-            "codex-app.deb"
+            "chatgpt.deb"
         );
         assert_eq!(
             stable_file_name(PackageKind::Rpm, Path::new("-evil.rpm"))?,
-            "codex-app.rpm"
+            "chatgpt.rpm"
         );
         assert_eq!(
             stable_file_name(
                 PackageKind::Pacman,
-                Path::new("/tmp/codex-app-2026.03.30-1-x86_64.pkg.tar.zst")
+                Path::new("/tmp/chatgpt-2026.03.30-1-x86_64.pkg.tar.zst")
             )?,
-            "codex-app-2026.03.30-1-x86_64.pkg.tar.zst"
+            "chatgpt-2026.03.30-1-x86_64.pkg.tar.zst"
         );
         Ok(())
     }
@@ -1468,7 +1473,7 @@ mod tests {
     #[test]
     fn package_kind_from_path_detects_rpm() {
         assert_eq!(
-            PackageKind::from_path(Path::new("/tmp/codex.rpm")),
+            PackageKind::from_path(Path::new("/tmp/chatgpt.rpm")),
             PackageKind::Rpm
         );
     }
@@ -1476,7 +1481,7 @@ mod tests {
     #[test]
     fn package_kind_from_path_detects_deb() {
         assert_eq!(
-            PackageKind::from_path(Path::new("/tmp/codex.deb")),
+            PackageKind::from_path(Path::new("/tmp/chatgpt.deb")),
             PackageKind::Deb
         );
     }
@@ -1484,7 +1489,7 @@ mod tests {
     #[test]
     fn package_kind_from_path_detects_pacman_zst() {
         assert_eq!(
-            PackageKind::from_path(Path::new("/tmp/codex-app-2026.03.30-1-x86_64.pkg.tar.zst")),
+            PackageKind::from_path(Path::new("/tmp/chatgpt-2026.03.30-1-x86_64.pkg.tar.zst")),
             PackageKind::Pacman
         );
     }
@@ -1492,7 +1497,7 @@ mod tests {
     #[test]
     fn package_kind_from_path_detects_pacman_xz() {
         assert_eq!(
-            PackageKind::from_path(Path::new("/tmp/codex-app-2026.03.30-1-x86_64.pkg.tar.xz")),
+            PackageKind::from_path(Path::new("/tmp/chatgpt-2026.03.30-1-x86_64.pkg.tar.xz")),
             PackageKind::Pacman
         );
     }
@@ -1592,7 +1597,7 @@ mod tests {
     #[test]
     fn builds_pkexec_command_for_privileged_pacman_install() {
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.pkg.tar.zst"),
             None,
             false,
@@ -1605,7 +1610,7 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-pacman",
                 "--path",
                 "/tmp/update.pkg.tar.zst"
@@ -1686,7 +1691,7 @@ mod tests {
     #[test]
     fn parses_pacman_installed_version_output() {
         assert_eq!(
-            parse_pacman_installed_version(b"codex-app 2026.04.02.120000-1\n".to_vec()),
+            parse_pacman_installed_version(b"chatgpt 2026.04.02.120000-1\n".to_vec()),
             "2026.04.02.120000-1"
         );
     }
@@ -1695,7 +1700,7 @@ mod tests {
     fn parses_pacman_package_version_from_filename() -> Result<()> {
         assert_eq!(
             pacman_package_version(Path::new(
-                "/tmp/codex-app-2026.04.02.120000-1-x86_64.pkg.tar.zst"
+                "/tmp/chatgpt-2026.04.02.120000-1-x86_64.pkg.tar.zst"
             ))?,
             "2026.04.02.120000-1"
         );
@@ -1706,9 +1711,9 @@ mod tests {
     #[test]
     fn resolves_pacman_latest_symlink_to_versioned_package_identity() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let package_name = "codex-app-2026.04.02.120000-1-x86_64.pkg.tar.zst";
+        let package_name = "chatgpt-2026.04.02.120000-1-x86_64.pkg.tar.zst";
         let package_path = temp.path().join(package_name);
-        let latest_path = temp.path().join("codex-app-latest.pkg.tar.zst");
+        let latest_path = temp.path().join("chatgpt-latest.pkg.tar.zst");
         std::fs::write(&package_path, b"pkg")?;
         std::os::unix::fs::symlink(package_name, &latest_path)?;
 
@@ -1731,24 +1736,24 @@ mod tests {
 
     #[test]
     fn rejects_mismatched_package_name() {
-        let error = ensure_package_name("not-codex", Path::new("/tmp/not-codex.deb"))
+        let error = ensure_package_name("not-chatgpt", Path::new("/tmp/not-chatgpt.deb"))
             .expect_err("foreign package names must be rejected");
 
-        assert!(error.to_string().contains("expected codex-app"));
+        assert!(error.to_string().contains("expected chatgpt"));
     }
 
     #[test]
-    fn accepts_codex_package_name() -> Result<()> {
-        ensure_package_name("codex-app", Path::new("/tmp/codex-app.deb"))
+    fn accepts_chatgpt_package_name() -> Result<()> {
+        ensure_package_name("chatgpt", Path::new("/tmp/chatgpt.deb"))
     }
 
     #[test]
-    fn rejects_non_codex_pacman_package_filename() {
-        let error = ensure_codex_package(Path::new(
-            "/tmp/not-codex-2026.04.02.120000-1-x86_64.pkg.tar.zst",
+    fn rejects_non_chatgpt_pacman_package_filename() {
+        let error = ensure_chatgpt_package(Path::new(
+            "/tmp/not-chatgpt-2026.04.02.120000-1-x86_64.pkg.tar.zst",
         ))
         .expect_err("foreign pacman packages must be rejected");
 
-        assert!(error.to_string().contains("codex-app-"));
+        assert!(error.to_string().contains("chatgpt-"));
     }
 }

@@ -263,33 +263,33 @@ find_system_computer_use_binary() {
 
 build_linux_computer_use_backend() {
     local crate_dir="$SCRIPT_DIR/computer-use-linux"
-    local backend_binary="$SCRIPT_DIR/target/release/codex-computer-use-linux"
-    local cosmic_helper_binary="$SCRIPT_DIR/target/release/codex-computer-use-cosmic"
+    local backend_binary="$SCRIPT_DIR/target/release/chatgpt-computer-use-linux"
+    local cosmic_helper_binary="$SCRIPT_DIR/target/release/chatgpt-computer-use-cosmic"
     local cargo_cmd=""
     local system_backend=""
     local system_cosmic=""
 
     # Step 1: Environment override
-    if [ -n "${CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || [ -n "${CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ]; then
-        [ -n "${CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || warn "CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE is not set; falling back to source build"
-        [ -n "${CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] || warn "CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE is not set; falling back to source build"
-        [ -z "${CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || [ -x "$CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE" ] || warn "CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE is not executable: $CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE"
-        [ -z "${CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] || [ -x "$CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE" ] || warn "CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE is not executable: $CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE"
+    if [ -n "${CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || [ -n "${CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ]; then
+        [ -n "${CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || warn "CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE is not set; falling back to source build"
+        [ -n "${CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] || warn "CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE is not set; falling back to source build"
+        [ -z "${CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] || [ -x "$CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE" ] || warn "CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE is not executable: $CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE"
+        [ -z "${CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] || [ -x "$CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE" ] || warn "CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE is not executable: $CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE"
     fi
 
-    if [ -n "${CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] && [ -x "$CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE" ] &&
-        [ -n "${CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] && [ -x "$CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE" ]; then
+    if [ -n "${CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE:-}" ] && [ -x "$CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE" ] &&
+        [ -n "${CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE:-}" ] && [ -x "$CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE" ]; then
         info "Using prebuilt Linux Computer Use backend"
-        printf '%s\n%s\n' "$CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE" "$CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE"
+        printf '%s\n%s\n' "$CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE" "$CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE"
         return 0
     fi
 
     # Steps 2-3 are opt-in: the vendored build stays the default so the
     # repository only ships code it is responsible for. Set
-    # CODEX_LINUX_COMPUTER_USE_SYSTEM_INSTALL=1 to reuse a system-installed
+    # CHATGPT_LINUX_COMPUTER_USE_SYSTEM_INSTALL=1 to reuse a system-installed
     # computer-use-linux (or install it from crates.io) instead of building
     # the vendored crate.
-    if [ "${CODEX_LINUX_COMPUTER_USE_SYSTEM_INSTALL:-}" = "1" ]; then
+    if [ "${CHATGPT_LINUX_COMPUTER_USE_SYSTEM_INSTALL:-}" = "1" ]; then
         # Step 2: System-installed binaries
         if system_backend="$(find_system_computer_use_binary computer-use-linux)" &&
             system_cosmic="$(find_system_computer_use_binary computer-use-linux-cosmic)"; then
@@ -328,7 +328,7 @@ build_linux_computer_use_backend() {
     fi
 
     info "Building Linux Computer Use backend from vendored source..."
-    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p codex-computer-use-linux >&2); then
+    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p chatgpt-computer-use-linux >&2); then
         warn "Failed to build Linux Computer Use backend"
         return 1
     fi
@@ -369,10 +369,10 @@ stage_linux_computer_use_plugin() {
     mkdir -p "$target_plugin"
     cp -R "$plugin_template/." "$target_plugin/"
     mkdir -p "$target_plugin/bin"
-    cp "$backend_binary" "$target_plugin/bin/codex-computer-use-linux"
-    cp "$cosmic_helper_binary" "$target_plugin/bin/codex-computer-use-cosmic"
-    chmod 0755 "$target_plugin/bin/codex-computer-use-linux"
-    chmod 0755 "$target_plugin/bin/codex-computer-use-cosmic"
+    cp "$backend_binary" "$target_plugin/bin/chatgpt-computer-use-linux"
+    cp "$cosmic_helper_binary" "$target_plugin/bin/chatgpt-computer-use-cosmic"
+    chmod 0755 "$target_plugin/bin/chatgpt-computer-use-linux"
+    chmod 0755 "$target_plugin/bin/chatgpt-computer-use-cosmic"
     if [ "${backend_binary##*/}" = "computer-use-linux" ]; then
         # The published backend resolves its COSMIC helper by this sibling name.
         cp "$cosmic_helper_binary" "$target_plugin/bin/computer-use-linux-cosmic"
@@ -692,7 +692,7 @@ install_browser_use_node_repl_executable_resource() {
 browser_use_node_repl_runtime_url() {
     case "$ARCH" in
         x86_64)
-            echo "${CODEX_BROWSER_USE_NODE_REPL_RUNTIME_URL:-https://persistent.oaistatic.com/codex-primary-runtime/26.426.12240/codex-primary-runtime-linux-x64-26.426.12240.tar.xz}"
+            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL:-https://persistent.oaistatic.com/codex-primary-runtime/26.426.12240/codex-primary-runtime-linux-x64-26.426.12240.tar.xz}"
             ;;
         *)
             return 1
@@ -703,7 +703,7 @@ browser_use_node_repl_runtime_url() {
 browser_use_node_repl_runtime_sha256() {
     case "$ARCH" in
         x86_64)
-            echo "${CODEX_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-db5624eb6efa36b66ec6f6dd0488cefb966e49636862aab6209a4336c1ca90c4}"
+            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-db5624eb6efa36b66ec6f6dd0488cefb966e49636862aab6209a4336c1ca90c4}"
             ;;
         *)
             return 1
@@ -726,7 +726,7 @@ install_node_repl_from_primary_runtime_archive() {
     fi
     expected_sha="$(browser_use_node_repl_runtime_sha256)"
 
-    cache_dir="${CODEX_BROWSER_USE_RUNTIME_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/codex-app/browser-use}"
+    cache_dir="${CHATGPT_BROWSER_USE_RUNTIME_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/chatgpt/browser-use}"
     archive="$cache_dir/$(basename "$url")"
     extract_dir="$WORK_DIR/browser-use-node-repl-runtime"
     source="$extract_dir/codex-primary-runtime/dependencies/bin/node_repl"
@@ -764,7 +764,7 @@ install_browser_use_node_repl_resource() {
     local source
 
     for source in \
-        "${CODEX_LINUX_NODE_REPL_SOURCE:-}" \
+        "${CHATGPT_LINUX_NODE_REPL_SOURCE:-}" \
         "${CODEX_NODE_REPL_PATH:-}"
     do
         [ -n "$source" ] || continue
@@ -969,16 +969,16 @@ chrome_extension_host_arch() {
 }
 
 build_chrome_extension_host() {
-    local source_binary="$SCRIPT_DIR/target/release/codex-chrome-extension-host"
+    local source_binary="$SCRIPT_DIR/target/release/chatgpt-chrome-extension-host"
     local cargo_cmd=""
 
-    if [ -n "${CODEX_CHROME_EXTENSION_HOST_SOURCE:-}" ]; then
-        if [ -x "$CODEX_CHROME_EXTENSION_HOST_SOURCE" ]; then
+    if [ -n "${CHATGPT_CHROME_EXTENSION_HOST_SOURCE:-}" ]; then
+        if [ -x "$CHATGPT_CHROME_EXTENSION_HOST_SOURCE" ]; then
             info "Using prebuilt Chrome extension host"
-            printf '%s\n' "$CODEX_CHROME_EXTENSION_HOST_SOURCE"
+            printf '%s\n' "$CHATGPT_CHROME_EXTENSION_HOST_SOURCE"
             return 0
         else
-            warn "CODEX_CHROME_EXTENSION_HOST_SOURCE is not executable: $CODEX_CHROME_EXTENSION_HOST_SOURCE"
+            warn "CHATGPT_CHROME_EXTENSION_HOST_SOURCE is not executable: $CHATGPT_CHROME_EXTENSION_HOST_SOURCE"
         fi
     fi
 
@@ -988,7 +988,7 @@ build_chrome_extension_host() {
     fi
 
     info "Building Chrome extension host..."
-    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p codex-computer-use-linux --bin codex-chrome-extension-host >&2); then
+    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p chatgpt-computer-use-linux --bin chatgpt-chrome-extension-host >&2); then
         warn "Failed to build Chrome extension host"
         return 1
     fi
@@ -1066,7 +1066,7 @@ patch_browser_client_linux_socket_dir() {
 patch_browser_use_node_repl_process_env_import() {
     local client="$1"
 
-    if grep -q "codexLinuxBrowserUseProcessEnv" "$client"; then
+    if grep -q "chatgptLinuxBrowserUseProcessEnv" "$client"; then
         return 0
     fi
 
@@ -1091,8 +1091,8 @@ if match is None:
 
 binding = match.group("binding")
 replacement = (
-    "var codexLinuxBrowserUseProcessEnv=globalThis.nodeRepl?.env??{},"
-    f"{binding}=codexLinuxBrowserUseProcessEnv;"
+    "var chatgptLinuxBrowserUseProcessEnv=globalThis.nodeRepl?.env??{},"
+    f"{binding}=chatgptLinuxBrowserUseProcessEnv;"
 )
 path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")
 PY
@@ -1158,7 +1158,7 @@ stage_chrome_plugin_from_official_app() {
 patch_browser_use_site_status_allowlist_fallback() {
     local client="$1"
 
-    if grep -q "codexLinuxSiteStatusAllowlistFallback" "$client"; then
+    if grep -q "chatgptLinuxSiteStatusAllowlistFallback" "$client"; then
         return 0
     fi
 
@@ -1181,6 +1181,17 @@ pattern = re.compile(
 )
 match = pattern.search(source)
 if match is None:
+    current_native_fail_open = all(
+        marker in source
+        for marker in (
+            "/aura/site_status",
+            "fetchBlocked(",
+            "error_fail_open",
+            "site_status_unavailable",
+        )
+    )
+    if current_native_fail_open:
+        raise SystemExit(0)
     if "/aura/site_status" not in source and "fetchBlocked(" not in source:
         raise SystemExit(0)
     print(
@@ -1196,13 +1207,13 @@ formatter = match.group("format")
 json_value = match.group("json")
 status = match.group("status")
 label = match.group("label")
-error = "__codexLinuxErr"
+error = "__chatgptLinuxErr"
 error_message = f'${{{label}}} cannot determine if ${{{url}.displayUrl}} is allowed. Please try again later or use another source.'
 replacement = (
     f'async fetchBlocked({url},{label}){{let {response};try{{{response}=await {fetch}({url}.endpoint,{{method:"GET"}})}}'
     f'catch({error}){{if(String({url}?.endpoint??"").includes("/aura/site_status")&&'
     f'String({error}?.message??{error}).toLowerCase().includes("allowlist"))'
-    f'return!1/*codexLinuxSiteStatusAllowlistFallback*/;throw {error}}}'
+    f'return!1/*chatgptLinuxSiteStatusAllowlistFallback*/;throw {error}}}'
     f'if(!{response}.ok)throw new Error({formatter}(`{error_message}`));'
     f'let {json_value}=await {response}.json();return {status}({json_value})}}'
 )
@@ -1213,7 +1224,7 @@ PY
 patch_browser_use_file_url_policy() {
     local client="$1"
 
-    if grep -q "codexLinuxFileUrlPolicy" "$client"; then
+    if grep -q "chatgptLinuxFileUrlPolicy" "$client"; then
         return 0
     fi
 
@@ -1258,7 +1269,7 @@ for pattern in patterns:
     file_policy = (
         f'{parsed}.protocol==="file:"&&'
         f'({parsed}.hostname===""||{parsed}.hostname==="localhost")'
-        f'/*codexLinuxFileUrlPolicy*/'
+        f'/*chatgptLinuxFileUrlPolicy*/'
     )
     new_return = (
         f'return {parsed}.protocol==="http:"||{parsed}.protocol==="https:"||'
@@ -1320,7 +1331,7 @@ PY
 patch_browser_use_node_repl_config_shim() {
     local client="$1"
 
-    if grep -q "codexLinuxBrowserUseConfigShim" "$client"; then
+    if grep -q "chatgptLinuxBrowserUseConfigShim" "$client"; then
         return 0
     fi
 
@@ -1347,18 +1358,18 @@ if match is None:
 helper = match.group("helper")
 value = match.group("value")
 shim = r'''
-function codexLinuxBrowserUseConfigShim() {
+function chatgptLinuxBrowserUseConfigShim() {
   let repl = globalThis.nodeRepl;
   if (repl == null) return;
-  codexLinuxBrowserUseNodeReplMethodShim(repl);
+  chatgptLinuxBrowserUseNodeReplMethodShim(repl);
   if (repl.config != null) return;
   let config = {
-    read: async () => ({ config: await codexLinuxBrowserUseReadToml("config.toml") }),
+    read: async () => ({ config: await chatgptLinuxBrowserUseReadToml("config.toml") }),
     readRequirements: async () => ({ requirements: null }),
-    readToml: async (filePath) => codexLinuxBrowserUseReadToml(filePath),
-    writeToml: codexLinuxBrowserUseIgnoreConfigWrite,
-    writeValue: codexLinuxBrowserUseIgnoreConfigWrite,
-    batchWrite: codexLinuxBrowserUseIgnoreConfigWrite,
+    readToml: async (filePath) => chatgptLinuxBrowserUseReadToml(filePath),
+    writeToml: chatgptLinuxBrowserUseIgnoreConfigWrite,
+    writeValue: chatgptLinuxBrowserUseIgnoreConfigWrite,
+    batchWrite: chatgptLinuxBrowserUseIgnoreConfigWrite,
   };
 
   try {
@@ -1377,12 +1388,12 @@ function codexLinuxBrowserUseConfigShim() {
   } catch {}
 }
 
-function codexLinuxBrowserUseNodeReplMethodShim(repl) {
+function chatgptLinuxBrowserUseNodeReplMethodShim(repl) {
   // Older Linux node_repl builds do not expose browser notification hooks.
-  codexLinuxBrowserUseDefineNodeReplMethod(repl, "addAfterSubmittedCodeHook", () => () => undefined);
+  chatgptLinuxBrowserUseDefineNodeReplMethod(repl, "addAfterSubmittedCodeHook", () => () => undefined);
 }
 
-function codexLinuxBrowserUseDefineNodeReplMethod(repl, name, value) {
+function chatgptLinuxBrowserUseDefineNodeReplMethod(repl, name, value) {
   if (typeof repl?.[name] == "function") return;
 
   try {
@@ -1401,7 +1412,7 @@ function codexLinuxBrowserUseDefineNodeReplMethod(repl, name, value) {
   } catch {}
 }
 
-function codexLinuxBrowserUseCodexHome() {
+function chatgptLinuxBrowserUseCodexHome() {
   let codexHome = globalThis.nodeRepl?.env?.CODEX_HOME;
   if (typeof codexHome == "string" && codexHome.length > 0) {
     return codexHome.replace(/\/+$/, "");
@@ -1413,8 +1424,8 @@ function codexLinuxBrowserUseCodexHome() {
     : null;
 }
 
-function codexLinuxBrowserUseConfigPath(filePath) {
-  let codexHome = codexLinuxBrowserUseCodexHome();
+function chatgptLinuxBrowserUseConfigPath(filePath) {
+  let codexHome = chatgptLinuxBrowserUseCodexHome();
   if (codexHome == null || typeof filePath != "string" || filePath.length === 0) {
     return null;
   }
@@ -1430,24 +1441,24 @@ function codexLinuxBrowserUseConfigPath(filePath) {
   return normalized.split("/").includes("..") ? null : `${codexHome}/${normalized}`;
 }
 
-async function codexLinuxBrowserUseReadToml(filePath) {
-  let configPath = codexLinuxBrowserUseConfigPath(filePath);
+async function chatgptLinuxBrowserUseReadToml(filePath) {
+  let configPath = chatgptLinuxBrowserUseConfigPath(filePath);
   if (configPath == null) return {};
 
   try {
     let { readFile } = await import("node:fs/promises");
-    return codexLinuxBrowserUseParseToml(await readFile(configPath, "utf8"));
+    return chatgptLinuxBrowserUseParseToml(await readFile(configPath, "utf8"));
   } catch (error) {
     if (error && typeof error == "object" && error.code === "ENOENT") return {};
     throw error;
   }
 }
 
-async function codexLinuxBrowserUseIgnoreConfigWrite() {
+async function chatgptLinuxBrowserUseIgnoreConfigWrite() {
   return undefined;
 }
 
-function codexLinuxBrowserUseParseToml(source) {
+function chatgptLinuxBrowserUseParseToml(source) {
   let root = {};
   let section = root;
 
@@ -1471,13 +1482,13 @@ function codexLinuxBrowserUseParseToml(source) {
 
     let key = trimmed.slice(0, separator).trim();
     let value = trimmed.slice(separator + 1).trim();
-    if (key) section[key] = codexLinuxBrowserUseParseTomlValue(value);
+    if (key) section[key] = chatgptLinuxBrowserUseParseTomlValue(value);
   }
 
   return root;
 }
 
-function codexLinuxBrowserUseParseTomlValue(value) {
+function chatgptLinuxBrowserUseParseTomlValue(value) {
   if (value === "true") return true;
   if (value === "false") return false;
   if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
@@ -1486,7 +1497,7 @@ function codexLinuxBrowserUseParseTomlValue(value) {
     let body = value.slice(1, -1).trim();
     return body.length === 0
       ? []
-      : body.split(",").map((item) => codexLinuxBrowserUseParseTomlValue(item.trim()));
+      : body.split(",").map((item) => chatgptLinuxBrowserUseParseTomlValue(item.trim()));
   }
 
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
@@ -1502,7 +1513,7 @@ function codexLinuxBrowserUseParseTomlValue(value) {
 '''
 replacement = (
     shim
-    + f'function {helper}(){{codexLinuxBrowserUseConfigShim();let {value}=globalThis.nodeRepl;'
+    + f'function {helper}(){{chatgptLinuxBrowserUseConfigShim();let {value}=globalThis.nodeRepl;'
     + f'return {value}?.config==null?void 0:{value}}}'
 )
 path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")

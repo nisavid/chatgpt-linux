@@ -28,7 +28,7 @@ function captureWarnings(callback) {
 
 test("workspace root dropdown adds Linux open targets alongside File Manager", () => {
   const mainSource = [
-    "function codexLinuxIdeCommand(){}",
+    "function chatgptLinuxIdeCommand(){}",
     "var lM={id:`vscode`};",
     "var iN={id:`vscodeInsiders`};",
     "var wN={id:`zed`,platforms:{linux:{label:`Zed`}}};",
@@ -54,10 +54,10 @@ test("workspace root dropdown adds Linux open targets alongside File Manager", (
     { id: "terminal", label: "Terminal" },
   ]);
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:vscode/);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:vscodeInsiders/);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:zed/);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:terminal/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:vscode/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:vscodeInsiders/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:zed/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:terminal/);
   assert.match(patched, /target:`vscode`/);
   assert.match(patched, /target:`vscodeInsiders`/);
   assert.match(patched, /target:`zed`/);
@@ -89,8 +89,8 @@ test("workspace root dropdown patches every File Manager item in a shared chunk"
   const patched = applyWorkspaceRootOpenTargetsPatch(source, targets);
 
   assert.notEqual(patched, source);
-  assert.equal((patched.match(/codexLinuxWorkspaceRootOpenTarget:vscode/g) ?? []).length, 2);
-  assert.equal((patched.match(/codexLinuxWorkspaceRootOpenTarget:zed/g) ?? []).length, 2);
+  assert.equal((patched.match(/chatgptLinuxWorkspaceRootOpenTarget:vscode/g) ?? []).length, 2);
+  assert.equal((patched.match(/chatgptLinuxWorkspaceRootOpenTarget:zed/g) ?? []).length, 2);
   assert.equal((patched.match(/target:`vscode`/g) ?? []).length, 2);
   assert.equal((patched.match(/target:`zed`/g) ?? []).length, 2);
   assert.equal((patched.match(/target:`fileManager`/g) ?? []).length, 2);
@@ -116,9 +116,9 @@ test("workspace root dropdown follows aliased File Manager callbacks", () => {
   const patched = applyWorkspaceRootOpenTargetsPatch(source, targets);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:vscode/);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:zed/);
-  assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:terminal/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:vscode/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:zed/);
+  assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:terminal/);
   assert.match(patched, /onSelect:\(\)=>\{Ta\(\{path:_,cwd:S\(_\),target:`vscode`\}\),a\(!1\)\}/);
   assert.match(patched, /target:`fileManager`/);
   assert.match(patched, /\(0,\$\.jsx\)\(di\.Item,\{LeftIcon:em,onSelect:w/);
@@ -173,7 +173,7 @@ test("workspace root open targets patch scans the current app page chunk", () =>
     fs.writeFileSync(
       path.join(buildDir, "main.js"),
       [
-        "function codexLinuxIdeCommand(){}",
+        "function chatgptLinuxIdeCommand(){}",
         "var lM={id:`vscode`};",
         "var iN={id:`vscodeInsiders`};",
         "var wN={id:`zed`,platforms:{linux:{label:`Zed`}}};",
@@ -204,10 +204,10 @@ test("workspace root open targets patch scans the current app page chunk", () =>
 
     assert.equal(first.result.changed, 1);
     assert.deepEqual(first.warnings, []);
-    assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:vscode/);
-    assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:vscodeInsiders/);
-    assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:zed/);
-    assert.match(patched, /codexLinuxWorkspaceRootOpenTarget:terminal/);
+    assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:vscode/);
+    assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:vscodeInsiders/);
+    assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:zed/);
+    assert.match(patched, /chatgptLinuxWorkspaceRootOpenTarget:terminal/);
 
     const second = captureWarnings(() => patchWorkspaceRootOpenTargets(root));
     assert.equal(second.result.changed, 0);
@@ -261,7 +261,7 @@ test("workspace root open targets patch reports optional drift when Linux target
     fs.writeFileSync(
       path.join(buildDir, "main.js"),
       [
-        "function codexLinuxIdeCommand(){}",
+        "function chatgptLinuxIdeCommand(){}",
         "var lM={id:`vscode`};",
         "var wN={id:`zed`,platforms:{linux:{label:`Zed`}}};",
       ].join(""),

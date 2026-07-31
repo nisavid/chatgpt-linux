@@ -14,10 +14,68 @@ const {
   enabledPortIntegrationPackageFiles,
   enabledPortIntegrationPackagePlan,
   loadPortIntegrationPatchDescriptors,
+  portIntegrationsRoot,
   restoreEnabledPortIntegrationPackageResourcePermissions,
   stageEnabledPortIntegrationPackageResources,
   stageEnabledPortIntegrationInstall,
 } = require("./port-integrations.js");
+
+test("port integration root uses only the canonical ChatGPT environment contract", (t) => {
+  const canonicalRoot = path.join(os.tmpdir(), "chatgpt-integrations-root");
+  const previousCanonical = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  const previousLegacy = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+  t.after(() => {
+    if (previousCanonical == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = previousCanonical;
+    if (previousLegacy == null) delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+    else process.env.CODEX_PORT_INTEGRATIONS_ROOT = previousLegacy;
+  });
+
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = canonicalRoot;
+  process.env.CODEX_PORT_INTEGRATIONS_ROOT = path.join(os.tmpdir(), "legacy-integrations-root");
+  assert.equal(portIntegrationsRoot(), canonicalRoot);
+
+  delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  assert.equal(portIntegrationsRoot(), path.resolve(__dirname, "../..", "port-integrations"));
+});
+
+test("legacy zed-opener config migrates one-way to open-target-discovery", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-legacy-id-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const integrationsRoot = path.join(root, "port-integrations");
+  const integrationDir = path.join(integrationsRoot, "open-target-discovery");
+  fs.mkdirSync(integrationDir, { recursive: true });
+  fs.writeFileSync(path.join(integrationDir, "README.md"), "# Open Target Discovery\n");
+  fs.writeFileSync(
+    path.join(integrationDir, "integration.json"),
+    JSON.stringify({
+      id: "open-target-discovery",
+      title: "Open Target Discovery",
+      entrypoints: {},
+    }),
+  );
+  fs.writeFileSync(
+    path.join(integrationsRoot, "integrations.json"),
+    JSON.stringify({
+      enabled: ["zed-opener"],
+      settings: { "zed-opener": { value: 1 } },
+    }),
+  );
+
+  assert.deepEqual(
+    enabledPortIntegrationsConfig({
+      integrationsRoot,
+      integrationsConfigPath: path.join(integrationsRoot, "integrations.json"),
+      strictConfig: true,
+    }),
+    {
+      enabled: ["open-target-discovery"],
+      disabled: [],
+      settings: { "open-target-discovery": { value: 1 } },
+    },
+  );
+});
 
 function makeIntegrationRoot(root, integrationManifest) {
   const integrationsRoot = path.join(root, "port-integrations");
@@ -46,7 +104,7 @@ function makePackageIntegrationRoot(root, integrationManifest) {
 }
 
 function writeBuildInfoSnapshot(appDir, enabled) {
-  const buildInfoPath = path.join(appDir, ".codex-linux", "build-info.json");
+  const buildInfoPath = path.join(appDir, ".chatgpt-linux", "build-info.json");
   fs.mkdirSync(path.dirname(buildInfoPath), { recursive: true });
   fs.writeFileSync(
     buildInfoPath,
@@ -63,13 +121,13 @@ function stageIntegration(root, integrationsRoot) {
 }
 
 function writeStagedManifest(appDir, manifest) {
-  const manifestPath = path.join(appDir, ".codex-linux", "port-integrations-staged.json");
+  const manifestPath = path.join(appDir, ".chatgpt-linux", "port-integrations-staged.json");
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 test("port integration asset matchers receive integration settings", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-asset-match-context-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-asset-match-context-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
@@ -104,12 +162,12 @@ test("port integration asset matchers receive integration settings", (t) => {
 });
 
 test("port integration staging rejects duplicate resource targets", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-duplicate-resource-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-duplicate-resource-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const appDir = path.join(root, "app");
-  const preservedTarget = ".codex-linux/integrations/preserved/payload.txt";
-  const target = ".codex-linux/integrations/unsafe-link/payload.txt";
+  const preservedTarget = ".chatgpt-linux/integrations/preserved/payload.txt";
+  const target = ".chatgpt-linux/integrations/unsafe-link/payload.txt";
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
     id: "unsafe-link",
     title: "Unsafe Link",
@@ -137,10 +195,10 @@ test("port integration staging rejects duplicate resource targets", (t) => {
 });
 
 test("port integration staging rejects ancestor and descendant target overlaps", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-target-overlap-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-target-overlap-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const parentTarget = ".codex-linux/integrations/unsafe-link/payload";
+  const parentTarget = ".chatgpt-linux/integrations/unsafe-link/payload";
   const childTarget = `${parentTarget}/nested.txt`;
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
     id: "unsafe-link",
@@ -162,10 +220,10 @@ test("port integration staging rejects ancestor and descendant target overlaps",
 });
 
 test("port integration staging rejects resource and runtime hook target collisions", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-hook-collision-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-hook-collision-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const target = ".codex-linux/prelaunch.d/unsafe-link-hook.sh";
+  const target = ".chatgpt-linux/prelaunch.d/unsafe-link-hook.sh";
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
     id: "unsafe-link",
     title: "Unsafe Link",
@@ -187,10 +245,10 @@ test("port integration staging rejects resource and runtime hook target collisio
 });
 
 test("port integration staging rejects framework manifest targets", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-manifest-target-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-manifest-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const target = ".codex-linux/port-integrations-staged.json";
+  const target = ".chatgpt-linux/port-integrations-staged.json";
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
     id: "unsafe-link",
     title: "Unsafe Link",
@@ -206,10 +264,10 @@ test("port integration staging rejects framework manifest targets", (t) => {
 });
 
 test("port integration staging rejects normalized target aliases across integrations", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-cross-integration-target-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-cross-integration-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const target = ".codex-linux/integrations/shared/payload.txt";
+  const target = ".chatgpt-linux/integrations/shared/payload.txt";
   const { integrationDir, integrationsRoot } = makeIntegrationRoot(root, {
     id: "unsafe-link",
     title: "Unsafe Link",
@@ -223,7 +281,7 @@ test("port integration staging rejects normalized target aliases across integrat
   fs.writeFileSync(path.join(secondIntegrationDir, "integration.json"), `${JSON.stringify({
     id: "second",
     title: "Second",
-    resources: [{ source: "second.txt", target: ".codex-linux\\integrations\\shared\\payload.txt", mode: "0644" }],
+    resources: [{ source: "second.txt", target: ".chatgpt-linux\\integrations\\shared\\payload.txt", mode: "0644" }],
   }, null, 2)}\n`);
   fs.writeFileSync(path.join(integrationsRoot, "integrations.json"), '{"enabled":["unsafe-link","second"]}\n');
 
@@ -235,7 +293,7 @@ test("port integration staging rejects normalized target aliases across integrat
 });
 
 test("port integration staging rejects symlinked resource sources", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-symlink-source-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-symlink-source-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
@@ -245,7 +303,7 @@ test("port integration staging rejects symlinked resource sources", (t) => {
     resources: [
       {
         source: "payload-link",
-        target: ".codex-linux/integrations/unsafe-link/payload.txt",
+        target: ".chatgpt-linux/integrations/unsafe-link/payload.txt",
         mode: "0644",
       },
     ],
@@ -259,13 +317,13 @@ test("port integration staging rejects symlinked resource sources", (t) => {
     /must not contain symbolic links/,
   );
   assert.equal(
-    fs.existsSync(path.join(root, "app", ".codex-linux", "integrations", "unsafe-link", "payload.txt")),
+    fs.existsSync(path.join(root, "app", ".chatgpt-linux", "integrations", "unsafe-link", "payload.txt")),
     false,
   );
 });
 
 test("port integration staging rejects symlinked install target parents", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-symlink-target-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-symlink-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
@@ -276,15 +334,15 @@ test("port integration staging rejects symlinked install target parents", (t) =>
     resources: [
       {
         source: "payload.txt",
-        target: ".codex-linux/integrations/unsafe-link/payload.txt",
+        target: ".chatgpt-linux/integrations/unsafe-link/payload.txt",
         mode: "0644",
       },
     ],
   });
-  fs.mkdirSync(path.join(appDir, ".codex-linux", "integrations"), { recursive: true });
+  fs.mkdirSync(path.join(appDir, ".chatgpt-linux", "integrations"), { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
-  fs.symlinkSync(outside, path.join(appDir, ".codex-linux", "integrations", "unsafe-link"), "junction");
+  fs.symlinkSync(outside, path.join(appDir, ".chatgpt-linux", "integrations", "unsafe-link"), "junction");
 
   assert.throws(
     () => stageIntegration(root, integrationsRoot),
@@ -294,7 +352,7 @@ test("port integration staging rejects symlinked install target parents", (t) =>
 });
 
 test("port integration staging rejects symlinked install target ancestors before creating parents", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-symlink-target-ancestor-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-symlink-target-ancestor-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
@@ -305,15 +363,15 @@ test("port integration staging rejects symlinked install target ancestors before
     resources: [
       {
         source: "payload.txt",
-        target: ".codex-linux/integrations/unsafe-link/nested/payload.txt",
+        target: ".chatgpt-linux/integrations/unsafe-link/nested/payload.txt",
         mode: "0644",
       },
     ],
   });
-  fs.mkdirSync(path.join(appDir, ".codex-linux", "integrations"), { recursive: true });
+  fs.mkdirSync(path.join(appDir, ".chatgpt-linux", "integrations"), { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
-  fs.symlinkSync(outside, path.join(appDir, ".codex-linux", "integrations", "unsafe-link"), "junction");
+  fs.symlinkSync(outside, path.join(appDir, ".chatgpt-linux", "integrations", "unsafe-link"), "junction");
 
   assert.throws(
     () => stageIntegration(root, integrationsRoot),
@@ -323,7 +381,7 @@ test("port integration staging rejects symlinked install target ancestors before
 });
 
 test("port integration staging does not clean stale manifest targets through symlinked parents", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-symlink-manifest-cleanup-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-symlink-manifest-cleanup-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
@@ -334,23 +392,23 @@ test("port integration staging does not clean stale manifest targets through sym
     resources: [
       {
         source: "payload.txt",
-        target: ".codex-linux/integrations/unsafe-link/payload.txt",
+        target: ".chatgpt-linux/integrations/unsafe-link/payload.txt",
         mode: "0644",
       },
     ],
   });
-  fs.mkdirSync(path.join(appDir, ".codex-linux", "integrations"), { recursive: true });
+  fs.mkdirSync(path.join(appDir, ".chatgpt-linux", "integrations"), { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   fs.writeFileSync(path.join(outside, "payload.txt"), "outside\n");
-  fs.symlinkSync(outside, path.join(appDir, ".codex-linux", "integrations", "unsafe-link"), "junction");
+  fs.symlinkSync(outside, path.join(appDir, ".chatgpt-linux", "integrations", "unsafe-link"), "junction");
   writeStagedManifest(appDir, {
     version: 1,
     resources: [
       {
         id: "unsafe-link",
         type: "resource",
-        target: ".codex-linux/integrations/unsafe-link/payload.txt",
+        target: ".chatgpt-linux/integrations/unsafe-link/payload.txt",
         mode: "0644",
       },
     ],
@@ -365,7 +423,7 @@ test("port integration staging does not clean stale manifest targets through sym
 });
 
 test("port integration staging does not clean legacy hooks through symlinked hook dirs", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-symlink-hook-cleanup-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-symlink-hook-cleanup-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside-hooks");
@@ -374,10 +432,10 @@ test("port integration staging does not clean legacy hooks through symlinked hoo
     id: "unsafe-link",
     title: "Unsafe Link",
   });
-  fs.mkdirSync(path.join(appDir, ".codex-linux"), { recursive: true });
+  fs.mkdirSync(path.join(appDir, ".chatgpt-linux"), { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(outside, "unsafe-link-old-hook.sh"), "outside\n");
-  fs.symlinkSync(outside, path.join(appDir, ".codex-linux", "prelaunch.d"), "junction");
+  fs.symlinkSync(outside, path.join(appDir, ".chatgpt-linux", "prelaunch.d"), "junction");
 
   assert.throws(
     () => stageIntegration(root, integrationsRoot),
@@ -387,7 +445,7 @@ test("port integration staging does not clean legacy hooks through symlinked hoo
 });
 
 test("disabled port integrations do not add package resources or dependencies", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-disabled-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-disabled-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
@@ -396,7 +454,7 @@ test("disabled port integrations do not add package resources or dependencies", 
     packageResources: [
       {
         source: "fixture.txt",
-        target: "usr/share/codex-package-framework/fixture.txt",
+        target: "usr/share/chatgpt-package-framework/fixture.txt",
         mode: "0644",
         formats: ["deb", "rpm", "pacman"],
       },
@@ -429,10 +487,10 @@ test("disabled port integrations do not add package resources or dependencies", 
 });
 
 test("enabled port integrations stage package resources with exact modes and reject payload collisions", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-stage-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-stage-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  const target = "usr/share/codex-package-framework/fixture.txt";
+  const target = "usr/share/chatgpt-package-framework/fixture.txt";
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     id: "package-framework-fixture",
     title: "Package Framework Fixture",
@@ -478,7 +536,7 @@ test("enabled port integrations stage package resources with exact modes and rej
 });
 
 test("port integration package dependencies and files are sorted, deduplicated, and format-specific", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-lists-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-lists-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
@@ -487,17 +545,17 @@ test("port integration package dependencies and files are sorted, deduplicated, 
     packageResources: [
       {
         source: "90-last.txt",
-        target: "usr/share/codex-package-framework/90-last.txt",
+        target: "usr/share/chatgpt-package-framework/90-last.txt",
         formats: ["rpm", "deb", "deb"],
       },
       {
         source: "70-first.txt",
-        target: "etc/codex-package-framework/70-first.txt",
+        target: "etc/chatgpt-package-framework/70-first.txt",
         formats: ["deb"],
       },
       {
         source: "80-shared.txt",
-        target: "usr/share/codex-package-framework/80-shared.txt",
+        target: "usr/share/chatgpt-package-framework/80-shared.txt",
       },
     ],
     packageDependencies: {
@@ -513,30 +571,30 @@ test("port integration package dependencies and files are sorted, deduplicated, 
   const debOptions = { integrationsRoot, packageFormat: "deb" };
   assert.deepEqual(enabledPortIntegrationPackageDependencies(debOptions), ["fixture-deb-runtime", "zlib1g"]);
   assert.deepEqual(enabledPortIntegrationPackageFiles(debOptions), [
-    "/etc/codex-package-framework/70-first.txt",
-    "/usr/share/codex-package-framework/80-shared.txt",
-    "/usr/share/codex-package-framework/90-last.txt",
+    "/etc/chatgpt-package-framework/70-first.txt",
+    "/usr/share/chatgpt-package-framework/80-shared.txt",
+    "/usr/share/chatgpt-package-framework/90-last.txt",
   ]);
   assert.deepEqual(
     enabledPortIntegrationPackagePlan(debOptions).resources.map((resource) => resource.target),
     [
-      "etc/codex-package-framework/70-first.txt",
-      "usr/share/codex-package-framework/80-shared.txt",
-      "usr/share/codex-package-framework/90-last.txt",
+      "etc/chatgpt-package-framework/70-first.txt",
+      "usr/share/chatgpt-package-framework/80-shared.txt",
+      "usr/share/chatgpt-package-framework/90-last.txt",
     ],
   );
 
   const rpmOptions = { integrationsRoot, packageFormat: "rpm" };
   assert.deepEqual(enabledPortIntegrationPackageDependencies(rpmOptions), ["fixture-rpm-runtime", "zlib"]);
   assert.deepEqual(enabledPortIntegrationPackageFiles(rpmOptions), [
-    "/usr/share/codex-package-framework/80-shared.txt",
-    "/usr/share/codex-package-framework/90-last.txt",
+    "/usr/share/chatgpt-package-framework/80-shared.txt",
+    "/usr/share/chatgpt-package-framework/90-last.txt",
   ]);
 
   const pacmanOptions = { integrationsRoot, packageFormat: "pacman" };
   assert.deepEqual(enabledPortIntegrationPackageDependencies(pacmanOptions), ["fixture-pacman-runtime", "zlib"]);
   assert.deepEqual(enabledPortIntegrationPackageFiles(pacmanOptions), [
-    "/usr/share/codex-package-framework/80-shared.txt",
+    "/usr/share/chatgpt-package-framework/80-shared.txt",
   ]);
 });
 
@@ -554,14 +612,14 @@ test("port integration package resources reject traversal and package-root targe
     { target: ".INSTALL", format: "pacman", error: /reserved pacman package namespace/i },
     { target: ".CHANGELOG", format: "pacman", error: /reserved pacman package namespace/i },
     { target: ".INSTALL/hooks", format: "pacman", error: /reserved pacman package namespace/i },
-    { target: "usr/share/codex-package-framework/bad\npath.txt", error: /unsafe package path component/i },
+    { target: "usr/share/chatgpt-package-framework/bad\npath.txt", error: /unsafe package path component/i },
     { target: "usr/%{_libdir}/bad.txt", error: /unsafe package path component/i },
-    { target: "usr/share/codex-package-framework/*.txt", error: /unsafe package path component/i },
-    { target: "usr/share/codex-package-framework/-bad.txt", error: /unsafe package path component/i },
+    { target: "usr/share/chatgpt-package-framework/*.txt", error: /unsafe package path component/i },
+    { target: "usr/share/chatgpt-package-framework/-bad.txt", error: /unsafe package path component/i },
   ];
 
   for (const { target, format = "deb", error } of cases) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-target-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-target-"));
     try {
       const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
         id: "package-framework-fixture",
@@ -582,7 +640,7 @@ test("port integration package resources reject traversal and package-root targe
 });
 
 test("port integration package resources reject ancestor and descendant target overlaps", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-overlap-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-overlap-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     id: "package-framework-fixture",
@@ -602,13 +660,13 @@ test("port integration package resources reject ancestor and descendant target o
 });
 
 test("port integration package resources cannot target the packaged app directory", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-app-target-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-app-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationDir, integrationsRoot, id } = makePackageIntegrationRoot(root, {
     packageResources: [
       {
         source: "payload.txt",
-        target: "opt/codex-desktop/integration-owned.txt",
+        target: "opt/chatgpt/integration-owned.txt",
         mode: "0644",
         formats: ["deb"],
       },
@@ -616,7 +674,7 @@ test("port integration package resources cannot target the packaged app director
   });
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   const packageRoot = path.join(root, "package-root");
-  const appDir = path.join(packageRoot, "opt", "codex-desktop");
+  const appDir = path.join(packageRoot, "opt", "chatgpt");
   writeBuildInfoSnapshot(appDir, [id]);
 
   assert.throws(
@@ -630,7 +688,7 @@ test("port integration package resources cannot target the packaged app director
 });
 
 test("port integration package resources cannot target an ancestor of the packaged app directory", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-app-ancestor-target-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-app-ancestor-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationDir, integrationsRoot, id } = makePackageIntegrationRoot(root, {
     packageResources: [
@@ -644,7 +702,7 @@ test("port integration package resources cannot target an ancestor of the packag
   });
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   const packageRoot = path.join(root, "package-root");
-  const appDir = path.join(packageRoot, "opt", "codex-desktop");
+  const appDir = path.join(packageRoot, "opt", "chatgpt");
   const buildInfoPath = writeBuildInfoSnapshot(appDir, [id]);
 
   assert.throws(
@@ -658,14 +716,14 @@ test("port integration package resources cannot target an ancestor of the packag
 });
 
 test("port integration package resources must use regular file sources", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-source-type-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-source-type-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     packageResources: [
       {
         source: "payload",
-        target: "usr/share/codex-package-framework/payload",
+        target: "usr/share/chatgpt-package-framework/payload",
         mode: "0644",
         formats: ["deb"],
       },
@@ -681,11 +739,11 @@ test("port integration package resources must use regular file sources", (t) => 
 });
 
 test("port integration package staging rejects symlinked resource sources", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-source-link-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-source-link-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside.txt");
-  const target = "usr/share/codex-package-framework/fixture.txt";
+  const target = "usr/share/chatgpt-package-framework/fixture.txt";
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     id: "package-framework-fixture",
     title: "Package Framework Fixture",
@@ -705,11 +763,11 @@ test("port integration package staging rejects symlinked resource sources", (t) 
 });
 
 test("port integration package staging rejects symlinked source ancestors", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-source-ancestor-link-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-source-ancestor-link-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
-  const target = "usr/share/codex-package-framework/fixture.txt";
+  const target = "usr/share/chatgpt-package-framework/fixture.txt";
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     id: "package-framework-fixture",
     title: "Package Framework Fixture",
@@ -728,12 +786,12 @@ test("port integration package staging rejects symlinked source ancestors", (t) 
 });
 
 test("port integration package staging rejects symlinked target parents", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-target-link-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-target-link-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside");
   const packageRoot = path.join(root, "package-root");
-  const target = "usr/share/codex-package-framework/fixture.txt";
+  const target = "usr/share/chatgpt-package-framework/fixture.txt";
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     id: "package-framework-fixture",
     title: "Package Framework Fixture",
@@ -744,7 +802,7 @@ test("port integration package staging rejects symlinked target parents", (t) =>
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   fs.mkdirSync(path.join(packageRoot, "usr", "share"), { recursive: true });
   fs.mkdirSync(outside);
-  fs.symlinkSync(outside, path.join(packageRoot, "usr", "share", "codex-package-framework"), "junction");
+  fs.symlinkSync(outside, path.join(packageRoot, "usr", "share", "chatgpt-package-framework"), "junction");
 
   assert.throws(
     () => stageEnabledPortIntegrationPackageResources(packageRoot, { integrationsRoot, packageFormat: "deb" }),
@@ -754,12 +812,12 @@ test("port integration package staging rejects symlinked target parents", (t) =>
 });
 
 test("port integration package permission restoration rejects symlinked targets", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-restore-link-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-restore-link-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const outside = path.join(root, "outside.txt");
   const packageRoot = path.join(root, "package-root");
-  const target = "usr/share/codex-package-framework/payload.txt";
+  const target = "usr/share/chatgpt-package-framework/payload.txt";
   const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     packageResources: [
       { source: "payload.txt", target, mode: "0640", formats: ["deb"] },
@@ -786,7 +844,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: 644,
         formats: ["deb"],
       },
@@ -795,7 +853,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "0899",
         formats: ["deb"],
       },
@@ -804,7 +862,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "4755",
         formats: ["deb"],
       },
@@ -813,7 +871,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "2755",
         formats: ["deb"],
       },
@@ -822,7 +880,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "1777",
         formats: ["deb"],
       },
@@ -831,7 +889,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "0644",
         formats: ["deb", "appimage"],
       },
@@ -840,7 +898,7 @@ test("port integration package resources reject invalid modes and formats", () =
     {
       resource: {
         source: "payload.txt",
-        target: "usr/share/codex-package-framework/payload.txt",
+        target: "usr/share/chatgpt-package-framework/payload.txt",
         mode: "0644",
         formats: "deb",
       },
@@ -849,7 +907,7 @@ test("port integration package resources reject invalid modes and formats", () =
   ];
 
   for (const { resource, error } of invalidResources) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-invalid-resource-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-invalid-resource-"));
     try {
       const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
         id: "package-framework-fixture",
@@ -866,7 +924,7 @@ test("port integration package resources reject invalid modes and formats", () =
     }
   }
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-invalid-format-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-invalid-format-"));
   try {
     const { integrationsRoot } = makePackageIntegrationRoot(root, {
       id: "package-framework-fixture",
@@ -890,13 +948,13 @@ test("port integration package dependencies reject unsafe tokens and unsupported
     { packageDependencies: { rpm: ["runtime.so.1%(id)"] }, error: /invalid.*dependency/i },
     { packageDependencies: { rpm: ["runtime.so.1%{_libdir}"] }, error: /invalid.*dependency/i },
     {
-      packageDependencies: { rpm: ["runtime.so.1%{codex_elf_suffix}%(id)"] },
+      packageDependencies: { rpm: ["runtime.so.1%{chatgpt_elf_suffix}%(id)"] },
       error: /invalid.*dependency/i,
     },
   ];
 
   for (const { packageDependencies, error } of invalidDependencies) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-invalid-dependency-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-invalid-dependency-"));
     try {
       const { integrationsRoot } = makePackageIntegrationRoot(root, {
         id: "package-framework-fixture",
@@ -914,14 +972,14 @@ test("port integration package dependencies reject unsafe tokens and unsupported
 });
 
 test("native package plans require the app integration snapshot to match the current config", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-snapshot-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-snapshot-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const { integrationDir, integrationsRoot, id } = makePackageIntegrationRoot(root, {
     packageResources: [
       {
         source: "fixture.txt",
-        target: "usr/share/codex-package-framework/fixture.txt",
+        target: "usr/share/chatgpt-package-framework/fixture.txt",
         mode: "0644",
       },
     ],
@@ -941,7 +999,7 @@ test("native package plans require the app integration snapshot to match the cur
   assert.deepEqual(matchingPlan.dependencies, ["fixture-deb-runtime"]);
   assert.deepEqual(
     matchingPlan.resources.map((resource) => resource.target),
-    ["usr/share/codex-package-framework/fixture.txt"],
+    ["usr/share/chatgpt-package-framework/fixture.txt"],
   );
 
   writeBuildInfoSnapshot(appDir, []);
@@ -959,7 +1017,7 @@ test("native package plans require the app integration snapshot to match the cur
 });
 
 test("native package plans strictly validate the current integration config", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-config-validation-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-config-validation-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationsRoot } = makePackageIntegrationRoot(root, {});
   const appDir = path.join(root, "app");
@@ -1010,7 +1068,7 @@ test("native package plans strictly validate the current integration config", (t
 });
 
 test("native package plans reject missing or malformed app integration snapshots", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-package-build-info-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-build-info-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationsRoot } = makePackageIntegrationRoot(root, {});
   fs.writeFileSync(path.join(integrationsRoot, "integrations.json"), '{"enabled":[]}\n');
@@ -1045,7 +1103,7 @@ test("native package plans reject missing or malformed app integration snapshots
 
 
 test("strict integration config rejects missing enabled manifests", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-integration-missing-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-missing-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const integrationsRoot = path.join(root, "port-integrations");
   fs.mkdirSync(integrationsRoot, { recursive: true });

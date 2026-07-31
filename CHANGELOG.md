@@ -7,12 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- Optional port integrations for Agent Workspaces, AppShots, and Codex App
+- Optional port integrations for Agent Workspaces, AppShots, and ChatGPT
   wrapper update controls were imported from the Linux-port upstream under this
   fork's `port-integrations/` contract.
 - The opt-in wrapper updater can show installed wrapper commit state and ask
   which optional port integrations to enable before a rebuild.
-- Launcher rendering mode `CODEX_LINUX_RENDERING_MODE=wayland-gpu` forces native
+- Launcher rendering mode `CHATGPT_LINUX_RENDERING_MODE=wayland-gpu` forces native
   Wayland with GPU compositing enabled for desktops where XWayland or software
   rendering is unstable.
 - New default port integration `read-aloud-mcp` that stages a standalone Rust Read
@@ -38,7 +38,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- The `codex-app-updater` crate version is now `0.10.4`, matching the
+- The project identity is now **ChatGPT for Linux**. The repository is
+  `nisavid/chatgpt-linux`; the app, native package, command, and XDG identity are
+  `chatgpt`; and the updater identity is `chatgpt-updater`. Native packages
+  replace the former `codex-app` and `codex-desktop` packages without shipping
+  compatibility launchers or service aliases.
+- First launch moves wrapper-owned XDG config, state, cache, data, and CLI
+  quarantine directories from the former identity with an atomic, journaled
+  migration. Collisions fail closed with a recovery command, interrupted moves
+  resume, and `chatgpt migrate-state --reverse` provides an explicit rollback.
+- Port-owned environment variables use the `CHATGPT_*` namespace.
+  OpenAI-owned Codex CLI, plugin, and app-server interfaces retain their inherited
+  `CODEX_*` names.
+- The reviewed integration defaults now include Dock-icon selection and Suggested
+  Prompts. Dock-icon synchronization changes and removes only marker-owned files;
+  Suggested Prompts still requires upstream eligibility, the user setting, and
+  working local Linux support.
+
+- The `chatgpt-updater` crate version is now `0.10.4`, matching the
   imported updater behavior and persisted-state compatibility contract.
 - The curated port-integration defaults now cover the supported workflow, project,
   update, remote-control, speech, theme, and status surfaces. Local
@@ -54,7 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `remote_control` config preservation patch already owned by the core patch
   set.
 - Local app generation is transactional: `install.sh` builds and validates a
-  sibling candidate before replacing `codex-app`, keeps the working app on
+  sibling candidate before replacing `chatgpt`, keeps the working app on
   rejected or inconclusive candidates, and uses atomic directory exchange plus
   a recovery journal so interruption cannot remove the canonical app path.
 - Cold starts overlap the webview server boot with the rest of launcher
@@ -71,18 +88,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   case the flag exists for). On regular desktops Chromium's renderer/GPU
   shared-memory buffers stay in RAM-backed `/dev/shm` instead of disk-backed
   temp storage, which improves rendering performance. Override with
-  `CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1`.
+  `CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1`.
 - The launcher now adds `--force-renderer-accessibility` only when an
   assistive technology is detected (Orca or brltty running, the GNOME
   screen-reader setting, the AT-SPI accessibility state that
-  `codex-computer-use-linux setup` enables — `org.a11y.Status IsEnabled` or
+  `chatgpt-computer-use-linux setup` enables — `org.a11y.Status IsEnabled` or
   `toolkit-accessibility` — or the `GNOME_ACCESSIBILITY` /
   `QT_LINUX_ACCESSIBILITY_ALWAYS_ON` / `ACCESSIBILITY_ENABLED` env markers).
   Keeping the Chromium accessibility engine on in every renderer measurably
   slows the webview UI, and the WSLg and wayland-gpu profiles already
   skipped it for that reason. Session-bus probes are watchdog-capped at
   0.5 s so a broken bus cannot delay launch.
-  `CODEX_FORCE_RENDERER_ACCESSIBILITY=1|0` still overrides the detection in
+  `CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1|0` still overrides the detection in
   both directions.
 - Refactored ASAR patching internals so `scripts/patch-linux-window-ui.js` is a
   CLI-only entrypoint and patch descriptors/implementations live under
@@ -203,7 +220,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - The in-app updater no longer quits into a broken `pkexec` install path when a
   minimal window-manager session has no graphical polkit authentication agent;
   it keeps the rebuilt package ready and reports a terminal `sudo
-  /usr/bin/codex-app-updater ... --path ...` command instead.
+  /usr/bin/chatgpt-updater ... --path ...` command instead.
 - The opt-in Linux AppShots bare-modifier shortcuts now require left and right
   modifier keycodes, preventing a fast double-tap on one physical Alt or Shift
   key from opening AppShots.
@@ -218,12 +235,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Bundled Browser plugin staging now preserves local `file://` target support
   advertised by the Browser plugin while keeping remote file hosts and `data:`
   URLs blocked by the URL policy.
-- `codex-app-updater` now prunes unreferenced updater workspaces under `~/.cache/codex-app-updater/workspaces`, removing heavy build artifacts (`builder/`, `codex-app/`, `dist/`) while preserving lightweight diagnostics such as `logs/` and rebuild reports.
+- `chatgpt-updater` now prunes unreferenced updater workspaces under `~/.cache/chatgpt-updater/workspaces`, removing heavy build artifacts (`builder/`, `chatgpt/`, `dist/`) while preserving lightweight diagnostics such as `logs/` and rebuild reports.
 - The Chrome native-messaging host now evicts stale browser clients when a newer Codex browser client connects, preventing old Node REPL sessions from repeatedly reattaching CDP and driving extension service-worker CPU.
 - The bundled Chrome plugin is now auto-installed during app startup, matching Browser Use, so the plugin page no longer falls back to an install button after restart when the Linux native host is already staged.
 - Nix builds, installer apps, and dev shells now use modern `7zz`, and the installer dependency check accepts `7zz` without requiring a separate legacy `7z` binary.
-- Codex App no longer removes user-enabled `remote_control = true` from the local Linux config before starting the app server.
-- `codex-app-updater` no longer depends on the `fs4` crate for updater check
+- ChatGPT no longer removes user-enabled `remote_control = true` from the local Linux config before starting the app server.
+- `chatgpt-updater` no longer depends on the `fs4` crate for updater check
   serialization. The updater now uses `std::fs::File::try_lock`, preserves the
   existing non-blocking `check.lock` behavior when another check is active, and
   adds regression coverage for `WouldBlock` lock contention semantics.

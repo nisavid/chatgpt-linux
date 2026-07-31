@@ -1,6 +1,6 @@
 # Shallow Linux Repository Watches
 
-This opt-in feature makes Codex Desktop's local recursive `fs.watch` requests
+This opt-in feature makes ChatGPT for Linux's local recursive `fs.watch` requests
 non-recursive on Linux.
 
 Sidebar task previews create short-lived watches for the task's working tree
@@ -26,7 +26,7 @@ Enable it in `port-integrations/integrations.json` and rebuild:
 NixOS and Home Manager users can add the integration ID to `portIntegrations`:
 
 ```nix
-programs.codexAppLinux.portIntegrations = [
+programs.chatgptLinux.portIntegrations = [
   "shallow-repository-watches"
 ];
 ```

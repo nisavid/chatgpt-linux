@@ -1,7 +1,7 @@
 //! Interactive integration picker for the in-app wrapper Update button.
 //!
 //! When the user clicks the wrapper "Update" button, the renderer shells out to
-//! `codex-app-updater pick-integrations` *while the display is still alive* (the
+//! `chatgpt-updater pick-integrations` *while the display is still alive* (the
 //! detached `apply-wrapper-update` runs after the app exits → headless, so the
 //! dialog must run here, at click time). This subcommand:
 //!
@@ -18,9 +18,9 @@
 //! 4. Validates the chosen set against each manifest's `requires` and
 //!    `conflicts`, then writes `{"enabled":[…],"disabled":[…]}` to the user
 //!    integration config so the rebuild (which points
-//!    `CODEX_PORT_INTEGRATIONS_CONFIG` at that path) uses the selection. If the
+//!    `CHATGPT_PORT_INTEGRATIONS_CONFIG` at that path) uses the selection. If the
 //!    sentinel row was checked, persists
-//!    `codex-linux-integration-picker-on-update=false` so future updates skip the
+//!    `chatgpt-linux-integration-picker-on-update=false` so future updates skip the
 //!    prompt.
 //!
 //! Every failure mode (no display, no dialog tool, no catalog, cancelled or
@@ -414,7 +414,7 @@ fn show_picker(
             cmd.args([
                 "--list",
                 "--checklist",
-                "--title=Codex App port integrations",
+                "--title=ChatGPT port integrations",
                 "--text=Select the optional port integrations to enable for this update.",
                 "--column=Enable",
                 "--column=Integration",
@@ -670,8 +670,8 @@ if (arg === "--integrations-json") {
 
     fn init_fake_catalog_repo(repo: &Path) -> String {
         git(repo, &["init", "-q", "-b", "main"]);
-        git(repo, &["config", "user.email", "codex@example.invalid"]);
-        git(repo, &["config", "user.name", "Codex Test"]);
+        git(repo, &["config", "user.email", "chatgpt@example.invalid"]);
+        git(repo, &["config", "user.name", "ChatGPT Test"]);
         write_fake_catalog_script(repo);
         git(repo, &["add", "-A"]);
         git(repo, &["commit", "-q", "-m", "catalog"]);
@@ -717,7 +717,7 @@ if (arg === "--integrations-json") {
         run_pick_integrations(&config, &paths, false).unwrap();
         assert!(!root
             .path()
-            .join("config/codex-app/port-integrations.json")
+            .join("config/chatgpt/port-integrations.json")
             .exists());
     }
 
@@ -799,7 +799,7 @@ if (arg === "--integrations-json") {
         std::fs::write(&builder_config, r#"{"enabled":["alpha"]}"#).unwrap();
 
         let settings_file = settings.path().join("settings.json");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         let config = base_config(root.path());
 
         assert_eq!(
@@ -826,7 +826,7 @@ if (arg === "--integrations-json") {
             std::collections::HashSet::from(["alpha".to_string()])
         );
 
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
     }
 
     #[test]
@@ -834,7 +834,7 @@ if (arg === "--integrations-json") {
         let _g = env_lock();
         let settings = tempdir().unwrap();
         let settings_file = settings.path().join("settings.json");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
 
         write_integration_config(&["alpha".to_string()], &["beta".to_string()]).unwrap();
 
@@ -855,7 +855,7 @@ if (arg === "--integrations-json") {
             .count();
         assert_eq!(temp_entries, 0);
 
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
     }
 
     #[test]
@@ -874,7 +874,7 @@ if (arg === "--integrations-json") {
 "#,
         )
         .unwrap();
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         let config = base_config(root.path());
 
         assert_eq!(
@@ -901,7 +901,7 @@ if (arg === "--integrations-json") {
             std::collections::HashSet::from(["beta".to_string()])
         );
 
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
     }
 
     #[test]
@@ -943,7 +943,7 @@ if (arg === "--integrations-json") {
         let integration_config = settings.path().join("port-integrations.json");
         let original_config = "{\n  \"enabled\": [\"directory-only-working-tree-watch\"]\n}\n";
         std::fs::write(&integration_config, original_config).unwrap();
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         std::env::set_var("DISPLAY", ":99");
         std::env::remove_var("WAYLAND_DISPLAY");
 
@@ -976,7 +976,7 @@ if (arg === "--integrations-json") {
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);
         }
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         std::env::remove_var("DISPLAY");
     }
 
@@ -991,7 +991,7 @@ if (arg === "--integrations-json") {
 
         // Pin settings.json (and thus integration_config_path) into a temp dir.
         let settings_file = settings.path().join("settings.json");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         std::env::set_var("DISPLAY", ":99");
         std::env::remove_var("WAYLAND_DISPLAY");
 
@@ -1029,13 +1029,13 @@ if (arg === "--integrations-json") {
             serde_json::from_str(&std::fs::read_to_string(&settings_file).unwrap_or_default())
                 .unwrap_or(serde_json::json!({}));
         assert!(settings_json
-            .get("codex-linux-integration-picker-on-update")
+            .get("chatgpt-linux-integration-picker-on-update")
             .is_none());
 
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);
         }
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         std::env::remove_var("DISPLAY");
     }
 
@@ -1058,7 +1058,7 @@ if (arg === "--integrations-json") {
 "#,
         )
         .unwrap();
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         std::env::set_var("DISPLAY", ":99");
         std::env::remove_var("WAYLAND_DISPLAY");
 
@@ -1096,7 +1096,7 @@ if (arg === "--integrations-json") {
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);
         }
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         std::env::remove_var("DISPLAY");
     }
 
@@ -1110,7 +1110,7 @@ if (arg === "--integrations-json") {
         let paths = runtime_paths(root.path());
 
         let settings_file = settings.path().join("settings.json");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         std::env::set_var("DISPLAY", ":99");
         std::env::remove_var("WAYLAND_DISPLAY");
 
@@ -1144,14 +1144,14 @@ if (arg === "--integrations-json") {
         let settings_json: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&settings_file).unwrap()).unwrap();
         assert_eq!(
-            settings_json["codex-linux-integration-picker-on-update"],
+            settings_json["chatgpt-linux-integration-picker-on-update"],
             serde_json::Value::Bool(false)
         );
 
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);
         }
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         std::env::remove_var("DISPLAY");
     }
 
@@ -1165,7 +1165,7 @@ if (arg === "--integrations-json") {
         let paths = runtime_paths(root.path());
 
         let settings_file = settings.path().join("settings.json");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
         std::env::set_var("DISPLAY", ":99");
         std::env::remove_var("WAYLAND_DISPLAY");
 
@@ -1188,7 +1188,7 @@ if (arg === "--integrations-json") {
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);
         }
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         std::env::remove_var("DISPLAY");
     }
 

@@ -48,10 +48,10 @@ const registry = {
       title: "Chrome native messaging plugin",
       category: "plugin",
       pathPatterns: ["plugins/openai-bundled/plugins/chrome"],
-      contentNeedles: ["nativeMessaging", "codex-chrome-extension-host"],
+      contentNeedles: ["nativeMessaging", "chatgpt-chrome-extension-host"],
       pluginIds: ["chrome"],
       linuxSubstrate: {
-        requiredPaths: ["computer-use-linux/src/bin/codex-chrome-extension-host.rs"],
+        requiredPaths: ["computer-use-linux/src/bin/chatgpt-chrome-extension-host.rs"],
       },
     },
     {
@@ -352,7 +352,7 @@ function createFixtureApp(root, variant = "baseline") {
   });
   writeFile(
     path.join(chromePlugin, "browser-client.mjs"),
-    "const nativeMessaging = 'codex-chrome-extension-host';",
+    "const nativeMessaging = 'chatgpt-chrome-extension-host';",
   );
 
   return appDir;
@@ -600,27 +600,27 @@ test("classifies unresolved Linux settings patch symbols as acceptance blockers"
     const assetsDir = path.join(candidateApp, "Contents/Resources/webview/assets");
     writeFile(
       path.join(assetsDir, "settings-page-bad-linux-patch.js"),
-      'var icons={"agent-workspaces":codexLinuxAgentWorkspaceSettingsIcon,worktrees:WorktreesIcon};',
+      'var icons={"agent-workspaces":chatgptLinuxAgentWorkspaceSettingsIcon,worktrees:WorktreesIcon};',
     );
     writeFile(
       path.join(assetsDir, "settings-page-bare-assignment.js"),
-      "codexLinuxReadAloudSettingsIcon=e=>null;var icons={read:codexLinuxReadAloudSettingsIcon};",
+      "chatgptLinuxReadAloudSettingsIcon=e=>null;var icons={read:chatgptLinuxReadAloudSettingsIcon};",
     );
     writeFile(
       path.join(assetsDir, "settings-page-comma-assignment.js"),
-      "foo(),codexLinuxHooksSettingsIcon=e=>null;var icons={hooks:codexLinuxHooksSettingsIcon};",
+      "foo(),chatgptLinuxHooksSettingsIcon=e=>null;var icons={hooks:chatgptLinuxHooksSettingsIcon};",
     );
     writeFile(
       path.join(assetsDir, "settings-page-nested-assignment.js"),
-      "var init=()=>{codexLinuxMcpSettingsIcon=e=>null};var icons={mcp:codexLinuxMcpSettingsIcon};",
+      "var init=()=>{chatgptLinuxMcpSettingsIcon=e=>null};var icons={mcp:chatgptLinuxMcpSettingsIcon};",
     );
     writeFile(
       path.join(assetsDir, "settings-page-good-direct-declaration.js"),
-      "var codexLinuxDeclaredSettingsIcon=e=>null;var icons={declared:codexLinuxDeclaredSettingsIcon};",
+      "var chatgptLinuxDeclaredSettingsIcon=e=>null;var icons={declared:chatgptLinuxDeclaredSettingsIcon};",
     );
     writeFile(
       path.join(assetsDir, "settings-page-good-comma-declaration.js"),
-      "var existing=1,codexLinuxCommaDeclaredSettingsIcon=e=>null;var icons={declared:codexLinuxCommaDeclaredSettingsIcon};",
+      "var existing=1,chatgptLinuxCommaDeclaredSettingsIcon=e=>null;var icons={declared:chatgptLinuxCommaDeclaredSettingsIcon};",
     );
 
     const candidate = extractProtectedSurfaces({
@@ -656,8 +656,8 @@ test("folds patch-report post-patch integrity findings into candidate-only repor
           {
             path: "webview/assets/settings-page-patched.js",
             reason: "Linux settings patch symbol is referenced without a local declaration",
-            snippet: '"agent-workspaces":codexLinuxAgentWorkspaceSettingsIcon',
-            symbol: "codexLinuxAgentWorkspaceSettingsIcon",
+            snippet: '"agent-workspaces":chatgptLinuxAgentWorkspaceSettingsIcon',
+            symbol: "chatgptLinuxAgentWorkspaceSettingsIcon",
           },
         ],
       },
@@ -899,13 +899,13 @@ printf '00000000 T _SkyComputerUseClient\\n'
     );
   }));
 
-test("auto-baseline uses repo Codex.dmg when candidate is different", () =>
+test("auto-baseline uses repo ChatGPT.dmg when candidate is different", () =>
   withTempDir((workspace) => {
     const repoRoot = path.join(workspace, "repo");
     fs.mkdirSync(repoRoot, { recursive: true });
     const baselineApp = createFixtureApp(workspace, "baseline");
     const candidateApp = createFixtureApp(workspace, "candidate");
-    const baselineCache = path.join(repoRoot, "Codex.dmg");
+    const baselineCache = path.join(repoRoot, "ChatGPT.dmg");
     fs.cpSync(baselineApp, baselineCache, { recursive: true });
 
     assert.equal(

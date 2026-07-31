@@ -55,7 +55,7 @@ impl ProbeSocket {
 
     fn bind_in(base: &Path) -> io::Result<Self> {
         let sample_path = base.join(format!(
-            ".codex-ydotool-probe-{}-0000000000000000/s",
+            ".chatgpt-ydotool-probe-{}-0000000000000000/s",
             process::id()
         ));
         if !unix_socket_path_fits(&sample_path) {
@@ -67,7 +67,7 @@ impl ProbeSocket {
 
         for _ in 0..PROBE_DIRECTORY_ATTEMPTS {
             let nonce = random_hex(8)?;
-            let directory = base.join(format!(".codex-ydotool-probe-{}-{nonce}", process::id()));
+            let directory = base.join(format!(".chatgpt-ydotool-probe-{}-{nonce}", process::id()));
             let path = directory.join("s");
             let mut builder = fs::DirBuilder::new();
             builder.mode(0o700);
@@ -306,7 +306,7 @@ mod tests {
     impl TestDirectory {
         fn new(label: &str) -> Self {
             let path = env::temp_dir().join(format!(
-                "codex-ydotool-{label}-{}-{}",
+                "chatgpt-ydotool-{label}-{}-{}",
                 process::id(),
                 random_hex(8).expect("test nonce")
             ));
@@ -403,7 +403,7 @@ esac
                     entry
                         .file_name()
                         .to_string_lossy()
-                        .starts_with(".codex-ydotool-probe-")
+                        .starts_with(".chatgpt-ydotool-probe-")
                 })
                 .count(),
             0

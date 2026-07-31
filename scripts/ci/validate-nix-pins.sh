@@ -10,13 +10,13 @@ NATIVE_MODULES_PKG="${NATIVE_MODULES_PKG:-$REPO_DIR/nix/native-modules/package.j
 # Opt-in pin-writing mode (used by the hash-refresh bot, not by PR CI). When set,
 # the version pins are rewritten from the DMG before the assertions run, so they
 # confirm the write instead of failing on drift. APPCAST_URL, when also set,
-# gates the write on the official Sparkle appcast: the moving Codex.dmg must
+# gates the write on the official Sparkle appcast: the moving ChatGPT.dmg must
 # already match the appcast's advertised latest version, otherwise the official
 # rollout is in progress and we exit 75 (skip) rather than pinning a transient
 # build.
 WRITE_PINS="${WRITE_PINS:-0}"
 APPCAST_URL="${APPCAST_URL:-}"
-CODEX_NIX_PIN_EVIDENCE_ENV="${CODEX_NIX_PIN_EVIDENCE_ENV:-}"
+CHATGPT_NIX_PIN_EVIDENCE_ENV="${CHATGPT_NIX_PIN_EVIDENCE_ENV:-}"
 
 fail() {
     echo "ERROR: $*" >&2
@@ -131,31 +131,31 @@ write_shell_assignment() {
 }
 
 write_pin_evidence_env() {
-    [ -n "$CODEX_NIX_PIN_EVIDENCE_ENV" ] || return 0
+    [ -n "$CHATGPT_NIX_PIN_EVIDENCE_ENV" ] || return 0
 
-    local evidence_dmg_sri="${CODEX_DMG_SRI:-}"
-    local evidence_dmg_sha256="${CODEX_DMG_SHA256:-}"
+    local evidence_dmg_sri="${CHATGPT_DMG_SRI:-}"
+    local evidence_dmg_sha256="${CHATGPT_DMG_SHA256:-}"
     local tmp_file
 
-    [ -n "$evidence_dmg_sri" ] || evidence_dmg_sri="$(read_nix_fetchurl_field codexDmg hash)"
+    [ -n "$evidence_dmg_sri" ] || evidence_dmg_sri="$(read_nix_fetchurl_field chatgptDmg hash)"
     if [ -z "$evidence_dmg_sha256" ]; then
         evidence_dmg_sha256="$(sri_to_hex "$evidence_dmg_sri")"
     fi
     [[ "$evidence_dmg_sha256" =~ ^[0-9a-fA-F]{64}$ ]] || fail "Invalid DMG SHA-256 evidence: $evidence_dmg_sha256"
 
-    mkdir -p "$(dirname "$CODEX_NIX_PIN_EVIDENCE_ENV")"
-    tmp_file="${CODEX_NIX_PIN_EVIDENCE_ENV}.tmp"
+    mkdir -p "$(dirname "$CHATGPT_NIX_PIN_EVIDENCE_ENV")"
+    tmp_file="${CHATGPT_NIX_PIN_EVIDENCE_ENV}.tmp"
     {
-        write_shell_assignment CODEX_DMG_SRI "$evidence_dmg_sri"
-        write_shell_assignment CODEX_DMG_SHA256 "$(printf '%s' "$evidence_dmg_sha256" | tr '[:upper:]' '[:lower:]')"
-        write_shell_assignment CODEX_APP_PACKAGE_VERSION "$dmg_app_short_version"
-        write_shell_assignment CODEX_APP_BUNDLE_VERSION "$dmg_bundle_version"
-        write_shell_assignment CODEX_ELECTRON_VERSION "$dmg_electron_version"
-        write_shell_assignment CODEX_DMG_BETTER_SQLITE3_VERSION "$dmg_better_sqlite3_version"
-        write_shell_assignment CODEX_NATIVE_BETTER_SQLITE3_VERSION "$native_better_sqlite3_version"
-        write_shell_assignment CODEX_NATIVE_NODE_PTY_VERSION "$native_node_pty_version"
+        write_shell_assignment CHATGPT_DMG_SRI "$evidence_dmg_sri"
+        write_shell_assignment CHATGPT_DMG_SHA256 "$(printf '%s' "$evidence_dmg_sha256" | tr '[:upper:]' '[:lower:]')"
+        write_shell_assignment CHATGPT_APP_PACKAGE_VERSION "$dmg_app_short_version"
+        write_shell_assignment CHATGPT_APP_BUNDLE_VERSION "$dmg_bundle_version"
+        write_shell_assignment CHATGPT_ELECTRON_VERSION "$dmg_electron_version"
+        write_shell_assignment CHATGPT_DMG_BETTER_SQLITE3_VERSION "$dmg_better_sqlite3_version"
+        write_shell_assignment CHATGPT_NATIVE_BETTER_SQLITE3_VERSION "$native_better_sqlite3_version"
+        write_shell_assignment CHATGPT_NATIVE_NODE_PTY_VERSION "$native_node_pty_version"
     } > "$tmp_file"
-    mv "$tmp_file" "$CODEX_NIX_PIN_EVIDENCE_ENV"
+    mv "$tmp_file" "$CHATGPT_NIX_PIN_EVIDENCE_ENV"
 }
 
 read_nix_fetchurl_field() {
@@ -307,7 +307,7 @@ with open(sys.argv[1], "rb") as handle:
     print(plistlib.load(handle).get("CFBundleShortVersionString", ""))
 PY
 )"
-dmg_codex_version="$(json_file_field "$ASAR_EXTRACT_DIR/package.json" "value.version")"
+dmg_chatgpt_version="$(json_file_field "$ASAR_EXTRACT_DIR/package.json" "value.version")"
 dmg_better_sqlite3_version="$(json_file_field "$ASAR_EXTRACT_DIR/node_modules/better-sqlite3/package.json" "value.version")"
 dmg_node_pty_version="$(json_file_field "$ASAR_EXTRACT_DIR/node_modules/node-pty/package.json" "value.version")"
 MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_41="$(read_shell_assignment "$REPO_DIR/install.sh" MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_41)"
@@ -317,7 +317,7 @@ ELECTRON_VERSION="$dmg_electron_version"
 source "$REPO_DIR/scripts/lib/native-modules.sh"
 expected_native_better_sqlite3_version="$(better_sqlite3_build_version "$dmg_better_sqlite3_version")"
 
-nix_codex_version="$(read_nix_string codexVersion)"
+nix_chatgpt_version="$(read_nix_string chatgptVersion)"
 nix_electron_version="$(read_nix_string electronVersion)"
 native_electron_version="$(node -p "require('$REPO_DIR/nix/native-modules/package.json').dependencies.electron")"
 native_better_sqlite3_version="$(node -p "require('$REPO_DIR/nix/native-modules/package.json').dependencies['better-sqlite3']")"
@@ -327,30 +327,30 @@ if [ "$WRITE_PINS" = "1" ]; then
     if [ -n "$APPCAST_URL" ]; then
         appcast_latest_version="$(fetch_appcast_latest_version "$APPCAST_URL")"
         echo "Appcast latest version: $appcast_latest_version"
-        echo "DMG codex version:      $dmg_codex_version"
-        if [ "$dmg_codex_version" != "$appcast_latest_version" ]; then
-            echo "DMG ($dmg_codex_version) is not yet aligned with the appcast latest ($appcast_latest_version);" >&2
+        echo "DMG codex version:      $dmg_chatgpt_version"
+        if [ "$dmg_chatgpt_version" != "$appcast_latest_version" ]; then
+            echo "DMG ($dmg_chatgpt_version) is not yet aligned with the appcast latest ($appcast_latest_version);" >&2
             echo "official Codex rollout in progress, skipping pin update (exit 75)." >&2
             exit 75
         fi
     fi
 
-    write_nix_string codexVersion "$dmg_codex_version"
+    write_nix_string chatgptVersion "$dmg_chatgpt_version"
     write_nix_string electronVersion "$dmg_electron_version"
     write_json_dep "$NATIVE_MODULES_PKG" electron "$dmg_electron_version"
     write_json_dep "$NATIVE_MODULES_PKG" better-sqlite3 "$expected_native_better_sqlite3_version"
     write_json_dep "$NATIVE_MODULES_PKG" node-pty "$dmg_node_pty_version"
 
     # Re-read so the assertions below confirm the writes landed.
-    nix_codex_version="$(read_nix_string codexVersion)"
+    nix_chatgpt_version="$(read_nix_string chatgptVersion)"
     nix_electron_version="$(read_nix_string electronVersion)"
     native_electron_version="$(node -p "require('$NATIVE_MODULES_PKG').dependencies.electron")"
     native_better_sqlite3_version="$(node -p "require('$NATIVE_MODULES_PKG').dependencies['better-sqlite3']")"
     native_node_pty_version="$(node -p "require('$NATIVE_MODULES_PKG').dependencies['node-pty']")"
 fi
 
-assert_equal "Codex app version pin" "$dmg_codex_version" "$nix_codex_version"
-assert_equal "Codex app bundle short version" "$dmg_app_short_version" "$dmg_codex_version"
+assert_equal "ChatGPT app version pin" "$dmg_chatgpt_version" "$nix_chatgpt_version"
+assert_equal "ChatGPT app bundle short version" "$dmg_app_short_version" "$dmg_chatgpt_version"
 assert_equal "Electron version pin" "$dmg_electron_version" "$nix_electron_version"
 assert_equal "native-modules Electron pin" "$nix_electron_version" "$native_electron_version"
 assert_equal "native-modules better-sqlite3 build pin" "$expected_native_better_sqlite3_version" "$native_better_sqlite3_version"
@@ -365,7 +365,7 @@ import re
 import sys
 
 text = Path(sys.argv[1]).read_text()
-match = re.search(r'CODEX_BROWSER_USE_NODE_REPL_RUNTIME_URL:-([^}"]+)', text)
+match = re.search(r'CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL:-([^}"]+)', text)
 if not match:
     raise SystemExit("Could not find Browser Use node_repl default URL")
 print(match.group(1))
@@ -377,7 +377,7 @@ import re
 import sys
 
 text = Path(sys.argv[1]).read_text()
-match = re.search(r'CODEX_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-([0-9a-f]{64})', text)
+match = re.search(r'CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-([0-9a-f]{64})', text)
 if not match:
     raise SystemExit("Could not find Browser Use node_repl default SHA-256")
 print(match.group(1))
@@ -400,6 +400,6 @@ assert_equal "Browser Use node_repl SHA-256 pin" "$installer_node_repl_sha" "$fl
 echo "Nix pins match the official DMG, installer defaults, and native module build floors."
 }
 
-if [ "${CODEX_VALIDATE_NIX_PINS_LIBRARY:-0}" != "1" ]; then
+if [ "${CHATGPT_VALIDATE_NIX_PINS_LIBRARY:-0}" != "1" ]; then
     main
 fi

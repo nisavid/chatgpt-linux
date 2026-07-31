@@ -102,7 +102,7 @@ test("read-aloud-mcp plugin gate supports older isEnabled bundle shapes", () => 
 
 test("read-aloud-mcp plugin gate ignores unrelated read-aloud strings", () => {
   const source = [
-    "function codexLinuxReadAloudSettings(){return `read-aloud-settings`}",
+    "function chatgptLinuxReadAloudSettings(){return `read-aloud-settings`}",
     "var lt=`browser-use`,ut=`chrome`,dt=`chrome-internal`,ft=`computer-use`,pt=`latex-tectonic`;",
     "var Kr=[{forceReload:!0,installWhenMissing:!0,name:lt,isAvailable:({features:e})=>e.inAppBrowserUseAllowed,migrate:rr},{name:ft,isAvailable:({features:e,platform:t})=>t===`darwin`&&e.computerUse,migrate:vr},{name:pt,isAvailable:()=>!0}];",
   ].join("");
@@ -131,7 +131,7 @@ test("read-aloud-mcp plugin gate handles current imported namespace constants", 
 test("read-aloud-mcp stage hook records marketplace entry", () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "read-aloud-mcp-stage-"));
   const installDir = path.join(workspace, "install");
-  const fakeBackend = path.join(workspace, "codex-read-aloud-linux");
+  const fakeBackend = path.join(workspace, "chatgpt-read-aloud-linux");
   const marketplace = path.join(
     installDir,
     "resources/plugins/openai-bundled/.agents/plugins/marketplace.json",
@@ -161,8 +161,8 @@ test("read-aloud-mcp stage hook records marketplace entry", () => {
       INSTALL_DIR: installDir,
       WORK_DIR: path.join(workspace, "work"),
       ARCH: process.arch === "arm64" ? "aarch64" : "x86_64",
-      CODEX_OFFICIAL_APP_DIR: path.join(workspace, "Codex.app"),
-      CODEX_LINUX_READ_ALOUD_MCP_SOURCE: fakeBackend,
+      CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "ChatGPT.app"),
+      CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE: fakeBackend,
       ICON_SOURCE: path.join(workspace, "missing-icon.png"),
     },
     stdio: "pipe",
@@ -173,7 +173,7 @@ test("read-aloud-mcp stage hook records marketplace entry", () => {
     "resources/plugins/openai-bundled/plugins/read-aloud",
   );
   assert.equal(fs.existsSync(path.join(pluginDir, ".mcp.json")), true);
-  assert.equal(fs.existsSync(path.join(pluginDir, "bin/codex-read-aloud-linux")), true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "bin/chatgpt-read-aloud-linux")), true);
   assert.equal(fs.existsSync(path.join(pluginDir, "bin/kokoro-stdin")), true);
 
   const parsedMarketplace = JSON.parse(fs.readFileSync(marketplace, "utf8"));
@@ -201,7 +201,7 @@ test("read-aloud-mcp stage hook skips cleanly when backend is unavailable", () =
         INSTALL_DIR: installDir,
         WORK_DIR: path.join(workspace, "work"),
         ARCH: process.arch === "arm64" ? "aarch64" : "x86_64",
-        CODEX_OFFICIAL_APP_DIR: path.join(workspace, "Codex.app"),
+        CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "ChatGPT.app"),
         PATH: path.join(workspace, "bin"),
       },
       encoding: "utf8",

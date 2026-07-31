@@ -12,14 +12,14 @@ const test = require("node:test");
 
 const {
   DEFAULT_IGNORED_DIRECTORY_NAMES,
-  codexLinuxStartDirectoryOnlyWorkingTreeWatch,
+  chatgptLinuxStartDirectoryOnlyWorkingTreeWatch,
   descriptors,
   normalizedSettings,
   patchWorker,
   patchWorkerSource,
 } = require("./patch.js");
 
-const BUDGET_KEY = Symbol.for("codex-linux.directory-only-working-tree-watch.budget");
+const BUDGET_KEY = Symbol.for("chatgpt-linux.directory-only-working-tree-watch.budget");
 
 function localWorkerSource() {
   return [
@@ -151,12 +151,12 @@ test("feature patch targets only the local recursive working-tree host", () => {
 
   assert.equal(first.matched, 1);
   assert.equal(first.changed, 1);
-  assert.match(first.source, /function codexLinuxStartDirectoryOnlyWorkingTreeWatch\(/);
+  assert.match(first.source, /function chatgptLinuxStartDirectoryOnlyWorkingTreeWatch\(/);
   assert.match(
     first.source,
     /process\.platform===`linux`&&e\.recursive&&e\.renameEventHandling===`changed-path-with-parent-directory`/,
   );
-  assert.match(first.source, /return codexLinuxStartDirectoryOnlyWorkingTreeWatch\(this,e,/);
+  assert.match(first.source, /return chatgptLinuxStartDirectoryOnlyWorkingTreeWatch\(this,e,/);
   assert.match(first.source, /\(0,w\.watch\)\(this\.getFileSystemPath/);
 
   const second = patchWorkerSource(first.source, settings);
@@ -193,7 +193,7 @@ test("feature patches the current local host copies in src and worker bundles", 
     ]);
     for (const bundlePath of [localHostPath, workerPath]) {
       const patched = fs.readFileSync(bundlePath, "utf8");
-      assert.match(patched, /function codexLinuxStartDirectoryOnlyWorkingTreeWatch\(/);
+      assert.match(patched, /function chatgptLinuxStartDirectoryOnlyWorkingTreeWatch\(/);
       assert.doesNotThrow(() => new Function(patched));
     }
 
@@ -297,7 +297,7 @@ test("Git ignore probes are asynchronous, bounded, and fall back safely after ti
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -315,7 +315,7 @@ test("Git ignore probes are asynchronous, bounded, and fall back safely after ti
         assert.equal(call.options.timeout, 5000);
         assert.equal(call.options.killSignal, "SIGKILL");
       }
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
     } finally {
       await session?.dispose();
       childProcess.execFile = originalExecFile;
@@ -354,7 +354,7 @@ test("a transient Git ignore query failure is retried and prunes fallback covera
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -364,7 +364,7 @@ test("a transient Git ignore query failure is retried and prunes fallback covera
         },
         configuration({ honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       retryTimers.fire(retryTimers.live()[0]);
@@ -372,12 +372,12 @@ test("a transient Git ignore query failure is retried and prunes fallback covera
         () => retryTimers.live().length === 1,
         "second Git ignore retry was not scheduled",
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
       assert.equal(retryTimers.live()[0].delay, 2000);
 
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 1,
+        () => session.chatgptLinuxDirectoryWatchCount() === 1,
         "recovered Git ignore query did not prune fallback watches",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -427,7 +427,7 @@ test("Git metadata target discovery retries after a transient timeout", async ()
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -438,14 +438,14 @@ test("Git metadata target discovery retries after a transient timeout", async ()
         configuration({ honorGitIgnore: true }),
       );
       childProcess.execFile = originalExecFile;
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active >= 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active >= 3,
         "Git metadata targets were not rediscovered after the timeout",
       );
       assert.equal(spawnSync("git", ["-C", root, "add", "-f", "ignored/tracked.txt"]).status, 0);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "the recovered index watch did not restore a force-added directory",
       );
     } finally {
@@ -475,7 +475,7 @@ test("a watcher closed during startup does not leak its budget listener", async 
     };
     let session;
     try {
-      const startPromise = codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      const startPromise = chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -493,7 +493,7 @@ test("a watcher closed during startup does not leak its budget listener", async 
       pendingGitCallback(Object.assign(new Error("not a repository"), { code: 128 }), "", "");
       session = await startPromise;
       assert.equal(globalThis[BUDGET_KEY].listeners.size, 0);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
     } finally {
       await session?.dispose();
       childProcess.execFile = originalExecFile;
@@ -519,7 +519,7 @@ test("topology events coalesce while a reconciliation is queued or running", asy
     let releaseFirstQuery = null;
     const calls = [];
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -583,7 +583,7 @@ test("rename-driven directory syncs queue at most one follow-up flush", async ()
     let releaseFirstQuery = null;
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -615,16 +615,16 @@ test("rename-driven directory syncs queue at most one follow-up flush", async ()
         rootCallback("rename", name);
         await new Promise((resolve) => setImmediate(resolve));
       }
-      assert.equal(session.codexLinuxDirectorySyncFlushCount(), 1);
+      assert.equal(session.chatgptLinuxDirectorySyncFlushCount(), 1);
 
       releaseFirstQuery();
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 5,
+        () => session.chatgptLinuxDirectoryWatchCount() === 5,
         "coalesced directory-sync follow-up did not cover every pending path",
       );
       await new Promise((resolve) => setTimeout(resolve, 300));
       assert.equal(
-        session.codexLinuxDirectorySyncFlushCount(),
+        session.chatgptLinuxDirectorySyncFlushCount(),
         2,
         "rename events queued redundant directory-sync flushes",
       );
@@ -672,7 +672,7 @@ test("a transient rename-path metadata failure restores coverage through reconci
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -682,7 +682,7 @@ test("a transient rename-path metadata failure restores coverage through reconci
         },
         configuration({ honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
 
       childProcess.execFile = (command, args, options, callback) => {
         if (args.includes("ls-files")) gitIgnoreRefreshes += 1;
@@ -699,7 +699,7 @@ test("a transient rename-path metadata failure restores coverage through reconci
       );
       assert.equal(childMetadataFailures, 1);
       assert.equal(
-        session.codexLinuxDirectoryWatchCount(),
+        session.chatgptLinuxDirectoryWatchCount(),
         3,
         "transient metadata failure did not restore the watched subtree",
       );
@@ -740,7 +740,7 @@ test("a scan-time metadata failure after a rename schedules one full reconciliat
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -750,13 +750,13 @@ test("a scan-time metadata failure after a rename schedules one full reconciliat
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
 
       fs.mkdirSync(path.join(child, "nested"), { recursive: true });
       injectFailure = true;
       callbacks.get(path.resolve(root))("rename", "child");
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 3,
+        () => session.chatgptLinuxDirectoryWatchCount() === 3,
         "scan-time metadata failure dropped the rename-driven topology update",
       );
       assert.ok(childMetadataReads >= 4, "full reconciliation did not retry child metadata");
@@ -792,7 +792,7 @@ test("a rename-path child watch failure schedules topology recovery", async () =
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -805,7 +805,7 @@ test("a rename-path child watch failure schedules topology recovery", async () =
       fs.mkdirSync(child);
       callbacks.get(path.resolve(root))("rename", "child");
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "rename-path watch failure did not recover through full reconciliation",
       );
       assert.equal(childWatchAttempts, 2);
@@ -835,7 +835,7 @@ test("a startup root revalidation failure schedules a bounded full-tree retry", 
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -845,13 +845,13 @@ test("a startup root revalidation failure schedules a bounded full-tree retry", 
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.equal(retryTimers.live().length, 1);
       assert.equal(retryTimers.live()[0].delay, 1000);
 
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 3,
+        () => session.chatgptLinuxDirectoryWatchCount() === 3,
         "full-tree retry did not recover startup directory coverage",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -882,7 +882,7 @@ test("an initial transient root metadata failure returns a recoverable session",
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -892,12 +892,12 @@ test("an initial transient root metadata failure returns a recoverable session",
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       assert.equal(retryTimers.live().length, 1);
 
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "initial metadata retry did not establish recursive directory coverage",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -930,7 +930,7 @@ test("a recovering Git workspace claims its root before metadata refresh watches
     console.warn = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -940,13 +940,13 @@ test("a recovering Git workspace claims its root before metadata refresh watches
         },
         configuration({ maxWatches: 1, honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 1,
+        () => session.chatgptLinuxDirectoryWatchCount() === 1,
         "Git refresh metadata consumed capacity before the working-tree root",
       );
-      assert.deepEqual(session.codexLinuxDirectoryWatchBudget(), { active: 1, limit: 1 });
+      assert.deepEqual(session.chatgptLinuxDirectoryWatchBudget(), { active: 1, limit: 1 });
     } finally {
       fs.statSync = originalStat;
       console.warn = originalWarn;
@@ -972,7 +972,7 @@ test("persistent initial root metadata failures close after bounded retries", as
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -982,7 +982,7 @@ test("persistent initial root metadata failures close after bounded retries", as
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       retryTimers.fire(retryTimers.live()[0]);
@@ -1036,7 +1036,7 @@ test("an unreadable replaced root closes its stale inode watch after bounded ret
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1065,7 +1065,7 @@ test("an unreadable replaced root closes its stale inode watch after bounded ret
       const closed = await session.closed;
       assert.equal(closed.reason, "watch-error");
       assert.equal(rootWatcher.closed, true);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       failRootMetadata = false;
       assert.equal(originalStat.call(fs, root).isDirectory(), true);
     } finally {
@@ -1102,7 +1102,7 @@ test("large file-rename bursts collapse before scanning every active watcher", a
     let rootRelativeCalls = 0;
     let syntheticFileStats = 0;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1112,7 +1112,7 @@ test("large file-rename bursts collapse before scanning every active watcher", a
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 65);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 65);
 
       path.relative = (from, to) => {
         if (String(from).startsWith(root) && String(to).startsWith(root)) {
@@ -1132,7 +1132,7 @@ test("large file-rename bursts collapse before scanning every active watcher", a
         rootCallback("rename", `burst-file-${index}.txt`);
       }
       await waitFor(
-        () => session.codexLinuxDirectorySyncFlushCount() >= 1,
+        () => session.chatgptLinuxDirectorySyncFlushCount() >= 1,
         "rename burst did not flush",
       );
 
@@ -1187,7 +1187,7 @@ test("a collapsed rename burst refreshes a replaced watched directory", async ()
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1209,7 +1209,7 @@ test("a collapsed rename burst refreshes a replaced watched directory", async ()
         () => watchCalls.filter((directory) => directory === child).length === 2,
         "collapsed reconciliation retained a replaced directory watch",
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
     } finally {
       await session?.dispose();
       fs.lstatSync = originalLstat;
@@ -1237,7 +1237,7 @@ test("Git metadata discovery retries an ordinary failure while .git exists", asy
     fs.watch = (directory, options) => originalWatch(directory, options, () => {});
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1250,7 +1250,7 @@ test("Git metadata discovery retries an ordinary failure while .git exists", asy
       childProcess.execFile = originalExecFile;
       assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active >= 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active >= 3,
         "metadata targets were not rediscovered after repository initialization completed",
       );
     } finally {
@@ -1277,7 +1277,7 @@ test("transient Git spawn resource failures retain metadata targets and retry", 
       let recoveredQueries = 0;
       let session;
       try {
-        session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+        session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
           fakeHost(),
           {
             path: root,
@@ -1287,7 +1287,7 @@ test("transient Git spawn resource failures retain metadata targets and retry", 
           },
           configuration({ honorGitIgnore: true }),
         );
-        assert.equal(session.codexLinuxDirectoryWatchBudget().active, 3);
+        assert.equal(session.chatgptLinuxDirectoryWatchBudget().active, 3);
         childProcess.execFile = (command, args, options, callback) => {
           if (args.includes("rev-parse") && remainingFailures > 0) {
             remainingFailures -= 1;
@@ -1305,7 +1305,7 @@ test("transient Git spawn resource failures retain metadata targets and retry", 
           `${errorCode} Git spawn failure did not schedule metadata rediscovery`,
         );
         assert.equal(
-          session.codexLinuxDirectoryWatchBudget().active,
+          session.chatgptLinuxDirectoryWatchBudget().active,
           3,
           `${errorCode} Git spawn failure removed established metadata watches`,
         );
@@ -1339,7 +1339,7 @@ test("persistently invalid Git metadata retries with capped exponential backoff"
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1380,7 +1380,7 @@ test("directory-only recursion uses one watch per directory, not per file", asyn
       fs.writeFileSync(path.join(root, "src", "nested", `nested-${index}.txt`), "nested");
     }
 
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -1391,7 +1391,7 @@ test("directory-only recursion uses one watch per directory, not per file", asyn
       configuration(),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
       assert.deepEqual(session.coverage, { recursive: false, typedPathChanges: false });
     } finally {
       await session.dispose();
@@ -1419,7 +1419,7 @@ test("directory traversal avoids opendir's synchronous DT_UNKNOWN fallback", asy
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1430,7 +1430,7 @@ test("directory traversal avoids opendir's synchronous DT_UNKNOWN fallback", asy
         configuration(),
       );
       assert.equal(
-        session.codexLinuxDirectoryWatchCount(),
+        session.chatgptLinuxDirectoryWatchCount(),
         3,
         "promise readdir traversal omitted recursive directory coverage",
       );
@@ -1469,7 +1469,7 @@ test("disposal does not wait for a stalled directory read", async () => {
     let session;
     let disposePromise;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1521,7 +1521,7 @@ test("a transient whole-directory readdir failure is retried in place", async ()
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1532,7 +1532,7 @@ test("a transient whole-directory readdir failure is retried in place", async ()
         configuration(),
       );
       assert.equal(rootReadAttempts, 2);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
     } finally {
       await session?.dispose();
       fs.promises.readdir = originalReaddir;
@@ -1559,7 +1559,7 @@ test("an exhausted transient readdir retry schedules bounded topology recovery",
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1570,12 +1570,12 @@ test("an exhausted transient readdir retry schedules bounded topology recovery",
         configuration(),
       );
       assert.equal(rootReadAttempts, 3);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "delayed topology recovery did not restore directory traversal coverage",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -1617,7 +1617,7 @@ test("persistent non-root identity churn closes after two full-tree recoveries",
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1628,7 +1628,7 @@ test("persistent non-root identity churn closes after two full-tree recoveries",
         configuration(),
       );
       assert.equal(childWatchAttempts, 3);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       retryTimers.fire(retryTimers.live()[0]);
@@ -1643,7 +1643,7 @@ test("persistent non-root identity churn closes after two full-tree recoveries",
       assert.equal(closed.reason, "watch-error");
       assert.match(closed.error.message, /Could not restore complete working-tree watch coverage/);
       assert.equal(childWatchAttempts, 9);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       assert.deepEqual(retryTimers.live(), []);
     } finally {
       await session?.dispose();
@@ -1664,7 +1664,7 @@ test("a filename-less rename event reconciles the watched directory topology", a
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1677,7 +1677,7 @@ test("a filename-less rename event reconciles the watched directory topology", a
       fs.mkdirSync(path.join(root, "new-subtree", "nested"), { recursive: true });
       callbacks.get(path.resolve(root))("rename", null);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 3,
+        () => session.chatgptLinuxDirectoryWatchCount() === 3,
         "filename-less event did not rebuild directory watches",
       );
     } finally {
@@ -1716,7 +1716,7 @@ test("a filename-less rename refreshes a replaced directory with a reused inode 
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1734,7 +1734,7 @@ test("a filename-less rename refreshes a replaced directory with a reused inode 
         () => watchCalls.filter((directory) => directory === child).length === 2,
         "filename-less reconciliation retained a replaced directory watch",
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
     } finally {
       await session?.dispose();
       fs.lstatSync = originalLstat;
@@ -1773,7 +1773,7 @@ test("a directory replaced at the same path receives a fresh watch when its inod
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1792,7 +1792,7 @@ test("a directory replaced at the same path receives a fresh watch when its inod
         "replacement directory reused its stale inode watch",
       );
       assert.equal(
-        session.codexLinuxDirectoryWatchCount(),
+        session.chatgptLinuxDirectoryWatchCount(),
         2,
         "replacement directory retained a descendant watch from the old inode",
       );
@@ -1827,7 +1827,7 @@ test("full reconciliation closes descendant watches under an invalid ancestor", 
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1849,7 +1849,7 @@ test("full reconciliation closes descendant watches under an invalid ancestor", 
       );
       assert.equal(staleNestedWatcher.closed, true);
       assert.equal(
-        session.codexLinuxDirectoryWatchCount(),
+        session.chatgptLinuxDirectoryWatchCount(),
         3,
         "invalid ancestor retained a duplicate descendant watch",
       );
@@ -1888,7 +1888,7 @@ test("stale descendant callbacks cannot restore watches below a closed ancestor"
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1927,7 +1927,7 @@ test("stale descendant callbacks cannot restore watches below a closed ancestor"
       );
       await new Promise((resolve) => setTimeout(resolve, 150));
       assert.equal(
-        session.codexLinuxDirectorySyncFlushCount(),
+        session.chatgptLinuxDirectorySyncFlushCount(),
         0,
         "a stale descendant callback queued work after its watch was invalidated",
       );
@@ -1960,7 +1960,7 @@ test("moving the watched root closes the stale inode watch", async () => {
     const events = [];
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -1973,12 +1973,12 @@ test("moving the watched root closes the stale inode watch", async () => {
       fs.renameSync(root, movedRoot);
       callbacks.get(path.resolve(root))("rename", path.basename(root));
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 0,
+        () => session.chatgptLinuxDirectoryWatchCount() === 0,
         "moved working-tree root did not close",
       );
       const closed = await session.closed;
       assert.equal(closed.reason, "watch-error");
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       assert.ok(events.some((event) => event.changedPaths.length === 0));
       assert.ok(
         !events.some((event) => event.changedPaths.includes(path.join(root, path.basename(root)))),
@@ -2024,7 +2024,7 @@ test("a replaced root receives a fresh watch when its inode number is reused", a
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2044,7 +2044,7 @@ test("a replaced root receives a fresh watch when its inode number is reused", a
         "replacement root reused its stale watch",
       );
       assert.equal(rootWatchers[0].closed, true);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.ok(events.some((event) => event.changedPaths.length === 0));
       assert.ok(
         !events.some((event) => event.changedPaths.includes(path.join(root, path.basename(root)))),
@@ -2103,7 +2103,7 @@ test("a replaced Git root re-watches refresh targets when inode numbers are reus
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2133,7 +2133,7 @@ test("a replaced Git root re-watches refresh targets when inode numbers are reus
       );
       assert.equal(staleRootWatcher.closed, true);
       assert.equal(staleInfoWatcher.closed, true);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
     } finally {
       await session?.dispose();
       fs.statSync = originalStat;
@@ -2151,7 +2151,7 @@ test("name exclusions and Git ignore rules prune generated subtrees", async () =
     fs.mkdirSync(path.join(root, "node_modules", "package", "deep"), { recursive: true });
     fs.mkdirSync(path.join(root, "ignored-output", "deep"), { recursive: true });
 
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2165,7 +2165,7 @@ test("name exclusions and Git ignore rules prune generated subtrees", async () =
       }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
     } finally {
       await session.dispose();
     }
@@ -2205,7 +2205,7 @@ test("scattered Git-ignored roots are indexed without quadratic ancestor scans",
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2231,7 +2231,7 @@ test("nested .git metadata directories never consume working-tree watches", asyn
   await withTempTree(async (root) => {
     fs.mkdirSync(path.join(root, "embedded", ".git", "objects", "deep"), { recursive: true });
     fs.mkdirSync(path.join(root, "embedded", "src"));
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2242,7 +2242,7 @@ test("nested .git metadata directories never consume working-tree watches", asyn
       configuration(),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
     } finally {
       await session.dispose();
     }
@@ -2254,7 +2254,7 @@ test("an ignored file such as .env.local still emits a working-tree event", asyn
     spawnSync("git", ["init", "-q", root]);
     fs.writeFileSync(path.join(root, ".gitignore"), ".env.local\n");
     const events = [];
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2287,7 +2287,7 @@ test("an ignored directory containing a forced tracked file remains watched", as
     spawnSync("git", ["-C", root, "add", ".gitignore"]);
     spawnSync("git", ["-C", root, "add", "-f", "ignored/tracked.txt"]);
 
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2298,7 +2298,7 @@ test("an ignored directory containing a forced tracked file remains watched", as
       configuration({ honorGitIgnore: true }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
     } finally {
       await session.dispose();
     }
@@ -2316,7 +2316,7 @@ test("a newly restored ignored directory with a tracked file becomes watched", a
     fs.rmSync(path.join(root, "ignored"), { recursive: true, force: true });
 
     const events = [];
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2329,7 +2329,7 @@ test("a newly restored ignored directory with a tracked file becomes watched", a
     try {
       fs.mkdirSync(path.join(root, "ignored"));
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "restored tracked directory was not watched",
       );
       const trackedPath = path.join(root, "ignored", "tracked.txt");
@@ -2352,7 +2352,7 @@ test("a moved-in tree applies Git ignore rules before installing descendant watc
     fs.writeFileSync(path.join(incoming, ".gitignore"), "generated/\n");
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2364,7 +2364,7 @@ test("a moved-in tree applies Git ignore rules before installing descendant watc
       );
       fs.renameSync(incoming, path.join(root, "package"));
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "moved-in ignored descendants received directory watches",
       );
       assert.equal(
@@ -2384,7 +2384,7 @@ test("Git metadata refresh watches are discovered when a working tree is initial
     const trackedPath = path.join(root, "ignored", "tracked.txt");
     fs.writeFileSync(trackedPath, "before\n");
     const events = [];
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2395,20 +2395,20 @@ test("Git metadata refresh watches are discovered when a working tree is initial
       configuration({ honorGitIgnore: true }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
       assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
       fs.writeFileSync(path.join(root, ".gitignore"), "ignored/\n");
       await waitFor(
         () => (
-          session.codexLinuxDirectoryWatchCount() === 1 &&
-          session.codexLinuxDirectoryWatchBudget().active >= 3
+          session.chatgptLinuxDirectoryWatchCount() === 1 &&
+          session.chatgptLinuxDirectoryWatchBudget().active >= 3
         ),
         "new Git metadata targets were not discovered and ignored directories were not pruned",
       );
 
       assert.equal(spawnSync("git", ["-C", root, "add", "-f", "ignored/tracked.txt"]).status, 0);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "the newly discovered index watch did not restore a force-added directory",
       );
       events.length = 0;
@@ -2431,7 +2431,7 @@ test("force-adding a file refreshes a previously pruned directory", async () => 
     const trackedPath = path.join(root, "ignored", "tracked.txt");
     fs.writeFileSync(trackedPath, "before\n");
     const events = [];
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2442,10 +2442,10 @@ test("force-adding a file refreshes a previously pruned directory", async () => 
       configuration({ honorGitIgnore: true }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.equal(spawnSync("git", ["-C", root, "add", "-f", "ignored/tracked.txt"]).status, 0);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "force-added directory was not added to the watch topology",
       );
       events.length = 0;
@@ -2466,7 +2466,7 @@ test("changing .git/info/exclude refreshes the watch topology", async () => {
     const excludePath = path.join(root, ".git", "info", "exclude");
     fs.writeFileSync(excludePath, "ignored/\n");
     fs.mkdirSync(path.join(root, "ignored"));
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2477,10 +2477,10 @@ test("changing .git/info/exclude refreshes the watch topology", async () => {
       configuration({ honorGitIgnore: true }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       fs.writeFileSync(excludePath, "");
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         ".git/info/exclude change did not refresh directory watches",
       );
     } finally {
@@ -2510,7 +2510,7 @@ test("a replaced Git refresh directory receives a fresh inode watch", async () =
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2520,13 +2520,13 @@ test("a replaced Git refresh directory receives a fresh inode watch", async () =
         },
         configuration({ honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
       assert.equal(callbacks.get(infoDirectory).length, 1);
 
       fs.rmSync(infoDirectory, { recursive: true, force: true });
       callbacks.get(infoDirectory)[0]("rename", path.basename(infoDirectory));
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active === 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active === 3,
         "stale Git refresh inode watch was not released",
       );
       await new Promise((resolve) => setTimeout(resolve, 150));
@@ -2536,7 +2536,7 @@ test("a replaced Git refresh directory receives a fresh inode watch", async () =
       fs.writeFileSync(excludePath, "foo/\n");
       await waitFor(
         () => (
-          session.codexLinuxDirectoryWatchCount() === 1 &&
+          session.chatgptLinuxDirectoryWatchCount() === 1 &&
           callbacks.get(infoDirectory).length === 2
         ),
         "recreated Git refresh directory was not watched and reconciled",
@@ -2581,7 +2581,7 @@ test("a replaced Git refresh directory is rewatched when its inode number is reu
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2600,7 +2600,7 @@ test("a replaced Git refresh directory is rewatched when its inode number is reu
       await waitFor(
         () => (
           callbacks.get(infoDirectory).length === 2 &&
-          session.codexLinuxDirectoryWatchCount() === 1
+          session.chatgptLinuxDirectoryWatchCount() === 1
         ),
         "replacement Git refresh directory reused its stale watch",
       );
@@ -2649,7 +2649,7 @@ test("replacing .git re-watches a refresh target whose inode number is reused", 
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2674,7 +2674,7 @@ test("replacing .git re-watches a refresh target whose inode number is reused", 
       );
       assert.equal(staleInfoWatcher.closed, true);
       assert.equal(callbacksByPath.get(path.resolve(root)).length, 1);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
     } finally {
       await session?.dispose();
       fs.statSync = originalStat;
@@ -2703,7 +2703,7 @@ test("asynchronous Git refresh watch failures retain a resettable backoff", asyn
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2739,7 +2739,7 @@ test("asynchronous Git refresh watch failures retain a resettable backoff", asyn
         [1000],
         "a healthy refresh event did not reset the asynchronous failure backoff",
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
     } finally {
       await session?.dispose();
       fs.watch = originalWatch;
@@ -2779,7 +2779,7 @@ test("a higher Git refresh failure minimum replaces another path's pending timer
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -2874,7 +2874,7 @@ for (const refreshInvalidation of [
       };
       let session;
       try {
-        session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+        session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
           fakeHost(),
           {
             path: root,
@@ -2950,7 +2950,7 @@ for (const refreshInvalidation of [
 test("new directories are watched and deleted subtrees release their watches", async () => {
   await withTempTree(async (root) => {
     const events = [];
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -2963,7 +2963,7 @@ test("new directories are watched and deleted subtrees release their watches", a
     try {
       fs.mkdirSync(path.join(root, "new", "nested"), { recursive: true });
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 3,
+        () => session.chatgptLinuxDirectoryWatchCount() === 3,
         "new directory watches were not installed",
       );
 
@@ -2976,7 +2976,7 @@ test("new directories are watched and deleted subtrees release their watches", a
 
       fs.rmSync(path.join(root, "new"), { recursive: true, force: true });
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 1,
+        () => session.chatgptLinuxDirectoryWatchCount() === 1,
         "deleted directory watches were not released",
       );
     } finally {
@@ -2990,7 +2990,7 @@ test("the shared watch budget bounds large directory trees", async () => {
     for (const name of ["a", "b", "c", "d"]) {
       fs.mkdirSync(path.join(root, name, "nested"), { recursive: true });
     }
-    const session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: root,
@@ -3001,8 +3001,8 @@ test("the shared watch budget bounds large directory trees", async () => {
       configuration({ maxWatches: 2 }),
     );
     try {
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
-      assert.deepEqual(session.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
+      assert.deepEqual(session.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
       assert.equal(session.coverage.recursive, false);
     } finally {
       await session.dispose();
@@ -3033,7 +3033,7 @@ test("a transient non-resource child watch failure schedules bounded topology re
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3044,12 +3044,12 @@ test("a transient non-resource child watch failure schedules bounded topology re
         configuration(),
       );
       assert.equal(childWatchAttempts, 1);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "delayed topology recovery did not restore the child watch",
       );
       assert.equal(childWatchAttempts, 2);
@@ -3083,7 +3083,7 @@ test("persistent non-resource child watch failures return recovery to Codex", as
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3106,7 +3106,7 @@ test("persistent non-resource child watch failures return recovery to Codex", as
       assert.equal(closed.reason, "watch-error");
       assert.match(closed.error.message, /Could not restore complete working-tree watch coverage/);
       assert.equal(childWatchAttempts, 3);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
       assert.deepEqual(retryTimers.live(), []);
     } finally {
       await session?.dispose();
@@ -3139,7 +3139,7 @@ test("persistent asynchronous child watch failures close after two recoveries", 
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3169,7 +3169,7 @@ test("persistent asynchronous child watch failures close after two recoveries", 
       assert.match(closed.error.message, /Could not restore complete working-tree watch coverage/);
       assert.equal(childWatchers.length, 3);
       assert.equal(childWatchers.every((watcher) => watcher.closed), true);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 0);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 0);
     } finally {
       await session?.dispose();
       fs.watch = originalWatch;
@@ -3208,7 +3208,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
     console.error = (...args) => errors.push(args.join(" "));
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3218,7 +3218,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
         },
         configuration(),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
       assert.equal(errors.length, 1);
 
@@ -3232,7 +3232,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
       allowChildWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "child watch did not recover after resource capacity returned",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -3248,7 +3248,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
       );
       assert.equal(retryTimers.live()[0].delay, 1000, "successful recovery did not reset backoff");
       await new Promise((resolve) => setTimeout(resolve, 150));
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.equal(
         childWatchAttempts,
         attemptsBeforeAsyncError,
@@ -3258,7 +3258,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
       allowChildWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "asynchronous child watch failure did not eventually recover",
       );
       assert.equal(errors.length, 1, "resource-limit diagnostics were not process-deduplicated");
@@ -3277,7 +3277,7 @@ test("child watch resource failures recover with a resettable backoff", async ()
       allowChildWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "repeated asynchronous resource failure did not recover",
       );
 
@@ -3352,7 +3352,7 @@ test("resource recovery does not bypass same-owner root metadata backoff", async
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3409,16 +3409,16 @@ test("resource recovery does not bypass same-owner root metadata backoff", async
       await waitFor(
         () => (
           retryTimers.live().length === 1 &&
-          session.codexLinuxDirectoryWatchCount() === 1
+          session.chatgptLinuxDirectoryWatchCount() === 1
         ),
         "root retry did not leave recovery to the resource timer",
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       const replacementResourceTimer = retryTimers.live()[0];
       assert.equal(replacementResourceTimer.delay, 1000);
       retryTimers.fire(replacementResourceTimer);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 2,
+        () => session.chatgptLinuxDirectoryWatchCount() === 2,
         "resource retry did not recover the deferred child watch",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -3483,7 +3483,7 @@ test("failed resource recovery does not wake another root's metadata backoff", a
   let blockedSession;
   try {
     const settings = configuration({ maxWatches: 3 });
-    resourceSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    resourceSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: resourceRoot,
@@ -3493,7 +3493,7 @@ test("failed resource recovery does not wake another root's metadata backoff", a
       },
       settings,
     );
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -3503,7 +3503,7 @@ test("failed resource recovery does not wake another root's metadata backoff", a
       },
       settings,
     );
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -3513,7 +3513,7 @@ test("failed resource recovery does not wake another root's metadata backoff", a
       },
       settings,
     );
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     failBlockedMetadata = true;
     await ownerSession.dispose();
@@ -3586,7 +3586,7 @@ test("a non-resource resource probe failure returns to bounded topology recovery
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3644,7 +3644,7 @@ test("a resource readdir probe that becomes non-resource returns to bounded reco
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3719,7 +3719,7 @@ test("a higher asynchronous resource minimum replaces another path's pending tim
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3817,7 +3817,7 @@ test("an in-flight resource retry preserves another path's higher asynchronous b
       watcher.emit("error", error);
     };
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3902,7 +3902,7 @@ test("one failed resource probe does not scan every missing directory", async ()
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -3965,7 +3965,7 @@ test("Git retry and resource retry domains do not probe each other early", async
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -4043,7 +4043,7 @@ test("directory traversal resource failures recover root and child coverage", as
       console.error = () => {};
       let session;
       try {
-        session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+        session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
           fakeHost(),
           {
             path: root,
@@ -4054,7 +4054,7 @@ test("directory traversal resource failures recover root and child coverage", as
           configuration(),
         );
         assert.equal(
-          session.codexLinuxDirectoryWatchCount(),
+          session.chatgptLinuxDirectoryWatchCount(),
           failureLocation === "root" ? 1 : 2,
         );
         assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
@@ -4070,7 +4070,7 @@ test("directory traversal resource failures recover root and child coverage", as
         shouldFail = false;
         retryTimers.fire(retryTimers.live()[0]);
         await waitFor(
-          () => session.codexLinuxDirectoryWatchCount() === 3,
+          () => session.chatgptLinuxDirectoryWatchCount() === 3,
           `${failureLocation} readdir resource failure did not recover recursive coverage`,
         );
         assert.deepEqual(retryTimers.live(), []);
@@ -4108,7 +4108,7 @@ test("resource recovery reloads nested Git ignores missed without coverage", asy
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -4118,14 +4118,14 @@ test("resource recovery reloads nested Git ignores missed without coverage", asy
         },
         configuration({ honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 2);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 2);
       assert.deepEqual(retryTimers.live().map((timer) => timer.delay), [1000]);
 
       fs.writeFileSync(nestedIgnore, "");
       shouldFail = false;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 5,
+        () => session.chatgptLinuxDirectoryWatchCount() === 5,
         "resource recovery retained stale nested Git-ignore state",
       );
     } finally {
@@ -4164,7 +4164,7 @@ test("non-resource child recovery reloads nested Git ignores missed without cove
     };
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -4174,16 +4174,16 @@ test("non-resource child recovery reloads nested Git ignores missed without cove
         },
         configuration({ honorGitIgnore: true }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 3);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 3);
 
       const error = new Error("child watcher failed asynchronously");
       error.code = "EIO";
       watchersByPath.get(blocked).at(-1).emit("error", error);
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       fs.writeFileSync(nestedIgnore, "");
 
       await waitFor(
-        () => session.codexLinuxDirectoryWatchCount() === 5,
+        () => session.chatgptLinuxDirectoryWatchCount() === 5,
         "non-resource recovery retained stale nested Git-ignore state",
       );
     } finally {
@@ -4223,7 +4223,7 @@ test("Git refresh watch resource failures retain their recovery timer", async ()
     console.error = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -4245,7 +4245,7 @@ test("Git refresh watch resource failures retain their recovery timer", async ()
       allowRefreshWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active === 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active === 3,
         "Git refresh watch did not recover after resources became available",
       );
       assert.deepEqual(retryTimers.live(), []);
@@ -4270,7 +4270,7 @@ test("Git refresh watch resource failures retain their recovery timer", async ()
       allowRefreshWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active === 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active === 3,
         "asynchronous Git refresh failure did not recover",
       );
 
@@ -4288,7 +4288,7 @@ test("Git refresh watch resource failures retain their recovery timer", async ()
       allowRefreshWatch = true;
       retryTimers.fire(retryTimers.live()[0]);
       await waitFor(
-        () => session.codexLinuxDirectoryWatchBudget().active === 3,
+        () => session.chatgptLinuxDirectoryWatchBudget().active === 3,
         "repeated asynchronous Git refresh failure did not recover",
       );
 
@@ -4322,7 +4322,7 @@ test("configured budget exhaustion does not start a resource retry timer", async
     console.warn = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -4332,7 +4332,7 @@ test("configured budget exhaustion does not start a resource retry timer", async
         },
         configuration({ maxWatches: 1 }),
       );
-      assert.equal(session.codexLinuxDirectoryWatchCount(), 1);
+      assert.equal(session.chatgptLinuxDirectoryWatchCount(), 1);
       assert.deepEqual(retryTimers.records, []);
     } finally {
       await session?.dispose();
@@ -4356,7 +4356,7 @@ test("budget coverage transitions are logged once until coverage recovers", asyn
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4366,7 +4366,7 @@ test("budget coverage transitions are logged once until coverage recovers", asyn
       },
       configuration({ maxWatches: 2 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4437,7 +4437,7 @@ test("Git metadata discovery must complete before budget recovery is logged", as
   let secondSession;
   try {
     const settings = configuration({ maxWatches: 5, honorGitIgnore: true });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4447,7 +4447,7 @@ test("Git metadata discovery must complete before budget recovery is logged", as
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4457,15 +4457,15 @@ test("Git metadata discovery must complete before budget recovery is logged", as
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
 
     failTargetDiscovery = true;
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
       () => (
-        secondSession.codexLinuxDirectoryWatchCount() === 2 &&
+        secondSession.chatgptLinuxDirectoryWatchCount() === 2 &&
         retryTimers.live().length === 1
       ),
       "partial workspace did not retain a Git metadata discovery retry",
@@ -4514,7 +4514,7 @@ test("operating-system watch exhaustion is logged once per process", async () =>
     try {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         await assert.rejects(
-          codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+          chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
             fakeHost(),
             {
               path: root,
@@ -4544,7 +4544,7 @@ test("the watch budget is shared across working trees", async () => {
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4554,7 +4554,7 @@ test("the watch budget is shared across working trees", async () => {
       },
       configuration({ maxWatches: 2 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4564,12 +4564,12 @@ test("the watch budget is shared across working trees", async () => {
       },
       configuration({ maxWatches: 2 }),
     );
-    assert.deepEqual(firstSession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.deepEqual(firstSession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 2,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 2,
       "starved working tree did not acquire the released root and subtree budget",
     );
   } finally {
@@ -4601,7 +4601,7 @@ test("a new workspace cannot overtake a root waiting on released capacity", asyn
   });
   try {
     const settings = configuration({ maxWatches: 1 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4611,7 +4611,7 @@ test("a new workspace cannot overtake a root waiting on released capacity", asyn
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4621,9 +4621,9 @@ test("a new workspace cannot overtake a root waiting on released capacity", asyn
       },
       settings,
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
-    const thirdSessionPromise = codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    const thirdSessionPromise = chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       {
         getFileSystemPath: (value) => value,
         platformPath: () => thirdPlatformPath,
@@ -4642,11 +4642,11 @@ test("a new workspace cannot overtake a root waiting on released capacity", asyn
     thirdSession = await thirdSessionPromise;
     await firstDispose;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 1,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 1,
       "later workspace overtook the root-first released-capacity queue",
     );
-    assert.equal(thirdSession.codexLinuxDirectoryWatchCount(), 0);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 1, limit: 1 });
+    assert.equal(thirdSession.chatgptLinuxDirectoryWatchCount(), 0);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 1, limit: 1 });
   } finally {
     await firstSession?.dispose();
     await secondSession?.dispose();
@@ -4691,7 +4691,7 @@ test("a transient root metadata failure does not close a budget-starved session"
   let secondSessionClosed = false;
   try {
     const settings = configuration({ maxWatches: 1 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4701,7 +4701,7 @@ test("a transient root metadata failure does not close a budget-starved session"
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4714,13 +4714,13 @@ test("a transient root metadata failure does not close a budget-starved session"
     secondSession.closed.then(() => {
       secondSessionClosed = true;
     });
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     failSecondRootMetadata = true;
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 1,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 1,
       "transient root metadata failure prevented released-capacity recovery",
     );
     assert.equal(secondRootMetadataFailures, 1);
@@ -4769,7 +4769,7 @@ test("an unknown zero-watch root remains alive when another root claims the budg
   let waitingSessionClosed = false;
   try {
     const settings = configuration({ maxWatches: 1 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4779,7 +4779,7 @@ test("an unknown zero-watch root remains alive when another root claims the budg
       },
       settings,
     );
-    waitingSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    waitingSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: waitingRoot,
@@ -4789,7 +4789,7 @@ test("an unknown zero-watch root remains alive when another root claims the budg
       },
       settings,
     );
-    winningSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    winningSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: winningRoot,
@@ -4807,7 +4807,7 @@ test("an unknown zero-watch root remains alive when another root claims the budg
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => winningSession.codexLinuxDirectoryWatchCount() === 1,
+      () => winningSession.chatgptLinuxDirectoryWatchCount() === 1,
       "competing root did not claim released capacity",
     );
     await waitFor(
@@ -4817,7 +4817,7 @@ test("an unknown zero-watch root remains alive when another root claims the budg
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(() => waitingRootStatCalls >= 2, "waiting-root metadata retry did not run");
     assert.equal(waitingRootStatCalls, 2);
-    assert.equal(waitingSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(waitingSession.chatgptLinuxDirectoryWatchCount(), 0);
     assert.equal(waitingSessionClosed, false);
     assert.deepEqual(retryTimers.live(), []);
   } finally {
@@ -4879,7 +4879,7 @@ test("capacity released during recovery is replayed after the in-flight scan", a
   let secondSession;
   try {
     const settings = configuration({ maxWatches: 5 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4889,7 +4889,7 @@ test("capacity released during recovery is replayed after the in-flight scan", a
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4899,9 +4899,9 @@ test("capacity released during recovery is replayed after the in-flight scan", a
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
 
     recoveryPhase = true;
     fs.rmSync(path.join(firstRoot, "child"), { recursive: true, force: true });
@@ -4913,13 +4913,13 @@ test("capacity released during recovery is replayed after the in-flight scan", a
 
     await firstSession.dispose();
     firstSession = null;
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 5 });
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 5 });
     releaseBlockedRead();
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 5,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 5,
       "capacity released during recovery was not replayed",
     );
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
     assert.equal(
       infos.filter((message) => message.includes("watch coverage recovered")).length,
       1,
@@ -4975,7 +4975,7 @@ test("released capacity goes to a waiting partial workspace before its owner ref
   };
   try {
     const settings = configuration({ maxWatches: 4 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -4985,7 +4985,7 @@ test("released capacity goes to a waiting partial workspace before its owner ref
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -4995,23 +4995,23 @@ test("released capacity goes to a waiting partial workspace before its owner ref
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 4);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 4);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     invalidateFirstChild();
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 1,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 1,
       "waiting workspace did not acquire its root",
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 3);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 3);
 
     invalidateFirstChild();
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 2,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 2,
       "releasing workspace reclaimed capacity before the waiting workspace",
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
   } finally {
     await firstSession?.dispose();
     await secondSession?.dispose();
@@ -5061,7 +5061,7 @@ test("released capacity is reserved fairly across queued workspace reconciliatio
   let slowSession;
   try {
     const settings = configuration({ maxWatches: 6 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5071,7 +5071,7 @@ test("released capacity is reserved fairly across queued workspace reconciliatio
       },
       settings,
     );
-    fastSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    fastSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: fastRoot,
@@ -5081,7 +5081,7 @@ test("released capacity is reserved fairly across queued workspace reconciliatio
       },
       settings,
     );
-    slowSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    slowSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: slowRoot,
@@ -5091,9 +5091,9 @@ test("released capacity is reserved fairly across queued workspace reconciliatio
       },
       settings,
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 4);
-    assert.equal(fastSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(slowSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 4);
+    assert.equal(fastSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(slowSession.chatgptLinuxDirectoryWatchCount(), 1);
 
     for (const name of ["0", "1", "2", "3"]) {
       fs.mkdirSync(path.join(fastRoot, name));
@@ -5114,19 +5114,19 @@ test("released capacity is reserved fairly across queued workspace reconciliatio
     await ownerSession.dispose();
     ownerSession = null;
     await waitFor(
-      () => fastSession.codexLinuxDirectoryWatchCount() === 3,
+      () => fastSession.chatgptLinuxDirectoryWatchCount() === 3,
       "healthy workspace did not receive its fair released-capacity share",
     );
-    assert.equal(slowSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(fastSession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 6 });
+    assert.equal(slowSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(fastSession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 6 });
 
     releaseSlowRead();
     await waitFor(
-      () => slowSession.codexLinuxDirectoryWatchCount() === 3,
+      () => slowSession.chatgptLinuxDirectoryWatchCount() === 3,
       "queued slow-workspace reconciliation consumed the healthy workspace share",
     );
-    assert.equal(fastSession.codexLinuxDirectoryWatchCount(), 3);
-    assert.deepEqual(slowSession.codexLinuxDirectoryWatchBudget(), { active: 6, limit: 6 });
+    assert.equal(fastSession.chatgptLinuxDirectoryWatchCount(), 3);
+    assert.deepEqual(slowSession.chatgptLinuxDirectoryWatchBudget(), { active: 6, limit: 6 });
   } finally {
     releaseSlowRead();
     await ownerSession?.dispose();
@@ -5164,7 +5164,7 @@ test("released capacity recovery continues across bounded allocation chunks", as
   let waitingSession;
   try {
     const settings = configuration({ maxWatches: 301 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5174,7 +5174,7 @@ test("released capacity recovery continues across bounded allocation chunks", as
       },
       settings,
     );
-    waitingSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    waitingSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: waitingRoot,
@@ -5184,9 +5184,9 @@ test("released capacity recovery continues across bounded allocation chunks", as
       },
       settings,
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 300);
-    assert.equal(waitingSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(waitingSession.codexLinuxDirectoryWatchBudget(), {
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 300);
+    assert.equal(waitingSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(waitingSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 301,
       limit: 301,
     });
@@ -5194,11 +5194,11 @@ test("released capacity recovery continues across bounded allocation chunks", as
     await ownerSession.dispose();
     ownerSession = null;
     await waitFor(
-      () => waitingSession.codexLinuxDirectoryWatchCount() === 301,
+      () => waitingSession.chatgptLinuxDirectoryWatchCount() === 301,
       "recovery stopped after consuming its first bounded allocation chunk",
       8_000,
     );
-    assert.deepEqual(waitingSession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(waitingSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 301,
       limit: 301,
     });
@@ -5238,7 +5238,7 @@ test("multi-chunk recovery preserves Git discovery backoff", async () => {
   let discoveryFailures = 0;
   try {
     const settings = configuration({ maxWatches: 300 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5248,7 +5248,7 @@ test("multi-chunk recovery preserves Git discovery backoff", async () => {
       },
       settings,
     );
-    gitSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    gitSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: gitRoot,
@@ -5258,8 +5258,8 @@ test("multi-chunk recovery preserves Git discovery backoff", async () => {
       },
       configuration({ maxWatches: 300, honorGitIgnore: true }),
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 300);
-    assert.equal(gitSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 300);
+    assert.equal(gitSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     childProcess.execFile = (command, args, options, callback) => {
       if (args.includes("rev-parse")) {
@@ -5276,7 +5276,7 @@ test("multi-chunk recovery preserves Git discovery backoff", async () => {
     await ownerSession.dispose();
     ownerSession = null;
     await waitFor(
-      () => gitSession.codexLinuxDirectoryWatchCount() === 300,
+      () => gitSession.chatgptLinuxDirectoryWatchCount() === 300,
       "multi-chunk fallback recovery did not fill released capacity",
       8_000,
     );
@@ -5287,7 +5287,7 @@ test("multi-chunk recovery preserves Git discovery backoff", async () => {
     );
     assert.equal(retryTimers.live().length, 1);
     assert.equal(retryTimers.live()[0].delay, 1000);
-    assert.deepEqual(gitSession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(gitSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 300,
       limit: 300,
     });
@@ -5343,7 +5343,7 @@ test("multi-chunk recovery preserves root metadata backoff", async () => {
   let unstableMetadataFailures = 0;
   try {
     const settings = configuration({ maxWatches: 300 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5353,7 +5353,7 @@ test("multi-chunk recovery preserves root metadata backoff", async () => {
       },
       settings,
     );
-    waitingSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    waitingSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: waitingRoot,
@@ -5376,7 +5376,7 @@ test("multi-chunk recovery preserves root metadata backoff", async () => {
     await ownerSession.dispose();
     ownerSession = null;
     await waitFor(
-      () => waitingSession.codexLinuxDirectoryWatchCount() === 257 &&
+      () => waitingSession.chatgptLinuxDirectoryWatchCount() === 257 &&
         globalThis[BUDGET_KEY]?.suspendedOwners.size === 1 &&
         retryTimers.live().length === 1,
       "first recovery chunk did not suspend behind metadata backoff",
@@ -5390,18 +5390,18 @@ test("multi-chunk recovery preserves root metadata backoff", async () => {
       1,
       "next recovery chunk bypassed root metadata backoff",
     );
-    assert.equal(waitingSession.codexLinuxDirectoryWatchCount(), 257);
+    assert.equal(waitingSession.chatgptLinuxDirectoryWatchCount(), 257);
 
     failUnstableMetadata = false;
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => waitingSession.codexLinuxDirectoryWatchCount() === 300,
+      () => waitingSession.chatgptLinuxDirectoryWatchCount() === 300,
       "successful metadata retry did not resume remaining recovery chunks",
       8_000,
     );
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 0);
     assert.deepEqual(retryTimers.live(), []);
-    assert.deepEqual(waitingSession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(waitingSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 300,
       limit: 300,
     });
@@ -5445,7 +5445,7 @@ test("capacity released before recovery settlement is allocated in the next gene
   let secondOwnerDisposal = null;
   try {
     const settings = configuration({ maxWatches: 4 });
-    firstOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstOwnerRoot,
@@ -5455,7 +5455,7 @@ test("capacity released before recovery settlement is allocated in the next gene
       },
       settings,
     );
-    secondOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondOwnerRoot,
@@ -5465,7 +5465,7 @@ test("capacity released before recovery settlement is allocated in the next gene
       },
       settings,
     );
-    recoveringSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    recoveringSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: recoveringRoot,
@@ -5481,19 +5481,19 @@ test("capacity released before recovery settlement is allocated in the next gene
       },
       settings,
     );
-    assert.equal(firstOwnerSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(secondOwnerSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(recoveringSession.codexLinuxDirectoryWatchCount(), 2);
+    assert.equal(firstOwnerSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondOwnerSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(recoveringSession.chatgptLinuxDirectoryWatchCount(), 2);
 
     disposeSecondOwnerOnRecovery = true;
     await firstOwnerSession.dispose();
     firstOwnerSession = null;
     await waitFor(
-      () => recoveringSession.codexLinuxDirectoryWatchCount() === 4,
+      () => recoveringSession.chatgptLinuxDirectoryWatchCount() === 4,
       "capacity released before settlement was lost with the prior reservation generation",
     );
     await secondOwnerDisposal;
-    assert.deepEqual(recoveringSession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(recoveringSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 4,
       limit: 4,
     });
@@ -5541,7 +5541,7 @@ test("a newly partial workspace redistributes idle capacity from suspended owner
   let stalledSession;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5551,7 +5551,7 @@ test("a newly partial workspace redistributes idle capacity from suspended owner
       },
       settings,
     );
-    healthySession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    healthySession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: healthyRoot,
@@ -5561,7 +5561,7 @@ test("a newly partial workspace redistributes idle capacity from suspended owner
       },
       settings,
     );
-    stalledSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    stalledSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: stalledRoot,
@@ -5571,9 +5571,9 @@ test("a newly partial workspace redistributes idle capacity from suspended owner
       },
       settings,
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(healthySession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(stalledSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(healthySession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(stalledSession.chatgptLinuxDirectoryWatchCount(), 1);
 
     failStalledChild = true;
     await ownerSession.dispose();
@@ -5582,17 +5582,17 @@ test("a newly partial workspace redistributes idle capacity from suspended owner
       () => globalThis[BUDGET_KEY]?.suspendedOwners.size === 1,
       "unproductive workspace recovery was not suspended",
     );
-    assert.deepEqual(healthySession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
+    assert.deepEqual(healthySession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
 
     failStalledChild = false;
     fs.mkdirSync(path.join(healthyRoot, "child"));
     callbacksByPath.get(path.resolve(healthyRoot))("rename", "child");
     await waitFor(
-      () => healthySession.codexLinuxDirectoryWatchCount() === 2 &&
-        stalledSession.codexLinuxDirectoryWatchCount() === 2,
+      () => healthySession.chatgptLinuxDirectoryWatchCount() === 2 &&
+        stalledSession.chatgptLinuxDirectoryWatchCount() === 2,
       "new partial coverage did not redistribute idle capacity",
     );
-    assert.deepEqual(healthySession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
+    assert.deepEqual(healthySession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
   } finally {
     await ownerSession?.dispose();
     await healthySession?.dispose();
@@ -5641,7 +5641,7 @@ test("unused reservation returns do not wake mutually stalled workspaces", async
   let secondStalledSession;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5651,7 +5651,7 @@ test("unused reservation returns do not wake mutually stalled workspaces", async
       },
       settings,
     );
-    firstStalledSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstStalledSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstStalledRoot,
@@ -5661,7 +5661,7 @@ test("unused reservation returns do not wake mutually stalled workspaces", async
       },
       settings,
     );
-    secondStalledSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondStalledSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondStalledRoot,
@@ -5704,11 +5704,11 @@ test("unused reservation returns do not wake mutually stalled workspaces", async
     stalledChildren.clear();
     callbacksByPath.get(path.resolve(firstStalledRoot))("rename", null);
     await waitFor(
-      () => firstStalledSession.codexLinuxDirectoryWatchCount() === 2 &&
-        secondStalledSession.codexLinuxDirectoryWatchCount() === 2,
+      () => firstStalledSession.chatgptLinuxDirectoryWatchCount() === 2 &&
+        secondStalledSession.chatgptLinuxDirectoryWatchCount() === 2,
       "a real topology event did not wake suspended workspace recovery",
     );
-    assert.deepEqual(firstStalledSession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(firstStalledSession.chatgptLinuxDirectoryWatchBudget(), {
       active: 4,
       limit: 4,
     });
@@ -5759,7 +5759,7 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
   let secondOwnerSession;
   try {
     const settings = configuration({ maxWatches: 6 });
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -5769,7 +5769,7 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
       },
       settings,
     );
-    healthySession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    healthySession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: healthyRoot,
@@ -5779,7 +5779,7 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
       },
       settings,
     );
-    firstOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstOwnerRoot,
@@ -5789,7 +5789,7 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
       },
       settings,
     );
-    secondOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondOwnerRoot,
@@ -5799,8 +5799,8 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
       },
       settings,
     );
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(healthySession.codexLinuxDirectoryWatchCount(), 2);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(healthySession.chatgptLinuxDirectoryWatchCount(), 2);
 
     fs.mkdirSync(path.join(blockedRoot, "missing"));
     for (const name of ["a", "b", "c", "d"]) fs.mkdirSync(path.join(healthyRoot, name));
@@ -5815,8 +5815,8 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
     resourceError.code = "ENOSPC";
     watchersByPath.get(blockedExistingChild).emit("error", resourceError);
     await waitFor(
-      () => blockedSession.codexLinuxDirectoryWatchCount() === 1 &&
-        healthySession.codexLinuxDirectoryWatchCount() === 3,
+      () => blockedSession.chatgptLinuxDirectoryWatchCount() === 1 &&
+        healthySession.chatgptLinuxDirectoryWatchCount() === 3,
       "healthy workspace did not claim the first released slot",
     );
     assert.equal(retryTimers.live().length, 1);
@@ -5824,16 +5824,16 @@ test("temporarily ineligible recovery redistributes its reservation", async () =
     await firstOwnerSession.dispose();
     firstOwnerSession = null;
     await waitFor(
-      () => healthySession.codexLinuxDirectoryWatchCount() === 4,
+      () => healthySession.chatgptLinuxDirectoryWatchCount() === 4,
       "healthy workspace did not claim the second released slot",
     );
     await secondOwnerSession.dispose();
     secondOwnerSession = null;
     await waitFor(
-      () => healthySession.codexLinuxDirectoryWatchCount() === 5,
+      () => healthySession.chatgptLinuxDirectoryWatchCount() === 5,
       "temporarily ineligible owner stranded its released reservation",
     );
-    assert.deepEqual(healthySession.codexLinuxDirectoryWatchBudget(), {
+    assert.deepEqual(healthySession.chatgptLinuxDirectoryWatchBudget(), {
       active: 6,
       limit: 6,
     });
@@ -5874,7 +5874,7 @@ test("a root disposed while returning retry-pending leaves no suspended owner", 
   let removeBlockedRootOnTrigger = false;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5884,7 +5884,7 @@ test("a root disposed while returning retry-pending leaves no suspended owner", 
       },
       settings,
     );
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -5894,7 +5894,7 @@ test("a root disposed while returning retry-pending leaves no suspended owner", 
       },
       settings,
     );
-    triggerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    triggerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: triggerRoot,
@@ -5908,9 +5908,9 @@ test("a root disposed while returning retry-pending leaves no suspended owner", 
       },
       settings,
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 4);
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
-    assert.equal(triggerSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 4);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
+    assert.equal(triggerSession.chatgptLinuxDirectoryWatchCount(), 0);
     let blockedClosed = false;
     blockedSession.closed.then(() => {
       blockedClosed = true;
@@ -5943,8 +5943,8 @@ test("a root disposed while returning retry-pending leaves no suspended owner", 
       },
       "disposed retry-pending root left orphaned budget state",
     );
-    assert.equal(triggerSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(triggerSession.codexLinuxDirectoryWatchBudget(), { active: 1, limit: 4 });
+    assert.equal(triggerSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(triggerSession.chatgptLinuxDirectoryWatchBudget(), { active: 1, limit: 4 });
   } finally {
     fs.statSync = originalStat;
     await ownerSession?.dispose();
@@ -5980,7 +5980,7 @@ test("virtual redistribution does not bypass a suspended root retry", async () =
   let blockedMetadataFailures = 0;
   try {
     const settings = configuration({ maxWatches: 2 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -5990,7 +5990,7 @@ test("virtual redistribution does not bypass a suspended root retry", async () =
       },
       settings,
     );
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -6000,8 +6000,8 @@ test("virtual redistribution does not bypass a suspended root retry", async () =
       },
       settings,
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     fs.statSync = (candidate, ...args) => {
       if (
@@ -6022,11 +6022,11 @@ test("virtual redistribution does not bypass a suspended root retry", async () =
         retryTimers.live().length === 1,
       "retry-pending root was not suspended",
     );
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
-    assert.deepEqual(blockedSession.codexLinuxDirectoryWatchBudget(), { active: 0, limit: 2 });
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
+    assert.deepEqual(blockedSession.chatgptLinuxDirectoryWatchBudget(), { active: 0, limit: 2 });
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(blockedMetadataFailures, 1, "virtual redistribution bypassed root backoff");
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
@@ -6034,13 +6034,13 @@ test("virtual redistribution does not bypass a suspended root retry", async () =
       "failed root retry did not retain its backoff timer",
     );
     assert.equal(retryTimers.live()[0].delay, 2000);
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(blockedMetadataFailures, 2, "failed root retry bypassed its next backoff");
 
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => blockedSession.codexLinuxDirectoryWatchCount() === 2,
+      () => blockedSession.chatgptLinuxDirectoryWatchCount() === 2,
       "root metadata retry did not recover complete directory coverage",
     );
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 0);
@@ -6103,7 +6103,7 @@ test("new partial work and later capacity releases respect root metadata backoff
   let newcomerSession;
   try {
     const settings = configuration({ maxWatches: 4 });
-    firstOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstOwnerRoot,
@@ -6113,7 +6113,7 @@ test("new partial work and later capacity releases respect root metadata backoff
       },
       settings,
     );
-    secondOwnerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondOwnerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondOwnerRoot,
@@ -6123,7 +6123,7 @@ test("new partial work and later capacity releases respect root metadata backoff
       },
       settings,
     );
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -6133,7 +6133,7 @@ test("new partial work and later capacity releases respect root metadata backoff
       },
       settings,
     );
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     failBlockedMetadata = true;
     await firstOwnerSession.dispose();
@@ -6146,7 +6146,7 @@ test("new partial work and later capacity releases respect root metadata backoff
     const rootTimer = retryTimers.live()[0];
     const callsBeforeNewcomer = blockedMetadataCalls;
 
-    newcomerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    newcomerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: newcomerRoot,
@@ -6157,7 +6157,7 @@ test("new partial work and later capacity releases respect root metadata backoff
       settings,
     );
     await waitFor(
-      () => newcomerSession.codexLinuxDirectoryWatchCount() === 2,
+      () => newcomerSession.chatgptLinuxDirectoryWatchCount() === 2,
       "new partial workspace did not claim idle capacity",
     );
     assert.equal(
@@ -6177,12 +6177,12 @@ test("new partial work and later capacity releases respect root metadata backoff
     assert.equal(rootTimer.cleared, false);
     assert.equal(rootTimer.fired, false);
     assert.equal(rootTimer.delay, 1000);
-    assert.equal(blockedSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(blockedSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     failBlockedMetadata = false;
     retryTimers.fire(rootTimer);
     await waitFor(
-      () => blockedSession.codexLinuxDirectoryWatchCount() === 2,
+      () => blockedSession.chatgptLinuxDirectoryWatchCount() === 2,
       "blocked root did not recover when its own retry fired",
     );
   } finally {
@@ -6229,7 +6229,7 @@ test("one root metadata retry does not bypass another root's backoff", async () 
   let failSecondMetadata = true;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -6239,7 +6239,7 @@ test("one root metadata retry does not bypass another root's backoff", async () 
       },
       settings,
     );
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -6249,7 +6249,7 @@ test("one root metadata retry does not bypass another root's backoff", async () 
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -6293,7 +6293,7 @@ test("one root metadata retry does not bypass another root's backoff", async () 
     const secondCallsBeforeFirstRetry = secondMetadataFailures;
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => firstSession.codexLinuxDirectoryWatchCount() === 2,
+      () => firstSession.chatgptLinuxDirectoryWatchCount() === 2,
       "first root metadata retry did not recover coverage",
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -6302,18 +6302,18 @@ test("one root metadata retry does not bypass another root's backoff", async () 
       secondCallsBeforeFirstRetry,
       "first root retry bypassed the second root's independent backoff",
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
     assert.equal(retryTimers.live().length, 1);
     assert.equal(retryTimers.live()[0].delay, 1000);
 
     failSecondMetadata = false;
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 2,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 2,
       "second root did not recover when its own retry fired",
     );
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 0);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
   } finally {
     fs.statSync = originalStat;
     await ownerSession?.dispose();
@@ -6355,7 +6355,7 @@ test("root metadata recovery does not bypass Git discovery backoff", async () =>
   let gitFailureCalls = 0;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -6365,7 +6365,7 @@ test("root metadata recovery does not bypass Git discovery backoff", async () =>
       },
       settings,
     );
-    gitSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    gitSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: gitRoot,
@@ -6417,7 +6417,7 @@ test("root metadata recovery does not bypass Git discovery backoff", async () =>
     );
     assert.equal(retryTimers.live()[0].delay, 1000);
     assert.equal(gitFailureCalls, 2);
-    assert.deepEqual(gitSession.codexLinuxDirectoryWatchBudget(), { active: 1, limit: 4 });
+    assert.deepEqual(gitSession.chatgptLinuxDirectoryWatchBudget(), { active: 1, limit: 4 });
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(gitFailureCalls, 2, "root recovery bypassed Git discovery backoff");
@@ -6425,7 +6425,7 @@ test("root metadata recovery does not bypass Git discovery backoff", async () =>
     childProcess.execFile = originalExecFile;
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => gitSession.codexLinuxDirectoryWatchBudget().active === 3,
+      () => gitSession.chatgptLinuxDirectoryWatchBudget().active === 3,
       "Git discovery did not recover on its own retry",
     );
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 0);
@@ -6512,7 +6512,7 @@ test("Git retry does not bypass a live root metadata timer", async () => {
     console.warn = () => {};
     let session;
     try {
-      session = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+      session = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
         fakeHost(),
         {
           path: root,
@@ -6640,7 +6640,7 @@ test("root-priority reservation theft does not wake unrelated root backoff", asy
   let blockedMetadataFailures = 0;
   try {
     const settings = configuration({ maxWatches: 2 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -6650,7 +6650,7 @@ test("root-priority reservation theft does not wake unrelated root backoff", asy
       },
       settings,
     );
-    blockedSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    blockedSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: blockedRoot,
@@ -6660,7 +6660,7 @@ test("root-priority reservation theft does not wake unrelated root backoff", asy
       },
       settings,
     );
-    recoveringSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    recoveringSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: recoveringRoot,
@@ -6693,7 +6693,7 @@ test("root-priority reservation theft does not wake unrelated root backoff", asy
     const failuresBeforeNewRoot = blockedMetadataFailures;
     assert.equal(retryTimers.live().length, 1);
 
-    newcomerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    newcomerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: newcomerRoot,
@@ -6703,7 +6703,7 @@ test("root-priority reservation theft does not wake unrelated root backoff", asy
       },
       settings,
     );
-    assert.equal(newcomerSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(newcomerSession.chatgptLinuxDirectoryWatchCount(), 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(
       blockedMetadataFailures,
@@ -6778,7 +6778,7 @@ test("capacity released by a stale sibling retries a budget-deferred directory i
   let secondSession;
   try {
     const settings = configuration({ maxWatches: 5 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -6788,7 +6788,7 @@ test("capacity released by a stale sibling retries a budget-deferred directory i
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -6798,8 +6798,8 @@ test("capacity released by a stale sibling retries a budget-deferred directory i
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
 
     recoveryPhase = true;
     fs.rmSync(path.join(firstRoot, "child"), { recursive: true, force: true });
@@ -6807,11 +6807,11 @@ test("capacity released by a stale sibling retries a budget-deferred directory i
     error.code = "EIO";
     watchersByPath.get(path.join(firstRoot, "child")).emit("error", error);
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 4,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 4,
       "self-released capacity did not cover the deferred sibling",
     );
     assert.equal(removedStaleSibling, true);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
     assert.equal(
       infos.filter((message) => message.includes("watch coverage recovered")).length,
       1,
@@ -6875,7 +6875,7 @@ test("a zero-watch root gets priority over an in-pass deferred-directory replay"
   let thirdSession;
   try {
     const settings = configuration({ maxWatches: 5 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -6885,7 +6885,7 @@ test("a zero-watch root gets priority over an in-pass deferred-directory replay"
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -6895,8 +6895,8 @@ test("a zero-watch root gets priority over an in-pass deferred-directory replay"
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
 
     recoveryPhase = true;
     fs.rmSync(path.join(firstRoot, "child"), { recursive: true, force: true });
@@ -6905,7 +6905,7 @@ test("a zero-watch root gets priority over an in-pass deferred-directory replay"
     watchersByPath.get(path.join(firstRoot, "child")).emit("error", error);
     await waitFor(() => blockedReadEntered, "budget recovery did not reach the gated directory");
 
-    thirdSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    thirdSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: thirdRoot,
@@ -6915,15 +6915,15 @@ test("a zero-watch root gets priority over an in-pass deferred-directory replay"
       },
       settings,
     );
-    assert.equal(thirdSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(thirdSession.chatgptLinuxDirectoryWatchCount(), 0);
     releaseBlockedRead();
     await waitFor(
-      () => thirdSession.codexLinuxDirectoryWatchCount() === 1,
+      () => thirdSession.chatgptLinuxDirectoryWatchCount() === 1,
       "released capacity was reused before the uncovered root could claim it",
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
-    assert.deepEqual(thirdSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
+    assert.deepEqual(thirdSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
   } finally {
     releaseBlockedRead();
     await firstSession?.dispose();
@@ -6985,7 +6985,7 @@ test("a zero-watch root gets priority over the next ordinary scan directory", as
   let thirdSession;
   try {
     const settings = configuration({ maxWatches: 5 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -6995,7 +6995,7 @@ test("a zero-watch root gets priority over the next ordinary scan directory", as
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7005,8 +7005,8 @@ test("a zero-watch root gets priority over the next ordinary scan directory", as
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
 
     recoveryPhase = true;
     fs.rmSync(path.join(firstRoot, "child"), { recursive: true, force: true });
@@ -7015,7 +7015,7 @@ test("a zero-watch root gets priority over the next ordinary scan directory", as
     watchersByPath.get(path.join(firstRoot, "child")).emit("error", error);
     await waitFor(() => blockedReadEntered, "budget recovery did not reach the gated directory");
 
-    thirdSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    thirdSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: thirdRoot,
@@ -7025,15 +7025,15 @@ test("a zero-watch root gets priority over the next ordinary scan directory", as
       },
       settings,
     );
-    assert.equal(thirdSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(thirdSession.chatgptLinuxDirectoryWatchCount(), 0);
     releaseBlockedRead();
     await waitFor(
-      () => thirdSession.codexLinuxDirectoryWatchCount() === 1,
+      () => thirdSession.chatgptLinuxDirectoryWatchCount() === 1,
       "ordinary scan work reused capacity before the uncovered root could claim it",
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 3);
-    assert.deepEqual(thirdSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 3);
+    assert.deepEqual(thirdSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
   } finally {
     releaseBlockedRead();
     await firstSession?.dispose();
@@ -7092,7 +7092,7 @@ test("a queued release notification beats an already-scheduled child scan contin
   let thirdSession;
   try {
     const settings = configuration({ maxWatches: 2 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7102,7 +7102,7 @@ test("a queued release notification beats an already-scheduled child scan contin
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7112,7 +7112,7 @@ test("a queued release notification beats an already-scheduled child scan contin
       },
       settings,
     );
-    thirdSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    thirdSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: thirdRoot,
@@ -7122,19 +7122,19 @@ test("a queued release notification beats an already-scheduled child scan contin
       },
       settings,
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.equal(thirdSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.equal(thirdSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     racePhase = true;
     callbacksByPath.get(path.resolve(secondRoot))("rename", null);
     await waitFor(
-      () => thirdSession.codexLinuxDirectoryWatchCount() === 1,
+      () => thirdSession.chatgptLinuxDirectoryWatchCount() === 1,
       "child scan continuation consumed capacity before root-first notification",
     );
     assert.equal(releaseQueued, true);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(thirdSession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(thirdSession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 2 });
   } finally {
     await firstSession?.dispose();
     await secondSession?.dispose();
@@ -7168,7 +7168,7 @@ test("a recovery does not replay capacity released by its own inode retries", as
   let unstableMetadataReads = 0;
   try {
     const settings = configuration({ maxWatches: 2 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7178,7 +7178,7 @@ test("a recovery does not replay capacity released by its own inode retries", as
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7188,7 +7188,7 @@ test("a recovery does not replay capacity released by its own inode retries", as
       },
       settings,
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     fs.lstatSync = (candidate, ...args) => {
       const metadata = originalLstat.call(fs, candidate, ...args);
@@ -7216,8 +7216,8 @@ test("a recovery does not replay capacity released by its own inode retries", as
       "self-released capacity caused unbounded full recovery scans",
     );
     assert.ok(unstableMetadataReads <= 8, "inode retries exceeded their per-scan bound");
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 1, limit: 2 });
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 1, limit: 2 });
   } finally {
     fs.lstatSync = originalLstat;
     await firstSession?.dispose();
@@ -7256,7 +7256,7 @@ test("successful in-pass readdir retry can complete budget recovery", async () =
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7266,7 +7266,7 @@ test("successful in-pass readdir retry can complete budget recovery", async () =
       },
       configuration({ maxWatches: 2 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7276,7 +7276,7 @@ test("successful in-pass readdir retry can complete budget recovery", async () =
       },
       configuration({ maxWatches: 2 }),
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     await firstSession.dispose();
     firstSession = null;
@@ -7285,7 +7285,7 @@ test("successful in-pass readdir retry can complete budget recovery", async () =
       "successful readdir retry did not complete the partial-coverage episode",
     );
     assert.equal(secondRootReadAttempts, 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 2);
   } finally {
     fs.promises.readdir = originalReaddir;
     console.warn = originalWarn;
@@ -7334,7 +7334,7 @@ test("a child removed during recovery does not leave coverage marked partial", a
   let secondSession;
   try {
     const settings = configuration({ maxWatches: 2 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7344,7 +7344,7 @@ test("a child removed during recovery does not leave coverage marked partial", a
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7354,7 +7354,7 @@ test("a child removed during recovery does not leave coverage marked partial", a
       },
       settings,
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     await firstSession.dispose();
     firstSession = null;
@@ -7363,13 +7363,13 @@ test("a child removed during recovery does not leave coverage marked partial", a
       "a vanished child kept budget coverage marked partial",
     );
     assert.equal(removedChildRead, true);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
 
     const replacement = path.join(secondRoot, "replacement");
     fs.mkdirSync(replacement);
     callbacksByPath.get(path.resolve(secondRoot))("rename", "replacement");
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 2,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 2,
       "replacement child was not watched",
     );
     assert.equal(
@@ -7423,7 +7423,7 @@ test("a metadata failure during recovery does not falsely mark coverage complete
   let secondSession;
   try {
     const settings = configuration({ maxWatches: 2 });
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7433,7 +7433,7 @@ test("a metadata failure during recovery does not falsely mark coverage complete
       },
       settings,
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7443,13 +7443,13 @@ test("a metadata failure during recovery does not falsely mark coverage complete
       },
       settings,
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     failChildMetadata = true;
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 1,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 1,
       "partial recovery did not acquire the available root watch",
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -7465,7 +7465,7 @@ test("a metadata failure during recovery does not falsely mark coverage complete
       () => infos.some((message) => message.includes("watch coverage recovered")),
       "successful reconciliation did not recover coverage",
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 2);
   } finally {
     fs.lstatSync = originalLstat;
     await firstSession?.dispose();
@@ -7497,7 +7497,7 @@ test("released capacity reloads ignores for an already-watched partial root", as
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7507,7 +7507,7 @@ test("released capacity reloads ignores for an already-watched partial root", as
       },
       configuration({ maxWatches: 5 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7517,9 +7517,9 @@ test("released capacity reloads ignores for an already-watched partial root", as
       },
       configuration({ maxWatches: 5, honorGitIgnore: true }),
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 5, limit: 5 });
 
     fs.writeFileSync(nestedIgnore, "generated/\n");
     await firstSession.dispose();
@@ -7529,7 +7529,7 @@ test("released capacity reloads ignores for an already-watched partial root", as
       "partially covered root did not finish released-capacity recovery",
     );
     assert.equal(
-      secondSession.codexLinuxDirectoryWatchCount(),
+      secondSession.chatgptLinuxDirectoryWatchCount(),
       2,
       "released-capacity recovery scanned with stale nested Git-ignore state",
     );
@@ -7566,7 +7566,7 @@ test("released-capacity recovery does not queue itself again while pruning stale
   let secondSession;
   let gitCallsDuringRecovery = 0;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7576,7 +7576,7 @@ test("released-capacity recovery does not queue itself again while pruning stale
       },
       configuration({ maxWatches: 6 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7586,9 +7586,9 @@ test("released-capacity recovery does not queue itself again while pruning stale
       },
       configuration({ maxWatches: 6, honorGitIgnore: true }),
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 6, limit: 6 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 6, limit: 6 });
 
     fs.rmSync(watchedChild, { recursive: true, force: true });
     fs.mkdirSync(path.join(watchedChild, "replacement-nested"), { recursive: true });
@@ -7634,7 +7634,7 @@ test("a budget-starved root reloads Git ignores before recovering coverage", asy
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7644,7 +7644,7 @@ test("a budget-starved root reloads Git ignores before recovering coverage", asy
       },
       configuration({ maxWatches: 4 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7654,17 +7654,17 @@ test("a budget-starved root reloads Git ignores before recovering coverage", asy
       },
       configuration({ maxWatches: 4, honorGitIgnore: true }),
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 4);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 4);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     fs.mkdirSync(path.join(secondRoot, "ignored", "deep"), { recursive: true });
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() > 0,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() > 0,
       "starved working tree did not acquire its released root watch",
     );
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
   } finally {
     await firstSession?.dispose();
     await secondSession?.dispose();
@@ -7685,7 +7685,7 @@ test("a budget-starved Git refresh watch reloads ignores when coverage recovers"
   let firstSession;
   let secondSession;
   try {
-    firstSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    firstSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: firstRoot,
@@ -7695,7 +7695,7 @@ test("a budget-starved Git refresh watch reloads ignores when coverage recovers"
       },
       configuration({ maxWatches: 4 }),
     );
-    secondSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    secondSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: secondRoot,
@@ -7705,15 +7705,15 @@ test("a budget-starved Git refresh watch reloads ignores when coverage recovers"
       },
       configuration({ maxWatches: 4, honorGitIgnore: true }),
     );
-    assert.equal(firstSession.codexLinuxDirectoryWatchCount(), 2);
-    assert.equal(secondSession.codexLinuxDirectoryWatchCount(), 1);
-    assert.deepEqual(secondSession.codexLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
+    assert.equal(firstSession.chatgptLinuxDirectoryWatchCount(), 2);
+    assert.equal(secondSession.chatgptLinuxDirectoryWatchCount(), 1);
+    assert.deepEqual(secondSession.chatgptLinuxDirectoryWatchBudget(), { active: 4, limit: 4 });
 
     fs.writeFileSync(excludePath, "");
     await firstSession.dispose();
     firstSession = null;
     await waitFor(
-      () => secondSession.codexLinuxDirectoryWatchCount() === 2,
+      () => secondSession.chatgptLinuxDirectoryWatchCount() === 2,
       "newly installed Git refresh watch did not reconcile missed ignore changes",
     );
   } finally {
@@ -7744,7 +7744,7 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
   let childMetadataFailures = 0;
   try {
     const settings = configuration({ maxWatches: 4 });
-    ownerSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    ownerSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: ownerRoot,
@@ -7754,7 +7754,7 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
       },
       settings,
     );
-    gitSession = await codexLinuxStartDirectoryOnlyWorkingTreeWatch(
+    gitSession = await chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(
       fakeHost(),
       {
         path: gitRoot,
@@ -7764,8 +7764,8 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
       },
       configuration({ maxWatches: 4, honorGitIgnore: true }),
     );
-    assert.equal(ownerSession.codexLinuxDirectoryWatchCount(), 4);
-    assert.equal(gitSession.codexLinuxDirectoryWatchCount(), 0);
+    assert.equal(ownerSession.chatgptLinuxDirectoryWatchCount(), 4);
+    assert.equal(gitSession.chatgptLinuxDirectoryWatchCount(), 0);
 
     childProcess.execFile = (command, args, options, callback) => {
       if (args.includes("rev-parse") && remainingDiscoveryFailures > 0) {
@@ -7786,7 +7786,7 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
         globalThis[BUDGET_KEY]?.suspendedOwners.size === 1,
       "incomplete Git discovery did not suspend released-capacity recovery",
     );
-    assert.deepEqual(gitSession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
+    assert.deepEqual(gitSession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
 
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
@@ -7794,11 +7794,11 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
       "failed Git discovery retry did not retain its backoff timer",
     );
     assert.equal(retryTimers.live()[0].delay, 2000);
-    assert.deepEqual(gitSession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
+    assert.deepEqual(gitSession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.deepEqual(
-      gitSession.codexLinuxDirectoryWatchBudget(),
+      gitSession.chatgptLinuxDirectoryWatchBudget(),
       { active: 2, limit: 4 },
       "failed Git discovery bypassed its next backoff",
     );
@@ -7824,17 +7824,17 @@ test("a successful Git metadata retry wakes suspended budget recovery", async ()
       "successful Git discovery did not retain the cross-domain metadata retry",
     );
     assert.equal(retryTimers.live()[0].delay, 1000);
-    assert.deepEqual(gitSession.codexLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
+    assert.deepEqual(gitSession.chatgptLinuxDirectoryWatchBudget(), { active: 2, limit: 4 });
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.deepEqual(
-      gitSession.codexLinuxDirectoryWatchBudget(),
+      gitSession.chatgptLinuxDirectoryWatchBudget(),
       { active: 2, limit: 4 },
       "Git retry success bypassed the newly armed root metadata backoff",
     );
 
     retryTimers.fire(retryTimers.live()[0]);
     await waitFor(
-      () => gitSession.codexLinuxDirectoryWatchBudget().active === 4,
+      () => gitSession.chatgptLinuxDirectoryWatchBudget().active === 4,
       "successful Git discovery retry did not wake metadata-watch recovery",
     );
     assert.equal(globalThis[BUDGET_KEY].suspendedOwners.size, 0);

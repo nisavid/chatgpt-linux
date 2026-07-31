@@ -1,7 +1,7 @@
 {
   "id": "record-and-replay",
   "title": "Record & Replay",
-  "description": "Opt-in Linux demo-to-skill recording workflow powered by codex-record-replay-linux.",
+  "description": "Opt-in Linux demo-to-skill recording workflow powered by chatgpt-record-replay-linux.",
   "defaultEnabled": false,
   "entrypoints": {
     "patchDescriptors": "./patch.js",

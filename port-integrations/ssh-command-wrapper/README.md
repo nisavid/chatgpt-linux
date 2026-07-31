@@ -1,7 +1,7 @@
 # SSH Command Wrapper
 
-This opt-in feature adds a **Remote command wrapper** field to each saved SSH
-connection in **Settings → Connections → SSH**. Codex appends its generated
+This integration adds a **Remote command wrapper** field to each saved SSH
+connection in **Settings → Connections → SSH**. ChatGPT appends its generated
 remote command as the wrapper's final argument and runs the result on the
 configured SSH host.
 
@@ -28,21 +28,22 @@ connection error path and abort setup.
 An empty wrapper leaves upstream SSH behavior unchanged. Saved discovered
 aliases and manually entered hosts both support wrappers.
 
-## Enable
+## Build configuration
 
-Add the integration id to the gitignored `port-integrations/integrations.json`, then
-rebuild the app:
+The integration is included in builds by default. To exclude it, add the
+integration id to `disabled` in the gitignored
+`port-integrations/integrations.json`, then rebuild the app:
 
 ```json
 {
-  "enabled": [
+  "disabled": [
     "ssh-command-wrapper"
   ]
 }
 ```
 
 ```bash
-./install.sh ./Codex.dmg
+./install.sh ./ChatGPT.dmg
 ```
 
 ## Test

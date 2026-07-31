@@ -6,7 +6,7 @@ const {
 } = require("../../lib/minified-js.js");
 
 const LINUX_TITLEBAR_OVERLAY_HEIGHT = 30;
-const LINUX_TITLEBAR_OVERLAY_HELPER = "codexLinuxTitleBarOverlay";
+const LINUX_TITLEBAR_OVERLAY_HELPER = "chatgptLinuxTitleBarOverlay";
 
 function linuxTitlebarOverlayHelperSource(
   electronAlias,
@@ -312,7 +312,7 @@ function applyLinuxApplicationMenuPatch(currentSource) {
 }
 
 function applyLinuxAppReloadShortcutsPatch(currentSource) {
-  const patchMarker = "codexLinuxReloadAppWindow";
+  const patchMarker = "chatgptLinuxReloadAppWindow";
   if (currentSource.includes(patchMarker)) {
     return currentSource;
   }
@@ -504,9 +504,9 @@ function applyLinuxReadyToShowWindowStatePatch(currentSource) {
 }
 
 function applyLinuxResizeRepaintPatch(currentSource) {
-  const helperName = "codexLinuxInstallResizeRepaintHook";
+  const helperName = "chatgptLinuxInstallResizeRepaintHook";
   const helper =
-    "function codexLinuxInstallResizeRepaintHook(e){if(!(process.platform===`linux`)||e.__codexLinuxResizeRepaintHookInstalled)return;e.__codexLinuxResizeRepaintHookInstalled=!0;let __codexResizeRepaintScheduled=!1,__codexResizeRepaint=()=>{__codexResizeRepaintScheduled||(__codexResizeRepaintScheduled=!0,setTimeout(()=>{if(__codexResizeRepaintScheduled=!1,e.isDestroyed())return;let __codexWebContents=e.webContents;__codexWebContents==null||__codexWebContents.isDestroyed?.()||typeof __codexWebContents.invalidate==`function`&&__codexWebContents.invalidate()},16))};e.on(`resize`,__codexResizeRepaint),e.on(`resized`,__codexResizeRepaint)}";
+    "function chatgptLinuxInstallResizeRepaintHook(e){if(!(process.platform===`linux`)||e.__chatgptLinuxResizeRepaintHookInstalled)return;e.__chatgptLinuxResizeRepaintHookInstalled=!0;let __codexResizeRepaintScheduled=!1,__codexResizeRepaint=()=>{__codexResizeRepaintScheduled||(__codexResizeRepaintScheduled=!0,setTimeout(()=>{if(__codexResizeRepaintScheduled=!1,e.isDestroyed())return;let __codexWebContents=e.webContents;__codexWebContents==null||__codexWebContents.isDestroyed?.()||typeof __codexWebContents.invalidate==`function`&&__codexWebContents.invalidate()},16))};e.on(`resize`,__codexResizeRepaint),e.on(`resized`,__codexResizeRepaint)}";
   const readyToShowRegex =
     /(^|[^A-Za-z0-9_$])((?:[A-Za-z_$][\w$]*&&)?)([A-Za-z_$][\w$]*)\.once\(`ready-to-show`,\(\)=>\{/g;
   let patchedAny = false;

@@ -1,6 +1,6 @@
 # Directory-Only Working-Tree Watch
 
-This opt-in port integration replaces Codex Desktop's recursive working-tree
+This opt-in port integration replaces ChatGPT for Linux's recursive working-tree
 `fs.watch` call with one non-recursive watch per relevant directory. Electron's
 Node runtime currently allocates one inotify watch for every file and directory
 when `recursive: true` is used on Linux, so large dependency and build trees can
@@ -41,8 +41,8 @@ already queued when capacity became available.
 When the app is launched through its generated launcher, reaching the
 configured budget writes one warning per partial-coverage episode to the
 launcher log. Its normal location is
-`${XDG_CACHE_HOME:-$HOME/.cache}/$CODEX_LINUX_APP_ID/launcher.log` (usually
-`~/.cache/codex-desktop/launcher.log`); `--new-instance` launches use
+`${XDG_CACHE_HOME:-$HOME/.cache}/$CHATGPT_LINUX_APP_ID/launcher.log` (usually
+`~/.cache/chatgpt/launcher.log`); `--new-instance` launches use
 `launcher-port-<port>.log` in the same directory. A later complete
 reconciliation writes one recovery message. Repeated reconciliations while
 coverage remains partial do not repeat the warning. Operating-system watch
@@ -67,7 +67,7 @@ NixOS and Home Manager users can instead add the ID to the module's
 `portIntegrations` list:
 
 ```nix
-programs.codexAppLinux.portIntegrations = [
+programs.chatgptLinux.portIntegrations = [
   "directory-only-working-tree-watch"
 ];
 ```

@@ -1,11 +1,11 @@
 {
-  "name": "ChatGPT Desktop for Linux",
+  "name": "ChatGPT for Linux",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "remoteUser": "vscode",
-  "workspaceFolder": "/workspaces/codex-app-linux",
+  "workspaceFolder": "/workspaces/chatgpt-linux",
   "customizations": {
     "vscode": {
       "extensions": [

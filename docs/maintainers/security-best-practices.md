@@ -5,10 +5,15 @@ guidance for maintainer changes. Use it with [Threat Model](threat-model.md)
 and [Security Backlog](security-backlog.md).
 
 The current default-enabled port integration set makes generated Electron,
-webview, and helper-process boundaries the main day-to-day security surface:
-Agent Workspaces, AppShots, wrapper updater UI, Copilot reasoning-effort
-settings, open-target discovery, remote-control UI, remote-mobile control,
-conversation mode, Read Aloud, and Read Aloud MCP.
+webview, and helper-process boundaries the main day-to-day security surface.
+Established defaults cover Agent Workspaces, AppShots, ChatGPT wrapper updater,
+conversation mode, Copilot reasoning effort, Open Target Discovery, Read Aloud,
+Read Aloud MCP, remote-control UI, and remote-mobile control. Reviewed defaults
+add API-key model visibility and service tier, global dictation, Omarchy theme,
+persistent status, Pet Overlay, project sorting, shared app-server socket, SSH
+command wrapping, and UI Tweaks. Authenticated proxy, Codex Micro,
+directory-only and shallow repository watches, MCP helper reaping, and Record &
+Replay remain disabled by default.
 
 ## Default Rules
 
@@ -38,7 +43,7 @@ conversation mode, Read Aloud, and Read Aloud MCP.
   deterministically. Screenshots, accessibility snapshots, browser-session
   copies, device keys, and captured app data must not live directly in shared
   temporary files or verbose logs.
-- Keep update authority in `codex-app-updater`. Generated wrapper-update UI may
+- Keep update authority in `chatgpt-updater`. Generated wrapper-update UI may
   show status and collect user intent, but package eligibility, artifact
   identity, digest binding, and privileged install behavior remain updater
   responsibilities.
@@ -47,6 +52,13 @@ conversation mode, Read Aloud, and Read Aloud MCP.
   conversation/audio availability, host network exposure, or Computer Use
   availability do not prove hosted entitlement, quota, enrollment, MFA, rollout,
   or exposure status.
+- Treat legacy XDG state and the migration journal as untrusted same-user input.
+  Preserve no-replace atomic moves, collision refusal, symlink and file-type
+  checks, same-filesystem validation, narrow volatile cleanup, bounded rewrites,
+  crash-durable progress, and explicit reverse migration.
+- Keep package transitions metadata-only: replacing a former package does not
+  authorize compatibility commands, desktop files, services, or filesystem
+  shims.
 - Route any newly identified security gap that is outside the current PR's
   implementation scope to GitHub Issues and add it to
   [Security Backlog](security-backlog.md). Keep the threat model current when a
@@ -58,7 +70,7 @@ conversation mode, Read Aloud, and Read Aloud MCP.
   selected command, permission file, profile JSON, browser-session copy source,
   mount list, and hidden-workspace acknowledgement state. Main-process hardening
   for command selection and acknowledgement binding is tracked in
-  [issue #99](https://github.com/nisavid/codex-app-linux/issues/99).
+  [issue #99](https://github.com/nisavid/chatgpt-linux/issues/99).
 - **AppShots:** preserve the upstream availability flag, keep global hotkeys
   opt-in, fail closed when focused-window inputs are unavailable, and use private
   per-capture temporary directories for screenshot intermediates.
@@ -68,7 +80,7 @@ conversation mode, Read Aloud, and Read Aloud MCP.
 - **Copilot reasoning effort:** treat generated setting defaults as preference
   hints only. Hosted request handling remains authoritative for entitlement,
   quota, and request normalization; validation is tracked in
-  [issue #100](https://github.com/nisavid/codex-app-linux/issues/100).
+  [issue #100](https://github.com/nisavid/chatgpt-linux/issues/100).
 - **Remote-control and mobile host integrations:** do not fabricate connected
   clients, MFA, enrollment, host identity, app-server reachability, host network
   exposure, or remote environment state. Use
@@ -81,6 +93,20 @@ conversation mode, Read Aloud, and Read Aloud MCP.
 - **Open target discovery:** keep `.desktop` parsing narrow, reject URL-like or
   option-shaped targets before launch, sanitize app-internal environment
   variables, and treat user-local desktop entries as same-user trust inputs.
+- **API-key metadata and shared routing:** model visibility, service-tier copy,
+  shared app-server sockets, and SSH routing are local presentation or transport
+  helpers. They must not mint credentials, broaden hosted entitlement, trust
+  renderer-selected endpoints, or weaken argument-vector command validation.
+- **Global dictation, Pet Overlay, and status helpers:** keep portal/input/audio
+  actions behind explicit local settings and host readiness, isolate per-instance
+  sockets, and fail softly when private runtime channels are absent.
+- **Dock icon:** write, replace, and delete only regular, marker-owned ChatGPT
+  desktop entries and icon files whose app identity matches. Leave symlinks,
+  unmanaged launchers, unmanaged icons, and desktop favorites unchanged; cleanup
+  must remove every owned artifact and no others.
+- **Suggested Prompts:** enable the local patch only when the official app is
+  eligible, the user setting is enabled, and the current Linux patch contracts
+  match. Never replace hosted eligibility with the local default.
 
 ## Review Checklist
 

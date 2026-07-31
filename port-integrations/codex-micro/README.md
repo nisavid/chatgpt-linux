@@ -1,7 +1,7 @@
 # Codex Micro
 
 This opt-in port integration enables the Work Louder Codex Micro integration that
-already ships in the upstream Codex desktop app. It does three narrowly scoped
+already ships in the official ChatGPT app bundle. It does three narrowly scoped
 things:
 
 1. enables the upstream Codex Micro feature gate locally; and
@@ -84,7 +84,7 @@ For a source build:
 
 ```bash
 sudo install -Dm0644 \
-  codex-app/.codex-linux/port-integrations/codex-micro/70-codex-micro.rules \
+  chatgpt/.chatgpt-linux/port-integrations/codex-micro/70-codex-micro.rules \
   /etc/udev/rules.d/70-codex-micro.rules
 sudo udevadm control --reload-rules
 ```
@@ -93,7 +93,7 @@ For a user-local install, use the installed app copy:
 
 ```bash
 sudo install -Dm0644 \
-  "$HOME/.local/opt/codex-desktop-linux/codex-app/.codex-linux/port-integrations/codex-micro/70-codex-micro.rules" \
+  "${XDG_DATA_HOME:-$HOME/.local/share}/chatgpt/app/.chatgpt-linux/port-integrations/codex-micro/70-codex-micro.rules" \
   /etc/udev/rules.d/70-codex-micro.rules
 sudo udevadm control --reload-rules
 ```
@@ -101,15 +101,15 @@ sudo udevadm control --reload-rules
 For an AppImage, extract its staged copy first:
 
 ```bash
-codex_appimage="$(readlink -f ./codex-desktop-*.AppImage)"
-codex_extract_dir="$(mktemp -d)"
-trap 'rm -rf "$codex_extract_dir"' EXIT
+chatgpt_appimage="$(readlink -f ./chatgpt-*.AppImage)"
+chatgpt_extract_dir="$(mktemp -d)"
+trap 'rm -rf "$chatgpt_extract_dir"' EXIT
 (
-  cd "$codex_extract_dir"
-  "$codex_appimage" --appimage-extract >/dev/null
+  cd "$chatgpt_extract_dir"
+  "$chatgpt_appimage" --appimage-extract >/dev/null
 )
 sudo install -Dm0644 \
-  "$codex_extract_dir/squashfs-root/opt/codex-desktop/.codex-linux/port-integrations/codex-micro/70-codex-micro.rules" \
+  "$chatgpt_extract_dir/squashfs-root/opt/chatgpt/.chatgpt-linux/port-integrations/codex-micro/70-codex-micro.rules" \
   /etc/udev/rules.d/70-codex-micro.rules
 sudo udevadm control --reload-rules
 ```
@@ -118,11 +118,11 @@ For Home Manager or a direct flake package, resolve the selected Nix store
 output from the installed launcher:
 
 ```bash
-codex_package_root="$(
-  dirname "$(dirname "$(readlink -f "$(command -v codex-desktop)")")"
+chatgpt_package_root="$(
+  dirname "$(dirname "$(readlink -f "$(command -v chatgpt)")")"
 )"
 sudo install -Dm0644 \
-  "$codex_package_root/lib/udev/rules.d/70-codex-micro.rules" \
+  "$chatgpt_package_root/lib/udev/rules.d/70-codex-micro.rules" \
   /etc/udev/rules.d/70-codex-micro.rules
 sudo udevadm control --reload-rules
 ```

@@ -53,7 +53,7 @@ pub async fn run(
     paths: &RuntimePaths,
 ) -> Result<()> {
     if liveness::is_app_running(config)? {
-        println!("Codex App is running. Close it before rollback.");
+        println!("ChatGPT is running. Close it before rollback.");
         return Ok(());
     }
 
@@ -105,7 +105,7 @@ async fn trigger_rollback(
     state.save_updater(&paths.state_file)?;
 
     let _ = notify::send(
-        "Rolling back Codex App",
+        "Rolling back ChatGPT",
         "Installing the last retained known-good package.",
     );
 
@@ -126,7 +126,7 @@ async fn trigger_rollback(
         );
         state.save_updater(&paths.state_file)?;
         let _ = cache_cleanup::prune_unreferenced_workspaces(&config.workspace_root, state);
-        println!("Rolled back Codex App to {}.", state.installed_version);
+        println!("Rolled back ChatGPT to {}.", state.installed_version);
         return Ok(());
     }
 
@@ -150,7 +150,7 @@ async fn trigger_rollback(
         state.error_message = previous_error_message;
         state.save_updater(&paths.state_file)?;
         let _ = notify::send(
-            "Codex rollback cancelled",
+            "ChatGPT rollback cancelled",
             "Authentication was not completed. No package was installed.",
         );
         return Err(anyhow::anyhow!(message));
@@ -159,7 +159,7 @@ async fn trigger_rollback(
     state.mark_failed(message.clone());
     state.save_updater(&paths.state_file)?;
     let _ = notify::send(
-        "Codex App rollback failed",
+        "ChatGPT rollback failed",
         "The previous package could not be installed. Check the updater log for details.",
     );
     Err(anyhow::anyhow!(message))
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn records_existing_current_package_as_known_good() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let package_path = temp.path().join("codex.deb");
+        let package_path = temp.path().join("chatgpt.deb");
         std::fs::write(&package_path, b"deb")?;
 
         let mut state = PersistedState::new(true);
@@ -253,7 +253,7 @@ mod tests {
     fn package_verification_is_retained_for_known_good_rollback() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let workspace = temp.path().join("workspaces/26.429.20946");
-        let package_path = workspace.join("dist/codex.deb");
+        let package_path = workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -282,7 +282,7 @@ mod tests {
     fn mismatched_package_verification_clears_known_good_rollback_metadata() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let current_workspace = temp.path().join("workspaces/26.429.20946");
-        let current_package = current_workspace.join("dist/codex.deb");
+        let current_package = current_workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             current_package
                 .parent()
@@ -291,7 +291,7 @@ mod tests {
         std::fs::write(&current_package, b"current")?;
 
         let stale_workspace = temp.path().join("workspaces/26.428.10101");
-        let stale_package = stale_workspace.join("dist/codex.deb");
+        let stale_package = stale_workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             stale_package
                 .parent()
@@ -321,7 +321,7 @@ mod tests {
     fn ignores_missing_current_package() {
         let mut state = PersistedState::new(true);
         state.installed_version = "2026.04.20.120000".to_string();
-        state.artifact_paths.package_path = Some(std::path::PathBuf::from("/missing/codex.deb"));
+        state.artifact_paths.package_path = Some(std::path::PathBuf::from("/missing/chatgpt.deb"));
 
         record_current_package_as_known_good(&mut state);
 
@@ -359,7 +359,7 @@ mod tests {
             config_dir: temp.path().join("config"),
         };
         let config = RuntimeConfig {
-            dmg_url: "https://example.invalid/Codex.dmg".to_string(),
+            dmg_url: "https://example.invalid/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 0,
             check_interval_hours: 24,
             auto_install_on_app_exit: false,
@@ -367,7 +367,7 @@ mod tests {
             developer_mode: false,
             workspace_root: temp.path().join("workspace"),
             builder_bundle_root: temp.path().join("builder"),
-            app_executable_path: temp.path().join("codex-app"),
+            app_executable_path: temp.path().join("chatgpt"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -406,7 +406,7 @@ mod tests {
         paths.ensure_dirs()?;
         let rollback_path = temp
             .path()
-            .join("cache/workspaces/26.429.20946/dist/codex.deb");
+            .join("cache/workspaces/26.429.20946/dist/chatgpt.deb");
         std::fs::create_dir_all(
             rollback_path
                 .parent()
@@ -415,7 +415,7 @@ mod tests {
         std::fs::write(&rollback_path, b"deb")?;
 
         let config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
+            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 1,
             check_interval_hours: 6,
             auto_install_on_app_exit: false,

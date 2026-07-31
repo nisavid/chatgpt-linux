@@ -13,7 +13,7 @@ find_cargo() {
     return 1
 }
 
-source_binary="${CODEX_GLOBAL_DICTATION_LINUX_SOURCE:-}"
+source_binary="${CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE:-}"
 if [ -n "$source_binary" ]; then
     [ -x "$source_binary" ] || {
         echo "Global dictation helper is not executable: $source_binary" >&2
@@ -29,7 +29,7 @@ else
         "$cargo_cmd" build --release \
             --manifest-path global-dictation-linux/Cargo.toml >&2
     )
-    source_binary="$SCRIPT_DIR/global-dictation-linux/target/release/codex-global-dictation-linux"
+    source_binary="$SCRIPT_DIR/global-dictation-linux/target/release/chatgpt-global-dictation-linux"
 fi
 
 [ -x "$source_binary" ] || {
@@ -39,5 +39,5 @@ fi
 
 target_dir="$INSTALL_DIR/resources/native"
 mkdir -p "$target_dir"
-install -m 0755 "$source_binary" "$target_dir/codex-global-dictation-linux"
+install -m 0755 "$source_binary" "$target_dir/chatgpt-global-dictation-linux"
 echo "Global dictation helper staged" >&2

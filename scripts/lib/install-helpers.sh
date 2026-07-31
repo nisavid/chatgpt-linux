@@ -56,28 +56,28 @@ REPORT_DIR=""
 
 usage() {
     cat <<'HELP'
-Usage: ./install.sh [OPTIONS] [path/to/Codex.dmg]
+Usage: ./install.sh [OPTIONS] [path/to/ChatGPT.dmg]
 
-Converts the official macOS Codex App app to run on Linux.
+Converts the official macOS ChatGPT app to run on Linux.
 
 Options:
   -h, --help     Show this help message and exit
   --fresh        Remove existing install directory and cached DMG before building
-  --reuse-dmg    Reuse cached Codex.dmg when upstream metadata still matches (default)
+  --reuse-dmg    Reuse cached ChatGPT.dmg when upstream metadata still matches (default)
   --inspect      Inspect the DMG and write patch/rebuild reports without installing
   --report-dir DIR
                  Directory for --inspect reports (default: ./dist-next/rebuild)
 
 Environment variables:
-  CODEX_INSTALL_DIR   Override the install directory (default: ./codex-app)
-  CODEX_INSTALL_ALLOW_RUNNING=1
+  CHATGPT_INSTALL_DIR   Override the install directory (default: ./chatgpt)
+  CHATGPT_INSTALL_ALLOW_RUNNING=1
                       Allow overwriting INSTALL_DIR while Codex is running
-  CODEX_APP_ID        Override Linux app id/bin identity (default: codex-app)
-  CODEX_APP_DISPLAY_NAME
-                      Override display name (default: Codex App)
-  CODEX_WEBVIEW_PORT  Override webview HTTP port (default: 5175, or 5176 for non-default app ids)
-  CODEX_DMG_REFRESH_MODE=pinned
-                      Reuse an existing cached Codex.dmg verbatim and refuse
+  CHATGPT_APP_ID        Override Linux app id/bin identity (default: chatgpt)
+  CHATGPT_APP_DISPLAY_NAME
+                      Override display name (default: ChatGPT)
+  CHATGPT_WEBVIEW_PORT  Override webview HTTP port (default: 5175, or 5176 for non-default app ids)
+  CHATGPT_DMG_REFRESH_MODE=pinned
+                      Reuse an existing cached ChatGPT.dmg verbatim and refuse
                       network refresh/download when no explicit DMG path is passed
   ELECTRON_HEADERS_URL
                       Override the Electron headers URL used by @electron/rebuild
@@ -85,15 +85,15 @@ Environment variables:
   ELECTRON_MIRROR     Override the Electron runtime download mirror root
                       (example: https://npmmirror.com/mirrors/electron/)
   REBUILD_REPORT_DIR  Default report directory for --inspect and rebuild reports
-  CODEX_ACCEPTANCE_OVERRIDE=1
+  CHATGPT_ACCEPTANCE_OVERRIDE=1
                       Developer-only promotion override for a completely built
                       candidate rejected by the shared acceptance profile
-  CODEX_KEEP_REJECTED_CANDIDATE=1
+  CHATGPT_KEEP_REJECTED_CANDIDATE=1
                       Keep a rejected or safely unpromoted sibling candidate
                       for diagnostics
 
 After install, launch with:
-  ./codex-app/start.sh
+  ./chatgpt/start.sh
 HELP
 }
 
@@ -132,29 +132,29 @@ parse_args() {
 }
 
 validate_app_identity() {
-    case "$CODEX_APP_ID" in
+    case "$CHATGPT_APP_ID" in
         ""|*[^A-Za-z0-9._-]*)
-            error "CODEX_APP_ID must contain only letters, numbers, dots, underscores, and hyphens"
+            error "CHATGPT_APP_ID must contain only letters, numbers, dots, underscores, and hyphens"
             ;;
     esac
 
-    [ -n "$CODEX_APP_DISPLAY_NAME" ] || error "CODEX_APP_DISPLAY_NAME must not be empty"
+    [ -n "$CHATGPT_APP_DISPLAY_NAME" ] || error "CHATGPT_APP_DISPLAY_NAME must not be empty"
 
-    case "$CODEX_WEBVIEW_PORT" in
+    case "$CHATGPT_WEBVIEW_PORT" in
         ""|*[!0-9]*)
-            error "CODEX_WEBVIEW_PORT must be a TCP port number"
+            error "CHATGPT_WEBVIEW_PORT must be a TCP port number"
             ;;
     esac
     local port_number
-    port_number="$CODEX_WEBVIEW_PORT"
+    port_number="$CHATGPT_WEBVIEW_PORT"
     while [ "${port_number#0}" != "$port_number" ]; do
         port_number="${port_number#0}"
     done
     [ -n "$port_number" ] || port_number=0
     if [ "${#port_number}" -gt 5 ] || [ "$port_number" -lt 1 ] || [ "$port_number" -gt 65535 ]; then
-        error "CODEX_WEBVIEW_PORT must be between 1 and 65535"
+        error "CHATGPT_WEBVIEW_PORT must be between 1 and 65535"
     fi
-    CODEX_WEBVIEW_PORT="$port_number"
+    CHATGPT_WEBVIEW_PORT="$port_number"
 }
 
 shell_quote() {
@@ -162,7 +162,7 @@ shell_quote() {
 }
 
 dmg_refresh_mode_is_pinned() {
-    case "${CODEX_DMG_REFRESH_MODE:-auto}" in
+    case "${CHATGPT_DMG_REFRESH_MODE:-auto}" in
         ""|auto)
             return 1
             ;;
@@ -170,7 +170,7 @@ dmg_refresh_mode_is_pinned() {
             return 0
             ;;
         *)
-            error "CODEX_DMG_REFRESH_MODE must be 'auto' or 'pinned'"
+            error "CHATGPT_DMG_REFRESH_MODE must be 'auto' or 'pinned'"
             ;;
     esac
 }

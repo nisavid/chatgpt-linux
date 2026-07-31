@@ -182,7 +182,7 @@ mod tests {
         let workspace = temp.path().join("workspaces/26.429.20946");
         let dist = workspace.join("dist");
         fs::create_dir_all(&dist)?;
-        let package = dist.join("codex-app-26.429.20946-1-x86_64.pkg.tar.zst");
+        let package = dist.join("chatgpt-26.429.20946-1-x86_64.pkg.tar.zst");
         fs::write(&package, b"package bytes")?;
 
         let verification = record_built_package(
@@ -193,7 +193,7 @@ mod tests {
         )?;
 
         assert_eq!(verification.package_kind, "pacman");
-        assert_eq!(verification.package_name, "codex-app");
+        assert_eq!(verification.package_name, "chatgpt");
         assert_eq!(verification.package_version, "26.429.20946-1");
         assert_eq!(verification.package_path, package.canonicalize()?);
         assert_eq!(verification.workspace_dir, workspace.canonicalize()?);
@@ -211,7 +211,7 @@ mod tests {
         let workspace = temp.path().join("workspaces/26.429.20946");
         let outside = temp
             .path()
-            .join("outside/codex-app-26.429.20946-1-x86_64.pkg.tar.zst");
+            .join("outside/chatgpt-26.429.20946-1-x86_64.pkg.tar.zst");
         fs::create_dir_all(&workspace)?;
         fs::create_dir_all(
             outside
@@ -240,7 +240,7 @@ mod tests {
         let workspace = temp.path().join("workspaces/26.429.20946");
         let dist = workspace.join("dist");
         fs::create_dir_all(&dist)?;
-        let package = dist.join("codex-app-26.429.20946-1-x86_64.pkg.tar.zst");
+        let package = dist.join("chatgpt-26.429.20946-1-x86_64.pkg.tar.zst");
         fs::write(&package, b"package bytes")?;
         let verification = record_built_package(
             &package,

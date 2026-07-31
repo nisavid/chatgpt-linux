@@ -40,10 +40,10 @@ jobs:
         run: rustup toolchain install 1.95.0 --profile minimal --no-self-update
 
       - name: Check updater
-        run: cargo +1.95.0 check -p codex-app-updater --locked
+        run: cargo +1.95.0 check -p chatgpt-updater --locked
 
       - name: Test updater
-        run: cargo +1.95.0 test -p codex-app-updater --locked
+        run: cargo +1.95.0 test -p chatgpt-updater --locked
 
       - name: Check shell scripts
         run: |

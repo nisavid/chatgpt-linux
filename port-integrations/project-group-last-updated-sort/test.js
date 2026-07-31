@@ -18,13 +18,12 @@ const {
 } = require("./patch.js");
 
 const currentProjectSource = [
-  "function iZi(e,t){let n=new Map(t.map((e,t)=>[e,t]));return[...e].sort((e,t)=>(n.get(e.projectId)??2**53-1)-(n.get(t.projectId)??2**53-1))}",
-  "function y2o(e,t){let n=e.projectUpdatedAt??0;for(let r of e.threadKeys)n=Math.max(n,t.get(r)??0);return n}",
-  "function h2o({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return iZi(e.map((e,t)=>({group:e,index:t,recencyAt:y2o(e,r)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}",
+  "function yca(e,t){let n=new Map(t.map((e,t)=>[e,t]));return[...e].sort((e,t)=>(n.get(e.projectId)??2**53-1)-(n.get(t.projectId)??2**53-1))}",
+  "function kos({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return yca(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}",
   "const prioritySortId=`sidebarElectron.sortMenu.priority`;",
   "const updatedSortId=`sidebarElectron.sortMenu.updated`;",
   "const manualSortId=`sidebarElectron.sortMenu.manual`;",
-  "T=h2o({groups:m2o({groups:C,items:s}),items:s,projectOrder:ap(t,zl.PROJECT_ORDER)});",
+  "A=kos({groups:Oos({groups:O,items:f}),items:f,projectOrder:Cp(t,Il.PROJECT_ORDER)});",
 ].join("");
 
 function captureWarns(fn) {
@@ -59,19 +58,19 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withFeatureConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const tempDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "project-group-last-updated-sort-"),
   );
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
     return fn();
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -80,7 +79,7 @@ function withFeatureConfig(enabled, fn) {
 function evaluateGroupSorter(source) {
   const context = {};
   const sorterSource = source.slice(0, source.indexOf("const prioritySortId"));
-  vm.runInNewContext(`${sorterSource};globalThis.sortProjectGroups=h2o`, context);
+  vm.runInNewContext(`${sorterSource};globalThis.sortProjectGroups=kos`, context);
   return context.sortProjectGroups;
 }
 
@@ -164,15 +163,15 @@ test("patch passes the selected project sort mode into the group sorter", () => 
   const patched = applyPatchTwice(currentProjectSource);
   assert.ok(
     patched.includes(
-      "projectOrder:ap(t,zl.PROJECT_ORDER),sortMode:t(Ez).projectSortMode",
+      "projectOrder:Cp(t,Il.PROJECT_ORDER),sortMode:t(Tz).projectSortMode",
     ),
   );
 });
 
 test("drift leaves the asset byte-identical", () => {
   const source = currentProjectSource.replace(
-    "function h2o({groups:e,items:t,projectOrder:n})",
-    "function h2o({groups:e,items:t,projectOrder:n,unknown:o})",
+    "function kos({groups:e,items:t,projectOrder:n})",
+    "function kos({groups:e,items:t,projectOrder:n,unknown:o})",
   );
   const { value, warnings } = captureWarns(() =>
     applyProjectGroupLastUpdatedSortPatch(source),
@@ -185,7 +184,7 @@ test("drift leaves the asset byte-identical", () => {
 
 test("missing current call site leaves the asset byte-identical", () => {
   const source = currentProjectSource.replace(
-    "projectOrder:ap(t,zl.PROJECT_ORDER)",
+    "projectOrder:Cp(t,Il.PROJECT_ORDER)",
     "projectOrder:unknownProjectOrder",
   );
   const { value, warnings } = captureWarns(() =>

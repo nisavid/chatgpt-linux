@@ -27,7 +27,7 @@ policy_gap_closeout_required = true
 operator_escalation_required_for_uncertainty = true
 durable_followup_required_when_escalation_unavailable = true
 pr_body_only_uncertainty_record_disallowed = true
-github_pr_repo = "nisavid/codex-app-linux"
+github_pr_repo = "nisavid/chatgpt-linux"
 github_pr_commands_require_explicit_repo = true
 read_before_conflict_resolution = [
   "AGENTS.md",
@@ -62,6 +62,10 @@ classify_readme_relevant_additions = [
 
 [fork_contracts]
 preserve_local_identity = true
+preserve_port_owned_chatgpt_env_namespace = true
+preserve_inherited_openai_codex_env_namespace = true
+preserve_no_shim_package_transition = true
+preserve_journaled_xdg_identity_migration = true
 preserve_xdg_fhs_layout = true
 preserve_dmg_bundle_versioning = true
 preserve_unprivileged_updater_boundary = true

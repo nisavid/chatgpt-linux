@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-app_dir="${CODEX_OFFICIAL_APP_DIR:-${CODEX_UPSTREAM_APP_DIR:-}}"
-[ -n "$app_dir" ] || { echo "CODEX_OFFICIAL_APP_DIR is required" >&2; exit 1; }
+app_dir="${CHATGPT_OFFICIAL_APP_DIR:-}"
+[ -n "$app_dir" ] || { echo "CHATGPT_OFFICIAL_APP_DIR is required" >&2; exit 1; }
 install_dir="${INSTALL_DIR:?INSTALL_DIR is required}"
 source_dir="$app_dir/Contents/Resources"
 resources_dir="$install_dir/resources"

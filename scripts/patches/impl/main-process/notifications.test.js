@@ -8,8 +8,8 @@ const test = require("node:test");
 const {
   PATCH_MARKER,
   applyLinuxNotificationActionsPatch,
-  codexLinuxCreateActionNotification,
-  codexLinuxNotificationActionLines,
+  chatgptLinuxCreateActionNotification,
+  chatgptLinuxNotificationActionLines,
 } = require("./notifications.js");
 
 const currentFactory =
@@ -23,7 +23,7 @@ test("Linux notification actions patch routes action payloads through the bridge
     patched,
     /process\.platform===`linux`&&Array\.isArray\(e\.actions\)&&e\.actions\.length>0/,
   );
-  assert.match(patched, /codexLinuxCreateActionNotification\(e,codexLinuxNotificationFallback\)/);
+  assert.match(patched, /chatgptLinuxCreateActionNotification\(e,chatgptLinuxNotificationFallback\)/);
   assert.match(patched, /new c\.Notification\(e\)/);
 });
 
@@ -49,7 +49,7 @@ test("Linux notification actions patch reports current upstream drift", () => {
 test("notification bridge line parser handles chunked events", () => {
   const stream = new EventEmitter();
   const lines = [];
-  codexLinuxNotificationActionLines(stream, (line) => lines.push(line));
+  chatgptLinuxNotificationActionLines(stream, (line) => lines.push(line));
 
   stream.emit("data", Buffer.from('{"event":"sho'));
   stream.emit("data", Buffer.from('wn"}\n\n{"event":"action","index":1}\n'));
@@ -80,7 +80,7 @@ test("action notification keeps the bridge command channel open and forwards an 
   const child = fakeBridgeProcess();
   const actions = [];
   let fallbackStarted = false;
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     {
       title: "Command approval",
       body: "Run command?",
@@ -121,7 +121,7 @@ test("action notification falls back before the bridge is shown", () => {
     },
     close() {},
   };
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     { title: "Approval", body: "Required", actions: [{ text: "Approve" }] },
     () => fallback,
     { bridgePath: "/test/bridge", spawn: () => child },
@@ -140,7 +140,7 @@ test("action notification falls back before the bridge is shown", () => {
 test("programmatic close waits for the bridge close event and forwards it once", () => {
   const child = fakeBridgeProcess();
   let closeCount = 0;
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     { title: "Approval", body: "Required", actions: [{ text: "Approve" }] },
     () => null,
     { bridgePath: "/test/bridge", spawn: () => child },
@@ -168,7 +168,7 @@ test("close before show prevents both bridge and fallback notifications", () => 
   let spawnCount = 0;
   let fallbackCount = 0;
   let closeCount = 0;
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     { title: "Approval", body: "Required", actions: [{ text: "Approve" }] },
     () => {
       fallbackCount += 1;
@@ -199,7 +199,7 @@ test("close while the bridge starts prevents a later fallback", () => {
   let actionCount = 0;
   let fallbackCount = 0;
   let closeCount = 0;
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     { title: "Approval", body: "Required", actions: [{ text: "Approve" }] },
     () => {
       fallbackCount += 1;
@@ -233,7 +233,7 @@ test("process exit waits for buffered stdout before deciding fallback", () => {
   const actions = [];
   let closeCount = 0;
   let fallbackCount = 0;
-  const notification = codexLinuxCreateActionNotification(
+  const notification = chatgptLinuxCreateActionNotification(
     { title: "Approval", body: "Required", actions: [{ text: "Approve" }] },
     () => {
       fallbackCount += 1;

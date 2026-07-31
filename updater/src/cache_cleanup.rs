@@ -14,7 +14,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-const HEAVY_WORKSPACE_DIRS: &[&str] = &["builder", "codex-app", "dist"];
+const HEAVY_WORKSPACE_DIRS: &[&str] = &["builder", "chatgpt", "dist"];
 pub const DMG_CACHE_LOCK_NAME: &str = ".downloads.lock";
 const DMG_DOWNLOAD_TEMP_PREFIX: &str = ".ChatGPT.dmg.download-";
 
@@ -117,7 +117,7 @@ pub fn prune_dmg_cache(
 
 fn is_managed_content_dmg(name: &str) -> bool {
     let Some(hash) = name
-        .strip_prefix("Codex-")
+        .strip_prefix("ChatGPT-")
         .and_then(|value| value.strip_suffix(".dmg"))
     else {
         return false;
@@ -410,7 +410,7 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     fn managed_dmg(downloads: &Path, byte: char) -> PathBuf {
-        downloads.join(format!("Codex-{}.dmg", byte.to_string().repeat(64)))
+        downloads.join(format!("ChatGPT-{}.dmg", byte.to_string().repeat(64)))
     }
 
     #[test]
@@ -422,8 +422,8 @@ mod tests {
         let old = managed_dmg(&downloads, 'b');
         let crash_temp = downloads.join(".ChatGPT.dmg.download-123-4.tmp");
         let unrelated = downloads.join("notes.txt");
-        let malformed = downloads.join("Codex-not-a-hash.dmg");
-        let symlink = downloads.join(format!("Codex-{}.dmg", "c".repeat(64)));
+        let malformed = downloads.join("ChatGPT-not-a-hash.dmg");
+        let symlink = downloads.join(format!("ChatGPT-{}.dmg", "c".repeat(64)));
         fs::write(&protected, b"current")?;
         fs::write(&old, b"old")?;
         fs::write(&crash_temp, b"partial")?;
@@ -489,12 +489,12 @@ mod tests {
     fn create_workspace(root: &std::path::Path, name: &str) -> Result<PathBuf> {
         let workspace = root.join("workspaces").join(name);
         fs::create_dir_all(workspace.join("builder"))?;
-        fs::create_dir_all(workspace.join("codex-app"))?;
+        fs::create_dir_all(workspace.join("chatgpt"))?;
         fs::create_dir_all(workspace.join("dist"))?;
         fs::create_dir_all(workspace.join("logs"))?;
         fs::create_dir_all(workspace.join("reports"))?;
         fs::write(workspace.join("builder/build.txt"), b"builder")?;
-        fs::write(workspace.join("codex-app/app.txt"), b"app")?;
+        fs::write(workspace.join("chatgpt/app.txt"), b"app")?;
         fs::write(workspace.join("dist/pkg.deb"), b"pkg")?;
         fs::write(workspace.join("logs/install.log"), b"log")?;
         fs::write(workspace.join("reports/rebuild-report.json"), b"{}")?;
@@ -531,11 +531,11 @@ mod tests {
         create_wrapper_root(temp.path())?;
         fs::create_dir_all(temp.path().join("dist"))?;
         fs::create_dir_all(temp.path().join("target"))?;
-        fs::create_dir_all(temp.path().join("codex-app"))?;
+        fs::create_dir_all(temp.path().join("chatgpt"))?;
         fs::write(temp.path().join("dist/pkg.deb"), b"pkg")?;
         fs::write(temp.path().join("target/build.txt"), b"target")?;
-        fs::write(temp.path().join("codex-app/app.txt"), b"app")?;
-        fs::write(temp.path().join("Codex.dmg"), b"dmg")?;
+        fs::write(temp.path().join("chatgpt/app.txt"), b"app")?;
+        fs::write(temp.path().join("ChatGPT.dmg"), b"dmg")?;
 
         let cleanup = GeneratedArtifactCleanupConfig {
             enabled: true,
@@ -550,8 +550,8 @@ mod tests {
         assert!(summary.bytes_removed > 0);
         assert!(!temp.path().join("dist").exists());
         assert!(!temp.path().join("target").exists());
-        assert!(!temp.path().join("codex-app").exists());
-        assert!(temp.path().join("Codex.dmg").exists());
+        assert!(!temp.path().join("chatgpt").exists());
+        assert!(temp.path().join("ChatGPT.dmg").exists());
         Ok(())
     }
 
@@ -622,18 +622,18 @@ mod tests {
     fn generated_artifact_cleanup_can_remove_configured_files() -> Result<()> {
         let temp = tempfile::tempdir()?;
         create_wrapper_root(temp.path())?;
-        fs::write(temp.path().join("Codex.dmg"), b"dmg")?;
+        fs::write(temp.path().join("ChatGPT.dmg"), b"dmg")?;
 
         let cleanup = GeneratedArtifactCleanupConfig {
             enabled: true,
             min_free_bytes: u64::MAX,
             roots: Vec::new(),
-            entries: vec![PathBuf::from("Codex.dmg")],
+            entries: vec![PathBuf::from("ChatGPT.dmg")],
         };
         let summary = prune_generated_artifacts(&cleanup, temp.path())?;
 
         assert_eq!(summary.pruned_paths, 1);
-        assert!(!temp.path().join("Codex.dmg").exists());
+        assert!(!temp.path().join("ChatGPT.dmg").exists());
         Ok(())
     }
 
@@ -650,7 +650,7 @@ mod tests {
 
         assert_eq!(summary.pruned_workspaces, 0);
         assert!(workspace.join("builder").exists());
-        assert!(workspace.join("codex-app").exists());
+        assert!(workspace.join("chatgpt").exists());
         assert!(workspace.join("dist").exists());
         Ok(())
     }
@@ -668,7 +668,7 @@ mod tests {
 
         assert_eq!(summary.pruned_workspaces, 0);
         assert!(workspace.join("builder").exists());
-        assert!(workspace.join("codex-app").exists());
+        assert!(workspace.join("chatgpt").exists());
         assert!(workspace.join("dist").exists());
         Ok(())
     }
@@ -683,7 +683,7 @@ mod tests {
 
         assert_eq!(summary.pruned_workspaces, 1);
         assert!(!workspace.join("builder").exists());
-        assert!(!workspace.join("codex-app").exists());
+        assert!(!workspace.join("chatgpt").exists());
         assert!(!workspace.join("dist").exists());
         assert!(workspace.join("logs/install.log").exists());
         assert!(workspace.join("reports/rebuild-report.json").exists());
@@ -730,7 +730,7 @@ mod tests {
     fn workspace_dir_is_derived_from_retained_package_path() {
         let workspace_root = PathBuf::from("/cache");
         let package_path =
-            workspace_root.join("workspaces/2026.05.04.033705+b0c9ccab/dist/codex.deb");
+            workspace_root.join("workspaces/2026.05.04.033705+b0c9ccab/dist/chatgpt.deb");
 
         let derived = derive_workspace_dir(&workspace_root, Some(package_path.as_path()));
 
@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn workspace_dir_is_not_derived_for_paths_outside_workspace_root() {
         let workspace_root = PathBuf::from("/cache");
-        let package_path = PathBuf::from("/tmp/codex.deb");
+        let package_path = PathBuf::from("/tmp/chatgpt.deb");
 
         let derived = derive_workspace_dir(&workspace_root, Some(package_path.as_path()));
 
@@ -771,7 +771,7 @@ mod tests {
     fn normalize_state_points_workspace_dir_at_rollback_package_when_available() {
         let workspace_root = PathBuf::from("/cache");
         let rollback_path = workspace_root.join(
-            "workspaces/2026.05.01.010203+99999999/dist/codex-app-2026.05.01.010203-1-x86_64.pkg.tar.zst",
+            "workspaces/2026.05.01.010203+99999999/dist/chatgpt-2026.05.01.010203-1-x86_64.pkg.tar.zst",
         );
         let mut state = PersistedState::new(true);
         state.status = UpdateStatus::Installed;

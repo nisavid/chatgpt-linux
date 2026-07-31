@@ -41,7 +41,7 @@ const defaultEnabledIntegrationIds = [
   "api-key-model-visibility",
   "api-key-service-tier",
   "appshots",
-  "codex-wrapper-updater",
+  "chatgpt-wrapper-updater",
   "conversation-mode",
   "copilot-reasoning-effort",
   "global-dictation",
@@ -61,14 +61,14 @@ const defaultEnabledIntegrationIds = [
 ];
 
 function withTempIntegrationConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const root = path.resolve(__dirname, "..");
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-integration-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-integration-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
     const enabledSet = new Set(enabled);
     fs.writeFileSync(
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG,
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
       JSON.stringify({
         enabled,
         disabled: defaultEnabledIntegrationIds.filter((id) => !enabledSet.has(id)),
@@ -77,24 +77,24 @@ function withTempIntegrationConfig(enabled, fn) {
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 function withPortIntegrationRootEnv(root, fn) {
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
   }
 }
@@ -236,7 +236,7 @@ function syntheticGeneralSettingsBundle() {
 function staleConversationMonitorBundle() {
   return [
     "let thread=1;",
-    ';(()=>{const VERSION="agent-workspace-conversation-v12";if(globalThis.codexLinuxAgentWorkspaceConversationVersion===VERSION)return;try{globalThis.codexLinuxAgentWorkspaceConversationCleanup?.()}catch{}globalThis.codexLinuxAgentWorkspaceConversationVersion=VERSION;function start(){document.body?.insertAdjacentHTML?.("beforeend","<section class=\\"codex-linux-agent-workspace-panel\\"></section>")}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();})();',
+    ';(()=>{const VERSION="agent-workspace-conversation-v12";if(globalThis.chatgptLinuxAgentWorkspaceConversationVersion===VERSION)return;try{globalThis.chatgptLinuxAgentWorkspaceConversationCleanup?.()}catch{}globalThis.chatgptLinuxAgentWorkspaceConversationVersion=VERSION;function start(){document.body?.insertAdjacentHTML?.("beforeend","<section class=\\"chatgpt-linux-agent-workspace-panel\\"></section>")}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();})();',
     "",
   ].join("\n");
 }
@@ -422,7 +422,7 @@ test("agent-workspace integration exposes optional bridge, settings, resources, 
       [[
         "agent-workspace",
         path.join("agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"),
-        ".codex-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md",
+        ".chatgpt-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md",
         0o644,
       ]],
     );
@@ -439,7 +439,7 @@ test("agent-workspace integration exposes optional bridge, settings, resources, 
           "agent-workspace",
           "prelaunch",
           path.join("agent-workspace", "install-skill.sh"),
-          ".codex-linux/prelaunch.d/agent-workspace-install-skill.sh",
+          ".chatgpt-linux/prelaunch.d/agent-workspace-install-skill.sh",
           0o755,
         ],
       ],
@@ -457,11 +457,11 @@ test("agent-workspace prelaunch hook installs the staged bundled Codex skill onl
   assert.doesNotMatch(hookSource, /codex-configure/);
   assert.match(fs.readFileSync(skillSource, "utf8"), /^name: agent-workspace-linux$/m);
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-prelaunch-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-prelaunch-"));
   const codexHome = path.join(tempDir, "codex-home");
   const appDir = path.join(tempDir, "app");
-  const stagedIntegrationsDir = path.join(appDir, ".codex-linux", "integrations");
-  const portIntegrationsDir = path.join(appDir, ".codex-linux", "port-integrations");
+  const stagedIntegrationsDir = path.join(appDir, ".chatgpt-linux", "integrations");
+  const portIntegrationsDir = path.join(appDir, ".chatgpt-linux", "port-integrations");
   const stagedSkill = path.join(stagedIntegrationsDir, "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md");
   try {
     fs.mkdirSync(path.dirname(stagedSkill), { recursive: true });
@@ -473,8 +473,8 @@ test("agent-workspace prelaunch hook installs the staged bundled Codex skill onl
       env: {
         ...process.env,
         CODEX_HOME: codexHome,
-        CODEX_LINUX_APP_DIR: appDir,
-        CODEX_PORT_INTEGRATIONS_DIR: portIntegrationsDir,
+        CHATGPT_LINUX_APP_DIR: appDir,
+        CHATGPT_PORT_INTEGRATIONS_DIR: portIntegrationsDir,
         HOME: "",
       },
     });
@@ -492,8 +492,8 @@ test("agent-workspace prelaunch hook installs the staged bundled Codex skill onl
       env: {
         ...process.env,
         CODEX_HOME: codexHome,
-        CODEX_LINUX_APP_DIR: path.join(tempDir, "missing-app"),
-        CODEX_PORT_INTEGRATIONS_DIR: path.join(tempDir, "missing-port-integrations"),
+        CHATGPT_LINUX_APP_DIR: path.join(tempDir, "missing-app"),
+        CHATGPT_PORT_INTEGRATIONS_DIR: path.join(tempDir, "missing-port-integrations"),
         HOME: "",
       },
     });
@@ -506,20 +506,20 @@ test("agent-workspace prelaunch hook installs the staged bundled Codex skill onl
 
 test("agent-workspace declarative staging copies skill and prelaunch hook into the app", () => {
   withTempIntegrationConfig(["agent-workspace"], (integrationsRoot) => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-stage-app-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-stage-app-"));
     try {
-      const appDir = path.join(tempDir, "codex-app");
+      const appDir = path.join(tempDir, "chatgpt");
       stageEnabledPortIntegrationInstall(appDir, { integrationsRoot });
       assert.equal(
         fs.readFileSync(
-          path.join(appDir, ".codex-linux", "integrations", "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"),
+          path.join(appDir, ".chatgpt-linux", "integrations", "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"),
           "utf8",
         ),
         fs.readFileSync(path.join(integrationsRoot, "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"), "utf8"),
       );
-      assert.equal(fs.existsSync(path.join(appDir, ".codex-linux", "env.d", "agent-workspace-pin-renderer.env")), false);
-      const hookPath = path.join(appDir, ".codex-linux", "prelaunch.d", "agent-workspace-install-skill.sh");
-      assert.match(fs.readFileSync(hookPath, "utf8"), /CODEX_PORT_INTEGRATIONS_DIR/);
+      assert.equal(fs.existsSync(path.join(appDir, ".chatgpt-linux", "env.d", "agent-workspace-pin-renderer.env")), false);
+      const hookPath = path.join(appDir, ".chatgpt-linux", "prelaunch.d", "agent-workspace-install-skill.sh");
+      assert.match(fs.readFileSync(hookPath, "utf8"), /CHATGPT_PORT_INTEGRATIONS_DIR/);
       assert.equal((fs.statSync(hookPath).mode & 0o777), 0o755);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -557,7 +557,7 @@ test("main bridge patch adds an allowlisted linux-agent-workspace handler", () =
   assert.match(patched, new RegExp(SETTINGS_COMMAND_KEY));
   assert.match(patched, new RegExp(SETTINGS_PERMISSIONS_KEY));
   assert.match(patched, /\.local`\,`bin`\,`agent-workspace-linux`/);
-  assert.match(patched, /CODEX_AGENT_WORKSPACE_BIN/);
+  assert.match(patched, /CHATGPT_AGENT_WORKSPACE_BIN/);
   // Binary resolution prefers already-present global binaries before ad-hoc local fallbacks.
   assert.match(patched, /CARGO_HOME/);
   assert.match(patched, /\.cargo/);
@@ -576,7 +576,7 @@ test("main bridge patch adds an allowlisted linux-agent-workspace handler", () =
   assert.doesNotMatch(patched, /\[`install`,`--force`,`agent-workspace-linux`\]/);
   assert.match(patched, /case`permissionConfig`/);
   assert.match(patched, /case`permissionSave`/);
-  assert.match(patched, /codex-agent-workspace-permissions\.json/);
+  assert.match(patched, /chatgpt-agent-workspace-permissions\.json/);
   assert.doesNotMatch(patched, /case`mcpConfig`/);
   assert.doesNotMatch(patched, /config\.toml/);
   assert.doesNotMatch(patched, /mcp_servers/);
@@ -618,8 +618,8 @@ test("main bridge generator does not carry removed conversation monitor observe 
   assert.doesNotMatch(patchSource, /case\\`workspaceObserve\\`/);
   assert.doesNotMatch(patchSource, /__codexAttachScreenshot/);
   assert.doesNotMatch(patchSource, /data:image\/png;base64/);
-  assert.doesNotMatch(patchSource, /codexLinuxAgentWorkspaceConversationCleanup=cleanup/);
-  assert.doesNotMatch(patchSource, /codex-linux-agent-workspace-panel/);
+  assert.doesNotMatch(patchSource, /chatgptLinuxAgentWorkspaceConversationCleanup=cleanup/);
+  assert.doesNotMatch(patchSource, /chatgpt-linux-agent-workspace-panel/);
 });
 
 test("main bridge patch upgrades stale installed agent workspace handlers", () => {
@@ -651,7 +651,7 @@ test("main bridge patch upgrades stale installed agent workspace handlers", () =
 });
 
 test("app picker converts desktop launchers into startup app commands", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-desktop-app-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-desktop-app-"));
   try {
     const desktopPath = path.join(tempDir, "canva.desktop");
     fs.writeFileSync(
@@ -685,7 +685,7 @@ test("app picker converts desktop launchers into startup app commands", async ()
 });
 
 test("browser data copy bridge creates a managed copy without lock files", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-browser-copy-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-browser-copy-"));
   try {
     const home = path.join(tempDir, "home");
     const source = path.join(tempDir, "chrome-user-data");
@@ -716,7 +716,7 @@ test("browser data copy bridge creates a managed copy without lock files", async
 });
 
 test("main bridge resolves existing global binaries before local fallbacks", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-resolve-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-resolve-"));
   try {
     const cargoHome = path.join(tempDir, "cargo-home");
     const npmPrefix = path.join(tempDir, "npm-prefix");
@@ -742,7 +742,7 @@ test("main bridge resolves existing global binaries before local fallbacks", asy
 });
 
 test("main bridge install action uses fixed npm package command", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-npm-install-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-npm-install-"));
   const { handlers, execCalls } = buildBridgeHarness({
     env: {
       HOME: path.join(tempDir, "home"),
@@ -769,7 +769,7 @@ test("main bridge install action uses fixed npm package command", async () => {
 });
 
 test("main bridge install action expands tilde npm prefix", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-npm-prefix-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-npm-prefix-"));
   const home = path.join(tempDir, "home");
   const { handlers, execCalls } = buildBridgeHarness({
     env: {
@@ -795,7 +795,7 @@ test("main bridge install action expands tilde npm prefix", async () => {
 });
 
 test("main bridge reads page-owned permission file and applies it to CLI calls", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-page-permissions-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-page-permissions-"));
   try {
     const permissionsPath = path.join(tempDir, "permissions.json");
     fs.writeFileSync(
@@ -805,7 +805,7 @@ test("main bridge reads page-owned permission file and applies it to CLI calls",
 
     const { handlers, execCalls, spawnCalls } = buildBridgeHarness({
       env: {
-        CODEX_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
+        CHATGPT_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
       },
       globalState: new Map([[SETTINGS_PERMISSIONS_KEY, permissionsPath]]),
     });
@@ -868,12 +868,12 @@ test("main bridge reads page-owned permission file and applies it to CLI calls",
 });
 
 test("main bridge reports page-owned permission file failures before spawning", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-missing-permissions-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-missing-permissions-"));
   try {
     const missingPath = path.join(tempDir, "permissions.json");
     const { handlers, execCalls, spawnCalls } = buildBridgeHarness({
       env: {
-        CODEX_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
+        CHATGPT_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
       },
       globalState: new Map([[SETTINGS_PERMISSIONS_KEY, missingPath]]),
     });
@@ -895,14 +895,14 @@ test("main bridge reports page-owned permission file failures before spawning", 
 });
 
 test("main bridge saves page-authored permission rules as the active ceiling", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-save-permissions-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-save-permissions-"));
   try {
     const dataHome = path.join(tempDir, "data");
     const globalState = new Map();
     const { handlers, execCalls } = buildBridgeHarness({
       env: {
         XDG_DATA_HOME: dataHome,
-        CODEX_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
+        CHATGPT_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
       },
       globalState,
     });
@@ -923,7 +923,7 @@ test("main bridge saves page-authored permission rules as the active ceiling", a
 
     const savedPath = globalState.get(SETTINGS_PERMISSIONS_KEY);
     assert.equal(saved.json.permissions_path, savedPath);
-    assert.match(savedPath, /agent-workspace-linux\/permissions\/codex-agent-workspace-permissions\.json$/);
+    assert.match(savedPath, /agent-workspace-linux\/permissions\/chatgpt-agent-workspace-permissions\.json$/);
     assert.deepEqual(JSON.parse(fs.readFileSync(savedPath, "utf8")), permissions);
 
     const profiles = await handlers["linux-agent-workspace"]({ action: "profileList" });
@@ -935,11 +935,11 @@ test("main bridge saves page-authored permission rules as the active ceiling", a
 });
 
 test("main bridge opens viewer in clean default mode without adding a ceiling or topmost state", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-clean-viewer-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-clean-viewer-"));
   try {
     const { handlers, execCalls, spawnCalls } = buildBridgeHarness({
       env: {
-        CODEX_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
+        CHATGPT_AGENT_WORKSPACE_BIN: "/tmp/agent-workspace-linux",
       },
     });
 
@@ -975,13 +975,13 @@ test("main bridge opens viewer in clean default mode without adding a ceiling or
 });
 
 test("main bridge reports detached viewer spawn errors without exec fallback", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-viewer-error-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-viewer-error-"));
   const calls = [];
   try {
     const { handlers, execCalls } = buildBridgeHarness({
       env: {
         CODEX_HOME: path.join(tempDir, "codex-home"),
-        CODEX_AGENT_WORKSPACE_BIN: "/tmp/missing-agent-workspace-linux",
+        CHATGPT_AGENT_WORKSPACE_BIN: "/tmp/missing-agent-workspace-linux",
       },
       spawn(command, args, options) {
         const call = { command, args, options, unref: false };
@@ -1674,7 +1674,7 @@ test("settings asset patches add navigation, route, visibility, and title", () =
 test("agent-workspace integration participates in ASAR patching and reports", () => {
   withTempIntegrationConfig(["agent-workspace"], (integrationsRoot) => {
     withPortIntegrationRootEnv(integrationsRoot, () => {
-      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-app-"));
+      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-app-"));
       try {
         const { buildDir, assetsDir } = writeSyntheticExtractedApp(tempApp);
         const report = createPatchReport();
@@ -1714,7 +1714,7 @@ test("agent-workspace integration participates in ASAR patching and reports", ()
 });
 
 test("agent-workspace settings resolve latest upstream request API asset", () => {
-  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-modern-api-"));
+  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-modern-api-"));
   try {
     const { assetsDir } = writeSyntheticExtractedApp(tempApp);
     writeModernCodexRequestAsset(assetsDir);
@@ -1736,7 +1736,7 @@ test("agent-workspace settings resolve latest upstream request API asset", () =>
 });
 
 test("agent-workspace settings infer runtime dependencies from bundled settings page", () => {
-  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-bundled-runtime-"));
+  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-bundled-runtime-"));
   try {
     const { assetsDir } = writeSyntheticExtractedApp(tempApp);
 
@@ -1762,7 +1762,7 @@ test("agent-workspace settings infer runtime dependencies from bundled settings 
 });
 
 test("agent-workspace settings patch supports consolidated current settings bundles", () => {
-  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-current-settings-"));
+  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-current-settings-"));
   try {
     const { assetsDir } = writeSyntheticExtractedApp(tempApp);
 
@@ -1808,7 +1808,7 @@ test("agent-workspace settings patch supports consolidated current settings bund
 });
 
 test("agent-workspace settings patch rejects a partially patched current catalog atomically", () => {
-  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-partial-catalog-"));
+  const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-partial-catalog-"));
   try {
     const { assetsDir } = writeSyntheticExtractedApp(tempApp);
     const catalogPath = path.join(

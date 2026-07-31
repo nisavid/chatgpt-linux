@@ -12,7 +12,7 @@ not a raw pointer or keyboard macro recorder.
 
 The bundled plugin launches `./bin/SkyLinuxComputerUseClient event-stream mcp`.
 That helper is the Linux equivalent of the macOS Sky Computer Use event-stream
-client, implemented by the Rust `codex-record-replay-linux` backend.
+client, implemented by the Rust `chatgpt-record-replay-linux` backend.
 
 ## Flow
 
@@ -34,7 +34,7 @@ client, implemented by the Rust `codex-record-replay-linux` backend.
    Linux app should show the active Record & Replay recording HUD while the
    shared runtime status is active. Native Linux audio evidence is opt-in and
    requires both `include_audio: true` and an affirmative
-   `CODEX_RECORD_REPLAY_AUDIO` setting; normal workflow recording should rely
+   `CHATGPT_RECORD_REPLAY_AUDIO` setting; normal workflow recording should rely
    on transcript `speech_context` instead.
    Tell the user that recording is active, that they should perform the workflow
    normally, and that they can say `done` when finished.

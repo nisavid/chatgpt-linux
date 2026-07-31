@@ -6,7 +6,7 @@
 
 # ---- Download or find the official DMG ----
 DEFAULT_DMG_URL="https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
-DMG_URL="${CODEX_OFFICIAL_DMG_URL:-${CODEX_UPSTREAM_DMG_URL:-$DEFAULT_DMG_URL}}"
+DMG_URL="${CHATGPT_OFFICIAL_DMG_URL:-${CHATGPT_UPSTREAM_DMG_URL:-$DEFAULT_DMG_URL}}"
 DMG_REMOTE_FINGERPRINT=""
 
 redact_dmg_url() {
@@ -211,12 +211,12 @@ get_dmg() {
 
     if dmg_refresh_mode_is_pinned; then
         if [ -s "$dmg_dest" ]; then
-            warn "CODEX_DMG_REFRESH_MODE=pinned; using cached DMG without checking upstream: $dmg_dest"
+            warn "CHATGPT_DMG_REFRESH_MODE=pinned; using cached DMG without checking upstream: $dmg_dest"
             echo "$dmg_dest"
             return
         fi
 
-        error "CODEX_DMG_REFRESH_MODE=pinned requires an existing cached DMG at $dmg_dest or an explicit DMG path"
+        error "CHATGPT_DMG_REFRESH_MODE=pinned requires an existing cached DMG at $dmg_dest or an explicit DMG path"
     fi
 
     validate_dmg_url "$DMG_URL"
@@ -459,15 +459,15 @@ PY
     bundle_version="$(printf '%s\n' "$detected_version" | sed -n '2p')"
 
     if ! package_version="$(sanitize_app_package_version "$package_version")"; then
-        error "Invalid Codex App package version in DMG Info.plist: $(printf '%s\n' "$detected_version" | sed -n '1p')"
+        error "Invalid ChatGPT package version in DMG Info.plist: $(printf '%s\n' "$detected_version" | sed -n '1p')"
     fi
 
     mkdir -p "$INSTALL_DIR"
-    cat > "$INSTALL_DIR/codex-app-version.env" <<EOF
-CODEX_APP_PACKAGE_VERSION=$(shell_quote "$package_version")
-CODEX_APP_BUNDLE_VERSION=$(shell_quote "$bundle_version")
+    cat > "$INSTALL_DIR/chatgpt-version.env" <<EOF
+CHATGPT_APP_PACKAGE_VERSION=$(shell_quote "$package_version")
+CHATGPT_APP_BUNDLE_VERSION=$(shell_quote "$bundle_version")
 EOF
-    info "Detected Codex App package version from DMG: $package_version"
+    info "Detected ChatGPT package version from DMG: $package_version"
 }
 
 detect_electron_version() {

@@ -18,7 +18,7 @@ const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const TESSERACT_BACKEND_NAME: &str = "tesseract-cli";
 const RAPIDOCR_BACKEND_NAME: &str = "rapidocr-python";
 const AUTO_BACKEND_NAME: &str = "auto";
-const RAPIDOCR_JSON_PREFIX: &str = "__CODEX_RAPIDOCR_JSON__";
+const RAPIDOCR_JSON_PREFIX: &str = "__CHATGPT_RAPIDOCR_JSON__";
 const MAX_OCR_OBSERVATIONS: usize = 200;
 const MAX_OCR_NORMALIZED_TEXT_BYTES: usize = 32 * 1024;
 const MAX_OCR_CANDIDATE_TEXT_BYTES: usize = 512;
@@ -39,10 +39,10 @@ try:
         "onnxruntime": metadata.version("onnxruntime"),
         "lang_type": str(getattr(engine.cfg.Rec, "lang_type", lang_type)),
     }
-    print("__CODEX_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
+    print("__CHATGPT_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
 except Exception as exc:
     payload = {"error": f"{type(exc).__name__}: {exc}"}
-    print("__CODEX_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
+    print("__CHATGPT_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
     raise
 "#;
 
@@ -72,7 +72,7 @@ payload = {
     "elapse": getattr(result, "elapse", None),
     "lang_type": str(getattr(engine.cfg.Rec, "lang_type", lang_type)),
 }
-print("__CODEX_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
+print("__CHATGPT_RAPIDOCR_JSON__" + json.dumps(payload, ensure_ascii=False))
 "#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,8 +201,8 @@ struct RapidOcrVersions {
 
 impl OcrPolicy {
     pub(crate) fn from_env() -> Self {
-        let mode = env_value("CODEX_SKYSIGHT_OCR")
-            .or_else(|| env_value("CODEX_CHRONICLE_OCR"))
+        let mode = env_value("CHATGPT_SKYSIGHT_OCR")
+            .or_else(|| env_value("CHATGPT_CHRONICLE_OCR"))
             .map(|value| match value.trim().to_ascii_lowercase().as_str() {
                 "disabled" | "off" | "false" | "0" => OcrMode::Disabled,
                 "enabled" | "on" | "true" | "1" => OcrMode::Enabled,
@@ -210,28 +210,28 @@ impl OcrPolicy {
                 _ => OcrMode::Auto,
             })
             .unwrap_or(OcrMode::Auto);
-        let backend_preference = env_value("CODEX_SKYSIGHT_OCR_BACKEND")
-            .or_else(|| env_value("CODEX_CHRONICLE_OCR_BACKEND"))
+        let backend_preference = env_value("CHATGPT_SKYSIGHT_OCR_BACKEND")
+            .or_else(|| env_value("CHATGPT_CHRONICLE_OCR_BACKEND"))
             .map(|value| match value.trim().to_ascii_lowercase().as_str() {
                 "rapidocr" | "rapidocr-python" | "rapid-ocr" => OcrBackendPreference::RapidOcr,
                 "tesseract" | "tesseract-cli" => OcrBackendPreference::Tesseract,
                 _ => OcrBackendPreference::Auto,
             })
             .unwrap_or(OcrBackendPreference::Auto);
-        let tesseract_executable = env_value("CODEX_SKYSIGHT_TESSERACT_PATH")
-            .or_else(|| env_value("CODEX_CHRONICLE_TESSERACT_PATH"))
+        let tesseract_executable = env_value("CHATGPT_SKYSIGHT_TESSERACT_PATH")
+            .or_else(|| env_value("CHATGPT_CHRONICLE_TESSERACT_PATH"))
             .unwrap_or_else(|| DEFAULT_TESSERACT.to_string());
-        let rapidocr_python = env_value("CODEX_SKYSIGHT_RAPIDOCR_PYTHON")
-            .or_else(|| env_value("CODEX_CHRONICLE_RAPIDOCR_PYTHON"))
+        let rapidocr_python = env_value("CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON")
+            .or_else(|| env_value("CHATGPT_CHRONICLE_RAPIDOCR_PYTHON"))
             .unwrap_or_else(|| DEFAULT_RAPIDOCR_PYTHON.to_string());
         let language =
-            env_value("CODEX_SKYSIGHT_OCR_LANG").unwrap_or_else(|| DEFAULT_LANGUAGE.to_string());
-        let rapidocr_language = env_value("CODEX_SKYSIGHT_RAPIDOCR_LANG")
-            .or_else(|| env_value("CODEX_CHRONICLE_RAPIDOCR_LANG"))
+            env_value("CHATGPT_SKYSIGHT_OCR_LANG").unwrap_or_else(|| DEFAULT_LANGUAGE.to_string());
+        let rapidocr_language = env_value("CHATGPT_SKYSIGHT_RAPIDOCR_LANG")
+            .or_else(|| env_value("CHATGPT_CHRONICLE_RAPIDOCR_LANG"))
             .unwrap_or_else(|| DEFAULT_RAPIDOCR_LANGUAGE.to_string());
         let page_segmentation_mode =
-            env_value("CODEX_SKYSIGHT_OCR_PSM").unwrap_or_else(|| DEFAULT_PSM.to_string());
-        let timeout_ms = env_value("CODEX_SKYSIGHT_OCR_TIMEOUT_MS")
+            env_value("CHATGPT_SKYSIGHT_OCR_PSM").unwrap_or_else(|| DEFAULT_PSM.to_string());
+        let timeout_ms = env_value("CHATGPT_SKYSIGHT_OCR_TIMEOUT_MS")
             .and_then(|value| value.parse::<u64>().ok())
             .filter(|value| *value > 0)
             .unwrap_or(DEFAULT_TIMEOUT_MS);
@@ -1144,7 +1144,7 @@ fn env_value(key: &str) -> Option<String> {
 }
 
 fn rapidocr_dependency_hint() -> String {
-    "Install Python packages `rapidocr` and `onnxruntime` plus the OpenCV runtime dependency `libGL.so.1`, or set CODEX_SKYSIGHT_OCR_BACKEND=tesseract".to_string()
+    "Install Python packages `rapidocr` and `onnxruntime` plus the OpenCV runtime dependency `libGL.so.1`, or set CHATGPT_SKYSIGHT_OCR_BACKEND=tesseract".to_string()
 }
 
 fn tesseract_dependency_hint(language: &str) -> String {
@@ -1265,10 +1265,10 @@ mod tests {
     fn missing_backend_reports_unavailable_without_requiring_host_dependency() {
         let _guard = env_lock();
         clear_ocr_env();
-        std::env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-        std::env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "tesseract");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "tesseract");
         std::env::set_var(
-            "CODEX_SKYSIGHT_TESSERACT_PATH",
+            "CHATGPT_SKYSIGHT_TESSERACT_PATH",
             "/definitely/missing/tesseract",
         );
 
@@ -1285,10 +1285,10 @@ mod tests {
     fn required_mode_marks_missing_backend_as_required_failure() {
         let _guard = env_lock();
         clear_ocr_env();
-        std::env::set_var("CODEX_SKYSIGHT_OCR", "required");
-        std::env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "tesseract");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR", "required");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "tesseract");
         std::env::set_var(
-            "CODEX_SKYSIGHT_TESSERACT_PATH",
+            "CHATGPT_SKYSIGHT_TESSERACT_PATH",
             "/definitely/missing/tesseract",
         );
 
@@ -1312,10 +1312,10 @@ mod tests {
             r#"#!/usr/bin/env bash
 set -euo pipefail
 if [[ $# -eq 3 ]]; then
-  echo '__CODEX_RAPIDOCR_JSON__{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_type":"en"}'
+  echo '__CHATGPT_RAPIDOCR_JSON__{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_type":"en"}'
   exit 0
 fi
-echo '__CODEX_RAPIDOCR_JSON__{"boxes":[[[10,20],[90,20],[90,40],[10,40]],[[10,60],[55,60],[55,74],[10,74]]],"txts":["Codex Rapid","OCR"],"scores":[0.97,0.91],"elapse":0.123,"lang_type":"en"}'
+echo '__CHATGPT_RAPIDOCR_JSON__{"boxes":[[[10,20],[90,20],[90,40],[10,40]],[[10,60],[55,60],[55,74],[10,74]]],"txts":["Codex Rapid","OCR"],"scores":[0.97,0.91],"elapse":0.123,"lang_type":"en"}'
 "#,
         )
         .unwrap();
@@ -1324,10 +1324,10 @@ echo '__CODEX_RAPIDOCR_JSON__{"boxes":[[[10,20],[90,20],[90,40],[10,40]],[[10,60
         fs::set_permissions(&fake_python, permissions).unwrap();
         let image = temp.path().join("frame.jpg");
         fs::write(&image, b"not-a-real-image-but-fake-backend-does-not-care").unwrap();
-        std::env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-        std::env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "rapidocr");
-        std::env::set_var("CODEX_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
-        std::env::set_var("CODEX_SKYSIGHT_RAPIDOCR_LANG", "en");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "rapidocr");
+        std::env::set_var("CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
+        std::env::set_var("CHATGPT_SKYSIGHT_RAPIDOCR_LANG", "en");
 
         let policy = OcrPolicy::from_env();
         let readiness = policy.readiness();
@@ -1364,15 +1364,15 @@ echo '__CODEX_RAPIDOCR_JSON__{"boxes":[[[10,20],[90,20],[90,40],[10,40]],[[10,60
             &fake_python,
             r#"#!/usr/bin/env bash
 set -euo pipefail
-echo '__CODEX_RAPIDOCR_JSON__{"rapidocr":"3.9.1","onnxruntime":"1.22.0"}'
+echo '__CHATGPT_RAPIDOCR_JSON__{"rapidocr":"3.9.1","onnxruntime":"1.22.0"}'
 "#,
         )
         .unwrap();
         let mut permissions = fs::metadata(&fake_python).unwrap().permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(&fake_python, permissions).unwrap();
-        std::env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-        std::env::set_var("CODEX_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+        std::env::set_var("CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
 
         let policy = OcrPolicy::from_env();
         let readiness = policy.readiness();
@@ -1411,9 +1411,9 @@ TSV
         fs::set_permissions(&fake_tesseract, permissions).unwrap();
         let image = temp.path().join("frame.jpg");
         fs::write(&image, b"not-a-real-image-but-fake-backend-does-not-care").unwrap();
-        std::env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-        std::env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "tesseract");
-        std::env::set_var("CODEX_SKYSIGHT_TESSERACT_PATH", &fake_tesseract);
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+        std::env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "tesseract");
+        std::env::set_var("CHATGPT_SKYSIGHT_TESSERACT_PATH", &fake_tesseract);
 
         let policy = OcrPolicy::from_env();
         let result = recognize_frame(&policy, &image, 200, 100, &[]);
@@ -1525,19 +1525,19 @@ TSV
 
     fn clear_ocr_env() {
         for key in [
-            "CODEX_SKYSIGHT_OCR",
-            "CODEX_CHRONICLE_OCR",
-            "CODEX_SKYSIGHT_OCR_BACKEND",
-            "CODEX_CHRONICLE_OCR_BACKEND",
-            "CODEX_SKYSIGHT_TESSERACT_PATH",
-            "CODEX_CHRONICLE_TESSERACT_PATH",
-            "CODEX_SKYSIGHT_RAPIDOCR_PYTHON",
-            "CODEX_CHRONICLE_RAPIDOCR_PYTHON",
-            "CODEX_SKYSIGHT_RAPIDOCR_LANG",
-            "CODEX_CHRONICLE_RAPIDOCR_LANG",
-            "CODEX_SKYSIGHT_OCR_LANG",
-            "CODEX_SKYSIGHT_OCR_PSM",
-            "CODEX_SKYSIGHT_OCR_TIMEOUT_MS",
+            "CHATGPT_SKYSIGHT_OCR",
+            "CHATGPT_CHRONICLE_OCR",
+            "CHATGPT_SKYSIGHT_OCR_BACKEND",
+            "CHATGPT_CHRONICLE_OCR_BACKEND",
+            "CHATGPT_SKYSIGHT_TESSERACT_PATH",
+            "CHATGPT_CHRONICLE_TESSERACT_PATH",
+            "CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON",
+            "CHATGPT_CHRONICLE_RAPIDOCR_PYTHON",
+            "CHATGPT_SKYSIGHT_RAPIDOCR_LANG",
+            "CHATGPT_CHRONICLE_RAPIDOCR_LANG",
+            "CHATGPT_SKYSIGHT_OCR_LANG",
+            "CHATGPT_SKYSIGHT_OCR_PSM",
+            "CHATGPT_SKYSIGHT_OCR_TIMEOUT_MS",
         ] {
             std::env::remove_var(key);
         }

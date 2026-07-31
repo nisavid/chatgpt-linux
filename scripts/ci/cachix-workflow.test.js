@@ -8,11 +8,11 @@ const workflow = fs.readFileSync(
   "utf8",
 );
 const updateHashWorkflow = fs.readFileSync(
-  path.resolve(__dirname, "../../.github/workflows/update-codex-hash.yml"),
+  path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
   "utf8",
 );
 
-test("Cachix automatic population runs only for an actual Codex DMG hash change", () => {
+test("Cachix automatic population runs only for an actual ChatGPT DMG hash change", () => {
   assert.match(workflow, /paths:\n\s+- flake\.nix/);
   assert.doesNotMatch(workflow, /schedule:/);
   assert.match(workflow, /workflow_dispatch:/);
@@ -21,8 +21,8 @@ test("Cachix automatic population runs only for an actual Codex DMG hash change"
   assert.match(workflow, /EVENT_NAME: \$\{\{ github\.event_name \}\}/);
   assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);
   assert.match(workflow, /if \[ "\$EVENT_NAME" = "workflow_dispatch" \]; then\n\s+changed=true/);
-  assert.match(workflow, /read-flake-hash "codexDmg = pkgs\.fetchurl \{" "hash = "/);
-  assert.match(workflow, /if: needs\.detect-codex-dmg-hash\.outputs\.changed == 'true'/);
+  assert.match(workflow, /read-flake-hash "chatgptDmg = pkgs\.fetchurl \{" "hash = "/);
+  assert.match(workflow, /if: needs\.detect-chatgpt-dmg-hash\.outputs\.changed == 'true'/);
 });
 
 test("Nix refresh commits allow post-merge workflows to run", () => {

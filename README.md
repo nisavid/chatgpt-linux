@@ -1,24 +1,29 @@
 <div align="center">
-  <img src="assets/codex.png" alt="Codex app icon" width="128" height="128">
-  <h1>Codex App for Linux</h1>
-  <p><strong>A polished local Codex desktop build for Linux package workflows.</strong></p>
+  <img src="assets/chatgpt.png" alt="ChatGPT app icon" width="128" height="128">
+  <h1>ChatGPT for Linux</h1>
+  <p><strong>A hardened, package-ready ChatGPT desktop build for Linux.</strong></p>
   <p>
     <a href="#quick-start"><img alt="Packages: deb, rpm, pacman" src="https://img.shields.io/badge/packages-deb%20%7C%20rpm%20%7C%20pacman-2f81f7?style=flat-square"></a>
-    <a href="#local-updater"><img alt="Updater: codex-app-updater" src="https://img.shields.io/badge/updater-codex--app--updater-1f883d?style=flat-square"></a>
+    <a href="#local-updater"><img alt="Updater: chatgpt-updater" src="https://img.shields.io/badge/updater-chatgpt--updater-1f883d?style=flat-square"></a>
     <a href="#highlights"><img alt="Focus: hardening and polish" src="https://img.shields.io/badge/focus-hardening%20%2B%20polish-8250df?style=flat-square"></a>
   </p>
 </div>
 
-The official Codex app is published for macOS. This repository layers package
+The official ChatGPT app is published for macOS. This repository layers package
 identity, updater policy, hardening, and runtime polish over the Linux
 conversion work from
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux),
 aimed at users who want a polished local app and maintainers who want auditable
 native packages.
 
-> [!NOTE]
-> This is an unofficial community project. It does not redistribute OpenAI
-> software; it automates a local conversion from the official OpenAI ChatGPT DMG.
+> [!IMPORTANT]
+> **ChatGPT for Linux is an unofficial community project.** It is not affiliated
+> with, endorsed by, or supported by OpenAI. OpenAI owns ChatGPT, Codex, the
+> official app, and the OpenAI-hosted services this build uses. This repository
+> does not redistribute the official app; it automates a local conversion from
+> the official OpenAI ChatGPT DMG. The repository license covers this fork's
+> source code and packaging work, not the downloaded OpenAI app or services. Your
+> use of OpenAI software and services remains subject to OpenAI's terms.
 
 ## Start Here
 
@@ -46,8 +51,8 @@ the app, and installs the resulting native package. The expanded flow below is
 useful when you want to inspect the package before installing it.
 
 ```bash
-git clone https://github.com/nisavid/codex-app-linux.git
-cd codex-app-linux
+git clone https://github.com/nisavid/chatgpt-linux.git
+cd chatgpt-linux
 bash scripts/install-deps.sh
 make clean build-app package
 ```
@@ -56,25 +61,25 @@ Install the package that `make package` wrote to `dist/`:
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./dist/codex-app_*.deb
+sudo apt install ./dist/chatgpt_*.deb
 
 # Fedora 41+
-sudo dnf5 install ./dist/codex-app-*.rpm
+sudo dnf5 install ./dist/chatgpt-*.rpm
 
 # Fedora with dnf
-sudo dnf install ./dist/codex-app-*.rpm
+sudo dnf install ./dist/chatgpt-*.rpm
 
 # openSUSE
-sudo zypper --non-interactive --allow-unsigned-rpm install -y ./dist/codex-app-*.rpm
+sudo zypper --non-interactive --allow-unsigned-rpm install -y ./dist/chatgpt-*.rpm
 
 # Arch Linux
-sudo pacman -U ./dist/codex-app-*.pkg.tar.zst
+sudo pacman -U ./dist/chatgpt-*.pkg.tar.zst
 ```
 
 Then launch:
 
 ```bash
-codex-app
+chatgpt
 ```
 
 `scripts/install-deps.sh` supports Debian/Ubuntu-family, Fedora, openSUSE, and
@@ -98,39 +103,68 @@ package format, updater hints, Computer Use readiness signals, and optional
 port integration config. It can write the git-ignored
 `port-integrations/integrations.json` file for the next build, but it does not run the
 build, package, or install flow unless you explicitly opt in through
-`CODEX_BOOTSTRAP_INSTALL_DEPS=1` or `CODEX_BOOTSTRAP_INSTALL_NATIVE=1`.
+`CHATGPT_BOOTSTRAP_INSTALL_DEPS=1` or `CHATGPT_BOOTSTRAP_INSTALL_NATIVE=1`.
+
+## Upgrading From Codex App
+
+The `chatgpt` packages replace the former `codex-app` and
+`codex-desktop` package identities. They do not install compatibility commands,
+launchers, desktop files, or service aliases. Use `chatgpt` and
+`chatgpt-updater` after upgrading.
+
+Before ChatGPT creates any new runtime state, the launcher and updater move this
+fork's existing XDG directories from `codex-app` to `chatgpt` and from
+`codex-app-updater` to `chatgpt-updater`. The migration also moves the
+wrapper-owned CLI quarantine directory, discards volatile pid, socket, lock, and
+temporary files, rewrites known wrapper-owned paths and setting keys, and records
+progress in `${XDG_STATE_HOME:-$HOME/.local/state}/.chatgpt-state-migration.json`.
+Interrupted work resumes on the next launch.
+
+Migration is atomic and refuses symlinks, unexpected file types, cross-filesystem
+moves, and collisions. If both an old and a new directory exist, no directories
+are merged or replaced. Follow the exact `Recovery command:` printed by the
+launcher; it moves the new directory aside and reruns `chatgpt`. To roll a
+completed migration back to the former XDG names, close the app and run:
+
+```bash
+chatgpt migrate-state --reverse
+```
+
+Reverse migration uses the same journal, collision checks, and fail-closed path
+validation. It restores data names only; it does not reinstall the former package
+or add compatibility shims.
 
 ## Uninstall
 
-Close Codex App, then remove the native package with your distro's package
+Close ChatGPT, then remove the native package with your distro's package
 manager:
 
 ```bash
 # Debian / Ubuntu
-sudo apt remove codex-app
+sudo apt remove chatgpt
 
 # Fedora
-sudo dnf remove codex-app
+sudo dnf remove chatgpt
 
 # openSUSE
-sudo zypper remove codex-app
+sudo zypper remove chatgpt
 
 # Arch Linux
-sudo pacman -R codex-app
+sudo pacman -R chatgpt
 ```
 
-Package removal stops and disables `codex-app-updater.service`. If a service
+Package removal stops and disables `chatgpt-updater.service`. If a service
 from an older or manual install remains, remove its user-level enablement with
-`systemctl --user disable --now codex-app-updater.service`. AppImage and
+`systemctl --user disable --now chatgpt-updater.service`. AppImage and
 checkout builds are not system-installed; remove the artifact or generated tree
 you created. User configuration and state are preserved for reinstall.
 
 ## Highlights
 
 - **Distro-shaped native packages.** Builds `.deb`, `.rpm`, and pacman packages
-  under the `codex-app` identity, with package-managed install roots and XDG
+  under the `chatgpt` identity, with package-managed install roots and XDG
   user state. AppImage self-builds are available for manual-update systems.
-- **Updater with a narrow privilege boundary.** `codex-app-updater` checks DMGs,
+- **Updater with a narrow privilege boundary.** `chatgpt-updater` checks DMGs,
   rebuilds packages, tracks state, and uses `pkexec` only for final package
   installation.
 - **Managed runtime and CLI preflight.** Native packages bundle the Linux
@@ -145,7 +179,7 @@ you created. User configuration and state are preserved for reinstall.
 
 ## Current State
 
-- **Working:** the standard Codex app UI, native packages, AppImage self-builds,
+- **Working:** the standard ChatGPT app UI, native packages, AppImage self-builds,
   local updater, managed runtime, Codex CLI preflight, Chrome native host,
   browser resources, and port integration registry.
 - **Desktop-dependent:** tray behavior, warm start, multi-instance launches,
@@ -169,7 +203,7 @@ you created. User configuration and state are preserved for reinstall.
 This fork is a downstream maintenance fork of
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).
 The Linux-port upstream does the core Linux app conversion and runtime
-enablement. This fork keeps the local `codex-app` package identity, install
+enablement. This fork keeps the local `chatgpt` package identity, install
 layout, updater policy, hardening posture, and maintenance workflow coherent on
 top of that base.
 
@@ -189,11 +223,11 @@ make run-app
 
 `make build-app` downloads or reuses `ChatGPT.dmg`, extracts the app, patches the
 macOS bundle for Linux, rebuilds native modules, downloads a Linux Electron
-runtime, and writes `codex-app/start.sh`.
+runtime, and writes `chatgpt/start.sh`.
 
 App generation is transactional. The candidate must pass the shared
 [official DMG acceptance profile](docs/upstream-dmg-acceptance.md) before it
-replaces the working `codex-app/`. Acceptance checks enabled port integrations;
+replaces the working `chatgpt/`. Acceptance checks enabled port integrations;
 rejected or inconclusive candidates preserve the current app.
 
 On first launch, the app can install the Codex CLI if it is missing. To install
@@ -233,37 +267,47 @@ make run-dev-app
 
 Normal launches reuse a running app through the warm-start handoff. To start an
 additional isolated instance instead, pass `--new-instance` or set
-`CODEX_MULTI_LAUNCH=1`; the launcher chooses the first free webview port in a
+`CHATGPT_MULTI_LAUNCH=1`; the launcher chooses the first free webview port in a
 bounded range and uses per-port pid, socket, log, and Electron user-data paths.
 
 ```bash
-./codex-app/start.sh --new-instance
-CODEX_MULTI_LAUNCH=1 CODEX_MULTI_LAUNCH_PORT_RANGE=5175-5199 ./codex-app/start.sh
+./chatgpt/start.sh --new-instance
+CHATGPT_MULTI_LAUNCH=1 CHATGPT_MULTI_LAUNCH_PORT_RANGE=5175-5199 ./chatgpt/start.sh
 ```
 
 ## Port Integrations
 
-Port integrations are build-time integration modules that adapt official Codex app
+Port integrations are build-time integration modules that adapt official ChatGPT app
 behavior and local runtime helpers to this Linux port. The source path is
 `port-integrations/`, but the modules are not features of Linux itself,
-and their user-facing concepts are not necessarily Linux-only Codex features.
+and their user-facing concepts are not necessarily Linux-only ChatGPT features.
 
-This fork enables the curated integration set declared by each manifest. Run
-`make setup-native` to review the current defaults. Open target discovery finds
-Linux terminals, editors, and file managers from the desktop session; Agent
-Workspaces preserves its approval and permission controls; AppShots keeps global
-hotkeys inactive until configured; and wrapper update checks stay off at
-runtime until enabled in Settings. Main-process hardening for direct workspace
-bridge calls is tracked in
-[`#99`](https://github.com/nisavid/codex-app-linux/issues/99).
+This fork enables the reviewed integration set declared by each manifest. Run
+`make setup-native` to review the current defaults. The default set includes
+workflow and project helpers, wrapper update UI, remote-control compatibility,
+speech and dictation, theme and status helpers, API-key model metadata, shared
+app-server and SSH routing, Pet Overlay, and UI Tweaks. Resource-heavy,
+privilege-sensitive, or still-deferred integrations remain disabled.
+
+Default enablement never replaces a feature's own runtime gates. Agent Workspaces
+preserves its approval and permission controls; AppShots keeps global hotkeys
+inactive until configured; wrapper update checks stay off until enabled in
+Settings; and Open Target Discovery validates desktop targets. UI Tweaks enables
+Dock-icon selection and Suggested Prompts by default. Dock-icon synchronization
+creates, updates, and removes only marker-owned ChatGPT desktop and icon files; it
+leaves unmanaged launchers and favorites untouched. Suggested Prompts requires
+the official app's eligibility, the user's setting, and supported local
+Linux patch contracts at the same time. Main-process hardening for direct
+workspace bridge calls is tracked in
+[`#99`](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 To disable default integrations or enable still-optional integrations, copy
 `port-integrations/integrations.example.json` to the git-ignored
 `port-integrations/integrations.json`, edit the `enabled` and `disabled` lists, then
 rebuild. Packaged installs can use
-`${XDG_CONFIG_HOME:-$HOME/.config}/codex-app/port-integrations.json` for the same
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` for the same
 override shape; checkout builds ignore that persistent user file and use
-`port-integrations/integrations.json` or `CODEX_PORT_INTEGRATIONS_CONFIG` instead.
+`port-integrations/integrations.json` or `CHATGPT_PORT_INTEGRATIONS_CONFIG` instead.
 See [`port-integrations/README.md`](port-integrations/README.md) for the integration
 contract.
 
@@ -279,7 +323,7 @@ Native package builders repackage the generated app tree. The quick path uses
 `make clean build-app package` so the app tree, cached DMG, and old package
 outputs all start fresh.
 
-If `codex-app/` already exists and you only need to rebuild the package, use:
+If `chatgpt/` already exists and you only need to rebuild the package, use:
 
 ```bash
 make package
@@ -305,7 +349,7 @@ make install-native
 build, package build, and install flow. `make install-native` assumes
 dependencies are already present.
 
-To build a package without installing `codex-app-updater`, its user service, or
+To build a package without installing `chatgpt-updater`, its user service, or
 its polkit/update-builder support files, disable the updater at package build
 time:
 
@@ -313,17 +357,17 @@ time:
 PACKAGE_WITH_UPDATER=0 make package
 ```
 
-No-updater packages also remove stale `codex-app-updater.service` enablement
+No-updater packages also remove stale `chatgpt-updater.service` enablement
 when installed over a default package.
 
 Package outputs land in `dist/`:
 
 | Target | Output |
 | --- | --- |
-| Debian | `dist/codex-app_<app-version>_<arch>.deb` |
-| RPM / Fedora / openSUSE | `dist/codex-app-<app-version>-1.<arch>.rpm` |
-| Arch Linux | `dist/codex-app-<app-version>-1-<arch>.pkg.tar.zst` |
-| AppImage | `dist/codex-app-<app-version>-<arch>.AppImage` |
+| Debian | `dist/chatgpt_<app-version>_<arch>.deb` |
+| RPM / Fedora / openSUSE | `dist/chatgpt-<app-version>-1.<arch>.rpm` |
+| Arch Linux | `dist/chatgpt-<app-version>-1-<arch>.pkg.tar.zst` |
+| AppImage | `dist/chatgpt-<app-version>-<arch>.AppImage` |
 
 Architecture names follow the package format: Debian uses `amd64`, `arm64`, or
 `armhf`; RPM uses `x86_64`, `aarch64`, or `armv7hl`; pacman uses `x86_64` or
@@ -333,10 +377,12 @@ The package version comes from the official OpenAI app bundle's
 `CFBundleShortVersionString`. For example, `26.422.30944 (2080)` becomes
 `26.422.30944`.
 
-Native packages are named `codex-app`. They declare replacement metadata for
-the older `codex-desktop` package name where the package format supports it.
-The installed launcher is `/usr/bin/codex-app`, and the app lives under
-`/opt/codex-app`.
+Native packages are named `chatgpt`. They declare replacement, conflict, and
+provider metadata for the former `codex-app` and `codex-desktop` package names
+where the package format supports it. They do not ship executable or service
+compatibility shims.
+The installed launcher is `/usr/bin/chatgpt`, and the app lives under
+`/opt/chatgpt`.
 
 Native packages bundle the managed Node.js runtime used by the launcher, Browser
 Use, Codex CLI install/update flow, and local auto-update rebuilds. They do not
@@ -347,19 +393,19 @@ commands shown in [Quick Start](#quick-start). It installs the newest matching
 package in `dist/`.
 
 For atomic desktops or systems where installing a native package is awkward,
-build a local AppImage after `codex-app/` exists:
+build a local AppImage after `chatgpt/` exists:
 
 ```bash
 make appimage
-./dist/codex-app-*.AppImage
+./dist/chatgpt-*.AppImage
 ```
 
-The AppImage flow omits `codex-app-updater`, the systemd user service, polkit
+The AppImage flow omits `chatgpt-updater`, the systemd user service, polkit
 policy, and the native-package update-builder bundle. Rebuild it manually when
 you want a newer official OpenAI app bundle.
 
 To embed an installed Codex CLI and its matching Linux platform package, set
-`CODEX_CLI_BUNDLE_SOURCE` to its `node_modules/@openai/codex` directory when
+`CHATGPT_CLI_BUNDLE_SOURCE` to its `node_modules/@openai/codex` directory when
 running `make appimage`. An explicit runtime `CODEX_CLI_PATH` still takes
 precedence.
 
@@ -367,15 +413,15 @@ Before publishing packages, run the release gate with a trusted official OpenAI
 ChatGPT DMG hash:
 
 ```bash
-CODEX_DMG_SHA256=<reviewed-dmg-sha256> \
+CHATGPT_DMG_SHA256=<reviewed-dmg-sha256> \
 REQUIRE_RELEASE_SIGNATURE=1 \
-CODEX_RELEASE_GPG_KEY=<key-id-or-email> \
+CHATGPT_RELEASE_GPG_KEY=<key-id-or-email> \
 make release-gate
 ```
 
 The release gate verifies the DMG hash, scans generated Electron output,
 validates package metadata, writes checksums, and signs those checksums when
-`CODEX_RELEASE_GPG_KEY` is set. `REQUIRE_RELEASE_SIGNATURE=1` makes the gate
+`CHATGPT_RELEASE_GPG_KEY` is set. `REQUIRE_RELEASE_SIGNATURE=1` makes the gate
 fail without a signing key, which is the public-release mode; omit it for local
 rehearsal runs. See the
 [Build and Run Guide](docs/usage/build-and-run.md) and
@@ -385,17 +431,17 @@ for release details.
 ## NixOS
 
 The flake handles dependencies and Electron patching under the local
-`codex-app` identity:
+`chatgpt` identity:
 
 ```bash
-nix run github:nisavid/codex-app-linux
+nix run github:nisavid/chatgpt-linux
 ```
 
-This installs the generated app into `codex-app/` in the current directory. For
+This installs the generated app into `chatgpt/` in the current directory. For
 a development shell:
 
 ```bash
-nix develop github:nisavid/codex-app-linux
+nix develop github:nisavid/chatgpt-linux
 ```
 
 Integration-specific outputs are available when you want the generated app to carry
@@ -403,10 +449,10 @@ non-default integration choices that would otherwise be read from the git-ignore
 `port-integrations/integrations.json`:
 
 ```bash
-nix run github:nisavid/codex-app-linux#codex-app-computer-use-ui
-nix run github:nisavid/codex-app-linux#codex-app-remote-mobile-control
-nix run github:nisavid/codex-app-linux#codex-app-computer-use-ui-remote-mobile-control
-nix run github:nisavid/codex-app-linux#installer
+nix run github:nisavid/chatgpt-linux#chatgpt-computer-use-ui
+nix run github:nisavid/chatgpt-linux#chatgpt-remote-mobile-control
+nix run github:nisavid/chatgpt-linux#chatgpt-computer-use-ui-remote-mobile-control
+nix run github:nisavid/chatgpt-linux#installer
 ```
 
 For a declarative NixOS or Home Manager install with the mobile remote-control
@@ -415,10 +461,10 @@ app-server managed by systemd, import the flake module:
 ```nix
 {
   imports = [
-    inputs.codex-app-linux.homeManagerModules.default
+    inputs.chatgpt-linux.homeManagerModules.default
   ];
 
-  programs.codexAppLinux = {
+  programs.chatgptLinux = {
     enable = true;
     computerUseUi.enable = true;
     remoteMobileControl.enable = true;
@@ -460,24 +506,24 @@ rollout-gated UI paths in the official OpenAI app bundle. Enable them for a
 build with:
 
 ```bash
-CODEX_LINUX_ENABLE_COMPUTER_USE_UI=1 make build-app
+CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1 make build-app
 ```
 
 This local opt-in only controls Linux UI patching in the generated app. It does
 not bypass OpenAI account policy, server-side availability, or host accessibility
 and input prerequisites. To keep the opt-in across updater rebuilds, set the
-persisted `codex-linux-computer-use-ui-enabled` setting described in the
+persisted `chatgpt-linux-computer-use-ui-enabled` setting described in the
 [Build and Run Guide](docs/usage/build-and-run.md).
 
 After building the app, check backend readiness with:
 
 ```bash
-./codex-app/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux doctor
+./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux doctor
 ```
 
 ## Local Updater
 
-Native packages install `codex-app-updater`, a `systemd --user` service that
+Native packages install `chatgpt-updater`, a `systemd --user` service that
 checks for newer official OpenAI ChatGPT DMGs, rebuilds the matching Linux package
 locally, and uses `pkexec` only for the final package install step.
 
@@ -488,17 +534,17 @@ Useful service commands after installing a native package:
 ```bash
 make service-enable
 make service-status
-codex-app-updater status --json
+chatgpt-updater status --json
 ```
 
 The packaged launcher also starts the user service on a best-effort basis when
 you open the app.
 
 If a rebuilt update installs but the previous retained package was better,
-close Codex App and run:
+close ChatGPT and run:
 
 ```bash
-codex-app-updater rollback
+chatgpt-updater rollback
 ```
 
 Rollback uses the last retained known-good package and refuses to run when no
@@ -509,7 +555,7 @@ rollback package is available.
 Start with the launcher log:
 
 ```bash
-sed -n '1,160p' ~/.cache/codex-app/launcher.log
+sed -n '1,160p' ~/.cache/chatgpt/launcher.log
 ```
 
 Common next steps:
@@ -530,7 +576,7 @@ Common next steps:
   `ydotool_socket: Permission denied`, confirm the socket is usable by users in
   the `input` group;
 - updater service issue: inspect
-  `~/.local/state/codex-app-updater/service.log`.
+  `~/.local/state/chatgpt-updater/service.log`.
 
 See [Troubleshooting](docs/usage/troubleshooting.md) for the full symptom table
 and log locations.

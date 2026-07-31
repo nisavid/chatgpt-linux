@@ -340,7 +340,7 @@ mod tests {
     #[tokio::test]
     async fn downloads_dmg_and_hashes_contents() -> Result<()> {
         let server = MockServer::start().await;
-        let body = b"codex-dmg-test-payload";
+        let body = b"chatgpt-dmg-test-payload";
         Mock::given(method("GET"))
             .and(path("/ChatGPT.dmg"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(body.to_vec()))
@@ -359,14 +359,14 @@ mod tests {
 
         assert_eq!(
             downloaded.sha256,
-            "678cd508ffe0071e217020a7a4eecbebe25362c022ac78c13a5ae87b7a3a0c92"
+            "ec144b61fa5733da601b13f837f4b184d9bdad2e6f2d59f23b46dcefcfb4a118"
         );
         assert_eq!(
             downloaded.path,
             temp.path()
                 .join(format!("ChatGPT-{}.dmg", downloaded.sha256))
         );
-        assert_eq!(downloaded.candidate_version, "2026.03.24.120000+678cd508");
+        assert_eq!(downloaded.candidate_version, "2026.03.24.120000+ec144b61");
         assert_eq!(std::fs::read(&downloaded.path)?, body);
         assert_no_download_temps(temp.path())?;
         Ok(())

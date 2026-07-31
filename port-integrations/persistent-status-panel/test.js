@@ -44,17 +44,17 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withFeatureConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "persistent-status-panel-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
     return fn();
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -123,7 +123,7 @@ test("ambiguous status panel handler needles are unchanged", () => {
 
   assert.equal(patched, ambiguousSource);
   assert.deepEqual(warnings, [
-    "WARN: Found 2 Codex status panel open handler occurrences - skipping persistent status panel patch",
+    "WARN: Found 2 ChatGPT status panel open handler occurrences - skipping persistent status panel patch",
   ]);
 });
 
@@ -139,7 +139,7 @@ test("composer bundle with changed status state shape is unchanged", () => {
 
   assert.equal(patched, changedStateSource);
   assert.deepEqual(warnings, [
-    "WARN: Could not find Codex status panel state - skipping persistent status panel patch",
+    "WARN: Could not find ChatGPT status panel state - skipping persistent status panel patch",
   ]);
 });
 
@@ -150,6 +150,6 @@ test("target bundle without status marker is unchanged and warns", () => {
 
   assert.equal(patched, "unrelated bundle");
   assert.deepEqual(warnings, [
-    "WARN: Could not find Codex status panel bundle marker - skipping persistent status panel patch",
+    "WARN: Could not find ChatGPT status panel bundle marker - skipping persistent status panel patch",
   ]);
 });

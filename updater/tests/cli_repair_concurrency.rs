@@ -67,9 +67,9 @@ impl Fixture {
 
         fs::create_dir_all(cli_entrypoint.parent().context("CLI entrypoint parent")?)?;
         fs::create_dir_all(cli_path.parent().context("CLI path parent")?)?;
-        fs::create_dir_all(config_home.join("codex-app-updater"))?;
-        fs::create_dir_all(state_home.join("codex-app-updater"))?;
-        fs::create_dir_all(cache_home.join("codex-app-updater"))?;
+        fs::create_dir_all(config_home.join("chatgpt-updater"))?;
+        fs::create_dir_all(state_home.join("chatgpt-updater"))?;
+        fs::create_dir_all(cache_home.join("chatgpt-updater"))?;
         fs::create_dir_all(app_executable.parent().context("app executable parent")?)?;
 
         write_executable(&cli_entrypoint, &cli_script("0.42.0"))?;
@@ -160,7 +160,7 @@ exit 1
         secure_directory_tree(&home)?;
 
         let config = format!(
-            "dmg_url = \"http://127.0.0.1:9/Codex.dmg\"\n\
+            "dmg_url = \"http://127.0.0.1:9/ChatGPT.dmg\"\n\
              initial_check_delay_seconds = 3600\n\
              check_interval_hours = 24\n\
              auto_install_on_app_exit = false\n\
@@ -171,11 +171,11 @@ exit 1
              enable_wrapper_updates = false\n\
              wrapper_remote = \"\"\n\
              wrapper_branch = \"main\"\n",
-            toml_path(&cache_home.join("codex-app-updater")),
+            toml_path(&cache_home.join("chatgpt-updater")),
             toml_path(&root),
             toml_path(&app_executable),
         );
-        fs::write(config_home.join("codex-app-updater/config.toml"), config)?;
+        fs::write(config_home.join("chatgpt-updater/config.toml"), config)?;
 
         let fixture = Self {
             _temp: temp,
@@ -216,14 +216,14 @@ exit 1
     }
 
     fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_codex-app-updater"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_chatgpt-updater"));
         command
             .env("HOME", &self.home)
             .env("XDG_CONFIG_HOME", &self.config_home)
             .env("XDG_STATE_HOME", &self.state_home)
             .env("XDG_CACHE_HOME", &self.cache_home)
             .env(
-                "CODEX_LINUX_SETTINGS_FILE",
+                "CHATGPT_LINUX_SETTINGS_FILE",
                 self.root.join("missing-settings.json"),
             )
             .env("CODEX_CLI_PATH", &self.cli_path)
@@ -265,11 +265,11 @@ exit 1
     }
 
     fn state_path(&self) -> PathBuf {
-        self.state_home.join("codex-app-updater/state.json")
+        self.state_home.join("chatgpt-updater/state.json")
     }
 
     fn log_path(&self) -> PathBuf {
-        self.state_home.join("codex-app-updater/service.log")
+        self.state_home.join("chatgpt-updater/service.log")
     }
 
     fn update_state(&self, update: impl FnOnce(&mut Value)) -> Result<()> {
@@ -442,7 +442,7 @@ fn actual_cli_preflight_status_and_daemon_share_the_npm_install_lock() -> Result
     assert!(fixture.stale_directory.exists());
     assert!(fixture
         .state_home
-        .join("codex-app-updater/cli-repair.json")
+        .join("chatgpt-updater/cli-repair.json")
         .exists());
     let state = fixture.state()?;
     assert_eq!(state["remote_headers_fingerprint"], "must-survive-cli-race");
@@ -450,7 +450,7 @@ fn actual_cli_preflight_status_and_daemon_share_the_npm_install_lock() -> Result
     assert_eq!(state["cli_installed_version"], "0.42.0");
     assert!(state["cli_error_message"]
         .as_str()
-        .is_some_and(|message| message.contains("codex-app-updater diagnose")));
+        .is_some_and(|message| message.contains("chatgpt-updater diagnose")));
     Ok(())
 }
 
@@ -479,7 +479,7 @@ fn late_registry_failure_cannot_overwrite_a_completed_repair() -> Result<()> {
         state["cli_status"] == "update_required"
             && state["cli_error_message"]
                 .as_str()
-                .is_some_and(|message| message.contains("codex-app-updater diagnose"))
+                .is_some_and(|message| message.contains("chatgpt-updater diagnose"))
     })?;
 
     fs::write(&fixture.install_mode, b"success\n")?;
@@ -491,7 +491,7 @@ fn late_registry_failure_cannot_overwrite_a_completed_repair() -> Result<()> {
     })?;
     assert!(!fixture
         .state_home
-        .join("codex-app-updater/cli-repair.json")
+        .join("chatgpt-updater/cli-repair.json")
         .exists());
 
     fs::write(&fixture.view_release, b"continue")?;
@@ -503,7 +503,7 @@ fn late_registry_failure_cannot_overwrite_a_completed_repair() -> Result<()> {
     assert!(state["cli_error_message"].is_null());
     assert!(!fixture
         .state_home
-        .join("codex-app-updater/cli-repair.json")
+        .join("chatgpt-updater/cli-repair.json")
         .exists());
     assert_eq!(install_count(&fixture.install_log)?, 2);
     Ok(())

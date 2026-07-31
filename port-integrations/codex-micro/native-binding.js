@@ -362,13 +362,13 @@ function run(command, args, options = {}) {
 async function defaultMaterializePackage(request) {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-micro-node-hid-"));
   try {
-    const archiveOverride = process.env.CODEX_MICRO_NODE_HID_ARCHIVE?.trim();
+    const archiveOverride = process.env.CHATGPT_MICRO_NODE_HID_ARCHIVE?.trim();
     let archivePath;
     if (archiveOverride) {
       archivePath = path.resolve(archiveOverride);
       const stat = fs.lstatSync(archivePath, { throwIfNoEntry: false });
       if (!stat?.isFile() || stat.isSymbolicLink()) {
-        throw new Error(`CODEX_MICRO_NODE_HID_ARCHIVE is not a safe file: ${archivePath}`);
+        throw new Error(`CHATGPT_MICRO_NODE_HID_ARCHIVE is not a safe file: ${archivePath}`);
       }
     } else {
       const packOutput = run(

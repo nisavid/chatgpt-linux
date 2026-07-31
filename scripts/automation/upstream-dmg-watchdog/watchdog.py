@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomic local state and cheap upstream DMG probe for the Codex watchdog."""
+"""Atomic local state and cheap upstream DMG probe for ChatGPT for Linux."""
 
 from __future__ import annotations
 
@@ -23,9 +23,9 @@ import uuid
 
 DEFAULT_URL = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
 DEFAULT_TTL_SECONDS = 7200
-DEFAULT_REPOSITORY = "ilysenko/codex-desktop-linux"
-NIX_REFRESH_BRANCH = "codex/nix-upstream-refresh"
-NIX_REFRESH_WORKFLOW = "update-codex-hash.yml"
+DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/chatgpt-linux")
+NIX_REFRESH_BRANCH = "chatgpt/nix-upstream-refresh"
+NIX_REFRESH_WORKFLOW = "update-chatgpt-hash.yml"
 NIX_ALLOWED_PATHS = {
     "flake.nix",
     "nix/native-modules/package.json",
@@ -434,14 +434,14 @@ def sha256_sri(sha256_hex: str) -> str:
     return "sha256-" + base64.b64encode(bytes.fromhex(sha256_hex)).decode("ascii")
 
 
-def extract_codex_dmg_sri(flake: str) -> str:
+def extract_chatgpt_dmg_sri(flake: str) -> str:
     match = re.search(
-        r"codexDmg\s*=\s*pkgs\.fetchurl\s*\{.*?\bhash\s*=\s*\"(sha256-[A-Za-z0-9+/=]{44})\"",
+        r"chatgptDmg\s*=\s*pkgs\.fetchurl\s*\{.*?\bhash\s*=\s*\"(sha256-[A-Za-z0-9+/=]{44})\"",
         flake,
         flags=re.DOTALL,
     )
     if not match:
-        raise RuntimeError("could not find codexDmg SRI in flake.nix")
+        raise RuntimeError("could not find chatgptDmg SRI in flake.nix")
     return match.group(1)
 
 
@@ -720,7 +720,7 @@ def validate_nix_pr(pr: dict, expected_sri: str, repository: str) -> tuple[str, 
     head_sha = pr.get("headRefOid")
     if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
         return "waiting", "head-unavailable"
-    head_sri = extract_codex_dmg_sri(github_file(repository, "flake.nix", head_sha))
+    head_sri = extract_chatgpt_dmg_sri(github_file(repository, "flake.nix", head_sha))
     if head_sri != expected_sri:
         return "blocked", "dmg-hash-mismatch"
     mergeable = str(pr.get("mergeable") or "UNKNOWN").upper()
@@ -822,7 +822,7 @@ def process_nix_refresh(
         refresh["expected_dmg_sha256"] = dmg_sha
         refresh["expected_dmg_sri"] = expected_sri
 
-    main_sri = extract_codex_dmg_sri(github_file(repository, "flake.nix", "main"))
+    main_sri = extract_chatgpt_dmg_sri(github_file(repository, "flake.nix", "main"))
     if main_sri == expected_sri:
         refresh["workflow_status"] = "current"
         refresh["pr_number"] = None
@@ -1777,7 +1777,7 @@ def command_nix_preflight(args: argparse.Namespace, store: Store) -> int:
                     log_payload += f"\nunexpected tracked paths: {sorted(unexpected)}\n"
                     classification = "source"
                     break
-                if extract_codex_dmg_sri((scratch / "flake.nix").read_text(encoding="utf-8")) != sha256_sri(campaign["sha256"]):
+                if extract_chatgpt_dmg_sri((scratch / "flake.nix").read_text(encoding="utf-8")) != sha256_sri(campaign["sha256"]):
                     log_payload += "\nrefreshed flake hash does not match campaign DMG\n"
                     classification = "source"
                     break

@@ -1,12 +1,12 @@
 {
   "id": "node-repl-reaper",
   "title": "Browser Use node_repl Reaper",
-  "description": "Reaps Browser Use node_repl helper processes leaked by the Codex app-server.",
+  "description": "Reaps Browser Use node_repl helper processes leaked by the ChatGPT app-server.",
   "defaultEnabled": false,
   "resources": [
     {
       "source": "reaper.sh",
-      "target": ".codex-linux/node-repl-reaper.sh",
+      "target": ".chatgpt-linux/node-repl-reaper.sh",
       "mode": "0755"
     }
   ],

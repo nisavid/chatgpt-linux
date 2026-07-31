@@ -30,36 +30,36 @@ const DEFAULT_INTEGRATION_IDS_WITHOUT_OPEN_TARGET = discoverPortIntegrationManif
   .filter((id) => id !== "open-target-discovery");
 
 function withTempIntegrationConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const root = path.resolve(__dirname, "..");
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-control-integration-test-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-control-integration-test-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
     fs.writeFileSync(
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG,
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
       JSON.stringify({ enabled, disabled: ["open-target-discovery"] }, null, 2),
     );
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 function withPortIntegrationRootEnv(root, fn) {
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
   }
 }
@@ -218,7 +218,7 @@ test("remote-control UI descriptors match the current app chunks", () => {
 test("remote-control UI integration patches matching webview assets and records patch report entries", () => {
   withTempIntegrationConfig(["remote-control-ui"], (root) => {
     withPortIntegrationRootEnv(root, () => {
-      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-control-integration-app-"));
+      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-control-integration-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
         const assetsDir = path.join(tempApp, "webview", "assets");

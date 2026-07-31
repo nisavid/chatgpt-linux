@@ -1,28 +1,28 @@
-codex_capture_original_ld_library_path() {
+chatgpt_capture_original_ld_library_path() {
     # Packaged runtimes may extend LD_LIBRARY_PATH after this point. Main-process
     # host children use this three-state snapshot instead of inheriting those paths.
     # HOST is populated later from the login shell; inherited values are stale or
     # user-controlled internal state and must never override this fresh snapshot.
-    unset CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE
+    unset CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE
     if [ "${LD_LIBRARY_PATH+x}" != x ]; then
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="unset"
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE=""
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="unset"
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE=""
     elif [ -z "$LD_LIBRARY_PATH" ]; then
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="empty"
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE=""
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="empty"
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE=""
     else
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="value"
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE="$LD_LIBRARY_PATH"
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE="value"
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE="$LD_LIBRARY_PATH"
     fi
-    export CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE
+    export CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE
 }
 
-codex_restore_original_ld_library_path() {
-    local state="${CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE:-}"
-    local value="${CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:-}"
+chatgpt_restore_original_ld_library_path() {
+    local state="${CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE:-}"
+    local value="${CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:-}"
 
-    unset CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE
-    unset CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE
+    unset CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE
+    unset CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE
     case "$state" in
         unset) unset LD_LIBRARY_PATH ;;
         empty) export LD_LIBRARY_PATH="" ;;
@@ -30,17 +30,17 @@ codex_restore_original_ld_library_path() {
     esac
 }
 
-codex_exec_host_command() {
-    codex_restore_original_ld_library_path
+chatgpt_exec_host_command() {
+    chatgpt_restore_original_ld_library_path
     exec "$@"
 }
 
-codex_run_host_command() (
-    codex_exec_host_command "$@"
+chatgpt_run_host_command() (
+    chatgpt_exec_host_command "$@"
 )
 
 # Capture before package-specific launcher patches add application runtime paths.
-codex_capture_original_ld_library_path
+chatgpt_capture_original_ld_library_path
 
 resolve_script_dir() {
     local source="${BASH_SOURCE[0]}"
@@ -59,6 +59,94 @@ resolve_script_dir() {
 }
 
 SCRIPT_DIR="$(resolve_script_dir)"
+
+reject_obsolete_launcher_environment() {
+    local obsolete replacement
+    while read -r obsolete replacement; do
+        [ -n "$obsolete" ] || continue
+        if [[ -v "$obsolete" ]]; then
+            echo "$obsolete is no longer supported; use $replacement" >&2
+            return 1
+        fi
+    done <<'OBSOLETE_LAUNCHER_ENV'
+CODEX_APP_DISABLE_ELECTRON_SANDBOX CHATGPT_APP_DISABLE_ELECTRON_SANDBOX
+CODEX_APP_ID CHATGPT_APP_ID
+CODEX_APP_LAUNCH_ACTION_SOCKET CHATGPT_APP_LAUNCH_ACTION_SOCKET
+CODEX_APP_UPDATER_PATH CHATGPT_UPDATER_PATH
+CODEX_CHROME_NATIVE_HOST_LAUNCHER_V2 CHATGPT_CHROME_NATIVE_HOST_LAUNCHER_V2
+CODEX_CHROME_NATIVE_HOSTS_MANIFEST CHATGPT_CHROME_NATIVE_HOSTS_MANIFEST
+CODEX_CLI_SOURCE_PATH CHATGPT_CLI_SOURCE_PATH
+CODEX_DESKTOP_LAUNCH_ACTION_SOCKET CHATGPT_APP_LAUNCH_ACTION_SOCKET
+CODEX_DRM_CLASS_ROOT CHATGPT_DRM_CLASS_ROOT
+CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE
+CODEX_ELECTRON_DISABLE_GPU_COMPOSITING CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING
+CODEX_ELECTRON_RESOURCES_PATH CHATGPT_ELECTRON_RESOURCES_PATH
+CODEX_ELECTRON_USER_DATA_DIR CHATGPT_ELECTRON_USER_DATA_DIR
+CODEX_FORCE_DEVICE_SCALE_FACTOR CHATGPT_FORCE_DEVICE_SCALE_FACTOR
+CODEX_FORCE_RENDERER_ACCESSIBILITY CHATGPT_FORCE_RENDERER_ACCESSIBILITY
+CODEX_LAUNCHER_LOCK_WAIT_SECONDS CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS
+CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE
+CODEX_LINUX_APP_DIR CHATGPT_LINUX_APP_DIR
+CODEX_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_APP_DISPLAY_NAME
+CODEX_LINUX_APP_ID CHATGPT_LINUX_APP_ID
+CODEX_LINUX_APP_STATE_DIR CHATGPT_LINUX_APP_STATE_DIR
+CODEX_LINUX_ELECTRON_EXIT_STATUS CHATGPT_LINUX_ELECTRON_EXIT_STATUS
+CODEX_LINUX_FEATURES_DIR CHATGPT_LINUX_FEATURES_DIR
+CODEX_LINUX_FEATURE_HOOK_PHASE CHATGPT_LINUX_FEATURE_HOOK_PHASE
+CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE
+CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE
+CODEX_LINUX_INSTANCE_ID CHATGPT_LINUX_INSTANCE_ID
+CODEX_LINUX_LAUNCHER_CMD CHATGPT_LINUX_LAUNCHER_CMD
+CODEX_LINUX_LAUNCHER_LOG CHATGPT_LINUX_LAUNCHER_LOG
+CODEX_LINUX_MULTI_LAUNCH CHATGPT_LINUX_MULTI_LAUNCH
+CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE
+CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE
+CODEX_LINUX_RENDERING_MODE CHATGPT_LINUX_RENDERING_MODE
+CODEX_LINUX_SETTINGS_FILE CHATGPT_LINUX_SETTINGS_FILE
+CODEX_LINUX_USER_PATH CHATGPT_LINUX_USER_PATH
+CODEX_LINUX_WEBVIEW_PORT CHATGPT_LINUX_WEBVIEW_PORT
+CODEX_MANAGED_NODE_RUNTIME_DIR CHATGPT_MANAGED_NODE_RUNTIME_DIR
+CODEX_MICRO_NODE_HID_ARCHIVE CHATGPT_MICRO_NODE_HID_ARCHIVE
+CODEX_MULTI_LAUNCH CHATGPT_MULTI_LAUNCH
+CODEX_MULTI_LAUNCH_PORT_RANGE CHATGPT_MULTI_LAUNCH_PORT_RANGE
+CODEX_OZONE_PLATFORM CHATGPT_OZONE_PLATFORM
+CODEX_REMOTE_CONTROL_CODEX_PATH CHATGPT_REMOTE_CONTROL_CODEX_PATH
+CODEX_REMOTE_CONTROL_CODEX_RELEASE CHATGPT_REMOTE_CONTROL_CODEX_RELEASE
+CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED
+CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS
+CODEX_REMOTE_CONTROL_FORCE_COLD_START_DAEMON CHATGPT_REMOTE_CONTROL_FORCE_COLD_START_DAEMON
+CODEX_REMOTE_CONTROL_INSTALLER_SHA256 CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256
+CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED
+CODEX_RUNTIME_ROOT CHATGPT_RUNTIME_ROOT
+CODEX_PORT_INTEGRATIONS_DIR CHATGPT_PORT_INTEGRATIONS_DIR
+CODEX_PORT_INTEGRATION_HOOK_PHASE CHATGPT_PORT_INTEGRATION_HOOK_PHASE
+CODEX_PRIMARY_RUNTIME_ROOT CHATGPT_PRIMARY_RUNTIME_ROOT
+CODEX_SYNC_CLI_PREFLIGHT CHATGPT_SYNC_CLI_PREFLIGHT
+CODEX_XDG_CONFIG_HOME CHATGPT_XDG_CONFIG_HOME
+CODEX_LINUX_WEBVIEW_USER_STYLESHEET CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET
+CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT
+OBSOLETE_LAUNCHER_ENV
+}
+
+reject_obsolete_launcher_environment
+STATE_MIGRATION_HELPER="$SCRIPT_DIR/.chatgpt-linux/state-migration.py"
+if [ ! -x "$STATE_MIGRATION_HELPER" ]; then
+    echo "ChatGPT state migration helper is missing or not executable: $STATE_MIGRATION_HELPER" >&2
+    exit 1
+fi
+
+if [ "${1:-}" = "migrate-state" ]; then
+    shift
+    if [ "$#" -ne 1 ] || [ "$1" != "--reverse" ]; then
+        echo "Usage: chatgpt migrate-state --reverse" >&2
+        exit 2
+    fi
+    exec "$STATE_MIGRATION_HELPER" --reverse
+fi
+
+# Migrate wrapper-owned state before creating any canonical runtime path or
+# starting package hooks, the updater, the webview server, or Electron.
+"$STATE_MIGRATION_HELPER" --forward
 if [ -z "${CODEX_HOME:-}" ]; then
     if [ -n "${HOME:-}" ]; then
         CODEX_HOME="$HOME/.codex"
@@ -67,20 +155,20 @@ if [ -z "${CODEX_HOME:-}" ]; then
     fi
 fi
 WEBVIEW_DIR="$SCRIPT_DIR/content/webview"
-WEBVIEW_INTEGRITY_FILE="$SCRIPT_DIR/.codex-linux/webview-integrity.sha256"
-PACKAGED_RUNTIME_HELPER="/usr/lib/$CODEX_LINUX_APP_ID/packaged-runtime.sh"
+WEBVIEW_INTEGRITY_FILE="$SCRIPT_DIR/.chatgpt-linux/webview-integrity.sha256"
+PACKAGED_RUNTIME_HELPER="/usr/lib/$CHATGPT_LINUX_APP_ID/packaged-runtime.sh"
 if [ ! -f "$PACKAGED_RUNTIME_HELPER" ]; then
-    PACKAGED_RUNTIME_HELPER="$SCRIPT_DIR/.codex-linux/codex-packaged-runtime.sh"
+    PACKAGED_RUNTIME_HELPER="$SCRIPT_DIR/.chatgpt-linux/chatgpt-packaged-runtime.sh"
 fi
-LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CODEX_LINUX_APP_ID"
+LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CHATGPT_LINUX_APP_ID"
 LOG_FILE="$LOG_DIR/launcher.log"
-APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$CODEX_LINUX_APP_ID"
+APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$CHATGPT_LINUX_APP_ID"
 APP_SETTINGS_FILE="$APP_CONFIG_DIR/settings.json"
-CODEX_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"
-CODEX_PORT_INTEGRATIONS_DIR="$SCRIPT_DIR/.codex-linux/port-integrations"
-CODEX_LINUX_FEATURES_DIR="$CODEX_PORT_INTEGRATIONS_DIR"
-export CODEX_HOME CODEX_LINUX_APP_ID CODEX_LINUX_APP_DISPLAY_NAME CODEX_LINUX_WEBVIEW_PORT CODEX_LINUX_SETTINGS_FILE CODEX_PORT_INTEGRATIONS_DIR CODEX_LINUX_FEATURES_DIR
-APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CODEX_LINUX_APP_ID"
+CHATGPT_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"
+CHATGPT_PORT_INTEGRATIONS_DIR="$SCRIPT_DIR/.chatgpt-linux/port-integrations"
+CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR"
+export CODEX_HOME CHATGPT_LINUX_APP_ID CHATGPT_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_WEBVIEW_PORT CHATGPT_LINUX_SETTINGS_FILE CHATGPT_PORT_INTEGRATIONS_DIR CHATGPT_LINUX_FEATURES_DIR
+APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CHATGPT_LINUX_APP_ID"
 
 configure_runtime_tmpdir() {
     [ -z "${TMPDIR:-}" ] || return 0
@@ -95,39 +183,39 @@ configure_runtime_tmpdir
 APP_PID_FILE="$APP_STATE_DIR/app.pid"
 WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
 if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
-    LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CODEX_LINUX_APP_ID"
+    LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID"
 else
     LAUNCH_ACTION_RUNTIME_DIR="$APP_STATE_DIR"
 fi
 LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_RUNTIME_DIR/launch-action.sock"
-COLD_START_HOOK_DIR="$SCRIPT_DIR/.codex-linux/cold-start.d"
-FEATURE_ENV_DIR="$SCRIPT_DIR/.codex-linux/env.d"
-FEATURE_PRELAUNCH_HOOK_DIR="$SCRIPT_DIR/.codex-linux/prelaunch.d"
-FEATURE_ELECTRON_ARGS_DIR="$SCRIPT_DIR/.codex-linux/electron-args.d"
-FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.codex-linux/launcher.d"
-FEATURE_AFTER_EXIT_HOOK_DIR="$SCRIPT_DIR/.codex-linux/after-exit.d"
+COLD_START_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/cold-start.d"
+FEATURE_ENV_DIR="$SCRIPT_DIR/.chatgpt-linux/env.d"
+FEATURE_PRELAUNCH_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/prelaunch.d"
+FEATURE_ELECTRON_ARGS_DIR="$SCRIPT_DIR/.chatgpt-linux/electron-args.d"
+FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"
+FEATURE_AFTER_EXIT_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/after-exit.d"
 MANAGED_NODE_BIN_DIR="$SCRIPT_DIR/resources/node-runtime/bin"
-APP_NOTIFICATION_ICON_NAME="$CODEX_LINUX_APP_ID"
-APP_NOTIFICATION_ICON_BUNDLE="$SCRIPT_DIR/.codex-linux/$APP_NOTIFICATION_ICON_NAME.png"
+APP_NOTIFICATION_ICON_NAME="$CHATGPT_LINUX_APP_ID"
+APP_NOTIFICATION_ICON_BUNDLE="$SCRIPT_DIR/.chatgpt-linux/$APP_NOTIFICATION_ICON_NAME.png"
 APP_NOTIFICATION_ICON_SYSTEM="/usr/share/icons/hicolor/256x256/apps/$APP_NOTIFICATION_ICON_NAME.png"
-APP_NOTIFICATION_ICON_REPO="$SCRIPT_DIR/../assets/codex.png"
+APP_NOTIFICATION_ICON_REPO="$SCRIPT_DIR/../assets/chatgpt.png"
 MULTI_LAUNCH_REQUESTED=0
 MULTI_LAUNCH_ACTIVE=0
-CODEX_LINUX_INSTANCE_ID=""
+CHATGPT_LINUX_INSTANCE_ID=""
 LAUNCHER_ARGS=()
 
 refresh_runtime_paths() {
-    LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CODEX_LINUX_APP_ID"
+    LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CHATGPT_LINUX_APP_ID"
     LOG_FILE="$LOG_DIR/launcher.log"
-    APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$CODEX_LINUX_APP_ID"
+    APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$CHATGPT_LINUX_APP_ID"
     APP_SETTINGS_FILE="$APP_CONFIG_DIR/settings.json"
     USER_ELECTRON_FLAGS_FILE="$APP_CONFIG_DIR/electron-flags.conf"
-    CODEX_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"
-    APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CODEX_LINUX_APP_ID"
+    CHATGPT_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"
+    APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CHATGPT_LINUX_APP_ID"
     APP_PID_FILE="$APP_STATE_DIR/app.pid"
     WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
     if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
-        LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CODEX_LINUX_APP_ID"
+        LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID"
     else
         LAUNCH_ACTION_RUNTIME_DIR="$APP_STATE_DIR"
     fi
@@ -137,9 +225,8 @@ refresh_runtime_paths() {
 ensure_runtime_dirs() {
     mkdir -p "$LOG_DIR" "$APP_CONFIG_DIR" "$APP_STATE_DIR" "$LAUNCH_ACTION_RUNTIME_DIR"
     chmod 700 "$LAUNCH_ACTION_RUNTIME_DIR" 2>/dev/null || true
-    CODEX_APP_LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_SOCKET"
-    CODEX_DESKTOP_LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_SOCKET"
-    export CODEX_APP_LAUNCH_ACTION_SOCKET CODEX_DESKTOP_LAUNCH_ACTION_SOCKET
+    CHATGPT_APP_LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_SOCKET"
+    export CHATGPT_APP_LAUNCH_ACTION_SOCKET
 }
 
 refresh_runtime_paths
@@ -148,11 +235,11 @@ refresh_runtime_paths
 # compatibility flag long enough to parse this invocation, but do not leak it
 # into Electron or descendants where it would turn later normal launches into
 # additional side-by-side instances.
-CODEX_MULTI_LAUNCH_REQUEST="${CODEX_MULTI_LAUNCH:-}"
-unset CODEX_MULTI_LAUNCH
+CHATGPT_MULTI_LAUNCH_REQUEST="${CHATGPT_MULTI_LAUNCH:-}"
+unset CHATGPT_MULTI_LAUNCH
 
 # Internal marker consumed by patched Electron bundles; never trust inheritance.
-unset CODEX_LINUX_MULTI_LAUNCH
+unset CHATGPT_LINUX_MULTI_LAUNCH
 
 early_truthy_env_value() {
     case "${1:-}" in
@@ -190,7 +277,7 @@ validate_tcp_port() {
     normalize_tcp_port "$1" "$2" >/dev/null
 }
 
-if ! CODEX_LINUX_WEBVIEW_PORT="$(normalize_tcp_port "CODEX_LINUX_WEBVIEW_PORT" "$CODEX_LINUX_WEBVIEW_PORT")"; then
+if ! CHATGPT_LINUX_WEBVIEW_PORT="$(normalize_tcp_port "CHATGPT_LINUX_WEBVIEW_PORT" "$CHATGPT_LINUX_WEBVIEW_PORT")"; then
     exit 1
 fi
 
@@ -217,14 +304,14 @@ launcher_port_is_open() {
 }
 
 choose_multi_launch_port() {
-    local default_end=$((CODEX_LINUX_WEBVIEW_PORT + 4))
+    local default_end=$((CHATGPT_LINUX_WEBVIEW_PORT + 4))
     local range
     local start end port
 
     if [ "$default_end" -gt 65535 ]; then
         default_end=65535
     fi
-    range="${CODEX_MULTI_LAUNCH_PORT_RANGE:-$CODEX_LINUX_WEBVIEW_PORT-$default_end}"
+    range="${CHATGPT_MULTI_LAUNCH_PORT_RANGE:-$CHATGPT_LINUX_WEBVIEW_PORT-$default_end}"
 
     case "$range" in
         *-*)
@@ -237,10 +324,10 @@ choose_multi_launch_port() {
             ;;
     esac
 
-    start="$(normalize_tcp_port "CODEX_MULTI_LAUNCH_PORT_RANGE start" "$start")" || return 1
-    end="$(normalize_tcp_port "CODEX_MULTI_LAUNCH_PORT_RANGE end" "$end")" || return 1
+    start="$(normalize_tcp_port "CHATGPT_MULTI_LAUNCH_PORT_RANGE start" "$start")" || return 1
+    end="$(normalize_tcp_port "CHATGPT_MULTI_LAUNCH_PORT_RANGE end" "$end")" || return 1
     if [ "$start" -gt "$end" ]; then
-        echo "CODEX_MULTI_LAUNCH_PORT_RANGE start must be <= end" >&2
+        echo "CHATGPT_MULTI_LAUNCH_PORT_RANGE start must be <= end" >&2
         return 1
     fi
 
@@ -251,7 +338,7 @@ choose_multi_launch_port() {
         fi
     done
 
-    echo "No free Codex App webview port found in CODEX_MULTI_LAUNCH_PORT_RANGE=$range" >&2
+    echo "No free ChatGPT webview port found in CHATGPT_MULTI_LAUNCH_PORT_RANGE=$range" >&2
     return 1
 }
 
@@ -259,7 +346,7 @@ parse_launcher_args() {
     local passthrough=0
 
     LAUNCHER_ARGS=()
-    if early_truthy_env_value "$CODEX_MULTI_LAUNCH_REQUEST"; then
+    if early_truthy_env_value "$CHATGPT_MULTI_LAUNCH_REQUEST"; then
         MULTI_LAUNCH_REQUESTED=1
     fi
 
@@ -293,28 +380,28 @@ configure_multi_launch_instance() {
     local selected_port
 
     selected_port="$(choose_multi_launch_port)" || exit 1
-    CODEX_LINUX_WEBVIEW_PORT="$selected_port"
-    CODEX_LINUX_INSTANCE_ID="port-$CODEX_LINUX_WEBVIEW_PORT"
+    CHATGPT_LINUX_WEBVIEW_PORT="$selected_port"
+    CHATGPT_LINUX_INSTANCE_ID="port-$CHATGPT_LINUX_WEBVIEW_PORT"
     MULTI_LAUNCH_ACTIVE=1
-    CODEX_LINUX_MULTI_LAUNCH=1
+    CHATGPT_LINUX_MULTI_LAUNCH=1
 
-    APP_STATE_DIR="$base_state_dir/instances/$CODEX_LINUX_INSTANCE_ID"
+    APP_STATE_DIR="$base_state_dir/instances/$CHATGPT_LINUX_INSTANCE_ID"
     APP_PID_FILE="$APP_STATE_DIR/app.pid"
     WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
     if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
-        LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CODEX_LINUX_APP_ID/instances/$CODEX_LINUX_INSTANCE_ID"
+        LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID/instances/$CHATGPT_LINUX_INSTANCE_ID"
     else
         LAUNCH_ACTION_RUNTIME_DIR="$APP_STATE_DIR"
     fi
     LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_RUNTIME_DIR/launch-action.sock"
-    LOG_FILE="$LOG_DIR/launcher-$CODEX_LINUX_INSTANCE_ID.log"
+    LOG_FILE="$LOG_DIR/launcher-$CHATGPT_LINUX_INSTANCE_ID.log"
 
-    if [ -n "${CODEX_ELECTRON_USER_DATA_DIR:-}" ]; then
-        CODEX_ELECTRON_USER_DATA_DIR="$CODEX_ELECTRON_USER_DATA_DIR/instances/$CODEX_LINUX_INSTANCE_ID"
+    if [ -n "${CHATGPT_ELECTRON_USER_DATA_DIR:-}" ]; then
+        CHATGPT_ELECTRON_USER_DATA_DIR="$CHATGPT_ELECTRON_USER_DATA_DIR/instances/$CHATGPT_LINUX_INSTANCE_ID"
     else
-        CODEX_ELECTRON_USER_DATA_DIR="$APP_STATE_DIR/electron-user-data"
+        CHATGPT_ELECTRON_USER_DATA_DIR="$APP_STATE_DIR/electron-user-data"
     fi
-    export CODEX_ELECTRON_USER_DATA_DIR CODEX_LINUX_INSTANCE_ID CODEX_LINUX_MULTI_LAUNCH CODEX_LINUX_WEBVIEW_PORT
+    export CHATGPT_ELECTRON_USER_DATA_DIR CHATGPT_LINUX_INSTANCE_ID CHATGPT_LINUX_MULTI_LAUNCH CHATGPT_LINUX_WEBVIEW_PORT
 }
 
 parse_launcher_args "$@"
@@ -337,7 +424,7 @@ resolve_webview_renderer_url() {
 
 select_webview_renderer_url() {
     WEBVIEW_RENDERER_URL_OVERRIDE_ACTIVE=0
-    if early_truthy_env_value "${CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE:-}" &&
+    if early_truthy_env_value "${CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE:-}" &&
        [ -n "${ELECTRON_RENDERER_URL:-}" ]; then
         WEBVIEW_RENDERER_URL_OVERRIDE_ACTIVE=1
         WEBVIEW_RENDERER_URL="$ELECTRON_RENDERER_URL"
@@ -345,7 +432,7 @@ select_webview_renderer_url() {
     fi
 
     if ! WEBVIEW_RENDERER_URL="$(resolve_webview_renderer_url)"; then
-        launcher_notice "$CODEX_LINUX_APP_DISPLAY_NAME could not fingerprint $WEBVIEW_DIR/index.html; install coreutils and rebuild the app."
+        launcher_notice "$CHATGPT_LINUX_APP_DISPLAY_NAME could not fingerprint $WEBVIEW_DIR/index.html; install coreutils and rebuild the app."
         return 1
     fi
 }
@@ -369,7 +456,7 @@ if [[ "${LAUNCHER_ARGS[0]:-}" == "--help" || "${LAUNCHER_ARGS[0]:-}" == "-h" ]];
     cat <<HELP
 Usage: ./start.sh [OPTIONS] [-- ELECTRON_FLAGS...]
 
-Launches the $CODEX_LINUX_APP_DISPLAY_NAME app.
+Launches the $CHATGPT_LINUX_APP_DISPLAY_NAME app.
 
 Options:
   -h, --help                  Show this help message and exit
@@ -390,27 +477,27 @@ Extra flags are passed directly to Electron.
 Persistent launch flags: $USER_ELECTRON_FLAGS_FILE
 
 Environment:
-  CODEX_OZONE_PLATFORM=x11|wayland|auto
+  CHATGPT_OZONE_PLATFORM=x11|wayland|auto
                               Select the Chromium Ozone backend without editing flags;
                               explicit --x11/--wayland/--ozone-platform* flags win
-  CODEX_FORCE_DEVICE_SCALE_FACTOR=N
+  CHATGPT_FORCE_DEVICE_SCALE_FACTOR=N
                               Pass --force-device-scale-factor=N to Electron (e.g. 1, 1.5, 2);
                               use 1 if the UI is oversized on HiDPI/fractional-scaling setups
-  CODEX_LINUX_RENDERING_MODE=auto|default|wslg|wayland-gpu
+  CHATGPT_LINUX_RENDERING_MODE=auto|default|wslg|wayland-gpu
                               Auto-detect WSLg, keep generic Linux defaults, force the WSLg profile,
                               or force native Wayland with GPU compositing enabled
-  CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0|1
+  CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0|1
                               Override Wayland side-panel compositing workaround; 1 forces and 0 disables
-  CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1
+  CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1
                               Override --disable-dev-shm-usage; auto keeps it only when /dev/shm is missing or small
-  CODEX_LAUNCHER_LOCK_WAIT_SECONDS=N
+  CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS=N
                               Seconds to wait for another launcher to leave the startup lock (default: 5)
-  CODEX_FORCE_RENDERER_ACCESSIBILITY=auto|0|1
+  CHATGPT_FORCE_RENDERER_ACCESSIBILITY=auto|0|1
                               Override --force-renderer-accessibility; auto forces it only when assistive
                               technology is detected and never under WSLg or native wayland-gpu
-  CODEX_MULTI_LAUNCH=1        Treat this launcher invocation like --new-instance
-  CODEX_MULTI_LAUNCH_PORT_RANGE=START-END
-                              Port allocation range for --new-instance (default: CODEX_LINUX_WEBVIEW_PORT through +4)
+  CHATGPT_MULTI_LAUNCH=1        Treat this launcher invocation like --new-instance
+  CHATGPT_MULTI_LAUNCH_PORT_RANGE=START-END
+                              Port allocation range for --new-instance (default: CHATGPT_LINUX_WEBVIEW_PORT through +4)
 
 Logs: $LOG_FILE
 HELP
@@ -443,9 +530,9 @@ else
     exec >>"$LOG_FILE" 2>&1
 fi
 
-echo "[$(date -Is)] Starting $CODEX_LINUX_APP_DISPLAY_NAME launcher"
+echo "[$(date -Is)] Starting $CHATGPT_LINUX_APP_DISPLAY_NAME launcher"
 if [ "$MULTI_LAUNCH_ACTIVE" -eq 1 ]; then
-    echo "Multi-launch instance: id=$CODEX_LINUX_INSTANCE_ID webview_port=$CODEX_LINUX_WEBVIEW_PORT state_dir=$APP_STATE_DIR user_data_dir=$CODEX_ELECTRON_USER_DATA_DIR"
+    echo "Multi-launch instance: id=$CHATGPT_LINUX_INSTANCE_ID webview_port=$CHATGPT_LINUX_WEBVIEW_PORT state_dir=$APP_STATE_DIR user_data_dir=$CHATGPT_ELECTRON_USER_DATA_DIR"
 fi
 
 now_ms() {
@@ -705,7 +792,7 @@ hydrate_graphical_session_env() {
 }
 
 desktop_entry_exists() {
-    local desktop_name="$CODEX_LINUX_APP_ID.desktop"
+    local desktop_name="$CHATGPT_LINUX_APP_ID.desktop"
     local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
     local data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     local data_dir
@@ -725,7 +812,7 @@ register_url_scheme_handlers() {
     command -v xdg-mime >/dev/null 2>&1 || return 0
     desktop_entry_exists || return 0
 
-    local desktop_name="$CODEX_LINUX_APP_ID.desktop"
+    local desktop_name="$CHATGPT_LINUX_APP_ID.desktop"
     local scheme
     local mime_type
     local current_handler
@@ -777,14 +864,14 @@ load_packaged_runtime_helper() {
 }
 
 run_packaged_runtime_prelaunch() {
-    if declare -F codex_packaged_runtime_prelaunch >/dev/null 2>&1; then
-        codex_packaged_runtime_prelaunch
+    if declare -F chatgpt_packaged_runtime_prelaunch >/dev/null 2>&1; then
+        chatgpt_packaged_runtime_prelaunch
     fi
 }
 
 export_packaged_runtime_env() {
-    if declare -F codex_packaged_runtime_export_env >/dev/null 2>&1; then
-        codex_packaged_runtime_export_env
+    if declare -F chatgpt_packaged_runtime_export_env >/dev/null 2>&1; then
+        chatgpt_packaged_runtime_export_env
     fi
 }
 
@@ -813,14 +900,14 @@ prepend_managed_node_runtime_to_path() {
     [ -x "$MANAGED_NODE_BIN_DIR/node" ] || return 0
 
     local current_path="${PATH:-}"
-    CODEX_LINUX_USER_PATH="$(path_without_entry "${CODEX_LINUX_USER_PATH-$current_path}" "$MANAGED_NODE_BIN_DIR")"
-    export CODEX_LINUX_USER_PATH
+    CHATGPT_LINUX_USER_PATH="$(path_without_entry "${CHATGPT_LINUX_USER_PATH-$current_path}" "$MANAGED_NODE_BIN_DIR")"
+    export CHATGPT_LINUX_USER_PATH
 
     case "$current_path" in
         "$MANAGED_NODE_BIN_DIR"|"$MANAGED_NODE_BIN_DIR":*) ;;
         *) export PATH="$MANAGED_NODE_BIN_DIR${current_path:+:$current_path}" ;;
     esac
-    export CODEX_MANAGED_NODE_RUNTIME_DIR="$SCRIPT_DIR/resources/node-runtime"
+    export CHATGPT_MANAGED_NODE_RUNTIME_DIR="$SCRIPT_DIR/resources/node-runtime"
 }
 
 source_feature_env_files() {
@@ -868,16 +955,16 @@ run_feature_prelaunch_hooks() {
         echo "Running port integration prelaunch hook: $hook"
         set +e
         CODEX_HOME="$CODEX_HOME" \
-        CODEX_LINUX_APP_DIR="$SCRIPT_DIR" \
-        CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-        CODEX_LINUX_FEATURES_DIR="$CODEX_LINUX_FEATURES_DIR" \
-        CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR" \
-        CODEX_LINUX_LAUNCHER_LOG="$LOG_FILE" \
-        CODEX_LINUX_LAUNCHER_CMD="${CODEX_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-        CODEX_LINUX_FEATURE_HOOK_PHASE="prelaunch" \
-        CODEX_PORT_INTEGRATION_HOOK_PHASE="prelaunch" \
-        CODEX_APP_UPDATER_PATH="${CODEX_APP_UPDATER_PATH:-}" \
-            codex_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
+        CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
+        CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
+        CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
+        CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
+        CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
+        CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
+        CHATGPT_LINUX_FEATURE_HOOK_PHASE="prelaunch" \
+        CHATGPT_PORT_INTEGRATION_HOOK_PHASE="prelaunch" \
+        CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
+            chatgpt_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
         hook_status=$?
         set -e
         if [ "$hook_status" -ne 0 ]; then
@@ -1058,7 +1145,7 @@ write_chrome_native_host_launcher() {
     if ! printf '%s\n' \
         '#!/usr/bin/env bash' \
         'set -euo pipefail' \
-        'CODEX_CHROME_NATIVE_HOST_LAUNCHER_V2=1' \
+        'CHATGPT_CHROME_NATIVE_HOST_LAUNCHER_V2=1' \
         'cache_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"' \
         'run_proxy_probe() {' \
         '    local output_file timeout_file probe_pid watchdog_pid rc=0 self_pid' \
@@ -1270,7 +1357,7 @@ manifest_locations = [
     ".config/chromium/NativeMessagingHosts",
 ]
 
-extra_locations = app_dir / ".codex-linux" / "chrome-native-host-manifest-paths"
+extra_locations = app_dir / ".chatgpt-linux" / "chrome-native-host-manifest-paths"
 try:
     for line in extra_locations.read_text(encoding="utf-8").splitlines():
         relative = line.strip()
@@ -1465,8 +1552,8 @@ sync_chrome_bundled_plugin_cache() {
 sync_computer_use_bundled_plugin_cache() {
     local source_plugin="$SCRIPT_DIR/resources/plugins/openai-bundled/plugins/computer-use"
     local plugin_json="$source_plugin/.codex-plugin/plugin.json"
-    local source_backend="$source_plugin/bin/codex-computer-use-linux"
-    local source_cosmic_helper="$source_plugin/bin/codex-computer-use-cosmic"
+    local source_backend="$source_plugin/bin/chatgpt-computer-use-linux"
+    local source_cosmic_helper="$source_plugin/bin/chatgpt-computer-use-cosmic"
     local codex_home="${CODEX_HOME:-$HOME/.codex}"
     local version
     local cache_root
@@ -1498,8 +1585,8 @@ sync_computer_use_bundled_plugin_cache() {
 
     cache_root="$codex_home/plugins/cache/openai-bundled/computer-use"
     cache_plugin="$cache_root/$version"
-    cache_backend="$cache_plugin/bin/codex-computer-use-linux"
-    cache_cosmic_helper="$cache_plugin/bin/codex-computer-use-cosmic"
+    cache_backend="$cache_plugin/bin/chatgpt-computer-use-linux"
+    cache_cosmic_helper="$cache_plugin/bin/chatgpt-computer-use-cosmic"
 
     if [ -d "$cache_plugin" ] && \
         diff -qr --exclude='*:com.apple.*' "$source_plugin" "$cache_plugin" >/dev/null 2>&1; then
@@ -1534,7 +1621,7 @@ sync_computer_use_bundled_plugin_cache() {
 sync_read_aloud_bundled_plugin_cache() {
     local source_plugin="$SCRIPT_DIR/resources/plugins/openai-bundled/plugins/read-aloud"
     local plugin_json="$source_plugin/.codex-plugin/plugin.json"
-    local source_backend="$source_plugin/bin/codex-read-aloud-linux"
+    local source_backend="$source_plugin/bin/chatgpt-read-aloud-linux"
     local source_runner="$source_plugin/bin/kokoro-stdin"
     local source_python_runner="$source_plugin/bin/kokoro_stdin.py"
     local codex_home="${CODEX_HOME:-$HOME/.codex}"
@@ -1570,7 +1657,7 @@ sync_read_aloud_bundled_plugin_cache() {
 
     cache_root="$codex_home/plugins/cache/openai-bundled/read-aloud"
     cache_plugin="$cache_root/$version"
-    cache_backend="$cache_plugin/bin/codex-read-aloud-linux"
+    cache_backend="$cache_plugin/bin/chatgpt-read-aloud-linux"
     cache_runner="$cache_plugin/bin/kokoro-stdin"
     cache_python_runner="$cache_plugin/bin/kokoro_stdin.py"
 
@@ -1708,8 +1795,8 @@ sync_extra_bundled_plugin_cache() {
 }
 
 resolve_browser_use_runtime_env() {
-    if [ -z "${CODEX_ELECTRON_RESOURCES_PATH:-}" ]; then
-        export CODEX_ELECTRON_RESOURCES_PATH="$SCRIPT_DIR/resources"
+    if [ -z "${CHATGPT_ELECTRON_RESOURCES_PATH:-}" ]; then
+        export CHATGPT_ELECTRON_RESOURCES_PATH="$SCRIPT_DIR/resources"
     fi
 
     if [ -z "${CODEX_BROWSER_USE_NODE_PATH:-}" ]; then
@@ -1753,16 +1840,16 @@ run_cold_start_hooks() {
         echo "Starting cold-start hook: $hook"
         (
             CODEX_HOME="$CODEX_HOME" \
-            CODEX_LINUX_APP_DIR="$SCRIPT_DIR" \
-            CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-            CODEX_LINUX_FEATURES_DIR="$CODEX_LINUX_FEATURES_DIR" \
-            CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR" \
-            CODEX_LINUX_LAUNCHER_LOG="$LOG_FILE" \
-            CODEX_LINUX_LAUNCHER_CMD="${CODEX_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-            CODEX_LINUX_FEATURE_HOOK_PHASE="cold-start" \
-            CODEX_PORT_INTEGRATION_HOOK_PHASE="cold-start" \
-            CODEX_APP_UPDATER_PATH="${CODEX_APP_UPDATER_PATH:-}" \
-            codex_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
+            CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
+            CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
+            CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
+            CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
+            CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
+            CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
+            CHATGPT_LINUX_FEATURE_HOOK_PHASE="cold-start" \
+            CHATGPT_PORT_INTEGRATION_HOOK_PHASE="cold-start" \
+            CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
+            chatgpt_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
         ) >>"$LOG_FILE" 2>&1 &
     done
 }
@@ -1779,17 +1866,17 @@ run_feature_after_exit_hooks() {
         echo "Running port integration after-exit hook: $hook"
         set +e
         CODEX_HOME="$CODEX_HOME" \
-        CODEX_LINUX_APP_DIR="$SCRIPT_DIR" \
-        CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-        CODEX_LINUX_FEATURES_DIR="$CODEX_LINUX_FEATURES_DIR" \
-        CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR" \
-        CODEX_LINUX_LAUNCHER_LOG="$LOG_FILE" \
-        CODEX_LINUX_LAUNCHER_CMD="${CODEX_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-        CODEX_LINUX_FEATURE_HOOK_PHASE="after-exit" \
-        CODEX_PORT_INTEGRATION_HOOK_PHASE="after-exit" \
-        CODEX_LINUX_ELECTRON_EXIT_STATUS="$electron_status" \
-        CODEX_APP_UPDATER_PATH="${CODEX_APP_UPDATER_PATH:-}" \
-            codex_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR" "$electron_status"
+        CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
+        CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
+        CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
+        CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
+        CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
+        CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
+        CHATGPT_LINUX_FEATURE_HOOK_PHASE="after-exit" \
+        CHATGPT_PORT_INTEGRATION_HOOK_PHASE="after-exit" \
+        CHATGPT_LINUX_ELECTRON_EXIT_STATUS="$electron_status" \
+        CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
+            chatgpt_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR" "$electron_status"
         hook_status=$?
         set -e
         if [ "$hook_status" -ne 0 ]; then
@@ -1812,7 +1899,7 @@ run_cli_preflight() {
         cli-preflight
         --print-path
     )
-    local preflight_cli_path="${CODEX_CLI_SOURCE_PATH:-${CODEX_CLI_PATH:-}}"
+    local preflight_cli_path="${CHATGPT_CLI_SOURCE_PATH:-${CODEX_CLI_PATH:-}}"
     if [ -n "$preflight_cli_path" ]; then
         preflight_args+=(--cli-path "$preflight_cli_path")
     fi
@@ -1825,7 +1912,7 @@ run_cli_preflight() {
         if [ "$allow_install_missing" = "1" ] || [ "$require_success" = "1" ]; then
             return 1
         fi
-        notify_error "Codex CLI prelaunch check failed. Continuing with the current CLI state. Check the launcher and updater logs if Codex App misbehaves."
+        notify_error "Codex CLI prelaunch check failed. Continuing with the current CLI state. Check the launcher and updater logs if ChatGPT misbehaves."
         return 0
     fi
 
@@ -1841,7 +1928,7 @@ run_cli_preflight_background() {
     fi
 
     local -a preflight_args=(cli-preflight --print-path)
-    local preflight_cli_path="${CODEX_CLI_SOURCE_PATH:-${CODEX_CLI_PATH:-}}"
+    local preflight_cli_path="${CHATGPT_CLI_SOURCE_PATH:-${CODEX_CLI_PATH:-}}"
     if [ -n "$preflight_cli_path" ]; then
         preflight_args+=(--cli-path "$preflight_cli_path")
     fi
@@ -1854,7 +1941,7 @@ run_cli_preflight_background() {
 }
 
 run_cli_launch_path_helper() {
-    python3 "$SCRIPT_DIR/.codex-linux/cli-launch-path.py" "$1"
+    python3 "$SCRIPT_DIR/.chatgpt-linux/cli-launch-path.py" "$1"
 }
 
 verify_cli_launch_path() {
@@ -1867,9 +1954,9 @@ verify_cli_launch_path() {
     fi
     [ -n "$verified_path" ] || return 1
 
-    CODEX_CLI_SOURCE_PATH="$selected_path"
+    CHATGPT_CLI_SOURCE_PATH="$selected_path"
     CODEX_CLI_PATH="$verified_path"
-    export CODEX_CLI_SOURCE_PATH CODEX_CLI_PATH
+    export CHATGPT_CLI_SOURCE_PATH CODEX_CLI_PATH
 }
 
 is_interactive_terminal() {
@@ -1945,7 +2032,7 @@ resolve_notification_icon() {
 }
 
 cached_codex_cli_path() {
-    local state_file="${XDG_STATE_HOME:-$HOME/.local/state}/codex-app-updater/state.json"
+    local state_file="${XDG_STATE_HOME:-$HOME/.local/state}/chatgpt-updater/state.json"
     [ -r "$state_file" ] || return 1
     command -v python3 >/dev/null 2>&1 || return 1
 
@@ -2077,7 +2164,7 @@ codex_cli_version_probe() {
     rm -f "$marker"
     ( trap - EXIT
       { exec 9>&-; } 2>/dev/null || true
-      codex_exec_host_command "$@" >"$output_file" 2>"$stderr_file"
+      chatgpt_exec_host_command "$@" >"$output_file" 2>"$stderr_file"
     ) &
     probe_pid="$!"
     # The watchdog (and its sleep child, which outlives the kill below) must
@@ -2203,11 +2290,11 @@ notify_error() {
     icon="$(resolve_notification_icon)"
     echo "$message"
     if command -v notify-send >/dev/null 2>&1; then
-        codex_run_host_command notify-send \
-            -a "$CODEX_LINUX_APP_DISPLAY_NAME" \
+        chatgpt_run_host_command notify-send \
+            -a "$CHATGPT_LINUX_APP_DISPLAY_NAME" \
             -i "$icon" \
-            -h "string:desktop-entry:$CODEX_LINUX_APP_ID" \
-            "$CODEX_LINUX_APP_DISPLAY_NAME" \
+            -h "string:desktop-entry:$CHATGPT_LINUX_APP_ID" \
+            "$CHATGPT_LINUX_APP_DISPLAY_NAME" \
             "$message"
     fi
 }
@@ -2217,27 +2304,27 @@ canonical_path() {
 }
 
 resolve_app_updater_path() {
-    if [ -n "${CODEX_APP_UPDATER_PATH:-}" ] && [ -x "$CODEX_APP_UPDATER_PATH" ]; then
+    if [ -n "${CHATGPT_UPDATER_PATH:-}" ] && [ -x "$CHATGPT_UPDATER_PATH" ]; then
         return 0
     fi
 
     local candidate
     for candidate in \
-        "$SCRIPT_DIR/../target/release/codex-app-updater" \
-        "$SCRIPT_DIR/codex-app-updater" \
-        "/usr/bin/codex-app-updater" \
-        "/usr/local/bin/codex-app-updater"
+        "$SCRIPT_DIR/../target/release/chatgpt-updater" \
+        "$SCRIPT_DIR/chatgpt-updater" \
+        "/usr/bin/chatgpt-updater" \
+        "/usr/local/bin/chatgpt-updater"
     do
         if [ -x "$candidate" ]; then
-            CODEX_APP_UPDATER_PATH="$(canonical_path "$candidate")"
-            export CODEX_APP_UPDATER_PATH
+            CHATGPT_UPDATER_PATH="$(canonical_path "$candidate")"
+            export CHATGPT_UPDATER_PATH
             return 0
         fi
     done
 
-    if command -v codex-app-updater >/dev/null 2>&1; then
-        CODEX_APP_UPDATER_PATH="$(command -v codex-app-updater)"
-        export CODEX_APP_UPDATER_PATH
+    if command -v chatgpt-updater >/dev/null 2>&1; then
+        CHATGPT_UPDATER_PATH="$(command -v chatgpt-updater)"
+        export CHATGPT_UPDATER_PATH
         return 0
     fi
 
@@ -2250,16 +2337,16 @@ has_app_updater() {
 
 run_app_updater() {
     resolve_app_updater_path || return 127
-    codex_run_host_command "$CODEX_APP_UPDATER_PATH" "$@"
+    chatgpt_run_host_command "$CHATGPT_UPDATER_PATH" "$@"
 }
 
 export_feature_runtime_env() {
-    CODEX_LINUX_APP_DIR="$SCRIPT_DIR"
-    CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR"
-    CODEX_LINUX_LAUNCHER_CMD="$SCRIPT_DIR/start.sh"
-    CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR"
-    CODEX_LINUX_FEATURES_DIR="$CODEX_LINUX_FEATURES_DIR"
-    export CODEX_LINUX_APP_DIR CODEX_LINUX_APP_STATE_DIR CODEX_LINUX_LAUNCHER_CMD CODEX_PORT_INTEGRATIONS_DIR CODEX_LINUX_FEATURES_DIR
+    CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR"
+    CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR"
+    CHATGPT_LINUX_LAUNCHER_CMD="$SCRIPT_DIR/start.sh"
+    CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR"
+    CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR"
+    export CHATGPT_LINUX_APP_DIR CHATGPT_LINUX_APP_STATE_DIR CHATGPT_LINUX_LAUNCHER_CMD CHATGPT_PORT_INTEGRATIONS_DIR CHATGPT_LINUX_FEATURES_DIR
     resolve_app_updater_path >/dev/null 2>&1 || true
 }
 
@@ -2348,8 +2435,8 @@ pid_has_app_identity_env() {
     local env_lines
 
     env_lines=$'\n'"$(pid_environ_lines "$pid")"$'\n'
-    [[ "$env_lines" == *$'\n'"CODEX_LINUX_APP_ID=$CODEX_LINUX_APP_ID"$'\n'* ]] ||
-    [[ "$env_lines" == *$'\n'"CODEX_APP_ID=$CODEX_LINUX_APP_ID"$'\n'* ]]
+    [[ "$env_lines" == *$'\n'"CHATGPT_LINUX_APP_ID=$CHATGPT_LINUX_APP_ID"$'\n'* ]] ||
+    [[ "$env_lines" == *$'\n'"CHATGPT_APP_ID=$CHATGPT_LINUX_APP_ID"$'\n'* ]]
 }
 
 pid_environ_value() {
@@ -2390,7 +2477,11 @@ pid_matches_executable() {
     actual="$(pid_cmdline_arg0_path "$pid")"
     pid_arg0_matches_path "$actual" "$expected" || return 1
     pid_is_current_user "$pid" || return 1
-    pid_has_app_identity_env "$pid" || return 1
+    if ! pid_has_app_identity_env "$pid"; then
+        local cmdline
+        cmdline="$(pid_cmdline "$pid")"
+        [[ "$cmdline" == *"--app-id=$CHATGPT_LINUX_APP_ID"* ]] || return 1
+    fi
     ! pid_is_electron_helper "$pid"
 }
 
@@ -2421,9 +2512,9 @@ pid_in_same_launch_instance() {
 
     env_lines=$'\n'"$(pid_environ_lines "$pid")"$'\n'
     if [ "$MULTI_LAUNCH_ACTIVE" -eq 1 ]; then
-        [[ "$env_lines" == *$'\n'"CODEX_LINUX_INSTANCE_ID=$CODEX_LINUX_INSTANCE_ID"$'\n'* ]]
+        [[ "$env_lines" == *$'\n'"CHATGPT_LINUX_INSTANCE_ID=$CHATGPT_LINUX_INSTANCE_ID"$'\n'* ]]
     else
-        [[ "$env_lines" != *$'\n'"CODEX_LINUX_MULTI_LAUNCH=1"$'\n'* ]]
+        [[ "$env_lines" != *$'\n'"CHATGPT_LINUX_MULTI_LAUNCH=1"$'\n'* ]]
     fi
 }
 
@@ -2438,7 +2529,7 @@ pid_matches_app_identity() {
         return 0
     fi
     cmdline="$(pid_cmdline "$pid")"
-    [[ "$cmdline" == *"--app-id=$CODEX_LINUX_APP_ID"* ]]
+    [[ "$cmdline" == *"--app-id=$CHATGPT_LINUX_APP_ID"* ]]
 }
 
 pid_is_foreign_codex_electron() {
@@ -2523,8 +2614,8 @@ detect_cross_install_conflict() {
     fi
 
     install_dir="$(pid_install_dir "$pid" 2>/dev/null || echo "unknown")"
-    detail="Another $CODEX_LINUX_APP_DISPLAY_NAME is already running from $install_dir (pid $pid), while this launcher is $SCRIPT_DIR. Both use app id '$CODEX_LINUX_APP_ID', webview port $CODEX_LINUX_WEBVIEW_PORT, config $APP_CONFIG_DIR, and state $APP_STATE_DIR. Close the other app, or launch one build with a side-by-side CODEX_APP_ID/CODEX_LINUX_APP_ID or --new-instance."
-    echo "Foreign Codex App process: $(pid_summary "$pid")"
+    detail="Another $CHATGPT_LINUX_APP_DISPLAY_NAME is already running from $install_dir (pid $pid), while this launcher is $SCRIPT_DIR. Both use app id '$CHATGPT_LINUX_APP_ID', webview port $CHATGPT_LINUX_WEBVIEW_PORT, config $APP_CONFIG_DIR, and state $APP_STATE_DIR. Close the other app, or launch one build with a side-by-side CHATGPT_APP_ID/CHATGPT_LINUX_APP_ID or --new-instance."
+    echo "Foreign ChatGPT process: $(pid_summary "$pid")"
     notify_error "$detail"
     exit 1
 }
@@ -2540,15 +2631,15 @@ set_detected_running_app() {
     RUNNING_APP_PID="$1"
     echo "$RUNNING_APP_PID" > "$APP_PID_FILE"
 
-    if ! linux_setting_enabled "codex-linux-warm-start-enabled" 1; then
+    if ! linux_setting_enabled "chatgpt-linux-warm-start-enabled" 1; then
         WARM_START=0
         echo "Warm-start handoff disabled by $APP_SETTINGS_FILE"
-        echo "Detected running Codex App pid=$RUNNING_APP_PID; preserving liveness marker for second-instance handoff"
+        echo "Detected running ChatGPT pid=$RUNNING_APP_PID; preserving liveness marker for second-instance handoff"
         return 0
     fi
 
     WARM_START=1
-    echo "Detected running Codex App pid=$RUNNING_APP_PID; using warm-start handoff"
+    echo "Detected running ChatGPT pid=$RUNNING_APP_PID; using warm-start handoff"
 }
 
 running_app_is_active() {
@@ -2576,7 +2667,7 @@ detect_warm_start() {
         return 0
     fi
 
-    if ! linux_setting_enabled "codex-linux-warm-start-enabled" 1; then
+    if ! linux_setting_enabled "chatgpt-linux-warm-start-enabled" 1; then
         WARM_START=0
         echo "Warm-start handoff disabled by $APP_SETTINGS_FILE"
     fi
@@ -2587,7 +2678,7 @@ running_app_uses_renderer_url_override() {
     local renderer_url
 
     running_app_is_active || return 1
-    allow_override="$(pid_environ_value "$RUNNING_APP_PID" CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE 2>/dev/null || true)"
+    allow_override="$(pid_environ_value "$RUNNING_APP_PID" CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE 2>/dev/null || true)"
     truthy_env_value "$allow_override" || return 1
     renderer_url="$(pid_environ_value "$RUNNING_APP_PID" ELECTRON_RENDERER_URL 2>/dev/null || true)"
     [ -n "$renderer_url" ] || return 1
@@ -2606,8 +2697,8 @@ terminate_stale_electron_with_pidfd() {
         "$pid" \
         "$expected_start_time" \
         "$SCRIPT_DIR/electron" \
-        "$CODEX_LINUX_APP_ID" \
-        "$CODEX_LINUX_INSTANCE_ID" \
+        "$CHATGPT_LINUX_APP_ID" \
+        "$CHATGPT_LINUX_INSTANCE_ID" \
         "$MULTI_LAUNCH_ACTIVE" <<'PY'
 import os
 import select
@@ -2660,14 +2751,14 @@ identity_matches = (
     and os.fsdecode(cmdline[0]) == expected_executable
     and not any(part.startswith(b"--type=") for part in cmdline[1:])
     and expected_app_id in {
-        environ.get("CODEX_LINUX_APP_ID"),
-        environ.get("CODEX_APP_ID"),
+        environ.get("CHATGPT_LINUX_APP_ID"),
+        environ.get("CHATGPT_APP_ID"),
     }
 )
 if expected_multi_launch:
-    identity_matches = identity_matches and environ.get("CODEX_LINUX_INSTANCE_ID") == expected_instance_id
+    identity_matches = identity_matches and environ.get("CHATGPT_LINUX_INSTANCE_ID") == expected_instance_id
 else:
-    identity_matches = identity_matches and environ.get("CODEX_LINUX_MULTI_LAUNCH") != "1"
+    identity_matches = identity_matches and environ.get("CHATGPT_LINUX_MULTI_LAUNCH") != "1"
 
 if not identity_matches:
     print(f"stale Electron pid {pid} failed identity revalidation", file=sys.stderr)
@@ -2714,7 +2805,7 @@ recover_unhealthy_running_app() {
     webview_origin_is_reachable && return 0
 
     if webview_port_is_open; then
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME packaged webview origin is unhealthy, but port $CODEX_LINUX_WEBVIEW_PORT is occupied. Keeping the live Electron process untouched. Close it manually and retry."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME packaged webview origin is unhealthy, but port $CHATGPT_LINUX_WEBVIEW_PORT is occupied. Keeping the live Electron process untouched. Close it manually and retry."
         exit 1
     fi
 
@@ -2722,7 +2813,7 @@ recover_unhealthy_running_app() {
     acquire_launcher_lock
     if [ "$LAUNCHER_LOCK_HELD" -ne 1 ] || [ "$LAUNCHER_LOCK_TIMED_OUT" -eq 1 ]; then
         release_launcher_lock
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME could not lock launcher state for safe webview recovery. Keeping the live Electron process untouched; close it manually and retry."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME could not lock launcher state for safe webview recovery. Keeping the live Electron process untouched; close it manually and retry."
         exit 1
     fi
 
@@ -2744,13 +2835,13 @@ recover_unhealthy_running_app() {
     fi
     if webview_port_is_open; then
         release_launcher_lock
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME packaged webview port became occupied during recovery. Keeping the live Electron process untouched; close it manually and retry."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME packaged webview port became occupied during recovery. Keeping the live Electron process untouched; close it manually and retry."
         exit 1
     fi
 
     if ! terminate_stale_electron_with_pidfd "$RUNNING_APP_PID"; then
         release_launcher_lock
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME could not safely verify and stop stale Electron pid $RUNNING_APP_PID. Close it manually and retry."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME could not safely verify and stop stale Electron pid $RUNNING_APP_PID. Close it manually and retry."
         exit 1
     fi
 
@@ -2821,7 +2912,7 @@ webview_port_is_open() {
     # the 200 ms cap it would enforce.
     local probe_pid kill_pid rc=1 self_pid=$$
     ( trap - EXIT
-      exec 3<>/dev/tcp/127.0.0.1/"$CODEX_LINUX_WEBVIEW_PORT" || exit 1
+      exec 3<>/dev/tcp/127.0.0.1/"$CHATGPT_LINUX_WEBVIEW_PORT" || exit 1
       exec 3>&- 3<&-
       exit 0 ) 2>/dev/null &
     probe_pid=$!
@@ -2850,7 +2941,7 @@ webview_port_is_open() {
 }
 
 wait_for_webview_server() {
-    echo "Waiting for webview server on :$CODEX_LINUX_WEBVIEW_PORT"
+    echo "Waiting for webview server on :$CHATGPT_LINUX_WEBVIEW_PORT"
 
     # Treat the actual localhost webview response as the readiness signal.
     # Under cold-login load the shell /dev/tcp probe can be a little too brittle,
@@ -3052,7 +3143,7 @@ pid_has_webview_server_cmdline() {
         case "$arg" in
             http.server|webview-server.py|*/webview-server.py) has_http_server=1 ;;
         esac
-        [ "$arg" = "$CODEX_LINUX_WEBVIEW_PORT" ] && has_port=1
+        [ "$arg" = "$CHATGPT_LINUX_WEBVIEW_PORT" ] && has_port=1
     done
     [ "$has_http_server" -eq 1 ] && [ "$has_port" -eq 1 ]
 }
@@ -3069,7 +3160,7 @@ pid_has_codex_webview_server_identity() {
     mapfile -d '' -t argv < "/proc/$pid/cmdline" 2>/dev/null || return 1
     for arg in "${argv[@]}"; do
         case "$arg" in
-            */.codex-linux/webview-server.py) return 0 ;;
+            */.chatgpt-linux/webview-server.py) return 0 ;;
         esac
     done
 
@@ -3113,7 +3204,7 @@ stop_owned_webview_server() {
     fi
 
     if running_app_is_active && [ -n "$pid" ] && pid_is_webview_server "$pid"; then
-        echo "Preserving webview server pid=$pid owned by running Codex App pid=$RUNNING_APP_PID"
+        echo "Preserving webview server pid=$pid owned by running ChatGPT pid=$RUNNING_APP_PID"
         return 0
     fi
 
@@ -3217,7 +3308,7 @@ adopt_existing_webview_server() {
     if pid="$(owned_webview_server_pid)"; then
         if running_app_is_active; then
             ADOPTED_WEBVIEW_PID="$pid"
-            echo "Reusing webview server pid=$pid owned by running Codex App pid=$RUNNING_APP_PID"
+            echo "Reusing webview server pid=$pid owned by running ChatGPT pid=$RUNNING_APP_PID"
         else
             STARTED_WEBVIEW_PID="$pid"
         fi
@@ -3234,7 +3325,7 @@ adopt_discovered_webview_server() {
         echo "$pid" > "$WEBVIEW_PID_FILE"
         if running_app_is_active; then
             ADOPTED_WEBVIEW_PID="$pid"
-            echo "Reusing webview server pid=$pid owned by running Codex App pid=$RUNNING_APP_PID"
+            echo "Reusing webview server pid=$pid owned by running ChatGPT pid=$RUNNING_APP_PID"
         else
             STARTED_WEBVIEW_PID="$pid"
             echo "Adopted existing webview server pid=$pid dir=$WEBVIEW_DIR"
@@ -3254,7 +3345,7 @@ reclassify_started_webview_for_running_app() {
 
     ADOPTED_WEBVIEW_PID="$pid"
     STARTED_WEBVIEW_PID=""
-    echo "Preserving webview server pid=$pid owned by running Codex App pid=$RUNNING_APP_PID after launch state refresh"
+    echo "Preserving webview server pid=$pid owned by running ChatGPT pid=$RUNNING_APP_PID after launch state refresh"
 }
 
 renderer_url_override_is_active() {
@@ -3265,7 +3356,7 @@ require_webview_entrypoint() {
     local webview_index="$WEBVIEW_DIR/index.html"
 
     if [ ! -f "$webview_index" ]; then
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview bundle is incomplete: missing $webview_index. Rebuild the app with ./install.sh before launching."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview bundle is incomplete: missing $webview_index. Rebuild the app with ./install.sh before launching."
         exit 1
     fi
 }
@@ -3283,13 +3374,13 @@ start_webview_server() {
 
     if adopt_existing_webview_server; then
         if webview_origin_is_reachable; then
-            echo "Reusing existing verified webview server on :$CODEX_LINUX_WEBVIEW_PORT"
+            echo "Reusing existing verified webview server on :$CHATGPT_LINUX_WEBVIEW_PORT"
             log_phase "webview_reused"
             return 0
         fi
 
         if running_app_is_active; then
-            notify_error "Codex App webview server is already running for pid $RUNNING_APP_PID, but origin validation failed. Keeping the live app untouched."
+            notify_error "ChatGPT webview server is already running for pid $RUNNING_APP_PID, but origin validation failed. Keeping the live app untouched."
             exit 1
         fi
     fi
@@ -3300,20 +3391,20 @@ start_webview_server() {
 
     if webview_port_is_open && webview_origin_is_reachable; then
         if adopt_discovered_webview_server; then
-            echo "Reusing existing verified webview server on :$CODEX_LINUX_WEBVIEW_PORT"
+            echo "Reusing existing verified webview server on :$CHATGPT_LINUX_WEBVIEW_PORT"
             log_phase "webview_reused"
             return 0
         fi
 
         detect_cross_install_conflict
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview port $CODEX_LINUX_WEBVIEW_PORT is already serving Codex content, but it is not owned by this launcher. Stop the other webview server and try again."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview port $CHATGPT_LINUX_WEBVIEW_PORT is already serving ChatGPT content, but it is not owned by this launcher. Stop the other webview server and try again."
         exit 1
     fi
 
     stop_stale_webview_server
     stop_status=$?
     if [ "$stop_status" -ne 0 ]; then
-        notify_error "Unable to stop the Codex webview helper process. Close any running Codex App windows or reboot, then check $LOG_FILE for details."
+        notify_error "Unable to stop the ChatGPT webview helper process. Close any running ChatGPT windows or reboot, then check $LOG_FILE for details."
         exit "$stop_status"
     fi
 
@@ -3321,7 +3412,7 @@ start_webview_server() {
         stop_stale_webview_server
         if webview_origin_is_reachable; then
             if adopt_discovered_webview_server; then
-                echo "Reusing existing verified webview server on :$CODEX_LINUX_WEBVIEW_PORT"
+                echo "Reusing existing verified webview server on :$CHATGPT_LINUX_WEBVIEW_PORT"
                 log_phase "webview_reused"
                 return 0
             fi
@@ -3329,7 +3420,7 @@ start_webview_server() {
 
         if webview_port_is_open; then
             detect_cross_install_conflict
-            notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview port $CODEX_LINUX_WEBVIEW_PORT is already in use. Stop the other process and try again."
+            notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview port $CHATGPT_LINUX_WEBVIEW_PORT is already in use. Stop the other process and try again."
             exit 1
         fi
     fi
@@ -3337,7 +3428,7 @@ start_webview_server() {
     stop_owned_webview_server
 
     cd "$WEBVIEW_DIR"
-    python3 "$SCRIPT_DIR/.codex-linux/webview-server.py" "$CODEX_LINUX_WEBVIEW_PORT" --bind 127.0.0.1 &
+    python3 "$SCRIPT_DIR/.chatgpt-linux/webview-server.py" "$CHATGPT_LINUX_WEBVIEW_PORT" --bind 127.0.0.1 &
     STARTED_WEBVIEW_PID=$!
     echo "$STARTED_WEBVIEW_PID" > "$WEBVIEW_PID_FILE"
     WEBVIEW_STARTUP_PENDING=1
@@ -3356,23 +3447,23 @@ await_webview_server_ready() {
     WEBVIEW_STARTUP_PENDING=0
 
     if ! wait_for_webview_server; then
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview server did not become ready on port $CODEX_LINUX_WEBVIEW_PORT. Check the launcher log for the embedded http.server output."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview server did not become ready on port $CHATGPT_LINUX_WEBVIEW_PORT. Check the launcher log for the embedded http.server output."
         exit 1
     fi
 
     if ! kill -0 "$STARTED_WEBVIEW_PID" 2>/dev/null; then
         if webview_origin_is_reachable && adopt_discovered_webview_server; then
-            echo "Adopted concurrently-started verified webview server on :$CODEX_LINUX_WEBVIEW_PORT"
+            echo "Adopted concurrently-started verified webview server on :$CHATGPT_LINUX_WEBVIEW_PORT"
             log_phase "webview_reused"
             return 0
         fi
 
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview server exited before Electron launch. Another process may already be using port $CODEX_LINUX_WEBVIEW_PORT."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview server exited before Electron launch. Another process may already be using port $CHATGPT_LINUX_WEBVIEW_PORT."
         exit 1
     fi
 
     if ! verify_webview_origin "$WEBVIEW_ORIGIN/index.html"; then
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME webview origin validation failed. Another process may be serving port $CODEX_LINUX_WEBVIEW_PORT or the extracted webview bundle is incomplete."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME webview origin validation failed. Another process may be serving port $CHATGPT_LINUX_WEBVIEW_PORT or the extracted webview bundle is incomplete."
         exit 1
     fi
 
@@ -3442,7 +3533,7 @@ gnome_desktop_detected() {
 }
 
 connected_drm_monitor_count() {
-    local drm_root="${CODEX_DRM_CLASS_ROOT:-/sys/class/drm}"
+    local drm_root="${CHATGPT_DRM_CLASS_ROOT:-/sys/class/drm}"
     local status_file status count=0
 
     [ -d "$drm_root" ] || return 1
@@ -3468,12 +3559,12 @@ gnome_wayland_multi_monitor_detected() {
 }
 
 normalize_linux_rendering_mode() {
-    case "${CODEX_LINUX_RENDERING_MODE:-auto}" in
+    case "${CHATGPT_LINUX_RENDERING_MODE:-auto}" in
         auto|default|wslg|wayland-gpu)
-            echo "${CODEX_LINUX_RENDERING_MODE:-auto}"
+            echo "${CHATGPT_LINUX_RENDERING_MODE:-auto}"
             ;;
         *)
-            echo "Invalid CODEX_LINUX_RENDERING_MODE='${CODEX_LINUX_RENDERING_MODE:-}'; using auto" >&2
+            echo "Invalid CHATGPT_LINUX_RENDERING_MODE='${CHATGPT_LINUX_RENDERING_MODE:-}'; using auto" >&2
             echo "auto"
             ;;
     esac
@@ -3517,12 +3608,12 @@ scan_electron_rendering_arg() {
     esac
 }
 
-codex_forced_device_scale_factor() {
-    local value="${CODEX_FORCE_DEVICE_SCALE_FACTOR:-}"
+chatgpt_forced_device_scale_factor() {
+    local value="${CHATGPT_FORCE_DEVICE_SCALE_FACTOR:-}"
 
     [ -n "$value" ] || return 1
     if [[ ! "$value" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$value" =~ ^0+(\.0+)?$ ]]; then
-        echo "Invalid CODEX_FORCE_DEVICE_SCALE_FACTOR='$value'; expected a positive number like 1, 1.25, or 2" >&2
+        echo "Invalid CHATGPT_FORCE_DEVICE_SCALE_FACTOR='$value'; expected a positive number like 1, 1.25, or 2" >&2
         return 1
     fi
 
@@ -3530,11 +3621,11 @@ codex_forced_device_scale_factor() {
 }
 
 apply_codex_ozone_platform_env() {
-    local value="${CODEX_OZONE_PLATFORM:-}"
+    local value="${CHATGPT_OZONE_PLATFORM:-}"
 
     [ -n "$value" ] || return 0
     if [ "$ELECTRON_PLATFORM_EXPLICIT" -eq 1 ] || [ "$ELECTRON_OZONE_SWITCH_IN_ARGS" -eq 1 ]; then
-        echo "Ignoring CODEX_OZONE_PLATFORM='$value'; an explicit platform flag was provided"
+        echo "Ignoring CHATGPT_OZONE_PLATFORM='$value'; an explicit platform flag was provided"
         return 0
     fi
 
@@ -3550,7 +3641,7 @@ apply_codex_ozone_platform_env() {
             ELECTRON_PLATFORM_EXPLICIT=1
             ;;
         *)
-            echo "Invalid CODEX_OZONE_PLATFORM='$value'; expected x11, wayland, or auto" >&2
+            echo "Invalid CHATGPT_OZONE_PLATFORM='$value'; expected x11, wayland, or auto" >&2
             ;;
     esac
 }
@@ -3592,7 +3683,7 @@ electron_enable_features_arg() {
 
 write_user_electron_flags_template() {
     cat > "$USER_ELECTRON_FLAGS_FILE" <<'EOF'
-# Codex App for Linux launch flags.
+# ChatGPT for Linux launch flags.
 # Uncomment one flag per line. Existing files are never overwritten.
 # Lines starting with # and blank lines are ignored.
 # Shell syntax, quotes, variables, and inline comments are not evaluated.
@@ -3705,7 +3796,7 @@ apply_electron_rendering_profile() {
     if [ "$ELECTRON_RENDERING_MODE" = "gnome-wayland-multi-monitor" ]; then
         ELECTRON_OZONE_PLATFORM="x11"
         ELECTRON_OZONE_HINT=""
-        echo "Detected GNOME Wayland multi-monitor session; forcing --ozone-platform=x11 for stable window scale/maximize behavior. Set CODEX_OZONE_PLATFORM=wayland or CODEX_LINUX_RENDERING_MODE=default to opt out."
+        echo "Detected GNOME Wayland multi-monitor session; forcing --ozone-platform=x11 for stable window scale/maximize behavior. Set CHATGPT_OZONE_PLATFORM=wayland or CHATGPT_LINUX_RENDERING_MODE=default to opt out."
         return 0
     fi
 
@@ -3742,17 +3833,17 @@ dev_shm_size_kb() {
 should_disable_dev_shm_usage() {
     local min_size_kb=1048576 size_kb
 
-    if [ -n "${CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE:-}" ]; then
-        if truthy_env_value "$CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE"; then
+    if [ -n "${CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE:-}" ]; then
+        if truthy_env_value "$CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE"; then
             return 0
         fi
-        if falsey_env_value "$CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE"; then
+        if falsey_env_value "$CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE"; then
             return 1
         fi
-        case "$CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE" in
+        case "$CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE" in
             auto|AUTO|Auto) ;;
             *)
-                echo "Invalid CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE='${CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE:-}'; using automatic /dev/shm detection" >&2
+                echo "Invalid CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE='${CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE:-}'; using automatic /dev/shm detection" >&2
                 ;;
         esac
     fi
@@ -3766,7 +3857,7 @@ should_disable_dev_shm_usage() {
     fi
 
     if [ "$size_kb" -lt "$min_size_kb" ]; then
-        echo "Detected small /dev/shm (${size_kb} KiB); keeping --disable-dev-shm-usage. Set CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=0 to opt out."
+        echo "Detected small /dev/shm (${size_kb} KiB); keeping --disable-dev-shm-usage. Set CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=0 to opt out."
         return 0
     fi
 
@@ -3778,20 +3869,20 @@ should_disable_gpu_compositing() {
         return 0
     fi
 
-    if [ -n "${CODEX_ELECTRON_DISABLE_GPU_COMPOSITING:-}" ]; then
-        if truthy_env_value "$CODEX_ELECTRON_DISABLE_GPU_COMPOSITING"; then
+    if [ -n "${CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING:-}" ]; then
+        if truthy_env_value "$CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING"; then
             return 0
         fi
-        if falsey_env_value "$CODEX_ELECTRON_DISABLE_GPU_COMPOSITING"; then
+        if falsey_env_value "$CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING"; then
             return 1
         fi
-        echo "Invalid CODEX_ELECTRON_DISABLE_GPU_COMPOSITING='${CODEX_ELECTRON_DISABLE_GPU_COMPOSITING:-}'; using rendering profile default" >&2
+        echo "Invalid CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING='${CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING:-}'; using rendering profile default" >&2
     fi
 
     if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] &&
         [ "$ELECTRON_RENDERING_MODE" != "wayland-gpu" ] &&
         [ "$ELECTRON_RENDERING_MODE" != "wslg" ]; then
-        echo "Detected Wayland session; adding --disable-gpu-compositing for side-panel rendering stability. Set CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0 to opt out."
+        echo "Detected Wayland session; adding --disable-gpu-compositing for side-panel rendering stability. Set CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0 to opt out."
         return 0
     fi
 
@@ -3813,7 +3904,7 @@ effective_electron_ozone_platform() {
 # in every renderer, so each DOM update also rebuilds and serializes the
 # accessibility tree — a measurable slowdown for the complex webview UI. Only
 # pay that cost when an assistive technology is plausibly in use; anything
-# missed by this detection can set CODEX_FORCE_RENDERER_ACCESSIBILITY=1.
+# missed by this detection can set CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1.
 assistive_technology_detected() {
     local env_marker
 
@@ -3833,7 +3924,7 @@ assistive_technology_detected() {
 }
 
 # Session-bus accessibility signals: the GNOME screen-reader setting plus the
-# AT-SPI state that `codex-computer-use-linux setup` enables (org.a11y.Status
+# AT-SPI state that `chatgpt-computer-use-linux setup` enables (org.a11y.Status
 # IsEnabled via busctl, with org.gnome.desktop.interface toolkit-accessibility
 # as its gsettings fallback). gsettings/busctl can hang on a broken session
 # bus, so each external helper runs under a watchdog capped at 0.5 s. When
@@ -3923,17 +4014,17 @@ session_bus_assistive_technology_detected() {
 should_force_renderer_accessibility() {
     local effective_platform
 
-    if [ -n "${CODEX_FORCE_RENDERER_ACCESSIBILITY:-}" ]; then
-        if truthy_env_value "$CODEX_FORCE_RENDERER_ACCESSIBILITY"; then
+    if [ -n "${CHATGPT_FORCE_RENDERER_ACCESSIBILITY:-}" ]; then
+        if truthy_env_value "$CHATGPT_FORCE_RENDERER_ACCESSIBILITY"; then
             return 0
         fi
-        if falsey_env_value "$CODEX_FORCE_RENDERER_ACCESSIBILITY"; then
+        if falsey_env_value "$CHATGPT_FORCE_RENDERER_ACCESSIBILITY"; then
             return 1
         fi
-        case "$CODEX_FORCE_RENDERER_ACCESSIBILITY" in
+        case "$CHATGPT_FORCE_RENDERER_ACCESSIBILITY" in
             auto|AUTO|Auto) ;;
             *)
-                echo "Invalid CODEX_FORCE_RENDERER_ACCESSIBILITY='${CODEX_FORCE_RENDERER_ACCESSIBILITY:-}'; using rendering profile default" >&2
+                echo "Invalid CHATGPT_FORCE_RENDERER_ACCESSIBILITY='${CHATGPT_FORCE_RENDERER_ACCESSIBILITY:-}'; using rendering profile default" >&2
                 ;;
         esac
     fi
@@ -4059,10 +4150,10 @@ set_electron_defaults() {
     # Session-level operator overrides for HiDPI / fractional-scaling issues.
     # Explicit launcher/Electron flags still win over both env vars.
     apply_codex_ozone_platform_env
-    if [ -n "${CODEX_FORCE_DEVICE_SCALE_FACTOR:-}" ]; then
+    if [ -n "${CHATGPT_FORCE_DEVICE_SCALE_FACTOR:-}" ]; then
         if [ "$ELECTRON_SCALE_SWITCH_IN_ARGS" -eq 1 ]; then
-            echo "Ignoring CODEX_FORCE_DEVICE_SCALE_FACTOR; an explicit --force-device-scale-factor flag was provided"
-        elif ELECTRON_FORCED_SCALE_FACTOR="$(codex_forced_device_scale_factor)"; then
+            echo "Ignoring CHATGPT_FORCE_DEVICE_SCALE_FACTOR; an explicit --force-device-scale-factor flag was provided"
+        elif ELECTRON_FORCED_SCALE_FACTOR="$(chatgpt_forced_device_scale_factor)"; then
             :
         else
             ELECTRON_FORCED_SCALE_FACTOR=""
@@ -4185,14 +4276,14 @@ run_feature_launcher_hooks() {
         echo "Running port integration launcher hook: $hook"
         if output="$(
             CODEX_HOME="$CODEX_HOME" \
-            CODEX_LINUX_APP_DIR="$SCRIPT_DIR" \
-            CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-            CODEX_LINUX_FEATURES_DIR="$CODEX_LINUX_FEATURES_DIR" \
-            CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR" \
-            CODEX_LINUX_LAUNCHER_LOG="$LOG_FILE" \
-            CODEX_LINUX_FEATURE_HOOK_PHASE=launcher \
-            CODEX_PORT_INTEGRATION_HOOK_PHASE=launcher \
-            codex_run_host_command "$hook" "${ELECTRON_ARGS[@]}"
+            CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
+            CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
+            CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
+            CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
+            CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
+            CHATGPT_LINUX_FEATURE_HOOK_PHASE=launcher \
+            CHATGPT_PORT_INTEGRATION_HOOK_PHASE=launcher \
+            chatgpt_run_host_command "$hook" "${ELECTRON_ARGS[@]}"
         )"; then
             :
         else
@@ -4228,8 +4319,8 @@ build_electron_launch_args() {
 
     # Feature launcher hooks (runtimeHooks.launcher) run after
     # set_electron_defaults() has already chosen the Ozone platform and device
-    # scale factor -- whether from CODEX_OZONE_PLATFORM /
-    # CODEX_FORCE_DEVICE_SCALE_FACTOR, the CODEX_LINUX_RENDERING_MODE profile
+    # scale factor -- whether from CHATGPT_OZONE_PLATFORM /
+    # CHATGPT_FORCE_DEVICE_SCALE_FACTOR, the CHATGPT_LINUX_RENDERING_MODE profile
     # (wayland-gpu / wslg), or the Sommelier X11 fallback. If such a hook then
     # emits an explicit --ozone-platform / --force-device-scale-factor, both the
     # launcher-computed flag and the hook flag would land in the final Electron
@@ -4249,8 +4340,8 @@ build_electron_launch_args() {
     fi
 
     ELECTRON_LAUNCH_ARGS=(
-        --class="$CODEX_LINUX_APP_ID"
-        --app-id="$CODEX_LINUX_APP_ID"
+        --class="$CHATGPT_LINUX_APP_ID"
+        --app-id="$CHATGPT_LINUX_APP_ID"
         --disable-gpu-sandbox
     )
 
@@ -4261,7 +4352,7 @@ build_electron_launch_args() {
         ELECTRON_DEV_SHM_USAGE_DISABLED=0
     fi
 
-    if [[ "${CODEX_APP_DISABLE_ELECTRON_SANDBOX:-0}" =~ ^(1|true|yes|on)$ ]]; then
+    if [[ "${CHATGPT_APP_DISABLE_ELECTRON_SANDBOX:-0}" =~ ^(1|true|yes|on)$ ]]; then
         ELECTRON_LAUNCH_ARGS+=(--no-sandbox)
     fi
 
@@ -4272,10 +4363,10 @@ build_electron_launch_args() {
         ELECTRON_GPU_COMPOSITING_DISABLED=0
     fi
 
-    if [ "$CODEX_LINUX_APP_ID" != "codex-app" ]; then
-        ELECTRON_LAUNCH_ARGS+=(--user-data-dir="${CODEX_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}")
-    elif [ -n "${CODEX_ELECTRON_USER_DATA_DIR:-}" ]; then
-        ELECTRON_LAUNCH_ARGS+=(--user-data-dir="$CODEX_ELECTRON_USER_DATA_DIR")
+    if [ "$CHATGPT_LINUX_APP_ID" != "chatgpt" ]; then
+        ELECTRON_LAUNCH_ARGS+=(--user-data-dir="${CHATGPT_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}")
+    elif [ -n "${CHATGPT_ELECTRON_USER_DATA_DIR:-}" ]; then
+        ELECTRON_LAUNCH_ARGS+=(--user-data-dir="$CHATGPT_ELECTRON_USER_DATA_DIR")
     fi
 
     if [ -n "$ELECTRON_OZONE_PLATFORM" ]; then
@@ -4312,13 +4403,13 @@ build_electron_launch_args() {
 print_scaling_diagnostics() {
     local key arg
 
-    echo "$CODEX_LINUX_APP_DISPLAY_NAME scaling diagnostics"
+    echo "$CHATGPT_LINUX_APP_DISPLAY_NAME scaling diagnostics"
     echo ""
     echo "Session environment:"
     for key in XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP WAYLAND_DISPLAY DISPLAY \
         GDK_BACKEND GDK_SCALE GDK_DPI_SCALE QT_SCALE_FACTOR QT_AUTO_SCREEN_SCALE_FACTOR \
-        ELECTRON_OZONE_PLATFORM_HINT CODEX_OZONE_PLATFORM CODEX_FORCE_DEVICE_SCALE_FACTOR \
-        CODEX_LINUX_RENDERING_MODE; do
+        ELECTRON_OZONE_PLATFORM_HINT CHATGPT_OZONE_PLATFORM CHATGPT_FORCE_DEVICE_SCALE_FACTOR \
+        CHATGPT_LINUX_RENDERING_MODE; do
         printf '  %s=%s\n' "$key" "${!key:-<unset>}"
     done
 
@@ -4369,20 +4460,20 @@ print_scaling_diagnostics() {
 
     echo ""
     echo "If the UI is oversized or blurry, try:"
-    echo "  CODEX_FORCE_DEVICE_SCALE_FACTOR=1 <launch command>"
-    echo "  CODEX_OZONE_PLATFORM=x11 <launch command>"
-    echo "  CODEX_OZONE_PLATFORM=wayland <launch command>"
+    echo "  CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 <launch command>"
+    echo "  CHATGPT_OZONE_PLATFORM=x11 <launch command>"
+    echo "  CHATGPT_OZONE_PLATFORM=wayland <launch command>"
     echo "See docs/troubleshooting.md (Oversized or blurry UI) for details."
 }
 
 configure_side_by_side_app_env() {
-    if [ "$CODEX_LINUX_APP_ID" = "codex-app" ]; then
+    if [ "$CHATGPT_LINUX_APP_ID" = "chatgpt" ]; then
         return 0
     fi
 
-    XDG_CONFIG_HOME="${CODEX_XDG_CONFIG_HOME:-$APP_STATE_DIR/xdg-config}"
-    CODEX_ELECTRON_USER_DATA_DIR="${CODEX_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}"
-    export XDG_CONFIG_HOME CODEX_ELECTRON_USER_DATA_DIR
+    XDG_CONFIG_HOME="${CHATGPT_XDG_CONFIG_HOME:-$APP_STATE_DIR/xdg-config}"
+    CHATGPT_ELECTRON_USER_DATA_DIR="${CHATGPT_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}"
+    export XDG_CONFIG_HOME CHATGPT_ELECTRON_USER_DATA_DIR
     refresh_runtime_paths
     ensure_runtime_dirs
 }
@@ -4403,18 +4494,18 @@ cleanup_launcher() {
 }
 
 launcher_lock_wait_seconds() {
-    local value="${CODEX_LAUNCHER_LOCK_WAIT_SECONDS:-5}"
+    local value="${CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS:-5}"
 
     case "$value" in
         ""|*[!0-9]*)
-            echo "WARN: invalid CODEX_LAUNCHER_LOCK_WAIT_SECONDS='${CODEX_LAUNCHER_LOCK_WAIT_SECONDS:-}'; using 5" >&2
+            echo "WARN: invalid CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS='${CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS:-}'; using 5" >&2
             echo 5
             return 0
             ;;
     esac
 
     if [ "$value" -gt 300 ]; then
-        echo "WARN: CODEX_LAUNCHER_LOCK_WAIT_SECONDS=$value is too high; using 300" >&2
+        echo "WARN: CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS=$value is too high; using 300" >&2
         echo 300
         return 0
     fi
@@ -4612,7 +4703,7 @@ prepare_launch_state_under_lock() {
     acquire_launcher_lock
     if [ "$LAUNCHER_LOCK_HELD" -ne 1 ] || [ "$LAUNCHER_LOCK_TIMED_OUT" -eq 1 ]; then
         release_launcher_lock
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME could not acquire launcher state within the configured timeout. No new app process was started; retry after the current launch finishes."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME could not acquire launcher state within the configured timeout. No new app process was started; retry after the current launch finishes."
         exit 1
     fi
 
@@ -4631,7 +4722,7 @@ prepare_launch_state_under_lock() {
 require_active_launcher_lock() {
     [ "$LAUNCHER_LOCK_HELD" -eq 1 ] || return 0
     if ! launcher_lock_helper_is_active; then
-        notify_error "$CODEX_LINUX_APP_DISPLAY_NAME lost launcher serialization before Electron startup. No app process was started; retry the launch."
+        notify_error "$CHATGPT_LINUX_APP_DISPLAY_NAME lost launcher serialization before Electron startup. No app process was started; retry the launch."
         exit 1
     fi
 }
@@ -4651,7 +4742,7 @@ launch_electron() {
         release_launcher_lock
         echo "Electron warm-start handoff: pid=$RUNNING_APP_PID rendering_mode=$ELECTRON_RENDERING_MODE wslg_detected=$ELECTRON_WSLG_DETECTED ozone_platform=${ELECTRON_OZONE_PLATFORM:-default} ozone_hint=${ELECTRON_OZONE_HINT:-none} gpu_enabled=$ELECTRON_GPU_ENABLED gpu_disable_arg=$ELECTRON_GPU_DISABLE_SWITCH_IN_ARGS gpu_compositing_disabled=$ELECTRON_GPU_COMPOSITING_DISABLED dev_shm_usage_disabled=$ELECTRON_DEV_SHM_USAGE_DISABLED gl_switch_added=$ELECTRON_GL_SWITCH_ADDED renderer_accessibility_forced=$ELECTRON_RENDERER_ACCESSIBILITY_FORCED forced_scale=${ELECTRON_FORCED_SCALE_FACTOR:-none}"
         if [ "$ELECTRON_GPU_COMPOSITING_DISABLED" = "0" ] && [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-            echo "Rendering hint: if the side panel flickers or appears transparent on Wayland, retry with CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1"
+            echo "Rendering hint: if the side panel flickers or appears transparent on Wayland, retry with CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1"
         fi
         unset ELECTRON_RUN_AS_NODE
         "$SCRIPT_DIR/electron" "${ELECTRON_LAUNCH_ARGS[@]}" "${ELECTRON_ARGS[@]}"
@@ -4660,7 +4751,7 @@ launch_electron() {
 
     echo "Electron launch mode: rendering_mode=$ELECTRON_RENDERING_MODE wslg_detected=$ELECTRON_WSLG_DETECTED ozone_platform=${ELECTRON_OZONE_PLATFORM:-default} ozone_hint=${ELECTRON_OZONE_HINT:-none} gpu_enabled=$ELECTRON_GPU_ENABLED gpu_disable_arg=$ELECTRON_GPU_DISABLE_SWITCH_IN_ARGS gpu_compositing_disabled=$ELECTRON_GPU_COMPOSITING_DISABLED dev_shm_usage_disabled=$ELECTRON_DEV_SHM_USAGE_DISABLED gl_switch_added=$ELECTRON_GL_SWITCH_ADDED renderer_accessibility_forced=$ELECTRON_RENDERER_ACCESSIBILITY_FORCED forced_scale=${ELECTRON_FORCED_SCALE_FACTOR:-none}"
     if [ "$ELECTRON_GPU_COMPOSITING_DISABLED" = "0" ] && [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-        echo "Rendering hint: if the side panel flickers or appears transparent on Wayland, retry with CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1"
+        echo "Rendering hint: if the side panel flickers or appears transparent on Wayland, retry with CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1"
     fi
     require_active_launcher_lock
     (
@@ -4669,7 +4760,7 @@ launch_electron() {
     ) &
     ELECTRON_PID=$!
     if [ -n "${RUNNING_APP_PID:-}" ] && pid_matches_executable "$RUNNING_APP_PID" "$SCRIPT_DIR/electron"; then
-        echo "Preserving Codex App pid=$RUNNING_APP_PID liveness marker for second-instance handoff"
+        echo "Preserving ChatGPT pid=$RUNNING_APP_PID liveness marker for second-instance handoff"
     else
         echo "$ELECTRON_PID" > "$APP_PID_FILE"
     fi
@@ -4687,14 +4778,14 @@ launch_electron() {
 hydrate_graphical_session_env
 configure_side_by_side_app_env
 configure_multi_launch_instance
-WEBVIEW_ORIGIN="http://127.0.0.1:$CODEX_LINUX_WEBVIEW_PORT"
+WEBVIEW_ORIGIN="http://127.0.0.1:$CHATGPT_LINUX_WEBVIEW_PORT"
 ensure_runtime_dirs
 LAUNCHER_START_MS="$(now_ms)"
 exec >>"$LOG_FILE" 2>&1
 
-echo "[$(date -Is)] Starting $CODEX_LINUX_APP_DISPLAY_NAME launcher"
+echo "[$(date -Is)] Starting $CHATGPT_LINUX_APP_DISPLAY_NAME launcher"
 if [ "$MULTI_LAUNCH_ACTIVE" -eq 1 ]; then
-    echo "Multi-launch instance: id=$CODEX_LINUX_INSTANCE_ID webview_port=$CODEX_LINUX_WEBVIEW_PORT state_dir=$APP_STATE_DIR user_data_dir=$CODEX_ELECTRON_USER_DATA_DIR"
+    echo "Multi-launch instance: id=$CHATGPT_LINUX_INSTANCE_ID webview_port=$CHATGPT_LINUX_WEBVIEW_PORT state_dir=$APP_STATE_DIR user_data_dir=$CHATGPT_ELECTRON_USER_DATA_DIR"
 fi
 
 export_feature_runtime_env
@@ -4734,7 +4825,7 @@ elif [ "$WARM_START" -eq 1 ]; then
 fi
 
 if using_second_instance_handoff; then
-    echo "Detected running Codex App pid=$RUNNING_APP_PID; using Electron second-instance handoff"
+    echo "Detected running ChatGPT pid=$RUNNING_APP_PID; using Electron second-instance handoff"
     log_phase "second_instance_handoff_ready"
 elif needs_cold_start; then
     log_phase "feature_prelaunch_start"
@@ -4754,10 +4845,10 @@ if [ -z "${CODEX_CLI_PATH:-}" ]; then
     export CODEX_CLI_PATH
     log_phase "cli_lookup"
 fi
-export CHROME_DESKTOP="${CHROME_DESKTOP:-$CODEX_LINUX_APP_ID.desktop}"
+export CHROME_DESKTOP="${CHROME_DESKTOP:-$CHATGPT_LINUX_APP_ID.desktop}"
 if ! renderer_url_override_is_active; then
     if [ -n "${ELECTRON_RENDERER_URL:-}" ] && [ "$ELECTRON_RENDERER_URL" != "$WEBVIEW_RENDERER_URL" ]; then
-        echo "Ignoring inherited ELECTRON_RENDERER_URL; set CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1 to allow overrides"
+        echo "Ignoring inherited ELECTRON_RENDERER_URL; set CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1 to allow overrides"
     fi
     export ELECTRON_RENDERER_URL="$WEBVIEW_RENDERER_URL"
 else
@@ -4796,7 +4887,7 @@ if needs_cold_start; then
     if codex_cli_missing_optional_dependency "$CODEX_CLI_PATH"; then
         cli_repair_required=1
     fi
-    if [ "${CODEX_SYNC_CLI_PREFLIGHT:-0}" = "1" ]; then
+    if [ "${CHATGPT_SYNC_CLI_PREFLIGHT:-0}" = "1" ]; then
         if ! run_cli_preflight 0 "$cli_repair_required"; then
             notify_error "The selected Codex CLI is missing its Linux optional dependency and could not be repaired automatically. Reinstall it with: npm i -g --include=optional @openai/codex@latest or npm i -g --include=optional --prefix ~/.local @openai/codex@latest"
             exit 1
@@ -4860,6 +4951,6 @@ resolve_browser_use_runtime_env
 log_phase "browser_use_runtime_env_resolved"
 
 log_codex_cli_path
-echo "Using managed Node.js runtime=${CODEX_MANAGED_NODE_RUNTIME_DIR:-$SCRIPT_DIR/resources/node-runtime}"
+echo "Using managed Node.js runtime=${CHATGPT_MANAGED_NODE_RUNTIME_DIR:-$SCRIPT_DIR/resources/node-runtime}"
 
 launch_electron "${LAUNCHER_ARGS[@]}"

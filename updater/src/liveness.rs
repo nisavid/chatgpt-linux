@@ -82,15 +82,15 @@ mod tests {
     fn pid_file_is_located_under_resolved_app_state() -> Result<()> {
         let _env_guard = env_lock();
         let _restore_env = EnvRestoreGuard::capture(&[
-            "CODEX_LINUX_APP_ID",
-            "CODEX_APP_ID",
-            "CODEX_LINUX_INSTANCE_ID",
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
+            "CHATGPT_LINUX_INSTANCE_ID",
         ]);
-        std::env::set_var("CODEX_LINUX_APP_ID", "codex-test");
-        std::env::set_var("CODEX_LINUX_INSTANCE_ID", "port-6175");
+        std::env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-test");
+        std::env::set_var("CHATGPT_LINUX_INSTANCE_ID", "port-6175");
 
         let pid_file = app_pid_file()?;
-        assert!(pid_file.ends_with("codex-test/instances/port-6175/app.pid"));
+        assert!(pid_file.ends_with("chatgpt-test/instances/port-6175/app.pid"));
         Ok(())
     }
 
@@ -99,7 +99,7 @@ mod tests {
         let mut config = crate::config::RuntimeConfig::default_with_paths(
             &crate::config::RuntimePaths::detect()?,
         );
-        config.app_executable_path = PathBuf::from("/opt/codex-app/electron");
+        config.app_executable_path = PathBuf::from("/opt/chatgpt/electron");
 
         assert!(!process_matches(
             std::process::id(),

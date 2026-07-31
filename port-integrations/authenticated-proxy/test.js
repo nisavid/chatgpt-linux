@@ -53,17 +53,17 @@ function integrationSelection(integrationsRoot, enabled) {
 function withFeatureConfig(enabled, callback) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "authenticated-proxy-feature-"));
   const configPath = path.join(tempDir, "integrations.json");
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
 
   try {
     fs.writeFileSync(configPath, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     return callback(path.resolve(__dirname, ".."));
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -126,10 +126,10 @@ test("authenticated-proxy stages a launcher hook", () => {
       const plan = stageEnabledPortIntegrationInstall(appDir, { integrationsRoot });
       assert.deepEqual(
         plan.runtimeHooks.map((hook) => [hook.key, hook.target, hook.mode.toString(8)]),
-        [["launcher", ".codex-linux/launcher.d/authenticated-proxy-authenticated-proxy.sh", "755"]],
+        [["launcher", ".chatgpt-linux/launcher.d/authenticated-proxy-authenticated-proxy.sh", "755"]],
       );
       assert.equal(
-        fs.statSync(path.join(appDir, ".codex-linux", "launcher.d", "authenticated-proxy-authenticated-proxy.sh")).mode & 0o777,
+        fs.statSync(path.join(appDir, ".chatgpt-linux", "launcher.d", "authenticated-proxy-authenticated-proxy.sh")).mode & 0o777,
         0o755,
       );
     } finally {
@@ -145,20 +145,20 @@ test("authenticated-proxy descriptor is optional and patch entrypoint is valid",
   );
 });
 
-test("launcher hook derives Electron args from explicit CODEX_LINUX_PROXY env", () => {
+test("launcher hook derives Electron args from explicit CHATGPT_LINUX_PROXY env", () => {
   const result = runHook({
-    CODEX_LINUX_PROXY_SERVER: "http://192.0.2.20:8080",
-    CODEX_LINUX_PROXY_USERNAME: "user",
-    CODEX_LINUX_PROXY_PASSWORD: "p@ss word",
+    CHATGPT_LINUX_PROXY_SERVER: "http://192.0.2.20:8080",
+    CHATGPT_LINUX_PROXY_USERNAME: "user",
+    CHATGPT_LINUX_PROXY_PASSWORD: "p@ss word",
   });
   const protocol = protocolMap(result.stdout);
 
   assert.deepEqual(protocol.electronArgs, ["--proxy-server=http://192.0.2.20:8080"]);
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_SERVER"), "http://192.0.2.20:8080");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_HOST"), "192.0.2.20");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_PORT"), "8080");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_USERNAME"), "user");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_PASSWORD"), "p@ss word");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_SERVER"), "http://192.0.2.20:8080");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_HOST"), "192.0.2.20");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_PORT"), "8080");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_USERNAME"), "user");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_PASSWORD"), "p@ss word");
 });
 
 test("launcher hook derives proxy config from standard proxy env", () => {
@@ -172,31 +172,31 @@ test("launcher hook derives proxy config from standard proxy env", () => {
     "--proxy-server=http://198.51.100.10:3128",
     "--proxy-bypass-list=localhost;127.0.0.1",
   ]);
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_SERVER"), "http://198.51.100.10:3128");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_BYPASS_LIST"), "localhost;127.0.0.1");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_HOST"), "198.51.100.10");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_PORT"), "3128");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_USERNAME"), "user");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_PASSWORD"), "p@ss");
-  assert.match(result.stderr, /Derived CODEX_LINUX_PROXY_SERVER from https_proxy/);
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_SERVER"), "http://198.51.100.10:3128");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_BYPASS_LIST"), "localhost;127.0.0.1");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_HOST"), "198.51.100.10");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_PORT"), "3128");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_USERNAME"), "user");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_PASSWORD"), "p@ss");
+  assert.match(result.stderr, /Derived CHATGPT_LINUX_PROXY_SERVER from https_proxy/);
 });
 
 test("launcher hook does not override an explicit --proxy-server arg", () => {
   const result = runHook(
     {
-      CODEX_LINUX_PROXY_SERVER: "http://192.0.2.20:8080",
-      CODEX_LINUX_PROXY_USERNAME: "user",
-      CODEX_LINUX_PROXY_PASSWORD: "secret",
+      CHATGPT_LINUX_PROXY_SERVER: "http://192.0.2.20:8080",
+      CHATGPT_LINUX_PROXY_USERNAME: "user",
+      CHATGPT_LINUX_PROXY_PASSWORD: "secret",
     },
     ["--proxy-server=http://203.0.113.10:8888"],
   );
   const protocol = protocolMap(result.stdout);
 
   assert.deepEqual(protocol.electronArgs, []);
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_HOST"), "");
-  assert.equal(protocol.env.get("CODEX_LINUX_PROXY_AUTH_PORT"), "");
-  assert.equal(protocol.env.has("CODEX_LINUX_PROXY_SERVER"), false);
-  assert.match(result.stderr, /Ignoring CODEX_LINUX_PROXY_\* env/);
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_HOST"), "");
+  assert.equal(protocol.env.get("CHATGPT_LINUX_PROXY_AUTH_PORT"), "");
+  assert.equal(protocol.env.has("CHATGPT_LINUX_PROXY_SERVER"), false);
+  assert.match(result.stderr, /Ignoring CHATGPT_LINUX_PROXY_\* env/);
 });
 
 test("launcher hook shell syntax is valid", () => {
@@ -215,8 +215,8 @@ test("registers Linux proxy authentication before Electron app ready", async () 
   ].join("");
   const patched = applyPatchTwiceWithoutWarnings(applyAuthenticatedProxyPatch, source);
 
-  assert.match(patched, /function codexLinuxInstallProxyAuthHandler\(e\)/);
-  assert.match(patched, /codexLinuxInstallProxyAuthHandler\(n\);await n\.app\.whenReady\(\)/);
+  assert.match(patched, /function chatgptLinuxInstallProxyAuthHandler\(e\)/);
+  assert.match(patched, /chatgptLinuxInstallProxyAuthHandler\(n\);await n\.app\.whenReady\(\)/);
 
   const handlers = {};
   const calls = { whenReady: 0 };
@@ -234,10 +234,10 @@ test("registers Linux proxy authentication before Electron app ready", async () 
     process: {
       platform: "linux",
       env: {
-        CODEX_LINUX_PROXY_AUTH_HOST: "proxy.example",
-        CODEX_LINUX_PROXY_AUTH_PORT: "8080",
-        CODEX_LINUX_PROXY_USERNAME: "user",
-        CODEX_LINUX_PROXY_PASSWORD: "p@ss",
+        CHATGPT_LINUX_PROXY_AUTH_HOST: "proxy.example",
+        CHATGPT_LINUX_PROXY_AUTH_PORT: "8080",
+        CHATGPT_LINUX_PROXY_USERNAME: "user",
+        CHATGPT_LINUX_PROXY_PASSWORD: "p@ss",
       },
     },
     require(name) {
@@ -309,10 +309,10 @@ test("ClientRequest proxy authentication refuses unrelated challenges", () => {
     process: {
       platform: "linux",
       env: {
-        CODEX_LINUX_PROXY_AUTH_HOST: "proxy.example",
-        CODEX_LINUX_PROXY_AUTH_PORT: "8080",
-        CODEX_LINUX_PROXY_USERNAME: "user",
-        CODEX_LINUX_PROXY_PASSWORD: "p@ss",
+        CHATGPT_LINUX_PROXY_AUTH_HOST: "proxy.example",
+        CHATGPT_LINUX_PROXY_AUTH_PORT: "8080",
+        CHATGPT_LINUX_PROXY_USERNAME: "user",
+        CHATGPT_LINUX_PROXY_PASSWORD: "p@ss",
       },
     },
     require(name) {
@@ -321,7 +321,7 @@ test("ClientRequest proxy authentication refuses unrelated challenges", () => {
     },
   };
   vm.runInNewContext(
-    `${patched};globalThis.attachProxyAuth=codexLinuxAttachProxyAuthToRequest`,
+    `${patched};globalThis.attachProxyAuth=chatgptLinuxAttachProxyAuthToRequest`,
     context,
   );
 
@@ -354,7 +354,7 @@ test("ClientRequest proxy authentication refuses unrelated challenges", () => {
 test("leaves an incomplete existing proxy helper set untouched", () => {
   const source = [
     "let c=require(`electron`);",
-    "function codexLinuxInstallProxyAuthHandler(e){return e}",
+    "function chatgptLinuxInstallProxyAuthHandler(e){return e}",
     "async function boot(){await c.app.whenReady()}",
     "class Fetcher{",
     "async performDesktopFetch(){let t={},r=`GET`,i=null,a=`https://example.test`,o={},s=false,m=()=>null;let n=this.cloneHeaders(t);let f=i==null?await c.net.fetch(a,{method:r,headers:n,body:m(),signal:o,credentials:s?`include`:`same-origin`}):await this.performProgressRequest({body:m(),headers:n,method:r,onUploadProgress:i,resolvedUrl:a,signal:o,useSessionCookies:s});return f}",
@@ -389,10 +389,10 @@ test("routes current authenticated proxy desktop fetch shape through ClientReque
   ].join("");
   const patched = applyPatchTwiceWithoutWarnings(applyAuthenticatedProxyPatch, source);
 
-  assert.match(patched, /i==null&&!codexLinuxProxyAuthEntry\(\)\?await c\.net\.fetch/);
+  assert.match(patched, /i==null&&!chatgptLinuxProxyAuthEntry\(\)\?await c\.net\.fetch/);
   assert.match(
     patched,
-    /codexLinuxAttachProxyAuthToRequest\(u\);let d=-1,f=\(\)=>\{if\(r==null\)return;/,
+    /chatgptLinuxAttachProxyAuthToRequest\(u\);let d=-1,f=\(\)=>\{if\(r==null\)return;/,
   );
 
   let fetchCalls = 0;
@@ -438,10 +438,10 @@ test("routes current authenticated proxy desktop fetch shape through ClientReque
     process: {
       platform: "linux",
       env: {
-        CODEX_LINUX_PROXY_AUTH_HOST: "proxy.example",
-        CODEX_LINUX_PROXY_AUTH_PORT: "8080",
-        CODEX_LINUX_PROXY_USERNAME: "user",
-        CODEX_LINUX_PROXY_PASSWORD: "p@ss",
+        CHATGPT_LINUX_PROXY_AUTH_HOST: "proxy.example",
+        CHATGPT_LINUX_PROXY_AUTH_PORT: "8080",
+        CHATGPT_LINUX_PROXY_USERNAME: "user",
+        CHATGPT_LINUX_PROXY_PASSWORD: "p@ss",
       },
     },
     require(name) {

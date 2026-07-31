@@ -69,7 +69,7 @@ pub fn start_audio_capture(bundle_dir: &Path) -> Result<AudioCaptureReport> {
             "disabled",
             None,
             None,
-            Some("audio capture disabled by CODEX_RECORD_REPLAY_AUDIO".to_string()),
+            Some("audio capture disabled by CHATGPT_RECORD_REPLAY_AUDIO".to_string()),
         );
         write_audio_metadata(bundle_dir, &report)?;
         return Ok(report);
@@ -269,7 +269,7 @@ fn known_recorders() -> Vec<KnownRecorder> {
 }
 
 fn audio_capture_enabled() -> bool {
-    match env::var("CODEX_RECORD_REPLAY_AUDIO") {
+    match env::var("CHATGPT_RECORD_REPLAY_AUDIO") {
         Ok(value) => matches!(
             value.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "on" | "yes" | "enabled"

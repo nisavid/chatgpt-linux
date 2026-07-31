@@ -27,15 +27,15 @@ const socketEnvHook = path.join(__dirname, "socket-env.sh");
 function withIntegrationConfig(config, callback) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "shared-app-server-socket-feature-"));
   const configPath = path.join(tempDir, "integrations.json");
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
 
   try {
     fs.writeFileSync(configPath, `${JSON.stringify(config)}\n`);
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     return callback(path.resolve(__dirname, ".."));
   } finally {
-    if (originalConfig == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
@@ -155,7 +155,7 @@ function loadInjectedTransport({ spawnImpl, WebSocketImpl = null, fsImpl = fs, t
     },
     clearTimeout,
   };
-  vm.runInNewContext(`${source};globalThis.Transport=CodexLinuxSharedAppServerSocketTransport`, context);
+  vm.runInNewContext(`${source};globalThis.Transport=ChatGPTLinuxSharedAppServerSocketTransport`, context);
   return { Transport: context.Transport, namespace };
 }
 
@@ -175,9 +175,9 @@ async function closeServer(server) {
 
 function syntheticBundle() {
   return [
-    "var Ky=class{options;kind=`websocket`;logger=r.i(`AppServerTransportSshWebsocket`);proxyStreams=new Set;supportsReconnect(){return!0}",
+    "var Ky=class{options;kind=`websocket`;logger=r.i(`AppServerTransportSshWebsocket`);proxyStreams=new Set;hasConnected=!1;supportsReconnect(){return!0}",
     "async connect(){let t={current:null},r=new n.zn(Fy,{perMessageDeflate:!1,createConnection:()=>",
-    "(t.current=this.createSshProxyStream(),t.current)});return n.Ln(r,{onPongTimeout:()=>r.terminate()}),new n.Rn(r)}};",
+    "(t.current=this.createSshProxyStream(),t.current)});return n.Ln(r,{onPongTimeout:()=>{r.terminate()}}),this.hasConnected=!0,new n.Rn(r)}};",
     "function n6(e){let t=Jy(e.hostConfig);if(t)return Z.info(`selected app-server transport`),new Ky(t);",
     "if(e.transportKind===`remote-control`)return new Remote(e);",
     "if(n.io(e.hostConfig))return new Wsl({hostConfig:e.hostConfig,repoRoot:e.repoRoot,resourcesPath:e.resourcesPath,defaultOriginator:e.defaultOriginator});",
@@ -187,12 +187,14 @@ function syntheticBundle() {
 }
 
 test("shared-app-server-socket is default-on but can be disabled", () => {
-  withIntegrationConfig({ disabled: ["shared-app-server-socket"] }, (integrationsRoot) => {
+  assert.equal(require("./integration.json").defaultEnabled, true);
+
+  withIntegrationConfig({ enabled: [], disabled: ["shared-app-server-socket"] }, (integrationsRoot) => {
     const loaded = loadPortIntegrationPatchDescriptors({ integrationsRoot })
       .filter((entry) => entry.id.startsWith("integration:shared-app-server-socket:"));
     assert.deepEqual(loaded, []);
   });
-  withIntegrationConfig({ enabled: ["shared-app-server-socket"] }, (integrationsRoot) => {
+  withIntegrationConfig({ enabled: ["shared-app-server-socket"], disabled: [] }, (integrationsRoot) => {
     const loaded = loadPortIntegrationPatchDescriptors({ integrationsRoot })
       .filter((entry) => entry.id.startsWith("integration:shared-app-server-socket:"));
     assert.deepEqual(
@@ -203,7 +205,7 @@ test("shared-app-server-socket is default-on but can be disabled", () => {
 });
 
 test("integration stages only its socket environment hook", () => {
-  withIntegrationConfig({ enabled: ["shared-app-server-socket"] }, (integrationsRoot) => {
+  withIntegrationConfig({ enabled: ["shared-app-server-socket"], disabled: [] }, (integrationsRoot) => {
     const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "shared-app-server-socket-app-"));
     try {
       const fullPlan = stageEnabledPortIntegrationInstall(appDir, { integrationsRoot });
@@ -223,7 +225,7 @@ test("patch selects the bridge only for the local host and is idempotent", () =>
   const patched = applySharedAppServerSocketPatch(source);
   assert.notEqual(patched, source);
   assert.equal(applySharedAppServerSocketPatch(patched), patched);
-  assert.match(patched, /CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET/);
+  assert.match(patched, /CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET/);
   assert.match(patched, /hostConfig\.kind===`local`/);
   assert.match(patched, /app-server`,\s*`proxy`,\s*`--sock`/);
   assert.match(patched, /app-server`,\s*`--listen`,\s*`unix:\/\//);
@@ -278,12 +280,12 @@ test("socket hook is inert until runtime opt-in", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "shared-app-server-socket-runtime-"));
   const baseEnv = {
     ...process.env,
-    CODEX_LINUX_APP_ID: "codex-app",
-    CODEX_LINUX_APP_STATE_DIR: path.join(tempDir, "state"),
+    CHATGPT_LINUX_APP_ID: "chatgpt",
+    CHATGPT_LINUX_APP_STATE_DIR: path.join(tempDir, "state"),
     XDG_RUNTIME_DIR: tempDir,
   };
-  delete baseEnv.CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET;
-  delete baseEnv.CODEX_PORT_SHARED_APP_SERVER_SOCKET_ENABLED;
+  delete baseEnv.CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET;
+  delete baseEnv.CHATGPT_PORT_SHARED_APP_SERVER_SOCKET_ENABLED;
   try {
     const inactive = spawnSync(socketEnvHook, [], { encoding: "utf8", env: baseEnv });
     assert.equal(inactive.status, 0, inactive.stderr);
@@ -291,21 +293,21 @@ test("socket hook is inert until runtime opt-in", () => {
 
     const active = spawnSync(socketEnvHook, [], {
       encoding: "utf8",
-      env: { ...baseEnv, CODEX_PORT_SHARED_APP_SERVER_SOCKET_ENABLED: "1" },
+      env: { ...baseEnv, CHATGPT_PORT_SHARED_APP_SERVER_SOCKET_ENABLED: "1" },
     });
     assert.equal(active.status, 0, active.stderr);
     assert.equal(
       active.stdout.trim(),
-      `env CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET=${tempDir}/codex-app/app-server-bridge/app-server.sock`,
+      `env CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET=${tempDir}/chatgpt/app-server-bridge/app-server.sock`,
     );
 
     const explicitSocket = path.join(tempDir, "explicit.sock");
     const explicit = spawnSync(socketEnvHook, [], {
       encoding: "utf8",
-      env: { ...baseEnv, CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET: explicitSocket },
+      env: { ...baseEnv, CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET: explicitSocket },
     });
     assert.equal(explicit.status, 0, explicit.stderr);
-    assert.equal(explicit.stdout.trim(), `env CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET=${explicitSocket}`);
+    assert.equal(explicit.stdout.trim(), `env CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET=${explicitSocket}`);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -8,7 +8,7 @@ and the Codex subsystem that remains inside that product.
 **ChatGPT**:
 The product name for the current OpenAI desktop application and this project's
 generated Linux application.
-_Avoid_: Codex App, ChatGPT Desktop
+_Avoid_: Codex, Codex App, ChatGPT Desktop
 
 **ChatGPT for Linux**:
 The prose name for this unofficial hardening and finishing fork.
@@ -40,6 +40,6 @@ interface whose name remains part of ChatGPT.
 _Avoid_: renaming these interfaces for visual consistency
 
 **Legacy local identity**:
-The shipped `codex-app` and `codex-app-updater` package and runtime names that
-migrate to canonical `chatgpt` names.
+The former `codex-app` and `codex-app-updater` package, runtime, and XDG
+names that migrate to canonical `chatgpt` and `chatgpt-updater` names.
 _Avoid_: applying this term to Linux-port upstream installations

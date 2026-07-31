@@ -9,44 +9,44 @@ function requireName(source, moduleName) {
   return match?.[1] ?? null;
 }
 
-const DEVICE_KEY_CLIENT_MARKER = "codexLinuxRemoteControlDeviceKeyClient";
+const DEVICE_KEY_CLIENT_MARKER = "chatgptLinuxRemoteControlDeviceKeyClient";
 const DEVICE_KEY_GUARD =
   "if(process.platform!==`darwin`)throw Error(`Remote control device keys are only available on macOS`);";
 const DEVICE_KEY_GUARD_REPLACEMENT =
-  "if(process.platform===`linux`)return codexLinuxRemoteControlDeviceKeyClient();if(process.platform!==`darwin`)throw Error(`Remote control device keys are only available on macOS`);";
+  "if(process.platform===`linux`)return chatgptLinuxRemoteControlDeviceKeyClient();if(process.platform!==`darwin`)throw Error(`Remote control device keys are only available on macOS`);";
 const DEVICE_KEY_REQUIRE_NEEDLE =
   /(?:var|let|const)\s+[A-Za-z_$][\w$]*=\(0,[A-Za-z_$][\w$]*\.createRequire\)\(__filename\),[A-Za-z_$][\w$]*=`remote-control-device-key\.node`/u;
 const REMOTE_CONTROL_SETTINGS_VISIBILITY_NEEDLE =
   /function ([A-Za-z_$][\w$]*)\(\{remoteControlConnectionsState:([A-Za-z_$][\w$]*),slingshotEnabled:([A-Za-z_$][\w$]*)\}\)\{return \3&&\(\2\?\.available\?\?!0\)(?:&&\2\?\.accessRequired!==!0)?\}/u;
-const REMOTE_CONTROL_SETTINGS_UX_MARKER = "codexLinuxRemoteControlSettingsTabs";
+const REMOTE_CONTROL_SETTINGS_UX_MARKER = "chatgptLinuxRemoteControlSettingsTabs";
 const REMOTE_CONTROL_SETTINGS_TABS_HELPER =
-  "function codexLinuxRemoteControlSettingsTabs(e){return e}";
-const REMOTE_CONTROL_SSH_INSTALL_ACTION_MARKER = "codexLinuxRemoteControlSshInstallActions";
-const REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER = "codexLinuxRemoteControlSshInstallRelease";
-const REMOTE_CONNECTIONS_REFRESH_MARKER = "codexLinuxRemoteConnectionsRefreshNow";
-const REMOTE_MOBILE_CHROME_BRIDGE_MARKER = "codexLinuxRemoteMobileBrowserBackends";
-const REMOTE_CONTROL_LOAD_GATE_MARKER = "codexLinuxRemoteControlLoadGateEnabled";
-const REMOTE_CONTROL_FEATURE_SYNC_MARKER = "codexLinuxRemoteControlIntegrationSyncEnabled";
+  "function chatgptLinuxRemoteControlSettingsTabs(e){return e}";
+const REMOTE_CONTROL_SSH_INSTALL_ACTION_MARKER = "chatgptLinuxRemoteControlSshInstallActions";
+const REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER = "chatgptLinuxRemoteControlSshInstallRelease";
+const REMOTE_CONNECTIONS_REFRESH_MARKER = "chatgptLinuxRemoteConnectionsRefreshNow";
+const REMOTE_MOBILE_CHROME_BRIDGE_MARKER = "chatgptLinuxRemoteMobileBrowserBackends";
+const REMOTE_CONTROL_LOAD_GATE_MARKER = "chatgptLinuxRemoteControlLoadGateEnabled";
+const REMOTE_CONTROL_FEATURE_SYNC_MARKER = "chatgptLinuxRemoteControlIntegrationSyncEnabled";
 const REMOTE_CONTROL_LOAD_GATE_NEEDLE =
   /function ([A-Za-z_$][\w$]*)\(\)\{return ([A-Za-z_$][\w$]*)\(`1042620455`\)\}/u;
-const REMOTE_MOBILE_THREAD_RUNTIME_MARKER = "codexLinuxRemoteMobileThreadRuntimeStatus";
-const REMOTE_MOBILE_UNKNOWN_TURN_MARKER = "codexLinuxRemoteMobileHydrateUnknownTurn";
-const REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER = "codexLinuxRemoteMobileNotificationQueue";
-const REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER = "codexLinuxRemoteMobileHydrationInFlight";
-const REMOTE_MOBILE_LATE_EVENT_HYDRATION_MARKER = "codexLinuxRemoteMobileHydrateLateEvent";
-const REMOTE_MOBILE_REASONING_SUMMARY_MARKER = "codexLinuxRemoteMobileReasoningSummaryNone";
-const REMOTE_MOBILE_COMPLETED_ITEM_MARKER = "codexLinuxCompletedItemExists=";
-const REMOTE_CONTROL_ENABLEMENT_BRIDGE_MARKER = "codexLinuxRemoteControlEnablementBridge";
-const REMOTE_CONTROL_ENABLE_FOR_HOST_PARAMS_MARKER = "codexLinuxRemoteControlEnableForHostParams";
-const REMOTE_CONTROL_AUTO_CONNECT_CLEANUP_MARKER = "codexLinuxRemoteControlAutoConnectCleanup";
-const REMOTE_CONTROL_SELF_AUTO_CONNECT_MARKER = "codexLinuxRemoteControlSelfAutoConnect";
-const REMOTE_MOBILE_ACTIVE_STATUS_MARKER = "codexLinuxRemoteMobileActiveStatus";
-const REMOTE_CONTROL_STATUS_READ_GUARD_MARKER = "codexLinuxRemoteControlShouldReadStatus";
-const REMOTE_CONTROL_STATUS_WAIT_MARKER = "codexLinuxRemoteControlStatusWaitMs";
-const REMOTE_CONTROL_REVOKE_SETUP_RESET_MARKER = "codexLinuxRemoteControlResetMobileSetupAfterRevoke";
-const REMOTE_CONTROL_VISIBILITY_MARKER = "codexLinuxRemoteControlVisibilityEnabled";
-const REMOTE_CONTROL_COPY_MARKER = "codexLinuxRemoteControlCopy";
-const REMOTE_MOBILE_APP_SERVER_REMOTE_CONTROL_MARKER = "codexLinuxRemoteMobileAppServerArgs";
+const REMOTE_MOBILE_THREAD_RUNTIME_MARKER = "chatgptLinuxRemoteMobileThreadRuntimeStatus";
+const REMOTE_MOBILE_UNKNOWN_TURN_MARKER = "chatgptLinuxRemoteMobileHydrateUnknownTurn";
+const REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER = "chatgptLinuxRemoteMobileNotificationQueue";
+const REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER = "chatgptLinuxRemoteMobileHydrationInFlight";
+const REMOTE_MOBILE_LATE_EVENT_HYDRATION_MARKER = "chatgptLinuxRemoteMobileHydrateLateEvent";
+const REMOTE_MOBILE_REASONING_SUMMARY_MARKER = "chatgptLinuxRemoteMobileReasoningSummaryNone";
+const REMOTE_MOBILE_COMPLETED_ITEM_MARKER = "chatgptLinuxCompletedItemExists=";
+const REMOTE_CONTROL_ENABLEMENT_BRIDGE_MARKER = "chatgptLinuxRemoteControlEnablementBridge";
+const REMOTE_CONTROL_ENABLE_FOR_HOST_PARAMS_MARKER = "chatgptLinuxRemoteControlEnableForHostParams";
+const REMOTE_CONTROL_AUTO_CONNECT_CLEANUP_MARKER = "chatgptLinuxRemoteControlAutoConnectCleanup";
+const REMOTE_CONTROL_SELF_AUTO_CONNECT_MARKER = "chatgptLinuxRemoteControlSelfAutoConnect";
+const REMOTE_MOBILE_ACTIVE_STATUS_MARKER = "chatgptLinuxRemoteMobileActiveStatus";
+const REMOTE_CONTROL_STATUS_READ_GUARD_MARKER = "chatgptLinuxRemoteControlShouldReadStatus";
+const REMOTE_CONTROL_STATUS_WAIT_MARKER = "chatgptLinuxRemoteControlStatusWaitMs";
+const REMOTE_CONTROL_REVOKE_SETUP_RESET_MARKER = "chatgptLinuxRemoteControlResetMobileSetupAfterRevoke";
+const REMOTE_CONTROL_VISIBILITY_MARKER = "chatgptLinuxRemoteControlVisibilityEnabled";
+const REMOTE_CONTROL_COPY_MARKER = "chatgptLinuxRemoteControlCopy";
+const REMOTE_MOBILE_APP_SERVER_REMOTE_CONTROL_MARKER = "chatgptLinuxRemoteMobileAppServerArgs";
 const REMOTE_MOBILE_APP_SERVER_ARGS_NEEDLE =
   "[`-c`,`features.code_mode_host=true`,`app-server`,`--analytics-default-enabled`]";
 const REMOTE_CONTROL_APP_INITIAL_ASSET_PATTERN = /^app-initial-[^.]+\.js$/u;
@@ -89,72 +89,72 @@ function replaceOnce(source, needle, replacement) {
 
 function linuxDeviceKeyProviderSource({ childProcessVar, cryptoVar, fsVar, pathVar }) {
   return [
-    "const codexLinuxRemoteControlKeyStoreVersion=2,codexLinuxRemoteControlKeyStoreMaxBytes=1048576,codexLinuxRemoteControlKeyStoreMaxKeys=64;",
-    "function codexLinuxRemoteControlAssertOwnedRegularStat(e){if(!e.isFile())throw Error(`Linux remote control key state must be a regular file`);if(typeof process.getuid==`function`&&e.uid!==process.getuid())throw Error(`Linux remote control key state is owned by another user`);if((e.mode&511)!==384)throw Error(`Linux remote control key state permissions must be 0600`);return e}",
-    "function codexLinuxRemoteControlAssertOwnedRegularFile(e,t){let n=t.lstatSync(e);if(n.isSymbolicLink())throw Error(`Linux remote control key state must be a regular file`);return codexLinuxRemoteControlAssertOwnedRegularStat(n)}",
-    "function codexLinuxRemoteControlDeviceKeyStorePath(){",
-    `let codexLinuxRemoteControlConfigRoot=process.env.XDG_CONFIG_HOME&&process.env.XDG_CONFIG_HOME.trim()?process.env.XDG_CONFIG_HOME.trim():process.env.HOME?${pathVar}.join(process.env.HOME,\`.config\`):null;`,
-    "if(codexLinuxRemoteControlConfigRoot==null)throw Error(`Linux remote control device keys require HOME or XDG_CONFIG_HOME`);",
-    `if(!${pathVar}.isAbsolute(codexLinuxRemoteControlConfigRoot))throw Error(\`Linux remote control device key config root must be absolute\`);`,
-    `let codexLinuxRemoteControlSharedConfigDirectory=${pathVar}.join(codexLinuxRemoteControlConfigRoot,\`codex-app\`);${fsVar}.mkdirSync(codexLinuxRemoteControlSharedConfigDirectory,{recursive:!0});`,
-    `let codexLinuxRemoteControlSharedConfigDirectoryStat=${fsVar}.lstatSync(codexLinuxRemoteControlSharedConfigDirectory);if(codexLinuxRemoteControlSharedConfigDirectoryStat.isSymbolicLink()||!codexLinuxRemoteControlSharedConfigDirectoryStat.isDirectory())throw Error(\`Linux remote control shared config path must be a regular directory\`);`,
-    "if(typeof process.getuid==`function`&&codexLinuxRemoteControlSharedConfigDirectoryStat.uid!==process.getuid())throw Error(`Linux remote control shared config directory is owned by another user`);",
-    `let codexLinuxRemoteControlKeyStoreDirectory=${pathVar}.join(codexLinuxRemoteControlSharedConfigDirectory,\`remote-control-device-keys\`);${fsVar}.mkdirSync(codexLinuxRemoteControlKeyStoreDirectory,{recursive:!0,mode:448});`,
-    `let codexLinuxRemoteControlKeyStoreDirectoryStat=${fsVar}.lstatSync(codexLinuxRemoteControlKeyStoreDirectory);if(codexLinuxRemoteControlKeyStoreDirectoryStat.isSymbolicLink()||!codexLinuxRemoteControlKeyStoreDirectoryStat.isDirectory())throw Error(\`Linux remote control device key directory must be a regular directory\`);`,
-    "if(typeof process.getuid==`function`&&codexLinuxRemoteControlKeyStoreDirectoryStat.uid!==process.getuid())throw Error(`Linux remote control device key directory is owned by another user`);",
-    "if((codexLinuxRemoteControlKeyStoreDirectoryStat.mode&511)!==448)throw Error(`Linux remote control device key directory permissions must be 0700`);",
-    `let codexLinuxRemoteControlKeyStorePath=${pathVar}.join(codexLinuxRemoteControlKeyStoreDirectory,\`remote-control-device-keys-v1.json\`),codexLinuxRemoteControlLegacyKeyStorePath=${pathVar}.join(codexLinuxRemoteControlSharedConfigDirectory,\`remote-control-device-keys-v1.json\`);`,
-    `if(!${fsVar}.existsSync(codexLinuxRemoteControlKeyStorePath)&&${fsVar}.existsSync(codexLinuxRemoteControlLegacyKeyStorePath)){let codexLinuxRemoteControlLegacyKeyStoreStat=codexLinuxRemoteControlAssertOwnedRegularFile(codexLinuxRemoteControlLegacyKeyStorePath,${fsVar});if(codexLinuxRemoteControlLegacyKeyStoreStat.size>codexLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);${fsVar}.renameSync(codexLinuxRemoteControlLegacyKeyStorePath,codexLinuxRemoteControlKeyStorePath)}`,
-    "return codexLinuxRemoteControlKeyStorePath",
+    "const chatgptLinuxRemoteControlKeyStoreVersion=2,chatgptLinuxRemoteControlKeyStoreMaxBytes=1048576,chatgptLinuxRemoteControlKeyStoreMaxKeys=64;",
+    "function chatgptLinuxRemoteControlAssertOwnedRegularStat(e){if(!e.isFile())throw Error(`Linux remote control key state must be a regular file`);if(typeof process.getuid==`function`&&e.uid!==process.getuid())throw Error(`Linux remote control key state is owned by another user`);if((e.mode&511)!==384)throw Error(`Linux remote control key state permissions must be 0600`);return e}",
+    "function chatgptLinuxRemoteControlAssertOwnedRegularFile(e,t){let n=t.lstatSync(e);if(n.isSymbolicLink())throw Error(`Linux remote control key state must be a regular file`);return chatgptLinuxRemoteControlAssertOwnedRegularStat(n)}",
+    "function chatgptLinuxRemoteControlDeviceKeyStorePath(){",
+    `let chatgptLinuxRemoteControlConfigRoot=process.env.XDG_CONFIG_HOME&&process.env.XDG_CONFIG_HOME.trim()?process.env.XDG_CONFIG_HOME.trim():process.env.HOME?${pathVar}.join(process.env.HOME,\`.config\`):null;`,
+    "if(chatgptLinuxRemoteControlConfigRoot==null)throw Error(`Linux remote control device keys require HOME or XDG_CONFIG_HOME`);",
+    `if(!${pathVar}.isAbsolute(chatgptLinuxRemoteControlConfigRoot))throw Error(\`Linux remote control device key config root must be absolute\`);`,
+    `let chatgptLinuxRemoteControlSharedConfigDirectory=${pathVar}.join(chatgptLinuxRemoteControlConfigRoot,\`chatgpt\`);${fsVar}.mkdirSync(chatgptLinuxRemoteControlSharedConfigDirectory,{recursive:!0});`,
+    `let chatgptLinuxRemoteControlSharedConfigDirectoryStat=${fsVar}.lstatSync(chatgptLinuxRemoteControlSharedConfigDirectory);if(chatgptLinuxRemoteControlSharedConfigDirectoryStat.isSymbolicLink()||!chatgptLinuxRemoteControlSharedConfigDirectoryStat.isDirectory())throw Error(\`Linux remote control shared config path must be a regular directory\`);`,
+    "if(typeof process.getuid==`function`&&chatgptLinuxRemoteControlSharedConfigDirectoryStat.uid!==process.getuid())throw Error(`Linux remote control shared config directory is owned by another user`);",
+    `let chatgptLinuxRemoteControlKeyStoreDirectory=${pathVar}.join(chatgptLinuxRemoteControlSharedConfigDirectory,\`remote-control-device-keys\`);${fsVar}.mkdirSync(chatgptLinuxRemoteControlKeyStoreDirectory,{recursive:!0,mode:448});`,
+    `let chatgptLinuxRemoteControlKeyStoreDirectoryStat=${fsVar}.lstatSync(chatgptLinuxRemoteControlKeyStoreDirectory);if(chatgptLinuxRemoteControlKeyStoreDirectoryStat.isSymbolicLink()||!chatgptLinuxRemoteControlKeyStoreDirectoryStat.isDirectory())throw Error(\`Linux remote control device key directory must be a regular directory\`);`,
+    "if(typeof process.getuid==`function`&&chatgptLinuxRemoteControlKeyStoreDirectoryStat.uid!==process.getuid())throw Error(`Linux remote control device key directory is owned by another user`);",
+    "if((chatgptLinuxRemoteControlKeyStoreDirectoryStat.mode&511)!==448)throw Error(`Linux remote control device key directory permissions must be 0700`);",
+    `let chatgptLinuxRemoteControlKeyStorePath=${pathVar}.join(chatgptLinuxRemoteControlKeyStoreDirectory,\`remote-control-device-keys-v1.json\`),chatgptLinuxRemoteControlLegacyKeyStorePath=${pathVar}.join(chatgptLinuxRemoteControlSharedConfigDirectory,\`remote-control-device-keys-v1.json\`);`,
+    `if(!${fsVar}.existsSync(chatgptLinuxRemoteControlKeyStorePath)&&${fsVar}.existsSync(chatgptLinuxRemoteControlLegacyKeyStorePath)){let chatgptLinuxRemoteControlLegacyKeyStoreStat=chatgptLinuxRemoteControlAssertOwnedRegularFile(chatgptLinuxRemoteControlLegacyKeyStorePath,${fsVar});if(chatgptLinuxRemoteControlLegacyKeyStoreStat.size>chatgptLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);${fsVar}.renameSync(chatgptLinuxRemoteControlLegacyKeyStorePath,chatgptLinuxRemoteControlKeyStorePath)}`,
+    "return chatgptLinuxRemoteControlKeyStorePath",
     "}",
-    "function codexLinuxRemoteControlValidateDeviceKeyRecord(e,t){if(e==null||typeof e!=`object`||Array.isArray(e))throw Error(`Linux remote control device key record is invalid`);let n=[[e.keyId,128],[e.publicKeySpkiDerBase64,8192],[e.createdAt,64]],r=typeof e.privateKeyPkcs8Pem==`string`&&e.privateKeyPkcs8Pem.length>0&&e.privateKeyPkcs8Pem.length<=16384,i=typeof e.privateKeyCiphertextBase64==`string`&&e.privateKeyCiphertextBase64.length>0&&e.privateKeyCiphertextBase64.length<=32768,a=e.storageBackend==null||typeof e.storageBackend==`string`&&e.storageBackend.length>0&&e.storageBackend.length<=64,o=e.detectedBackend==null||typeof e.detectedBackend==`string`&&e.detectedBackend.length>0&&e.detectedBackend.length<=64;if(n.some(([e,t])=>typeof e!=`string`||e.length===0||e.length>t)||(!r&&!i)||r&&i||!a||!o||e.keyId!==t||e.algorithm!==`ecdsa_p256_sha256`||e.protectionClass!==`os_protected_nonextractable`||!Number.isFinite(Date.parse(e.createdAt)))throw Error(`Linux remote control device key record is invalid`)}",
-    "function codexLinuxRemoteControlValidateDeviceKeyStore(e){if(e==null||typeof e!=`object`||Array.isArray(e)||e.version!==codexLinuxRemoteControlKeyStoreVersion||e.keys==null||typeof e.keys!=`object`||Array.isArray(e.keys))throw Error(`Linux remote control device key store schema is invalid`);let t=Object.entries(e.keys);if(t.length>codexLinuxRemoteControlKeyStoreMaxKeys)throw Error(`Linux remote control device key store exceeds key limit`);for(let[n,r]of t)codexLinuxRemoteControlValidateDeviceKeyRecord(r,n);return e}",
-    "function codexLinuxRemoteControlPublicDeviceKey(codexLinuxRemoteControlKeyRecord){",
-    "return{algorithm:codexLinuxRemoteControlKeyRecord.algorithm,keyId:codexLinuxRemoteControlKeyRecord.keyId,protectionClass:codexLinuxRemoteControlKeyRecord.protectionClass,publicKeySpkiDerBase64:codexLinuxRemoteControlKeyRecord.publicKeySpkiDerBase64}",
+    "function chatgptLinuxRemoteControlValidateDeviceKeyRecord(e,t){if(e==null||typeof e!=`object`||Array.isArray(e))throw Error(`Linux remote control device key record is invalid`);let n=[[e.keyId,128],[e.publicKeySpkiDerBase64,8192],[e.createdAt,64]],r=typeof e.privateKeyPkcs8Pem==`string`&&e.privateKeyPkcs8Pem.length>0&&e.privateKeyPkcs8Pem.length<=16384,i=typeof e.privateKeyCiphertextBase64==`string`&&e.privateKeyCiphertextBase64.length>0&&e.privateKeyCiphertextBase64.length<=32768,a=e.storageBackend==null||typeof e.storageBackend==`string`&&e.storageBackend.length>0&&e.storageBackend.length<=64,o=e.detectedBackend==null||typeof e.detectedBackend==`string`&&e.detectedBackend.length>0&&e.detectedBackend.length<=64;if(n.some(([e,t])=>typeof e!=`string`||e.length===0||e.length>t)||(!r&&!i)||r&&i||!a||!o||e.keyId!==t||e.algorithm!==`ecdsa_p256_sha256`||e.protectionClass!==`os_protected_nonextractable`||!Number.isFinite(Date.parse(e.createdAt)))throw Error(`Linux remote control device key record is invalid`)}",
+    "function chatgptLinuxRemoteControlValidateDeviceKeyStore(e){if(e==null||typeof e!=`object`||Array.isArray(e)||e.version!==chatgptLinuxRemoteControlKeyStoreVersion||e.keys==null||typeof e.keys!=`object`||Array.isArray(e.keys))throw Error(`Linux remote control device key store schema is invalid`);let t=Object.entries(e.keys);if(t.length>chatgptLinuxRemoteControlKeyStoreMaxKeys)throw Error(`Linux remote control device key store exceeds key limit`);for(let[n,r]of t)chatgptLinuxRemoteControlValidateDeviceKeyRecord(r,n);return e}",
+    "function chatgptLinuxRemoteControlPublicDeviceKey(chatgptLinuxRemoteControlKeyRecord){",
+    "return{algorithm:chatgptLinuxRemoteControlKeyRecord.algorithm,keyId:chatgptLinuxRemoteControlKeyRecord.keyId,protectionClass:chatgptLinuxRemoteControlKeyRecord.protectionClass,publicKeySpkiDerBase64:chatgptLinuxRemoteControlKeyRecord.publicKeySpkiDerBase64}",
     "}",
-    "function codexLinuxRemoteControlStorage(){",
-    "let codexLinuxRemoteControlSafeStorage=null,codexLinuxRemoteControlDetectedBackend=`unavailable`;",
-    "try{let codexLinuxRemoteControlElectron=require(`electron`),codexLinuxRemoteControlCandidate=codexLinuxRemoteControlElectron?.safeStorage;if(codexLinuxRemoteControlCandidate!=null){codexLinuxRemoteControlDetectedBackend=typeof codexLinuxRemoteControlCandidate.getSelectedStorageBackend===`function`?codexLinuxRemoteControlCandidate.getSelectedStorageBackend():`unknown`;if(codexLinuxRemoteControlDetectedBackend!==`unknown`&&codexLinuxRemoteControlDetectedBackend!==`basic_text`&&(typeof codexLinuxRemoteControlCandidate.isEncryptionAvailable!==`function`||codexLinuxRemoteControlCandidate.isEncryptionAvailable()))codexLinuxRemoteControlSafeStorage=codexLinuxRemoteControlCandidate}}catch{}",
-    "return{safeStorage:codexLinuxRemoteControlSafeStorage,detectedBackend:codexLinuxRemoteControlDetectedBackend}",
+    "function chatgptLinuxRemoteControlStorage(){",
+    "let chatgptLinuxRemoteControlSafeStorage=null,chatgptLinuxRemoteControlDetectedBackend=`unavailable`;",
+    "try{let chatgptLinuxRemoteControlElectron=require(`electron`),chatgptLinuxRemoteControlCandidate=chatgptLinuxRemoteControlElectron?.safeStorage;if(chatgptLinuxRemoteControlCandidate!=null){chatgptLinuxRemoteControlDetectedBackend=typeof chatgptLinuxRemoteControlCandidate.getSelectedStorageBackend===`function`?chatgptLinuxRemoteControlCandidate.getSelectedStorageBackend():`unknown`;if(chatgptLinuxRemoteControlDetectedBackend!==`unknown`&&chatgptLinuxRemoteControlDetectedBackend!==`basic_text`&&(typeof chatgptLinuxRemoteControlCandidate.isEncryptionAvailable!==`function`||chatgptLinuxRemoteControlCandidate.isEncryptionAvailable()))chatgptLinuxRemoteControlSafeStorage=chatgptLinuxRemoteControlCandidate}}catch{}",
+    "return{safeStorage:chatgptLinuxRemoteControlSafeStorage,detectedBackend:chatgptLinuxRemoteControlDetectedBackend}",
     "}",
-    "function codexLinuxRemoteControlStorageFields(codexLinuxRemoteControlPrivateKeyPem){",
-    "let codexLinuxRemoteControlStorageState=codexLinuxRemoteControlStorage();",
-    "if(codexLinuxRemoteControlStorageState.safeStorage==null){console.warn(`WARN: Linux remote control keychain unavailable; storing device key with file permissions 0600 (detected backend: ${codexLinuxRemoteControlStorageState.detectedBackend})`);return{privateKeyPkcs8Pem:codexLinuxRemoteControlPrivateKeyPem,storageBackend:`file_0600`,detectedBackend:codexLinuxRemoteControlStorageState.detectedBackend}}",
-    "return{privateKeyCiphertextBase64:codexLinuxRemoteControlStorageState.safeStorage.encryptString(codexLinuxRemoteControlPrivateKeyPem).toString(`base64`),storageBackend:codexLinuxRemoteControlStorageState.detectedBackend,detectedBackend:codexLinuxRemoteControlStorageState.detectedBackend}",
+    "function chatgptLinuxRemoteControlStorageFields(chatgptLinuxRemoteControlPrivateKeyPem){",
+    "let chatgptLinuxRemoteControlStorageState=chatgptLinuxRemoteControlStorage();",
+    "if(chatgptLinuxRemoteControlStorageState.safeStorage==null){console.warn(`WARN: Linux remote control keychain unavailable; storing device key with file permissions 0600 (detected backend: ${chatgptLinuxRemoteControlStorageState.detectedBackend})`);return{privateKeyPkcs8Pem:chatgptLinuxRemoteControlPrivateKeyPem,storageBackend:`file_0600`,detectedBackend:chatgptLinuxRemoteControlStorageState.detectedBackend}}",
+    "return{privateKeyCiphertextBase64:chatgptLinuxRemoteControlStorageState.safeStorage.encryptString(chatgptLinuxRemoteControlPrivateKeyPem).toString(`base64`),storageBackend:chatgptLinuxRemoteControlStorageState.detectedBackend,detectedBackend:chatgptLinuxRemoteControlStorageState.detectedBackend}",
     "}",
-    "function codexLinuxRemoteControlPrivateKeyPem(codexLinuxRemoteControlKeyRecord){",
-    "if(typeof codexLinuxRemoteControlKeyRecord.privateKeyPkcs8Pem===`string`)return codexLinuxRemoteControlKeyRecord.privateKeyPkcs8Pem;",
-    "if(typeof codexLinuxRemoteControlKeyRecord.privateKeyCiphertextBase64!==`string`)throw Error(`Linux remote control device key has no private key material`);",
-    "let codexLinuxRemoteControlStorageState=codexLinuxRemoteControlStorage();if(codexLinuxRemoteControlStorageState.safeStorage==null)throw Error(`Linux remote control device keychain is unavailable`);",
-    "try{return codexLinuxRemoteControlStorageState.safeStorage.decryptString(Buffer.from(codexLinuxRemoteControlKeyRecord.privateKeyCiphertextBase64,`base64`))}catch(codexLinuxRemoteControlDecryptError){throw Error(`Failed to decrypt Linux remote control device key`)}",
+    "function chatgptLinuxRemoteControlPrivateKeyPem(chatgptLinuxRemoteControlKeyRecord){",
+    "if(typeof chatgptLinuxRemoteControlKeyRecord.privateKeyPkcs8Pem===`string`)return chatgptLinuxRemoteControlKeyRecord.privateKeyPkcs8Pem;",
+    "if(typeof chatgptLinuxRemoteControlKeyRecord.privateKeyCiphertextBase64!==`string`)throw Error(`Linux remote control device key has no private key material`);",
+    "let chatgptLinuxRemoteControlStorageState=chatgptLinuxRemoteControlStorage();if(chatgptLinuxRemoteControlStorageState.safeStorage==null)throw Error(`Linux remote control device keychain is unavailable`);",
+    "try{return chatgptLinuxRemoteControlStorageState.safeStorage.decryptString(Buffer.from(chatgptLinuxRemoteControlKeyRecord.privateKeyCiphertextBase64,`base64`))}catch(chatgptLinuxRemoteControlDecryptError){throw Error(`Failed to decrypt Linux remote control device key`)}",
     "}",
-    "function codexLinuxReadRemoteControlDeviceKeyStore(){",
-    "let codexLinuxRemoteControlKeyStorePath=codexLinuxRemoteControlDeviceKeyStorePath();",
-    `if(!${fsVar}.existsSync(codexLinuxRemoteControlKeyStorePath))return{version:codexLinuxRemoteControlKeyStoreVersion,keys:{}};`,
-    `let codexLinuxRemoteControlKeyStoreStat=codexLinuxRemoteControlAssertOwnedRegularFile(codexLinuxRemoteControlKeyStorePath,${fsVar});if(codexLinuxRemoteControlKeyStoreStat.size>codexLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);`,
-    `let codexLinuxRemoteControlKeyStoreFd=${fsVar}.openSync(codexLinuxRemoteControlKeyStorePath,${fsVar}.constants.O_RDONLY|${fsVar}.constants.O_NOFOLLOW),codexLinuxRemoteControlKeyStoreText;try{codexLinuxRemoteControlKeyStoreStat=codexLinuxRemoteControlAssertOwnedRegularStat(${fsVar}.fstatSync(codexLinuxRemoteControlKeyStoreFd));if(codexLinuxRemoteControlKeyStoreStat.size>codexLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);let codexLinuxRemoteControlKeyStoreBuffer=Buffer.alloc(codexLinuxRemoteControlKeyStoreStat.size),codexLinuxRemoteControlKeyStoreOffset=0,codexLinuxRemoteControlKeyStoreBytesRead;while(codexLinuxRemoteControlKeyStoreOffset<codexLinuxRemoteControlKeyStoreBuffer.length&&(codexLinuxRemoteControlKeyStoreBytesRead=${fsVar}.readSync(codexLinuxRemoteControlKeyStoreFd,codexLinuxRemoteControlKeyStoreBuffer,codexLinuxRemoteControlKeyStoreOffset,codexLinuxRemoteControlKeyStoreBuffer.length-codexLinuxRemoteControlKeyStoreOffset,codexLinuxRemoteControlKeyStoreOffset))>0)codexLinuxRemoteControlKeyStoreOffset+=codexLinuxRemoteControlKeyStoreBytesRead;codexLinuxRemoteControlKeyStoreText=codexLinuxRemoteControlKeyStoreBuffer.subarray(0,codexLinuxRemoteControlKeyStoreOffset).toString(\`utf8\`)}finally{${fsVar}.closeSync(codexLinuxRemoteControlKeyStoreFd)}`,
-    "let codexLinuxRemoteControlKeyStore;try{codexLinuxRemoteControlKeyStore=JSON.parse(codexLinuxRemoteControlKeyStoreText)}catch{throw Error(`Linux remote control device key store contains invalid JSON`)}",
-    "if(codexLinuxRemoteControlKeyStore&&(codexLinuxRemoteControlKeyStore.version==null||codexLinuxRemoteControlKeyStore.version===1))codexLinuxRemoteControlKeyStore={version:codexLinuxRemoteControlKeyStoreVersion,keys:codexLinuxRemoteControlKeyStore.keys};return codexLinuxRemoteControlValidateDeviceKeyStore(codexLinuxRemoteControlKeyStore)",
+    "function chatgptLinuxReadRemoteControlDeviceKeyStore(){",
+    "let chatgptLinuxRemoteControlKeyStorePath=chatgptLinuxRemoteControlDeviceKeyStorePath();",
+    `if(!${fsVar}.existsSync(chatgptLinuxRemoteControlKeyStorePath))return{version:chatgptLinuxRemoteControlKeyStoreVersion,keys:{}};`,
+    `let chatgptLinuxRemoteControlKeyStoreStat=chatgptLinuxRemoteControlAssertOwnedRegularFile(chatgptLinuxRemoteControlKeyStorePath,${fsVar});if(chatgptLinuxRemoteControlKeyStoreStat.size>chatgptLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);`,
+    `let chatgptLinuxRemoteControlKeyStoreFd=${fsVar}.openSync(chatgptLinuxRemoteControlKeyStorePath,${fsVar}.constants.O_RDONLY|${fsVar}.constants.O_NOFOLLOW),chatgptLinuxRemoteControlKeyStoreText;try{chatgptLinuxRemoteControlKeyStoreStat=chatgptLinuxRemoteControlAssertOwnedRegularStat(${fsVar}.fstatSync(chatgptLinuxRemoteControlKeyStoreFd));if(chatgptLinuxRemoteControlKeyStoreStat.size>chatgptLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);let chatgptLinuxRemoteControlKeyStoreBuffer=Buffer.alloc(chatgptLinuxRemoteControlKeyStoreStat.size),chatgptLinuxRemoteControlKeyStoreOffset=0,chatgptLinuxRemoteControlKeyStoreBytesRead;while(chatgptLinuxRemoteControlKeyStoreOffset<chatgptLinuxRemoteControlKeyStoreBuffer.length&&(chatgptLinuxRemoteControlKeyStoreBytesRead=${fsVar}.readSync(chatgptLinuxRemoteControlKeyStoreFd,chatgptLinuxRemoteControlKeyStoreBuffer,chatgptLinuxRemoteControlKeyStoreOffset,chatgptLinuxRemoteControlKeyStoreBuffer.length-chatgptLinuxRemoteControlKeyStoreOffset,chatgptLinuxRemoteControlKeyStoreOffset))>0)chatgptLinuxRemoteControlKeyStoreOffset+=chatgptLinuxRemoteControlKeyStoreBytesRead;chatgptLinuxRemoteControlKeyStoreText=chatgptLinuxRemoteControlKeyStoreBuffer.subarray(0,chatgptLinuxRemoteControlKeyStoreOffset).toString(\`utf8\`)}finally{${fsVar}.closeSync(chatgptLinuxRemoteControlKeyStoreFd)}`,
+    "let chatgptLinuxRemoteControlKeyStore;try{chatgptLinuxRemoteControlKeyStore=JSON.parse(chatgptLinuxRemoteControlKeyStoreText)}catch{throw Error(`Linux remote control device key store contains invalid JSON`)}",
+    "if(chatgptLinuxRemoteControlKeyStore&&(chatgptLinuxRemoteControlKeyStore.version==null||chatgptLinuxRemoteControlKeyStore.version===1))chatgptLinuxRemoteControlKeyStore={version:chatgptLinuxRemoteControlKeyStoreVersion,keys:chatgptLinuxRemoteControlKeyStore.keys};return chatgptLinuxRemoteControlValidateDeviceKeyStore(chatgptLinuxRemoteControlKeyStore)",
     "}",
-    "function codexLinuxRemoteControlMigrateDeviceKeyStore(e){let t=codexLinuxRemoteControlStorage();if(t.safeStorage==null)return null;let n={version:codexLinuxRemoteControlKeyStoreVersion,keys:{...e.keys}},r=!1;for(let [e,i] of Object.entries(n.keys))if(typeof i.privateKeyPkcs8Pem===`string`)try{let a=codexLinuxRemoteControlStorageFields(i.privateKeyPkcs8Pem);n.keys[e]={...i,...a};delete n.keys[e].privateKeyPkcs8Pem;r=!0}catch{console.warn(`WARN: Could not migrate Linux remote control device key to safeStorage; retaining legacy file-backed key`)}return r?n:null}",
-    `function codexLinuxRemoteControlOpenKeyStoreLock(){let e=codexLinuxRemoteControlDeviceKeyStorePath()+\`.lock\`,t,n=!1;try{try{t=${fsVar}.openSync(e,${fsVar}.constants.O_RDWR|${fsVar}.constants.O_CREAT|${fsVar}.constants.O_EXCL|${fsVar}.constants.O_NOFOLLOW,384),n=!0}catch(r){if(r?.code!==\`EEXIST\`)throw r;t=${fsVar}.openSync(e,${fsVar}.constants.O_RDWR|${fsVar}.constants.O_NOFOLLOW)}n&&${fsVar}.fchmodSync(t,384),codexLinuxRemoteControlAssertOwnedRegularStat(${fsVar}.fstatSync(t));return t}catch(r){try{t!=null&&${fsVar}.closeSync(t)}catch{}throw r}}`,
-    `function codexLinuxRemoteControlResolveExecutable(codexLinuxRemoteControlExecutableName){let codexLinuxRemoteControlSearchDirectories=[...(process.env.PATH??\`\`).split(${pathVar}.delimiter),\`/run/current-system/sw/bin\`,\`/nix/var/nix/profiles/default/bin\`,\`/usr/local/bin\`,\`/usr/bin\`,\`/bin\`],codexLinuxRemoteControlSeenDirectories=new Set;for(let codexLinuxRemoteControlDirectory of codexLinuxRemoteControlSearchDirectories){if(!codexLinuxRemoteControlDirectory||!${pathVar}.isAbsolute(codexLinuxRemoteControlDirectory)||codexLinuxRemoteControlSeenDirectories.has(codexLinuxRemoteControlDirectory))continue;codexLinuxRemoteControlSeenDirectories.add(codexLinuxRemoteControlDirectory);try{let codexLinuxRemoteControlExecutablePath=${fsVar}.realpathSync(${pathVar}.join(codexLinuxRemoteControlDirectory,codexLinuxRemoteControlExecutableName)),codexLinuxRemoteControlExecutableStat=${fsVar}.statSync(codexLinuxRemoteControlExecutablePath);if(!codexLinuxRemoteControlExecutableStat.isFile())continue;${fsVar}.accessSync(codexLinuxRemoteControlExecutablePath,${fsVar}.constants.X_OK);return codexLinuxRemoteControlExecutablePath}catch{}}return null}`,
-    `function codexLinuxWithRemoteControlKeyStoreLock(codexLinuxRemoteControlLockedOperation){let codexLinuxRemoteControlLockFd=codexLinuxRemoteControlOpenKeyStoreLock(),codexLinuxRemoteControlFlockPath=codexLinuxRemoteControlResolveExecutable(\`flock\`),codexLinuxRemoteControlShellPath=codexLinuxRemoteControlResolveExecutable(\`sh\`);if(codexLinuxRemoteControlFlockPath==null||codexLinuxRemoteControlShellPath==null){${fsVar}.closeSync(codexLinuxRemoteControlLockFd);throw Error(\`Linux remote control device key store requires flock and sh\`)}return new Promise((codexLinuxRemoteControlResolve,codexLinuxRemoteControlReject)=>{let codexLinuxRemoteControlLockProcess;try{codexLinuxRemoteControlLockProcess=${childProcessVar}.spawn(codexLinuxRemoteControlFlockPath,[\`-x\`,\`-w\`,\`5\`,\`/proc/self/fd/3\`,codexLinuxRemoteControlShellPath,\`-c\`,\`printf 'ready\\n'; cat >/dev/null\`],{stdio:[\`pipe\`,\`pipe\`,\`pipe\`,codexLinuxRemoteControlLockFd]})}finally{${fsVar}.closeSync(codexLinuxRemoteControlLockFd)}let codexLinuxRemoteControlStdout=\`\`,codexLinuxRemoteControlStderr=\`\`,codexLinuxRemoteControlResult,codexLinuxRemoteControlReady=!1,codexLinuxRemoteControlOperationDone=!1,codexLinuxRemoteControlProcessDone=!1,codexLinuxRemoteControlExitCode=null,codexLinuxRemoteControlFailure=null,codexLinuxRemoteControlTimer=setTimeout(()=>{codexLinuxRemoteControlReady||(codexLinuxRemoteControlFailure=Error(\`Timed out waiting for Linux remote control device key store lock\`),codexLinuxRemoteControlOperationDone=!0,codexLinuxRemoteControlLockProcess.kill())},5500),codexLinuxRemoteControlSettle=()=>{if(!codexLinuxRemoteControlOperationDone||!codexLinuxRemoteControlProcessDone)return;codexLinuxRemoteControlFailure?codexLinuxRemoteControlReject(codexLinuxRemoteControlFailure):codexLinuxRemoteControlExitCode===0?codexLinuxRemoteControlResolve(codexLinuxRemoteControlResult):codexLinuxRemoteControlReject(Error(\`Linux remote control device key store lock failed\`))};codexLinuxRemoteControlLockProcess.stderr.on(\`data\`,codexLinuxRemoteControlChunk=>{codexLinuxRemoteControlStderr=(codexLinuxRemoteControlStderr+String(codexLinuxRemoteControlChunk)).slice(-4096)}),codexLinuxRemoteControlLockProcess.on(\`error\`,codexLinuxRemoteControlError=>{clearTimeout(codexLinuxRemoteControlTimer),codexLinuxRemoteControlFailure=codexLinuxRemoteControlError,codexLinuxRemoteControlOperationDone=!0,codexLinuxRemoteControlProcessDone=!0,codexLinuxRemoteControlSettle()}),codexLinuxRemoteControlLockProcess.on(\`close\`,codexLinuxRemoteControlCode=>{clearTimeout(codexLinuxRemoteControlTimer),codexLinuxRemoteControlExitCode=codexLinuxRemoteControlCode,codexLinuxRemoteControlProcessDone=!0,codexLinuxRemoteControlReady||(codexLinuxRemoteControlFailure=Error(codexLinuxRemoteControlStderr.trim()||\`Timed out waiting for Linux remote control device key store lock\`),codexLinuxRemoteControlOperationDone=!0),codexLinuxRemoteControlSettle()}),codexLinuxRemoteControlLockProcess.stdout.on(\`data\`,codexLinuxRemoteControlChunk=>{if(codexLinuxRemoteControlReady)return;codexLinuxRemoteControlStdout+=String(codexLinuxRemoteControlChunk);if(!codexLinuxRemoteControlStdout.includes(\`ready\\n\`))return;codexLinuxRemoteControlReady=!0,clearTimeout(codexLinuxRemoteControlTimer),Promise.resolve().then(codexLinuxRemoteControlLockedOperation).then(codexLinuxRemoteControlValue=>{codexLinuxRemoteControlResult=codexLinuxRemoteControlValue,codexLinuxRemoteControlOperationDone=!0,codexLinuxRemoteControlLockProcess.stdin.end(),codexLinuxRemoteControlSettle()},codexLinuxRemoteControlError=>{codexLinuxRemoteControlFailure=codexLinuxRemoteControlError,codexLinuxRemoteControlOperationDone=!0,codexLinuxRemoteControlLockProcess.stdin.end(),codexLinuxRemoteControlSettle()})})})}`,
-    "function codexLinuxWriteRemoteControlDeviceKeyStore(codexLinuxRemoteControlKeyStore){",
-    `codexLinuxRemoteControlValidateDeviceKeyStore(codexLinuxRemoteControlKeyStore);let codexLinuxRemoteControlKeyStorePath=codexLinuxRemoteControlDeviceKeyStorePath(),codexLinuxRemoteControlKeyStoreDirectory=${pathVar}.dirname(codexLinuxRemoteControlKeyStorePath),codexLinuxRemoteControlTempPath=codexLinuxRemoteControlKeyStorePath+\`.tmp-\`+${cryptoVar}.randomUUID(),codexLinuxRemoteControlKeyStoreText=JSON.stringify(codexLinuxRemoteControlKeyStore,null,2)+\`\\n\`,codexLinuxRemoteControlTempFd=null,codexLinuxRemoteControlDirectoryFd=null,codexLinuxRemoteControlTempCreated=!1;if(Buffer.byteLength(codexLinuxRemoteControlKeyStoreText,\`utf8\`)>codexLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);`,
-    `try{codexLinuxRemoteControlTempFd=${fsVar}.openSync(codexLinuxRemoteControlTempPath,${fsVar}.constants.O_WRONLY|${fsVar}.constants.O_CREAT|${fsVar}.constants.O_EXCL|${fsVar}.constants.O_NOFOLLOW,384),codexLinuxRemoteControlTempCreated=!0,${fsVar}.writeFileSync(codexLinuxRemoteControlTempFd,codexLinuxRemoteControlKeyStoreText,\`utf8\`),${fsVar}.fsyncSync(codexLinuxRemoteControlTempFd),${fsVar}.closeSync(codexLinuxRemoteControlTempFd),codexLinuxRemoteControlTempFd=null;${fsVar}.existsSync(codexLinuxRemoteControlKeyStorePath)&&codexLinuxRemoteControlAssertOwnedRegularFile(codexLinuxRemoteControlKeyStorePath,${fsVar});${fsVar}.renameSync(codexLinuxRemoteControlTempPath,codexLinuxRemoteControlKeyStorePath),codexLinuxRemoteControlTempCreated=!1;try{codexLinuxRemoteControlDirectoryFd=${fsVar}.openSync(codexLinuxRemoteControlKeyStoreDirectory,${fsVar}.constants.O_RDONLY),${fsVar}.fsyncSync(codexLinuxRemoteControlDirectoryFd),${fsVar}.closeSync(codexLinuxRemoteControlDirectoryFd),codexLinuxRemoteControlDirectoryFd=null}catch(codexLinuxRemoteControlDirectorySyncError){try{codexLinuxRemoteControlDirectoryFd!=null&&${fsVar}.closeSync(codexLinuxRemoteControlDirectoryFd)}catch{}codexLinuxRemoteControlDirectoryFd=null;console.warn(\`WARN: Linux remote control device-key store rename committed but directory fsync failed; crash durability is not confirmed\`)}}catch(codexLinuxRemoteControlWriteError){try{codexLinuxRemoteControlTempFd!=null&&${fsVar}.closeSync(codexLinuxRemoteControlTempFd)}catch{}try{codexLinuxRemoteControlDirectoryFd!=null&&${fsVar}.closeSync(codexLinuxRemoteControlDirectoryFd)}catch{}try{codexLinuxRemoteControlTempCreated&&${fsVar}.rmSync(codexLinuxRemoteControlTempPath,{force:!0})}catch{}throw codexLinuxRemoteControlWriteError}`,
+    "function chatgptLinuxRemoteControlMigrateDeviceKeyStore(e){let t=chatgptLinuxRemoteControlStorage();if(t.safeStorage==null)return null;let n={version:chatgptLinuxRemoteControlKeyStoreVersion,keys:{...e.keys}},r=!1;for(let [e,i] of Object.entries(n.keys))if(typeof i.privateKeyPkcs8Pem===`string`)try{let a=chatgptLinuxRemoteControlStorageFields(i.privateKeyPkcs8Pem);n.keys[e]={...i,...a};delete n.keys[e].privateKeyPkcs8Pem;r=!0}catch{console.warn(`WARN: Could not migrate Linux remote control device key to safeStorage; retaining legacy file-backed key`)}return r?n:null}",
+    `function chatgptLinuxRemoteControlOpenKeyStoreLock(){let e=chatgptLinuxRemoteControlDeviceKeyStorePath()+\`.lock\`,t,n=!1;try{try{t=${fsVar}.openSync(e,${fsVar}.constants.O_RDWR|${fsVar}.constants.O_CREAT|${fsVar}.constants.O_EXCL|${fsVar}.constants.O_NOFOLLOW,384),n=!0}catch(r){if(r?.code!==\`EEXIST\`)throw r;t=${fsVar}.openSync(e,${fsVar}.constants.O_RDWR|${fsVar}.constants.O_NOFOLLOW)}n&&${fsVar}.fchmodSync(t,384),chatgptLinuxRemoteControlAssertOwnedRegularStat(${fsVar}.fstatSync(t));return t}catch(r){try{t!=null&&${fsVar}.closeSync(t)}catch{}throw r}}`,
+    `function chatgptLinuxRemoteControlResolveExecutable(chatgptLinuxRemoteControlExecutableName){let chatgptLinuxRemoteControlSearchDirectories=[...(process.env.PATH??\`\`).split(${pathVar}.delimiter),\`/run/current-system/sw/bin\`,\`/nix/var/nix/profiles/default/bin\`,\`/usr/local/bin\`,\`/usr/bin\`,\`/bin\`],chatgptLinuxRemoteControlSeenDirectories=new Set;for(let chatgptLinuxRemoteControlDirectory of chatgptLinuxRemoteControlSearchDirectories){if(!chatgptLinuxRemoteControlDirectory||!${pathVar}.isAbsolute(chatgptLinuxRemoteControlDirectory)||chatgptLinuxRemoteControlSeenDirectories.has(chatgptLinuxRemoteControlDirectory))continue;chatgptLinuxRemoteControlSeenDirectories.add(chatgptLinuxRemoteControlDirectory);try{let chatgptLinuxRemoteControlExecutablePath=${fsVar}.realpathSync(${pathVar}.join(chatgptLinuxRemoteControlDirectory,chatgptLinuxRemoteControlExecutableName)),chatgptLinuxRemoteControlExecutableStat=${fsVar}.statSync(chatgptLinuxRemoteControlExecutablePath);if(!chatgptLinuxRemoteControlExecutableStat.isFile())continue;${fsVar}.accessSync(chatgptLinuxRemoteControlExecutablePath,${fsVar}.constants.X_OK);return chatgptLinuxRemoteControlExecutablePath}catch{}}return null}`,
+    `function chatgptLinuxWithRemoteControlKeyStoreLock(chatgptLinuxRemoteControlLockedOperation){let chatgptLinuxRemoteControlLockFd=chatgptLinuxRemoteControlOpenKeyStoreLock(),chatgptLinuxRemoteControlFlockPath=chatgptLinuxRemoteControlResolveExecutable(\`flock\`),chatgptLinuxRemoteControlShellPath=chatgptLinuxRemoteControlResolveExecutable(\`sh\`);if(chatgptLinuxRemoteControlFlockPath==null||chatgptLinuxRemoteControlShellPath==null){${fsVar}.closeSync(chatgptLinuxRemoteControlLockFd);throw Error(\`Linux remote control device key store requires flock and sh\`)}return new Promise((chatgptLinuxRemoteControlResolve,chatgptLinuxRemoteControlReject)=>{let chatgptLinuxRemoteControlLockProcess;try{chatgptLinuxRemoteControlLockProcess=${childProcessVar}.spawn(chatgptLinuxRemoteControlFlockPath,[\`-x\`,\`-w\`,\`5\`,\`/proc/self/fd/3\`,chatgptLinuxRemoteControlShellPath,\`-c\`,\`printf 'ready\\n'; cat >/dev/null\`],{stdio:[\`pipe\`,\`pipe\`,\`pipe\`,chatgptLinuxRemoteControlLockFd]})}finally{${fsVar}.closeSync(chatgptLinuxRemoteControlLockFd)}let chatgptLinuxRemoteControlStdout=\`\`,chatgptLinuxRemoteControlStderr=\`\`,chatgptLinuxRemoteControlResult,chatgptLinuxRemoteControlReady=!1,chatgptLinuxRemoteControlOperationDone=!1,chatgptLinuxRemoteControlProcessDone=!1,chatgptLinuxRemoteControlExitCode=null,chatgptLinuxRemoteControlFailure=null,chatgptLinuxRemoteControlTimer=setTimeout(()=>{chatgptLinuxRemoteControlReady||(chatgptLinuxRemoteControlFailure=Error(\`Timed out waiting for Linux remote control device key store lock\`),chatgptLinuxRemoteControlOperationDone=!0,chatgptLinuxRemoteControlLockProcess.kill())},5500),chatgptLinuxRemoteControlSettle=()=>{if(!chatgptLinuxRemoteControlOperationDone||!chatgptLinuxRemoteControlProcessDone)return;chatgptLinuxRemoteControlFailure?chatgptLinuxRemoteControlReject(chatgptLinuxRemoteControlFailure):chatgptLinuxRemoteControlExitCode===0?chatgptLinuxRemoteControlResolve(chatgptLinuxRemoteControlResult):chatgptLinuxRemoteControlReject(Error(\`Linux remote control device key store lock failed\`))};chatgptLinuxRemoteControlLockProcess.stderr.on(\`data\`,chatgptLinuxRemoteControlChunk=>{chatgptLinuxRemoteControlStderr=(chatgptLinuxRemoteControlStderr+String(chatgptLinuxRemoteControlChunk)).slice(-4096)}),chatgptLinuxRemoteControlLockProcess.on(\`error\`,chatgptLinuxRemoteControlError=>{clearTimeout(chatgptLinuxRemoteControlTimer),chatgptLinuxRemoteControlFailure=chatgptLinuxRemoteControlError,chatgptLinuxRemoteControlOperationDone=!0,chatgptLinuxRemoteControlProcessDone=!0,chatgptLinuxRemoteControlSettle()}),chatgptLinuxRemoteControlLockProcess.on(\`close\`,chatgptLinuxRemoteControlCode=>{clearTimeout(chatgptLinuxRemoteControlTimer),chatgptLinuxRemoteControlExitCode=chatgptLinuxRemoteControlCode,chatgptLinuxRemoteControlProcessDone=!0,chatgptLinuxRemoteControlReady||(chatgptLinuxRemoteControlFailure=Error(chatgptLinuxRemoteControlStderr.trim()||\`Timed out waiting for Linux remote control device key store lock\`),chatgptLinuxRemoteControlOperationDone=!0),chatgptLinuxRemoteControlSettle()}),chatgptLinuxRemoteControlLockProcess.stdout.on(\`data\`,chatgptLinuxRemoteControlChunk=>{if(chatgptLinuxRemoteControlReady)return;chatgptLinuxRemoteControlStdout+=String(chatgptLinuxRemoteControlChunk);if(!chatgptLinuxRemoteControlStdout.includes(\`ready\\n\`))return;chatgptLinuxRemoteControlReady=!0,clearTimeout(chatgptLinuxRemoteControlTimer),Promise.resolve().then(chatgptLinuxRemoteControlLockedOperation).then(chatgptLinuxRemoteControlValue=>{chatgptLinuxRemoteControlResult=chatgptLinuxRemoteControlValue,chatgptLinuxRemoteControlOperationDone=!0,chatgptLinuxRemoteControlLockProcess.stdin.end(),chatgptLinuxRemoteControlSettle()},chatgptLinuxRemoteControlError=>{chatgptLinuxRemoteControlFailure=chatgptLinuxRemoteControlError,chatgptLinuxRemoteControlOperationDone=!0,chatgptLinuxRemoteControlLockProcess.stdin.end(),chatgptLinuxRemoteControlSettle()})})})}`,
+    "function chatgptLinuxWriteRemoteControlDeviceKeyStore(chatgptLinuxRemoteControlKeyStore){",
+    `chatgptLinuxRemoteControlValidateDeviceKeyStore(chatgptLinuxRemoteControlKeyStore);let chatgptLinuxRemoteControlKeyStorePath=chatgptLinuxRemoteControlDeviceKeyStorePath(),chatgptLinuxRemoteControlKeyStoreDirectory=${pathVar}.dirname(chatgptLinuxRemoteControlKeyStorePath),chatgptLinuxRemoteControlTempPath=chatgptLinuxRemoteControlKeyStorePath+\`.tmp-\`+${cryptoVar}.randomUUID(),chatgptLinuxRemoteControlKeyStoreText=JSON.stringify(chatgptLinuxRemoteControlKeyStore,null,2)+\`\\n\`,chatgptLinuxRemoteControlTempFd=null,chatgptLinuxRemoteControlDirectoryFd=null,chatgptLinuxRemoteControlTempCreated=!1;if(Buffer.byteLength(chatgptLinuxRemoteControlKeyStoreText,\`utf8\`)>chatgptLinuxRemoteControlKeyStoreMaxBytes)throw Error(\`Linux remote control device key store exceeds size limit\`);`,
+    `try{chatgptLinuxRemoteControlTempFd=${fsVar}.openSync(chatgptLinuxRemoteControlTempPath,${fsVar}.constants.O_WRONLY|${fsVar}.constants.O_CREAT|${fsVar}.constants.O_EXCL|${fsVar}.constants.O_NOFOLLOW,384),chatgptLinuxRemoteControlTempCreated=!0,${fsVar}.writeFileSync(chatgptLinuxRemoteControlTempFd,chatgptLinuxRemoteControlKeyStoreText,\`utf8\`),${fsVar}.fsyncSync(chatgptLinuxRemoteControlTempFd),${fsVar}.closeSync(chatgptLinuxRemoteControlTempFd),chatgptLinuxRemoteControlTempFd=null;${fsVar}.existsSync(chatgptLinuxRemoteControlKeyStorePath)&&chatgptLinuxRemoteControlAssertOwnedRegularFile(chatgptLinuxRemoteControlKeyStorePath,${fsVar});${fsVar}.renameSync(chatgptLinuxRemoteControlTempPath,chatgptLinuxRemoteControlKeyStorePath),chatgptLinuxRemoteControlTempCreated=!1;try{chatgptLinuxRemoteControlDirectoryFd=${fsVar}.openSync(chatgptLinuxRemoteControlKeyStoreDirectory,${fsVar}.constants.O_RDONLY),${fsVar}.fsyncSync(chatgptLinuxRemoteControlDirectoryFd),${fsVar}.closeSync(chatgptLinuxRemoteControlDirectoryFd),chatgptLinuxRemoteControlDirectoryFd=null}catch(chatgptLinuxRemoteControlDirectorySyncError){try{chatgptLinuxRemoteControlDirectoryFd!=null&&${fsVar}.closeSync(chatgptLinuxRemoteControlDirectoryFd)}catch{}chatgptLinuxRemoteControlDirectoryFd=null;console.warn(\`WARN: Linux remote control device-key store rename committed but directory fsync failed; crash durability is not confirmed\`)}}catch(chatgptLinuxRemoteControlWriteError){try{chatgptLinuxRemoteControlTempFd!=null&&${fsVar}.closeSync(chatgptLinuxRemoteControlTempFd)}catch{}try{chatgptLinuxRemoteControlDirectoryFd!=null&&${fsVar}.closeSync(chatgptLinuxRemoteControlDirectoryFd)}catch{}try{chatgptLinuxRemoteControlTempCreated&&${fsVar}.rmSync(chatgptLinuxRemoteControlTempPath,{force:!0})}catch{}throw chatgptLinuxRemoteControlWriteError}`,
     "}",
-    "function codexLinuxRemoteControlDeviceKeyClient(){return{",
-    "createDeviceKey:async codexLinuxRemoteControlProtectionClass=>{",
-    `let codexLinuxRemoteControlKeyPair=(0,${cryptoVar}.generateKeyPairSync)(\`ec\`,{namedCurve:\`P-256\`}),codexLinuxRemoteControlPublicKey=codexLinuxRemoteControlKeyPair.publicKey,codexLinuxRemoteControlSigningKey=codexLinuxRemoteControlKeyPair[\`private\`+\`Key\`];`,
-    `let codexLinuxRemoteControlKeyId=(0,${cryptoVar}.randomUUID)(),codexLinuxRemoteControlPublicKeySpkiDerBase64=codexLinuxRemoteControlPublicKey.export({type:\`spki\`,format:\`der\`}).toString(\`base64\`),codexLinuxRemoteControlSigningKeyPkcs8Pem=codexLinuxRemoteControlSigningKey.export({type:\`pkcs8\`,format:\`pem\`});`,
-    "let codexLinuxRemoteControlKeyRecord={algorithm:`ecdsa_p256_sha256`,keyId:codexLinuxRemoteControlKeyId,protectionClass:`os_protected_nonextractable`,publicKeySpkiDerBase64:codexLinuxRemoteControlPublicKeySpkiDerBase64,...codexLinuxRemoteControlStorageFields(codexLinuxRemoteControlSigningKeyPkcs8Pem),createdAt:new Date().toISOString()};",
-    "await codexLinuxWithRemoteControlKeyStoreLock(()=>{let e=codexLinuxReadRemoteControlDeviceKeyStore(),t=codexLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t.version=codexLinuxRemoteControlKeyStoreVersion,t.keys={...t.keys,[codexLinuxRemoteControlKeyId]:codexLinuxRemoteControlKeyRecord},codexLinuxWriteRemoteControlDeviceKeyStore(t)});",
-    "return codexLinuxRemoteControlPublicDeviceKey(codexLinuxRemoteControlKeyRecord)",
+    "function chatgptLinuxRemoteControlDeviceKeyClient(){return{",
+    "createDeviceKey:async chatgptLinuxRemoteControlProtectionClass=>{",
+    `let chatgptLinuxRemoteControlKeyPair=(0,${cryptoVar}.generateKeyPairSync)(\`ec\`,{namedCurve:\`P-256\`}),chatgptLinuxRemoteControlPublicKey=chatgptLinuxRemoteControlKeyPair.publicKey,chatgptLinuxRemoteControlSigningKey=chatgptLinuxRemoteControlKeyPair[\`private\`+\`Key\`];`,
+    `let chatgptLinuxRemoteControlKeyId=(0,${cryptoVar}.randomUUID)(),chatgptLinuxRemoteControlPublicKeySpkiDerBase64=chatgptLinuxRemoteControlPublicKey.export({type:\`spki\`,format:\`der\`}).toString(\`base64\`),chatgptLinuxRemoteControlSigningKeyPkcs8Pem=chatgptLinuxRemoteControlSigningKey.export({type:\`pkcs8\`,format:\`pem\`});`,
+    "let chatgptLinuxRemoteControlKeyRecord={algorithm:`ecdsa_p256_sha256`,keyId:chatgptLinuxRemoteControlKeyId,protectionClass:`os_protected_nonextractable`,publicKeySpkiDerBase64:chatgptLinuxRemoteControlPublicKeySpkiDerBase64,...chatgptLinuxRemoteControlStorageFields(chatgptLinuxRemoteControlSigningKeyPkcs8Pem),createdAt:new Date().toISOString()};",
+    "await chatgptLinuxWithRemoteControlKeyStoreLock(()=>{let e=chatgptLinuxReadRemoteControlDeviceKeyStore(),t=chatgptLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t.version=chatgptLinuxRemoteControlKeyStoreVersion,t.keys={...t.keys,[chatgptLinuxRemoteControlKeyId]:chatgptLinuxRemoteControlKeyRecord},chatgptLinuxWriteRemoteControlDeviceKeyStore(t)});",
+    "return chatgptLinuxRemoteControlPublicDeviceKey(chatgptLinuxRemoteControlKeyRecord)",
     "},",
-    "deleteDeviceKey:async codexLinuxRemoteControlKeyId=>codexLinuxWithRemoteControlKeyStoreLock(()=>{let e=codexLinuxReadRemoteControlDeviceKeyStore(),t=codexLinuxRemoteControlMigrateDeviceKeyStore(e)??e;delete t.keys[codexLinuxRemoteControlKeyId],codexLinuxWriteRemoteControlDeviceKeyStore(t)}),",
-    "getDeviceKeyPublic:async codexLinuxRemoteControlKeyId=>codexLinuxWithRemoteControlKeyStoreLock(()=>{let e=codexLinuxReadRemoteControlDeviceKeyStore(),t=codexLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t!==e&&codexLinuxWriteRemoteControlDeviceKeyStore(t);let n=t.keys?.[codexLinuxRemoteControlKeyId];if(n==null)throw Error(`Linux remote control device key not found`);return codexLinuxRemoteControlPublicDeviceKey(n)}),",
-    `signDeviceKey:async(codexLinuxRemoteControlKeyId,codexLinuxRemoteControlPayload)=>codexLinuxWithRemoteControlKeyStoreLock(()=>{let e=codexLinuxReadRemoteControlDeviceKeyStore(),t=codexLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t!==e&&codexLinuxWriteRemoteControlDeviceKeyStore(t);let n=t.keys?.[codexLinuxRemoteControlKeyId];if(n==null)throw Error(\`Linux remote control device key not found\`);let r=(0,${cryptoVar}.createPrivateKey)(codexLinuxRemoteControlPrivateKeyPem(n)),i=(0,${cryptoVar}.sign)(\`sha256\`,codexLinuxRemoteControlPayload,r).toString(\`base64\`);return{algorithm:n.algorithm,signatureDerBase64:i}})`,
+    "deleteDeviceKey:async chatgptLinuxRemoteControlKeyId=>chatgptLinuxWithRemoteControlKeyStoreLock(()=>{let e=chatgptLinuxReadRemoteControlDeviceKeyStore(),t=chatgptLinuxRemoteControlMigrateDeviceKeyStore(e)??e;delete t.keys[chatgptLinuxRemoteControlKeyId],chatgptLinuxWriteRemoteControlDeviceKeyStore(t)}),",
+    "getDeviceKeyPublic:async chatgptLinuxRemoteControlKeyId=>chatgptLinuxWithRemoteControlKeyStoreLock(()=>{let e=chatgptLinuxReadRemoteControlDeviceKeyStore(),t=chatgptLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t!==e&&chatgptLinuxWriteRemoteControlDeviceKeyStore(t);let n=t.keys?.[chatgptLinuxRemoteControlKeyId];if(n==null)throw Error(`Linux remote control device key not found`);return chatgptLinuxRemoteControlPublicDeviceKey(n)}),",
+    `signDeviceKey:async(chatgptLinuxRemoteControlKeyId,chatgptLinuxRemoteControlPayload)=>chatgptLinuxWithRemoteControlKeyStoreLock(()=>{let e=chatgptLinuxReadRemoteControlDeviceKeyStore(),t=chatgptLinuxRemoteControlMigrateDeviceKeyStore(e)??e;t!==e&&chatgptLinuxWriteRemoteControlDeviceKeyStore(t);let n=t.keys?.[chatgptLinuxRemoteControlKeyId];if(n==null)throw Error(\`Linux remote control device key not found\`);let r=(0,${cryptoVar}.createPrivateKey)(chatgptLinuxRemoteControlPrivateKeyPem(n)),i=(0,${cryptoVar}.sign)(\`sha256\`,chatgptLinuxRemoteControlPayload,r).toString(\`base64\`);return{algorithm:n.algorithm,signatureDerBase64:i}})`,
     "}}",
   ].join("");
 }
@@ -218,10 +218,10 @@ function applyLinuxRemoteMobileAppServerRemoteControlPatch(source) {
   }
 
   const helper =
-    "function codexLinuxRemoteMobileAppServerArgs(){return process.platform===`linux`?[`-c`,`features.code_mode_host=true`,`app-server`,`--remote-control`,`--analytics-default-enabled`]:[`-c`,`features.code_mode_host=true`,`app-server`,`--analytics-default-enabled`]}";
+    "function chatgptLinuxRemoteMobileAppServerArgs(){return process.platform===`linux`?[`-c`,`features.code_mode_host=true`,`app-server`,`--remote-control`,`--analytics-default-enabled`]:[`-c`,`features.code_mode_host=true`,`app-server`,`--analytics-default-enabled`]}";
   const replaced = source
     .split(REMOTE_MOBILE_APP_SERVER_ARGS_NEEDLE)
-    .join("codexLinuxRemoteMobileAppServerArgs()");
+    .join("chatgptLinuxRemoteMobileAppServerArgs()");
   // Insert after a leading "use strict" so prepending the helper does not
   // demote the directive to a plain expression and de-strict the bundle.
   const insertAt = replaced.startsWith('"use strict";')
@@ -354,8 +354,8 @@ function applyLinuxRemoteControlLoadGatePatch(source) {
   return source.replace(
     REMOTE_CONTROL_LOAD_GATE_NEEDLE,
     [
-      `function ${functionName}(){return codexLinuxRemoteControlLoadGateEnabled()||${statsigFn}(\`1042620455\`)}`,
-      "function codexLinuxRemoteControlLoadGateEnabled(){",
+      `function ${functionName}(){return chatgptLinuxRemoteControlLoadGateEnabled()||${statsigFn}(\`1042620455\`)}`,
+      "function chatgptLinuxRemoteControlLoadGateEnabled(){",
       "return typeof navigator!=`undefined`&&navigator.userAgent.includes(`Linux`)",
       "}",
     ].join(""),
@@ -443,7 +443,7 @@ function wrapRemoteControlTabs(source, firstKey) {
   );
   return source.replace(
     pattern,
-    "tabs:codexLinuxRemoteControlSettingsTabs($1),selectedKey:$2,variant:`underline`,onSelect:$3}",
+    "tabs:chatgptLinuxRemoteControlSettingsTabs($1),selectedKey:$2,variant:`underline`,onSelect:$3}",
   );
 }
 
@@ -566,12 +566,12 @@ function applyLinuxRemoteControlSshInstallReleasePatch(source) {
   ] = currentActionBuilderMatch;
   const actionBuilderReplacement =
     `function ${builderFn}({action:${actionVar},disabled:${disabledVar},hostId:${hostVar},` +
-    `installCodexPending:${pendingVar},installCodexRelease:codexLinuxRemoteControlSshInstallReleaseTarget,` +
+    `installCodexPending:${pendingVar},installCodexRelease:chatgptLinuxRemoteControlSshInstallReleaseTarget,` +
     `onAuthenticate:${authenticateVar},onInstallCodex:${installVar},onReconnect:${reconnectVar},onRestart:${restartVar}}){` +
     `if(${actionVar}==null)return null;switch(${actionVar}.kind){case\`install-codex\`:return{` +
     `disabled:${disabledVar},label:${actionVar}.label,loading:${pendingVar},loadingLabel:${actionVar}.loadingLabel,` +
     `renderInElectronOnly:!0,tooltipText:${actionVar}.tooltipText,` +
-    `onClick:()=>${installVar}(${hostVar},codexLinuxRemoteControlSshInstallReleaseTarget)}`;
+    `onClick:()=>${installVar}(${hostVar},chatgptLinuxRemoteControlSshInstallReleaseTarget)}`;
 
   const [
     ,
@@ -588,7 +588,7 @@ function applyLinuxRemoteControlSshInstallReleasePatch(source) {
   const actionCallReplacement =
     `${actionFn}({action:${connectionActionVar}.action,disabled:${callDisabledVar},` +
     `hostId:${connectionVar}.hostId,installCodexPending:${callPendingVar},` +
-    `installCodexRelease:${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(codexLinuxRemoteControlSshInstallError),` +
+    `installCodexRelease:${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(chatgptLinuxRemoteControlSshInstallError),` +
     `onReconnect:${callReconnectVar},onRestart:${callRestartVar},` +
     `onAuthenticate:${callAuthenticateVar},onInstallCodex:${callInstallVar}})`;
 
@@ -606,11 +606,11 @@ function applyLinuxRemoteControlSshInstallReleasePatch(source) {
     `{appServerVersion:${appServerVersionVar},error:${errorVar},` +
     `installedCodexVersion:${installedVersionVar},state:${stateVar}}=` +
     `${connectionStateFn}(${localConnectionVar}.hostId),` +
-    `{appServerVersion:codexLinuxRemoteControlSshInstallLocalVersion}=${connectionStateFn}(\`local\`),` +
-    `codexLinuxRemoteControlSshInstallError=${errorVar},` +
-    `${displayNameVar}=(codexLinuxRemoteControlSshInstallDefaultRelease=` +
-    `codexLinuxRemoteControlValidRelease(codexLinuxRemoteControlSshInstallLocalVersion)??` +
-    `codexLinuxRemoteControlSshInstallDefaultRelease,${localConnectionVar}.displayName)`;
+    `{appServerVersion:chatgptLinuxRemoteControlSshInstallLocalVersion}=${connectionStateFn}(\`local\`),` +
+    `chatgptLinuxRemoteControlSshInstallError=${errorVar},` +
+    `${displayNameVar}=(chatgptLinuxRemoteControlSshInstallDefaultRelease=` +
+    `chatgptLinuxRemoteControlValidRelease(chatgptLinuxRemoteControlSshInstallLocalVersion)??` +
+    `chatgptLinuxRemoteControlSshInstallDefaultRelease,${localConnectionVar}.displayName)`;
 
   const [
     ,
@@ -622,19 +622,19 @@ function applyLinuxRemoteControlSshInstallReleasePatch(source) {
     syncStateFn,
   ] = currentMutationMatch;
   const mutationReplacement =
-    `${mutationHandlerVar}=(${mutationHostVar},codexLinuxRemoteControlSshInstallTargetRelease)=>{` +
-    `let codexLinuxRemoteControlSshInstallRequest={hostId:${mutationHostVar}},` +
-    `codexLinuxRemoteControlSshInstallResolvedRelease=` +
-    `codexLinuxRemoteControlSshInstallTargetRelease??codexLinuxRemoteControlSshInstallDefaultRelease;` +
-    `codexLinuxRemoteControlSshInstallResolvedRelease!=null&&` +
-    `(codexLinuxRemoteControlSshInstallRequest.release=codexLinuxRemoteControlSshInstallResolvedRelease),` +
-    `${mutationVar}.mutate(codexLinuxRemoteControlSshInstallRequest,{onSuccess:({state:${mutationStateVar},` +
+    `${mutationHandlerVar}=(${mutationHostVar},chatgptLinuxRemoteControlSshInstallTargetRelease)=>{` +
+    `let chatgptLinuxRemoteControlSshInstallRequest={hostId:${mutationHostVar}},` +
+    `chatgptLinuxRemoteControlSshInstallResolvedRelease=` +
+    `chatgptLinuxRemoteControlSshInstallTargetRelease??chatgptLinuxRemoteControlSshInstallDefaultRelease;` +
+    `chatgptLinuxRemoteControlSshInstallResolvedRelease!=null&&` +
+    `(chatgptLinuxRemoteControlSshInstallRequest.release=chatgptLinuxRemoteControlSshInstallResolvedRelease),` +
+    `${mutationVar}.mutate(chatgptLinuxRemoteControlSshInstallRequest,{onSuccess:({state:${mutationStateVar},` +
     `error:${mutationErrorVar}})=>{${syncStateFn}(${mutationHostVar},${mutationStateVar},${mutationErrorVar})}})}`;
 
   const helper = [
-    "let codexLinuxRemoteControlSshInstallDefaultRelease=null,codexLinuxRemoteControlSshInstallError=null;",
-    "function codexLinuxRemoteControlValidRelease(e){return typeof e==`string`&&e.trim().length>0?e.trim():null}",
-    `function ${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(e){return e?.code===\`update-required\`?codexLinuxRemoteControlValidRelease(e.minRequiredVersion):null}`,
+    "let chatgptLinuxRemoteControlSshInstallDefaultRelease=null,chatgptLinuxRemoteControlSshInstallError=null;",
+    "function chatgptLinuxRemoteControlValidRelease(e){return typeof e==`string`&&e.trim().length>0?e.trim():null}",
+    `function ${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(e){return e?.code===\`update-required\`?chatgptLinuxRemoteControlValidRelease(e.minRequiredVersion):null}`,
   ].join("");
 
   return helper + source
@@ -701,14 +701,14 @@ function applyLinuxRemoteConnectionsRefreshPatch(source) {
   ] = match;
   const replacement =
     `(0,${reactVar}.useEffect)(()=>{let ${abortVar}=null,${pendingVar}=!1,${refreshVar}=async()=>{if(!${pendingVar}){${pendingVar}=!0,${abortVar}=new AbortController;try{await ${refreshEventVar}(${abortVar}.signal)}finally{${abortVar}=null,${pendingVar}=!1}}},` +
-    `codexLinuxRemoteConnectionsRefreshTimer=null,codexLinuxRemoteConnectionsRefreshLast=0,${REMOTE_CONNECTIONS_REFRESH_MARKER}=()=>{if(document.visibilityState===\`hidden\`)return;let e=Date.now(),t=()=>{codexLinuxRemoteConnectionsRefreshLast=Date.now(),codexLinuxRemoteConnectionsRefreshTimer=null,${refreshVar}()};if(e-codexLinuxRemoteConnectionsRefreshLast<1e3){codexLinuxRemoteConnectionsRefreshTimer!=null&&window.clearTimeout(codexLinuxRemoteConnectionsRefreshTimer),codexLinuxRemoteConnectionsRefreshTimer=window.setTimeout(t,1e3-(e-codexLinuxRemoteConnectionsRefreshLast));return}t()},` +
+    `chatgptLinuxRemoteConnectionsRefreshTimer=null,chatgptLinuxRemoteConnectionsRefreshLast=0,${REMOTE_CONNECTIONS_REFRESH_MARKER}=()=>{if(document.visibilityState===\`hidden\`)return;let e=Date.now(),t=()=>{chatgptLinuxRemoteConnectionsRefreshLast=Date.now(),chatgptLinuxRemoteConnectionsRefreshTimer=null,${refreshVar}()};if(e-chatgptLinuxRemoteConnectionsRefreshLast<1e3){chatgptLinuxRemoteConnectionsRefreshTimer!=null&&window.clearTimeout(chatgptLinuxRemoteConnectionsRefreshTimer),chatgptLinuxRemoteConnectionsRefreshTimer=window.setTimeout(t,1e3-(e-chatgptLinuxRemoteConnectionsRefreshLast));return}t()},` +
     `${intervalVar}=window.setInterval(()=>{${refreshVar}()},${intervalConstantVar});` +
     `document.addEventListener(\`visibilitychange\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.addEventListener(\`focus\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.addEventListener(\`online\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.addEventListener(\`resume\`,${REMOTE_CONNECTIONS_REFRESH_MARKER});` +
     `return()=>{${abortVar}?.abort(),window.clearInterval(${intervalVar}),` +
-    `codexLinuxRemoteConnectionsRefreshTimer!=null&&window.clearTimeout(codexLinuxRemoteConnectionsRefreshTimer),` +
+    `chatgptLinuxRemoteConnectionsRefreshTimer!=null&&window.clearTimeout(chatgptLinuxRemoteConnectionsRefreshTimer),` +
     `document.removeEventListener(\`visibilitychange\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.removeEventListener(\`focus\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.removeEventListener(\`online\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
@@ -733,11 +733,11 @@ function applyLinuxRemoteMobileChromeBridgePatch(source) {
   const backendNeedle =
     "var e2=[\"chrome\",\"iab\",\"cdp\"];function ly(e){return e2.some(t=>t===e)}";
   const backendReplacement =
-    "var e2=[\"chrome\",\"iab\",\"cdp\"];function ly(e){return e2.some(t=>t===e)}function codexLinuxRemoteMobileBrowserBackends(e){if(e==null)return null;if(!Array.isArray(e))return[];let t=e.filter(ly);return typeof process!=`undefined`&&process.platform===`linux`&&!t.includes(`chrome`)?[`chrome`,...t]:t}";
+    "var e2=[\"chrome\",\"iab\",\"cdp\"];function ly(e){return e2.some(t=>t===e)}function chatgptLinuxRemoteMobileBrowserBackends(e){if(e==null)return null;if(!Array.isArray(e))return[];let t=e.filter(ly);return typeof process!=`undefined`&&process.platform===`linux`&&!t.includes(`chrome`)?[`chrome`,...t]:t}";
   const currentBackendNeedle =
     "function _y(){let e=Su(dy);return e==null?null:vy(e).filter(ly)}";
   const currentBackendReplacement =
-    "function _y(){let e=Su(dy);return codexLinuxRemoteMobileBrowserBackends(e==null?null:vy(e))}";
+    "function _y(){let e=Su(dy);return chatgptLinuxRemoteMobileBrowserBackends(e==null?null:vy(e))}";
 
   if (source.includes(backendNeedle) && source.includes(currentBackendNeedle)) {
     return source
@@ -757,11 +757,11 @@ function applyLinuxRemoteMobileChromeBridgePatch(source) {
     return source
       .replace(
         backendAllowlistPattern,
-        `var ${allowlistVar}=["chrome","iab","cdp"];function ${allowlistFn}(e){return ${allowlistVar}.some(t=>t===e)}function codexLinuxRemoteMobileBrowserBackends(e){if(e==null)return null;if(!Array.isArray(e))return[];let t=e.filter(${allowlistFn});return typeof process!=\`undefined\`&&process.platform===\`linux\`&&!t.includes(\`chrome\`)?[\`chrome\`,...t]:t}`,
+        `var ${allowlistVar}=["chrome","iab","cdp"];function ${allowlistFn}(e){return ${allowlistVar}.some(t=>t===e)}function chatgptLinuxRemoteMobileBrowserBackends(e){if(e==null)return null;if(!Array.isArray(e))return[];let t=e.filter(${allowlistFn});return typeof process!=\`undefined\`&&process.platform===\`linux\`&&!t.includes(\`chrome\`)?[\`chrome\`,...t]:t}`,
       )
       .replace(
         readerPattern,
-        `function ${readerFn}(){let e=${envReaderFn}(${backendsEnvVar});return codexLinuxRemoteMobileBrowserBackends(e==null?null:${parseBackendsFn}(e))}`,
+        `function ${readerFn}(){let e=${envReaderFn}(${backendsEnvVar});return chatgptLinuxRemoteMobileBrowserBackends(e==null?null:${parseBackendsFn}(e))}`,
       );
   }
 
@@ -784,23 +784,23 @@ function buildLateUnknownConversationHydrationReplacement(
   loggerVar,
   unknownConversationPrelude = "",
 ) {
-  const pendingMapVar = "codexLinuxRemoteMobilePendingMap";
-  const queueVar = "codexLinuxRemoteMobileQueue";
-  const inFlightVar = "codexLinuxRemoteMobileInFlight";
-  const readVar = "codexLinuxRemoteMobileRead";
+  const pendingMapVar = "chatgptLinuxRemoteMobilePendingMap";
+  const queueVar = "chatgptLinuxRemoteMobileQueue";
+  const inFlightVar = "chatgptLinuxRemoteMobileInFlight";
+  const readVar = "chatgptLinuxRemoteMobileRead";
   return (
     `if(!this.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_LATE_EVENT_HYDRATION_MARKER}*/${unknownConversationPrelude}${unknownConversationPrelude.length > 0 ? ";" : ""}` +
-    `let ${pendingMapVar}=this.codexLinuxRemoteMobilePendingNotifications??=new Map,${queueVar}=${pendingMapVar}.get(${conversationIdVar});` +
+    `let ${pendingMapVar}=this.chatgptLinuxRemoteMobilePendingNotifications??=new Map,${queueVar}=${pendingMapVar}.get(${conversationIdVar});` +
     `${queueVar}||(${queueVar}=[],${pendingMapVar}.set(${conversationIdVar},${queueVar})),${queueVar}.push(n);` +
-    `let ${inFlightVar}=this.codexLinuxRemoteMobileInFlightHydrations??=new Set;` +
+    `let ${inFlightVar}=this.chatgptLinuxRemoteMobileInFlightHydrations??=new Set;` +
     `if(${inFlightVar}.has(${conversationIdVar})){${loggerVar}.warning(\`Queueing ${eventName} for hydrating conversation\`,{safe:{queuedNotificationCount:${queueVar}.length},sensitive:{conversationId:${conversationIdVar}}});break}` +
     `${loggerVar}.warning(\`Hydrating conversation for ${eventName}\`,{safe:{queuedNotificationCount:${queueVar}.length},sensitive:{conversationId:${conversationIdVar}}});` +
-    `let ${readVar}=(s=0)=>this.readThread(${conversationIdVar},{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.codexLinuxRemoteMobilePendingNotifications?.get(${conversationIdVar})??[],codexLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;` +
-    `if(!t||!Array.isArray(codexLinuxRemoteMobileTurns)||codexLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:${conversationIdVar}}}),setTimeout(()=>${readVar}(s+1),250);return}` +
-    `this.codexLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.codexLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:${conversationIdVar}}});return}` +
-    `this.upsertConversationFromThread(t),this.codexLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.codexLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar});for(let e of c)this.onNotification(e.method,e.params)})` +
+    `let ${readVar}=(s=0)=>this.readThread(${conversationIdVar},{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.chatgptLinuxRemoteMobilePendingNotifications?.get(${conversationIdVar})??[],chatgptLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;` +
+    `if(!t||!Array.isArray(chatgptLinuxRemoteMobileTurns)||chatgptLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:${conversationIdVar}}}),setTimeout(()=>${readVar}(s+1),250);return}` +
+    `this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:${conversationIdVar}}});return}` +
+    `this.upsertConversationFromThread(t),this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar});for(let e of c)this.onNotification(e.method,e.params)})` +
     `.catch(e=>{if(s<12){${loggerVar}.warning(\`Retrying hydration for ${eventName}\`,{safe:{attempt:s+1},sensitive:{conversationId:${conversationIdVar},error:e}}),setTimeout(()=>${readVar}(s+1),250);return}` +
-    `this.codexLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.codexLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.error(\`Failed to hydrate conversation for ${eventName}\`,{safe:{},sensitive:{conversationId:${conversationIdVar},error:e}})});` +
+    `this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.error(\`Failed to hydrate conversation for ${eventName}\`,{safe:{},sensitive:{conversationId:${conversationIdVar},error:e}})});` +
     `${inFlightVar}.add(${conversationIdVar}),${readVar}();break}`
   );
 }
@@ -833,7 +833,7 @@ function applyLinuxRemoteMobileConversationHydrationPatch(source) {
       /(let\{threadId:([A-Za-z_$][\w$]*),turn:[A-Za-z_$][\w$]*\}=([A-Za-z_$][\w$]*)\.params,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\2\);)if\(!this\.conversations\.get\(\4\)\)\{([A-Za-z_$][\w$]*)\.error\(`Received turn\/started for unknown conversation`,\{safe:\{conversationId:\4\},sensitive:\{\}\}\);break\}/u;
     const unknownTurnReplacement =
       (_needle, prefix, _threadIdParamVar, notificationVar, conversationIdVar, normalizerFn, loggerVar) =>
-        `${prefix}if(!this.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*//*${REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER}*//*${REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER}*/let l=${notificationVar}.params?.turn?.threadId??${notificationVar}.params?.thread?.id,d=l!=null?${normalizerFn}(l):null,u=${notificationVar}.params?.turn?.id??${notificationVar}.params?.turnId;if(d==null||u!=null&&d===${normalizerFn}(u)){${loggerVar}.warning(\`Skipping hydration for ambiguous turn/started\`,{safe:{},sensitive:{conversationId:${conversationIdVar},resolvedConversationId:d,turnId:u??null}});break}${notificationVar}={...${notificationVar},params:{...${notificationVar}.params,threadId:l}};if(this.conversations.get(d)){this.onNotification(${notificationVar}.method,${notificationVar}.params);break}let i=this.codexLinuxRemoteMobilePendingNotifications??=new Map,a=i.get(d);a||(a=[],i.set(d,a));let p=u!=null?a.findIndex(e=>{let t=e.params?.turn?.id??e.params?.turnId;return e.method===${notificationVar}.method&&t!=null&&${normalizerFn}(t)===${normalizerFn}(u)}):-1;p>=0?a[p]=${notificationVar}:a.push(${notificationVar});let h=this.codexLinuxRemoteMobileInFlightHydrations??=new Set;if(h.has(d)){${loggerVar}.warning(\`Queueing turn/started for hydrating conversation\`,{safe:{queuedNotificationCount:a.length,dedupedNotification:p>=0},sensitive:{conversationId:d}});break}${loggerVar}.warning(\`Hydrating conversation for turn/started\`,{safe:{queuedNotificationCount:a.length},sensitive:{conversationId:d}});let o=(s=0)=>this.readThread(d,{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.codexLinuxRemoteMobilePendingNotifications?.get(d)??[],codexLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;if(!t||!Array.isArray(codexLinuxRemoteMobileTurns)||codexLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:d}}),setTimeout(()=>o(s+1),250);return}this.codexLinuxRemoteMobilePendingNotifications?.delete(d),this.codexLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:d}});return}this.upsertConversationFromThread(t),this.codexLinuxRemoteMobilePendingNotifications?.delete(d),this.codexLinuxRemoteMobileInFlightHydrations?.delete(d);for(let e of c)this.onNotification(e.method,e.params)}).catch(e=>{if(s<12){${loggerVar}.warning(\`Retrying hydration for turn/started\`,{safe:{attempt:s+1},sensitive:{conversationId:d,error:e}}),setTimeout(()=>o(s+1),250);return}this.codexLinuxRemoteMobilePendingNotifications?.delete(d),this.codexLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.error(\`Failed to hydrate conversation for turn/started\`,{safe:{},sensitive:{conversationId:d,error:e}})});h.add(d),o();break}`;
+        `${prefix}if(!this.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*//*${REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER}*//*${REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER}*/let l=${notificationVar}.params?.turn?.threadId??${notificationVar}.params?.thread?.id,d=l!=null?${normalizerFn}(l):null,u=${notificationVar}.params?.turn?.id??${notificationVar}.params?.turnId;if(d==null||u!=null&&d===${normalizerFn}(u)){${loggerVar}.warning(\`Skipping hydration for ambiguous turn/started\`,{safe:{},sensitive:{conversationId:${conversationIdVar},resolvedConversationId:d,turnId:u??null}});break}${notificationVar}={...${notificationVar},params:{...${notificationVar}.params,threadId:l}};if(this.conversations.get(d)){this.onNotification(${notificationVar}.method,${notificationVar}.params);break}let i=this.chatgptLinuxRemoteMobilePendingNotifications??=new Map,a=i.get(d);a||(a=[],i.set(d,a));let p=u!=null?a.findIndex(e=>{let t=e.params?.turn?.id??e.params?.turnId;return e.method===${notificationVar}.method&&t!=null&&${normalizerFn}(t)===${normalizerFn}(u)}):-1;p>=0?a[p]=${notificationVar}:a.push(${notificationVar});let h=this.chatgptLinuxRemoteMobileInFlightHydrations??=new Set;if(h.has(d)){${loggerVar}.warning(\`Queueing turn/started for hydrating conversation\`,{safe:{queuedNotificationCount:a.length,dedupedNotification:p>=0},sensitive:{conversationId:d}});break}${loggerVar}.warning(\`Hydrating conversation for turn/started\`,{safe:{queuedNotificationCount:a.length},sensitive:{conversationId:d}});let o=(s=0)=>this.readThread(d,{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.chatgptLinuxRemoteMobilePendingNotifications?.get(d)??[],chatgptLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;if(!t||!Array.isArray(chatgptLinuxRemoteMobileTurns)||chatgptLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:d}}),setTimeout(()=>o(s+1),250);return}this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:d}});return}this.upsertConversationFromThread(t),this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d);for(let e of c)this.onNotification(e.method,e.params)}).catch(e=>{if(s<12){${loggerVar}.warning(\`Retrying hydration for turn/started\`,{safe:{attempt:s+1},sensitive:{conversationId:d,error:e}}),setTimeout(()=>o(s+1),250);return}this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.error(\`Failed to hydrate conversation for turn/started\`,{safe:{},sensitive:{conversationId:d,error:e}})});h.add(d),o();break}`;
     if (unknownTurnNeedle.test(patched)) {
       patched = patched.replace(unknownTurnNeedle, unknownTurnReplacement);
     } else if (patched.includes("Received turn/started for unknown conversation")) {
@@ -904,7 +904,7 @@ function applyLinuxRemoteMobileCompletedItemRecoveryPatch(source) {
         upsertItemFn,
         viewItemVar,
       ) =>
-        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let codexLinuxCompletedItemExists=${turnVar}.items.some(e=>e.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&codexLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
+        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let chatgptLinuxCompletedItemExists=${turnVar}.items.some(e=>e.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&chatgptLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
     );
   }
 
@@ -923,9 +923,9 @@ function applyLinuxRemoteMobileCompletedItemRecoveryPatch(source) {
 
 function applyLinuxRemoteTerminalStatusRecoveryPatch(source) {
   if (
-    source.includes("codexLinuxRemoteTerminalStatusWaitingOnUserInput") &&
-    source.includes("hasUserInputRequest:codexLinuxRemoteHasUserInputRequest") &&
-    source.includes("&&codexLinuxRemoteHasUserInputRequest")
+    source.includes("chatgptLinuxRemoteTerminalStatusWaitingOnUserInput") &&
+    source.includes("hasUserInputRequest:chatgptLinuxRemoteHasUserInputRequest") &&
+    source.includes("&&chatgptLinuxRemoteHasUserInputRequest")
   ) {
     return source;
   }
@@ -940,7 +940,7 @@ function applyLinuxRemoteTerminalStatusRecoveryPatch(source) {
   }
 
   const userInputRequestHelper =
-    "function codexLinuxRemoteHasUserInputRequest(e){try{return Array.isArray(e)&&e.some(e=>e?.method===`item/tool/requestUserInput`||e?.method===`item/tool/requestOptionPicker`||e?.method===`item/tool/requestSetupCodexContextPicker`||e?.method===`item/tool/call`&&(e?.params?.tool===`request_onboarding_input`||e?.params?.tool===`request_option_picker`||e?.params?.tool===`setup_codex_context_picker`||e?.params?.tool===`setup_codex_step`))}catch{return!1}}";
+    "function chatgptLinuxRemoteHasUserInputRequest(e){try{return Array.isArray(e)&&e.some(e=>e?.method===`item/tool/requestUserInput`||e?.method===`item/tool/requestOptionPicker`||e?.method===`item/tool/requestSetupCodexContextPicker`||e?.method===`item/tool/call`&&(e?.params?.tool===`request_onboarding_input`||e?.params?.tool===`request_option_picker`||e?.params?.tool===`setup_codex_context_picker`||e?.params?.tool===`setup_codex_step`))}catch{return!1}}";
   const buildTerminalStatusReplacement = (
     fnName,
     sideChatVar,
@@ -949,7 +949,7 @@ function applyLinuxRemoteTerminalStatusRecoveryPatch(source) {
     resumeStateVar,
     runtimeStatusVar,
   ) =>
-    `function ${fnName}({hasInProgressSideChat:${sideChatVar},isResponseInProgress:${responseProgressVar},latestTurnHasSystemError:${systemErrorVar},resumeState:${resumeStateVar},threadRuntimeStatus:${runtimeStatusVar},hasUserInputRequest:codexLinuxRemoteHasUserInputRequestPending=!0}){let codexLinuxRemoteTerminalStatusActive=${runtimeStatusVar}?.type===\`active\`,codexLinuxRemoteTerminalStatusActiveFlags=Array.isArray(${runtimeStatusVar}?.activeFlags)?${runtimeStatusVar}.activeFlags:null,codexLinuxRemoteTerminalStatusWaitingOnUserInput=codexLinuxRemoteTerminalStatusActiveFlags?.includes(\`waitingOnUserInput\`)===!0,codexLinuxRemoteTerminalStatusLoading=codexLinuxRemoteTerminalStatusActive&&(${responseProgressVar}===!0||codexLinuxRemoteTerminalStatusActiveFlags==null||codexLinuxRemoteTerminalStatusActiveFlags.length>0&&(!codexLinuxRemoteTerminalStatusWaitingOnUserInput||codexLinuxRemoteHasUserInputRequestPending===!0));return ${sideChatVar}?\`loading\`:${runtimeStatusVar}?.type===\`systemError\`?\`error\`:codexLinuxRemoteTerminalStatusLoading?\`loading\`:${resumeStateVar}===\`needs_resume\`?\`idle\`:${systemErrorVar}?\`error\`:${responseProgressVar}===!0?\`loading\`:\`idle\`}`;
+    `function ${fnName}({hasInProgressSideChat:${sideChatVar},isResponseInProgress:${responseProgressVar},latestTurnHasSystemError:${systemErrorVar},resumeState:${resumeStateVar},threadRuntimeStatus:${runtimeStatusVar},hasUserInputRequest:chatgptLinuxRemoteHasUserInputRequestPending=!0}){let chatgptLinuxRemoteTerminalStatusActive=${runtimeStatusVar}?.type===\`active\`,chatgptLinuxRemoteTerminalStatusActiveFlags=Array.isArray(${runtimeStatusVar}?.activeFlags)?${runtimeStatusVar}.activeFlags:null,chatgptLinuxRemoteTerminalStatusWaitingOnUserInput=chatgptLinuxRemoteTerminalStatusActiveFlags?.includes(\`waitingOnUserInput\`)===!0,chatgptLinuxRemoteTerminalStatusLoading=chatgptLinuxRemoteTerminalStatusActive&&(${responseProgressVar}===!0||chatgptLinuxRemoteTerminalStatusActiveFlags==null||chatgptLinuxRemoteTerminalStatusActiveFlags.length>0&&(!chatgptLinuxRemoteTerminalStatusWaitingOnUserInput||chatgptLinuxRemoteHasUserInputRequestPending===!0));return ${sideChatVar}?\`loading\`:${runtimeStatusVar}?.type===\`systemError\`?\`error\`:chatgptLinuxRemoteTerminalStatusLoading?\`loading\`:${resumeStateVar}===\`needs_resume\`?\`idle\`:${systemErrorVar}?\`error\`:${responseProgressVar}===!0?\`loading\`:\`idle\`}`;
 
   const terminalStatusPattern =
     /function ([A-Za-z_$][\w$]*)\(\{hasInProgressSideChat:([A-Za-z_$][\w$]*),isResponseInProgress:([A-Za-z_$][\w$]*),latestTurnHasSystemError:([A-Za-z_$][\w$]*),resumeState:([A-Za-z_$][\w$]*),threadRuntimeStatus:([A-Za-z_$][\w$]*)\}\)\{return \2\?`loading`:\6\?\.type===`systemError`\?`error`:\6\?\.type===`active`\?`loading`:\5===`needs_resume`\?`idle`:\4\?`error`:\3===!0\?`loading`:`idle`\}/u;
@@ -1019,11 +1019,11 @@ function applyLinuxRemoteTerminalStatusRecoveryPatch(source) {
   );
   patched = patched.replace(
     pendingRequestPattern,
-    `function ${pendingRequestFnName}({pendingRequestType:${pendingTypeVar},requests:${requestsVar},resumeState:${pendingResumeStateVar},threadRuntimeStatus:${pendingRuntimeStatusVar}}){return ${requestsVar}==null||${pendingResumeStateVar}==null?null:${pendingResumeStateVar}===\`needs_resume\`?${pendingRuntimeStatusVar}?.type===\`active\`&&Array.isArray(${pendingRuntimeStatusVar}?.activeFlags)&&${pendingRuntimeStatusVar}.activeFlags.includes(\`waitingOnApproval\`)&&${approvalRequestFn}(${requestsVar})?\`approval\`:${pendingRuntimeStatusVar}?.type===\`active\`&&Array.isArray(${pendingRuntimeStatusVar}?.activeFlags)&&${pendingRuntimeStatusVar}.activeFlags.includes(\`waitingOnUserInput\`)&&codexLinuxRemoteHasUserInputRequest(${requestsVar})?\`response\`:null:${approvalTypeFn}(${pendingTypeVar})?\`approval\`:${pendingTypeVar}===\`userInput\`?\`response\`:null}`,
+    `function ${pendingRequestFnName}({pendingRequestType:${pendingTypeVar},requests:${requestsVar},resumeState:${pendingResumeStateVar},threadRuntimeStatus:${pendingRuntimeStatusVar}}){return ${requestsVar}==null||${pendingResumeStateVar}==null?null:${pendingResumeStateVar}===\`needs_resume\`?${pendingRuntimeStatusVar}?.type===\`active\`&&Array.isArray(${pendingRuntimeStatusVar}?.activeFlags)&&${pendingRuntimeStatusVar}.activeFlags.includes(\`waitingOnApproval\`)&&${approvalRequestFn}(${requestsVar})?\`approval\`:${pendingRuntimeStatusVar}?.type===\`active\`&&Array.isArray(${pendingRuntimeStatusVar}?.activeFlags)&&${pendingRuntimeStatusVar}.activeFlags.includes(\`waitingOnUserInput\`)&&chatgptLinuxRemoteHasUserInputRequest(${requestsVar})?\`response\`:null:${approvalTypeFn}(${pendingTypeVar})?\`approval\`:${pendingTypeVar}===\`userInput\`?\`response\`:null}`,
   );
   patched = patched.replace(
     terminalCallPattern,
-    `${terminalStatusFnName}({hasInProgressSideChat:$1,isResponseInProgress:$2,resumeState:$3,threadRuntimeStatus:$4,latestTurnHasSystemError:$5,hasUserInputRequest:codexLinuxRemoteHasUserInputRequest(${requestExpression})})`,
+    `${terminalStatusFnName}({hasInProgressSideChat:$1,isResponseInProgress:$2,resumeState:$3,threadRuntimeStatus:$4,latestTurnHasSystemError:$5,hasUserInputRequest:chatgptLinuxRemoteHasUserInputRequest(${requestExpression})})`,
   );
 
   return patched;

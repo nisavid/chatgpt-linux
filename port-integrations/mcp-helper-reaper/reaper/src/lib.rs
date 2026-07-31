@@ -226,7 +226,7 @@ pub fn is_codex_process(process: &ProcInfo) -> bool {
     if is_self(process) {
         return false;
     }
-    // codex-linux-sandbox wraps ordinary tool commands and codex-mcp-helper-reaper
+    // chatgpt-linux-sandbox wraps ordinary tool commands and chatgpt-mcp-helper-reaper
     // is this reaper; neither owns MCP helpers, so exclude them from parent
     // discovery like the sibling node_repl reaper does.
     if is_codex_non_owner_process(process) {
@@ -246,8 +246,11 @@ fn is_codex_non_owner_process(process: &ProcInfo) -> bool {
         .file_name()
         .and_then(OsStr::to_str)
         .unwrap_or(argv0);
-    matches!(name, "codex-linux-sandbox" | "codex-mcp-helper-reaper")
-        || matches!(process.comm.as_str(), "codex-linux-san" | "codex-mcp-helpe")
+    matches!(name, "chatgpt-linux-sandbox" | "chatgpt-mcp-helper-reaper")
+        || matches!(
+            process.comm.as_str(),
+            "chatgpt-linux-san" | "codex-mcp-helpe"
+        )
 }
 
 pub fn same_process(expected: &ProcInfo) -> bool {
@@ -392,7 +395,7 @@ fn collect_plugin_specs(dir: &Path, depth: usize, specs: &mut Vec<ServerSpec>) {
             if let Some(plugin_dir) = path.parent() {
                 match load_plugin_server_specs(plugin_dir) {
                     Ok(mut loaded) => specs.append(&mut loaded),
-                    Err(error) => eprintln!("codex-mcp-helper-reaper: {error:#}"),
+                    Err(error) => eprintln!("chatgpt-mcp-helper-reaper: {error:#}"),
                 }
             }
             continue;
@@ -445,7 +448,7 @@ fn signal_tree_with<IdentityMatches, SendSignal>(
 
 fn log(quiet: bool, message: &str) {
     if !quiet {
-        println!("codex-mcp-helper-reaper: {message}");
+        println!("chatgpt-mcp-helper-reaper: {message}");
     }
 }
 
@@ -621,7 +624,7 @@ fn is_self(process: &ProcInfo) -> bool {
     process
         .argv
         .iter()
-        .any(|arg| arg.contains("codex-mcp-helper-reaper") || arg.contains("mcp-helper-reaper"))
+        .any(|arg| arg.contains("chatgpt-mcp-helper-reaper") || arg.contains("mcp-helper-reaper"))
 }
 
 fn is_orphan_helper_root(
@@ -653,7 +656,7 @@ fn has_codex_origin_marker(process: &ProcInfo) -> bool {
         "CODEX_SANDBOX",
         "CODEX_SANDBOX_NETWORK_DISABLED",
         "CODEX_CLI_PATH",
-        "CODEX_MANAGED_NODE_PATH",
+        "CHATGPT_MANAGED_NODE_PATH",
         "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
     ];
     process
@@ -857,10 +860,8 @@ mod tests {
     #[test]
     fn keeps_replaced_app_generation_helper_under_live_codex_parent() {
         let mut processes = BTreeMap::new();
-        let old_app =
-            "/home/linuxbrew/.linuxbrew/Caskroom/codex-desktop/old/share/codex-desktop/app";
-        let new_app =
-            "/home/linuxbrew/.linuxbrew/Caskroom/codex-desktop/new/share/codex-desktop/app";
+        let old_app = "/home/linuxbrew/.linuxbrew/Caskroom/chatgpt/old/share/chatgpt/app";
+        let new_app = "/home/linuxbrew/.linuxbrew/Caskroom/chatgpt/new/share/chatgpt/app";
         let old_helper = format!("{old_app}/resources/mcp-helper");
         let new_helper = format!("{new_app}/resources/mcp-helper");
         processes.insert(100, proc(100, 1, 10, &["codex", "resume"], "/repo"));
@@ -873,8 +874,8 @@ mod tests {
     #[test]
     fn keeps_browser_use_node_repl_helpers_under_live_codex_parent() {
         let mut processes = BTreeMap::new();
-        let app_dir = "/opt/codex-desktop";
-        let wrapped_node_repl = format!("{app_dir}/resources/node_repl.codex-linux-original");
+        let app_dir = "/opt/chatgpt";
+        let wrapped_node_repl = format!("{app_dir}/resources/node_repl.chatgpt-linux-original");
         let direct_node_repl = format!("{app_dir}/resources/node_repl");
         processes.insert(100, proc(100, 1, 10, &["codex", "app-server"], "/repo"));
         processes.insert(
@@ -1116,7 +1117,7 @@ mod tests {
             100,
             1,
             10,
-            &["/app/.codex-linux/mcp-helper-reaper/codex-mcp-helper-reaper"],
+            &["/app/.chatgpt-linux/mcp-helper-reaper/chatgpt-mcp-helper-reaper"],
             "/app",
         );
 
@@ -1125,14 +1126,14 @@ mod tests {
 
     #[test]
     fn does_not_treat_the_tool_sandbox_as_a_codex_parent() {
-        // codex-linux-sandbox wraps ordinary tool commands, not MCP helpers.
+        // chatgpt-linux-sandbox wraps ordinary tool commands, not MCP helpers.
         // Treating it as a scan parent would expose normal tool children to
         // reaping, so it must be excluded like the sibling node_repl reaper.
         let sandbox = proc(
             100,
             1,
             10,
-            &["/usr/bin/codex-linux-sandbox", "--", "grep", "-rn", "mcp"],
+            &["/usr/bin/chatgpt-linux-sandbox", "--", "grep", "-rn", "mcp"],
             "/repo",
         );
 
@@ -1141,11 +1142,11 @@ mod tests {
 
     #[test]
     fn excludes_tool_sandbox_by_truncated_comm() {
-        // /proc/<pid>/comm is capped at 15 bytes, so "codex-linux-sandbox"
-        // appears as "codex-linux-san". Exclusion must survive that
+        // /proc/<pid>/comm is capped at 15 bytes, so "chatgpt-linux-sandbox"
+        // appears as "chatgpt-linux-san". Exclusion must survive that
         // truncation even if argv0 is unreadable.
         let mut sandbox = proc(100, 1, 10, &[], "/repo");
-        sandbox.comm = "codex-linux-san".to_string();
+        sandbox.comm = "chatgpt-linux-san".to_string();
 
         assert!(!is_codex_process(&sandbox));
     }
@@ -1161,7 +1162,7 @@ mod tests {
                 100,
                 20,
                 &[
-                    "/usr/bin/codex-linux-sandbox",
+                    "/usr/bin/chatgpt-linux-sandbox",
                     "--",
                     "run-mcp-server",
                     "--stdio",
@@ -1176,7 +1177,7 @@ mod tests {
                 100,
                 30,
                 &[
-                    "/usr/bin/codex-linux-sandbox",
+                    "/usr/bin/chatgpt-linux-sandbox",
                     "--",
                     "run-mcp-server",
                     "--stdio",

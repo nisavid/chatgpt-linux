@@ -3,7 +3,7 @@ set -euo pipefail
 
 client="$INSTALL_DIR/resources/plugins/openai-bundled/plugins/chrome/scripts/browser-client.mjs"
 patch_module="$SCRIPT_DIR/port-integrations/remote-mobile-control/patch.js"
-integration_marker_dir="$INSTALL_DIR/.codex-linux"
+integration_marker_dir="$INSTALL_DIR/.chatgpt-linux"
 integration_marker="$integration_marker_dir/remote-mobile-control-enabled"
 desktop_remote_control_marker="$integration_marker_dir/desktop-app-server-remote-control-enabled"
 cold_start_hook_dir="$integration_marker_dir/cold-start.d"
@@ -14,7 +14,7 @@ printf '%s\n' "remote-mobile-control" > "$integration_marker"
 install -m 0755 "$SCRIPT_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "$cold_start_hook"
 
 if [ -d "$WORK_DIR/app-extracted/.vite/build" ] &&
-    grep -R -q "codexLinuxRemoteMobileAppServerArgs" "$WORK_DIR/app-extracted/.vite/build" 2>/dev/null; then
+    grep -R -q "chatgptLinuxRemoteMobileAppServerArgs" "$WORK_DIR/app-extracted/.vite/build" 2>/dev/null; then
     rm -f "$desktop_remote_control_marker"
     printf '%s\n' "version=1" "owner=desktop" > "$desktop_remote_control_marker"
 else
@@ -43,7 +43,7 @@ const patched = applyLinuxRemoteMobileChromeBridgePatch(source);
 if (patched !== source) {
   fs.writeFileSync(clientPath, patched, "utf8");
   console.error("Remote mobile Chrome bridge patch applied");
-} else if (patched.includes("codexLinuxRemoteMobileBrowserBackends")) {
+} else if (patched.includes("chatgptLinuxRemoteMobileBrowserBackends")) {
   console.error("Remote mobile Chrome bridge patch already applied");
 }
 NODE

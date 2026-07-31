@@ -41,9 +41,6 @@ const NPM_SUPERVISOR_EXIT_GRACE: StdDuration = StdDuration::from_secs(2);
 const BOUNDED_COMMAND_OUTPUT_LIMIT: usize = 64 * 1024;
 const SIGTERM: i32 = 15;
 const SIGKILL: i32 = 9;
-#[cfg(test)]
-const CLI_INSTALLED_VERSION_TTL: Duration = Duration::hours(1);
-
 unsafe extern "C" {
     fn kill(pid: i32, sig: i32) -> i32;
 }
@@ -247,7 +244,7 @@ fn preflight_with_version_timeout(
             state.cli_error_message = None;
             if persist_routine_state(paths, state, &mut routine_baseline)? {
                 return Err(anyhow!(
-                    "Codex CLI repair is already pending. Run `codex-app-updater diagnose` for details and repair instructions."
+                    "Codex CLI repair is already pending. Run `chatgpt-updater diagnose` for details and repair instructions."
                 ));
             }
 
@@ -262,7 +259,7 @@ fn preflight_with_version_timeout(
                     set_cli_repair_required(state);
                     persist_routine_state(paths, state, &mut routine_baseline)?;
                     return Err(anyhow!(
-                        "Codex CLI repair is already pending. Run `codex-app-updater diagnose` for details and repair instructions."
+                        "Codex CLI repair is already pending. Run `chatgpt-updater diagnose` for details and repair instructions."
                     ));
                 }
                 Err(error) => Err(error),
@@ -420,7 +417,7 @@ fn preflight_with_version_timeout(
     {
         state.cli_status = CliStatus::UpdateRequired;
         state.cli_error_message = Some(format!(
-            "This Codex CLI appears to be installed through Homebrew at {}. Update it with Homebrew; Codex app will not replace it with an npm-managed install.",
+            "This Codex CLI appears to be installed through Homebrew at {}. Update it with Homebrew; ChatGPT will not replace it with an npm-managed install.",
             cli_path.display()
         ));
         if persist_routine_state(paths, state, &mut routine_baseline)? {
@@ -579,97 +576,6 @@ fn preflight_with_version_timeout(
         state,
         true,
     ))
-}
-
-#[cfg(test)]
-pub fn refresh_cached_status(
-    config: &RuntimeConfig,
-    state: &mut PersistedState,
-    paths: &RuntimePaths,
-) -> Result<()> {
-    if let Some(path) = resolve_runtime_cli_path(config, state, None)? {
-        state.cli_path = Some(path);
-    }
-    refresh_cached_status_selected(state, paths)
-}
-
-#[cfg(test)]
-fn refresh_cached_status_selected(state: &mut PersistedState, paths: &RuntimePaths) -> Result<()> {
-    let original_state = state.clone();
-    let requested_path = requested_cli_path(state);
-    let selected_cli_path = match resolve_cli_path(requested_path.as_deref()) {
-        Some(path) => path,
-        None => {
-            mark_cli_missing(state);
-            return persist_if_changed(paths, state, &original_state);
-        }
-    };
-    let cli_path = match stable_cli_launch_path(&selected_cli_path) {
-        Ok(path) => path,
-        Err(resolution_error) => {
-            let error = cli_launch_path_error(&selected_cli_path, resolution_error);
-            state.cli_path = Some(selected_cli_path);
-            state.cli_install_channel = None;
-            state.cli_installed_version = None;
-            state.cli_package_manager_latest_version = None;
-            state.cli_last_verified_at = None;
-            state.cli_status = CliStatus::Failed;
-            state.cli_error_message = Some(format!("{error:#}"));
-            return persist_if_changed(paths, state, &original_state);
-        }
-    };
-
-    let Some(installed_version) = cached_installed_version_if_fresh(state, &cli_path) else {
-        return refresh_status_selected(state, paths);
-    };
-    let path_env = command_path_env();
-    let managed_cli = cli_management::detect_system_package_managed_cli(&cli_path, &path_env);
-    let package_manager_version_status =
-        current_package_manager_version_status(managed_cli.as_ref(), &path_env);
-
-    let stored_cli_path = state.cli_path.clone();
-    let stored_cli_install_channel = state.cli_install_channel.clone();
-    state.cli_path = Some(cli_path.clone());
-    state.cli_install_channel = if managed_cli.is_some() {
-        None
-    } else {
-        Some(
-            classify_cli_install(
-                &selected_cli_path,
-                &cli_path,
-                stored_cli_path.as_deref(),
-                stored_cli_install_channel.as_ref(),
-            )
-            .channel(),
-        )
-    };
-    state.cli_installed_version = Some(installed_version.clone());
-    state.cli_package_manager_latest_version = package_manager_version_status
-        .as_ref()
-        .map(|status| status.latest_version.clone());
-    refresh_cli_status_from_latest(
-        state,
-        &cli_path,
-        &installed_version,
-        managed_cli.as_ref(),
-        package_manager_version_status.as_ref(),
-    );
-
-    persist_if_changed(paths, state, &original_state)
-}
-
-pub fn refresh_status(
-    config: &RuntimeConfig,
-    state: &mut PersistedState,
-    paths: &RuntimePaths,
-) -> Result<()> {
-    let requested_path = resolve_runtime_cli_path(config, state, None)?;
-    refresh_status_with_requested_path(state, paths, requested_path)
-}
-
-fn refresh_status_selected(state: &mut PersistedState, paths: &RuntimePaths) -> Result<()> {
-    let requested_path = requested_cli_path(state);
-    refresh_status_with_requested_path(state, paths, requested_path)
 }
 
 fn refresh_status_with_requested_path(
@@ -848,11 +754,6 @@ pub fn reconcile_if_present(
     reconcile_if_present_with_requested_path(state, paths, requested_path)
 }
 
-fn reconcile_if_present_selected(state: &mut PersistedState, paths: &RuntimePaths) -> Result<bool> {
-    let requested_path = requested_cli_path(state);
-    reconcile_if_present_with_requested_path(state, paths, requested_path)
-}
-
 fn reconcile_if_present_with_requested_path(
     state: &mut PersistedState,
     paths: &RuntimePaths,
@@ -904,7 +805,7 @@ fn persist_cli_failure(
 fn set_cli_repair_required(state: &mut PersistedState) {
     state.cli_status = CliStatus::UpdateRequired;
     state.cli_error_message = Some(
-        "A stale npm retirement directory is blocking the Codex CLI update. The existing functional CLI remains in use. Run `codex-app-updater diagnose` for details and repair instructions."
+        "A stale npm retirement directory is blocking the Codex CLI update. The existing functional CLI remains in use. Run `chatgpt-updater diagnose` for details and repair instructions."
             .to_string(),
     );
 }
@@ -919,19 +820,6 @@ fn persist_new_cli_probe_failure(
     if installed_missing_cli {
         persist_cli_failure(state, paths, error, baseline)?;
     }
-    Ok(())
-}
-
-#[cfg(test)]
-fn persist_if_changed(
-    paths: &RuntimePaths,
-    state: &mut PersistedState,
-    original_state: &PersistedState,
-) -> Result<()> {
-    if state != original_state {
-        persist_state(paths, state)?;
-    }
-
     Ok(())
 }
 
@@ -1080,21 +968,13 @@ fn append_fnm_cli_locations(candidates: &mut Vec<PathBuf>, fnm_root: PathBuf) {
 fn include_system_cli_locations() -> bool {
     #[cfg(test)]
     {
-        std::env::var_os("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP").is_none()
+        std::env::var_os("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP").is_none()
     }
 
     #[cfg(not(test))]
     {
         true
     }
-}
-
-fn requested_cli_path(state: &PersistedState) -> Option<PathBuf> {
-    state.cli_path.clone().or_else(|| {
-        std::env::var_os("CODEX_CLI_PATH")
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-    })
 }
 
 fn mark_cli_missing(state: &mut PersistedState) {
@@ -1105,26 +985,6 @@ fn mark_cli_missing(state: &mut PersistedState) {
     state.cli_last_verified_at = None;
     state.cli_status = CliStatus::NotInstalled;
     state.cli_error_message = Some(CLI_NOT_INSTALLED_MESSAGE.to_string());
-}
-
-#[cfg(test)]
-fn cached_installed_version_if_fresh(state: &PersistedState, cli_path: &Path) -> Option<String> {
-    let cached_path = state.cli_path.as_deref()?;
-    if cached_path != cli_path {
-        return None;
-    }
-
-    let installed_version = state.cli_installed_version.clone()?;
-    let last_verified_at = state.cli_last_verified_at?;
-    if state.cli_status == CliStatus::Failed {
-        return None;
-    }
-
-    if Utc::now().signed_duration_since(last_verified_at) >= CLI_INSTALLED_VERSION_TTL {
-        return None;
-    }
-
-    Some(installed_version)
 }
 
 fn should_skip_latest_version_check(
@@ -1186,7 +1046,7 @@ fn refresh_cli_status_from_latest(
                 None => {
                     state.cli_status = CliStatus::Unknown;
                     state.cli_error_message = Some(format!(
-                        "This Codex CLI is managed by pacman package '{package_name}', but Codex app could not determine the latest version currently available through pacman. This install will not be auto-updated through npm; check pacman directly."
+                        "This Codex CLI is managed by pacman package '{package_name}', but ChatGPT could not determine the latest version currently available through pacman. This install will not be auto-updated through npm; check pacman directly."
                     ));
                 }
             }
@@ -1205,7 +1065,7 @@ fn refresh_cli_status_from_latest(
                 Some(official_latest) => {
                     state.cli_status = CliStatus::Unknown;
                     state.cli_error_message = Some(format!(
-                        "Codex app resolved Codex CLI to {}, but pacman -Qo {} could not determine which package owns it. The official {CLI_PACKAGE_NAME} upstream is {official_latest}; this install will not be auto-updated through npm, so inspect the CLI source and decide how to update it.",
+                        "ChatGPT resolved Codex CLI to {}, but pacman -Qo {} could not determine which package owns it. The official {CLI_PACKAGE_NAME} upstream is {official_latest}; this install will not be auto-updated through npm, so inspect the CLI source and decide how to update it.",
                         cli_path.display(),
                         query_path.display()
                     ));
@@ -1213,7 +1073,7 @@ fn refresh_cli_status_from_latest(
                 None => {
                     state.cli_status = CliStatus::Unknown;
                     state.cli_error_message = Some(format!(
-                        "Codex app resolved Codex CLI to {}, but pacman -Qo {} could not determine which package owns it, and the official {CLI_PACKAGE_NAME} version could not be checked. This install will not be auto-updated through npm; inspect the CLI source and decide how to update it.",
+                        "ChatGPT resolved Codex CLI to {}, but pacman -Qo {} could not determine which package owns it, and the official {CLI_PACKAGE_NAME} version could not be checked. This install will not be auto-updated through npm; inspect the CLI source and decide how to update it.",
                         cli_path.display(),
                         query_path.display()
                     ));
@@ -2620,7 +2480,7 @@ fn resolved_program_in_path(name: &str, path_env: &OsStr) -> Option<PathBuf> {
 
 fn trusted_standalone_installer_path() -> Result<OsString> {
     #[cfg(test)]
-    if let Some(path) = std::env::var_os("CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH")
+    if let Some(path) = std::env::var_os("CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH")
         .filter(|value| !value.is_empty())
     {
         return Ok(path);
@@ -2827,7 +2687,7 @@ fn prepare_safe_npm_prefix(prefix: &Path) -> Result<()> {
 pub fn repair_cli(state: &mut PersistedState, paths: &RuntimePaths) -> Result<CliRepairOutcome> {
     let install_lock = npm_cli_repair::acquire_install_lock(paths)?;
     let mut journal = npm_cli_repair::load(paths)?
-        .context("No Codex CLI repair is pending. Run `codex-app-updater diagnose` first.")?;
+        .context("No Codex CLI repair is pending. Run `chatgpt-updater diagnose` first.")?;
     let initial_snapshot = npm_cli_repair::validate_journal(&journal)?;
     let (npm, path_env) = match npm_program() {
         Ok(command) => command,
@@ -3025,7 +2885,7 @@ fn cli_repair_failure_error(
     let repair_message = repair_failure_message(error, &snapshot);
     state.cli_status = CliStatus::Failed;
     state.cli_error_message = Some(format!(
-        "{} Run `codex-app-updater diagnose` before retrying `codex-app-updater repair-cli`.",
+        "{} Run `chatgpt-updater diagnose` before retrying `chatgpt-updater repair-cli`.",
         repair_message
     ));
     if let Err(persist_error) = persist_state(paths, state) {
@@ -3128,7 +2988,7 @@ fn install_missing_cli_with_registry_timeout(
         state.save_cli_status(&paths.state_file)?;
         *baseline = state.clone();
         anyhow::bail!(
-            "Codex CLI installation is blocked by stale npm state. Run `codex-app-updater diagnose` for details and repair instructions."
+            "Codex CLI installation is blocked by stale npm state. Run `chatgpt-updater diagnose` for details and repair instructions."
         );
     }
     state.cli_status = CliStatus::Updating;
@@ -3160,7 +3020,7 @@ fn install_missing_cli_with_registry_timeout(
             set_cli_repair_required(state);
             state.save_cli_status(&paths.state_file)?;
             anyhow::bail!(
-                "Codex CLI installation is blocked by stale npm state. Run `codex-app-updater diagnose` for details and repair instructions."
+                "Codex CLI installation is blocked by stale npm state. Run `chatgpt-updater diagnose` for details and repair instructions."
             );
         }
     };
@@ -3614,7 +3474,7 @@ mod tests {
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
             "HOMEBREW_PREFIX",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
             "DECOY_NPM_LOG",
             "FAKE_CODEX_ENTRYPOINT",
             "NPM_LOG",
@@ -3627,7 +3487,7 @@ mod tests {
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("HOMEBREW_PREFIX");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
         Ok(restore)
     }
 
@@ -3908,7 +3768,7 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", &home);
         std::env::set_var("PATH", temp.path().join("missing-bin"));
@@ -3917,7 +3777,7 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let command_path = command_path_env();
         assert!(std::env::split_paths(&command_path).any(|path| path == nvm_bin.as_path()));
@@ -3953,7 +3813,7 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", &home);
         std::env::set_var("PATH", temp.path().join("missing-bin"));
@@ -3963,7 +3823,7 @@ exit 1
         std::env::set_var("FNM_DIR", &fnm_root);
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let command_path = command_path_env();
         assert!(std::env::split_paths(&command_path).any(|path| path == fnm_bin.as_path()));
@@ -3996,7 +3856,7 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", temp.path().join("home"));
         std::env::set_var("PATH", temp.path().join("missing-bin"));
@@ -4004,7 +3864,7 @@ exit 1
         std::env::set_var("FNM_DIR", &fnm_root);
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         assert_eq!(
             resolve_cli_path(None),
@@ -4114,7 +3974,8 @@ exit 1
         state.cli_installed_version = Some("0.42.0".to_string());
         state.cli_official_latest_version = Some("0.43.0".to_string());
         state.cli_last_check_at = Some(Utc::now() - Duration::minutes(30));
-        refresh_status_selected(&mut state, &paths)?;
+        let requested_path = resolve_runtime_cli_path(&test_runtime_config(&paths), &state, None)?;
+        refresh_status_with_requested_path(&mut state, &paths, requested_path)?;
 
         assert_eq!(state.cli_path.as_deref(), Some(codex_path.as_path()));
         assert_eq!(state.cli_installed_version.as_deref(), Some("0.42.0"));
@@ -4159,36 +4020,6 @@ exit 1
     }
 
     #[test]
-    fn refresh_cached_status_uses_cached_installed_version_without_running_cli() -> Result<()> {
-        let temp = tempdir()?;
-        let paths = test_runtime_paths(temp.path());
-        paths.ensure_dirs()?;
-
-        let codex_path = temp.path().join("codex");
-        write_executable_script(
-            &codex_path,
-            "#!/bin/sh\necho 'cli should not run during cached refresh' >&2\nexit 99\n",
-        )?;
-
-        let mut state = PersistedState::new(true);
-        state.cli_path = Some(codex_path.clone());
-        state.cli_installed_version = Some("0.42.0".to_string());
-        state.cli_official_latest_version = Some("0.42.1".to_string());
-        state.cli_last_check_at = Some(Utc::now() - Duration::minutes(30));
-        state.cli_last_verified_at = Some(Utc::now() - Duration::minutes(30));
-
-        refresh_cached_status_selected(&mut state, &paths)?;
-
-        assert_eq!(state.cli_path.as_deref(), Some(codex_path.as_path()));
-        assert_eq!(state.cli_installed_version.as_deref(), Some("0.42.0"));
-        assert_eq!(state.cli_official_latest_version.as_deref(), Some("0.42.1"));
-        assert_eq!(state.cli_package_manager_latest_version, None);
-        assert_eq!(state.cli_status, CliStatus::UpdateRequired);
-        assert_eq!(state.cli_error_message, None);
-        Ok(())
-    }
-
-    #[test]
     fn preflight_reports_actionable_pacman_update_without_running_npm_install() -> Result<()> {
         let _env_guard = env_lock();
         let temp = tempdir()?;
@@ -4224,10 +4055,10 @@ exit 1
             "PATH",
             "NVM_DIR",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
-            "CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT",
-            "CODEX_APP_UPDATER_TEST_PACMAN_PATH",
-            "CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT",
+            "CHATGPT_UPDATER_TEST_PACMAN_PATH",
+            "CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST",
         ]);
         std::env::set_var("HOME", temp.path());
         set_test_path_with_tool_bin(&tool_bin)?;
@@ -4236,10 +4067,10 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::remove_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
-        std::env::set_var("CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_PACMAN_PATH", &pacman_path);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST", "1");
+        std::env::remove_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
+        std::env::set_var("CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
+        std::env::set_var("CHATGPT_UPDATER_TEST_PACMAN_PATH", &pacman_path);
+        std::env::set_var("CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST", "1");
 
         let mut state = PersistedState::new(true);
         let outcome = preflight_selected(&mut state, &paths, Some(codex_path.clone()), false)?;
@@ -4317,10 +4148,10 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
-            "CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT",
-            "CODEX_APP_UPDATER_TEST_PACMAN_PATH",
-            "CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT",
+            "CHATGPT_UPDATER_TEST_PACMAN_PATH",
+            "CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST",
         ]);
         std::env::set_var("HOME", temp.path());
         set_test_path_with_tool_bin(&tool_bin)?;
@@ -4329,10 +4160,10 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::remove_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
-        std::env::set_var("CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_PACMAN_PATH", &pacman_path);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST", "1");
+        std::env::remove_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
+        std::env::set_var("CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
+        std::env::set_var("CHATGPT_UPDATER_TEST_PACMAN_PATH", &pacman_path);
+        std::env::set_var("CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST", "1");
 
         let mut state = PersistedState::new(true);
         let outcome = preflight_selected(&mut state, &paths, Some(codex_path.clone()), false)?;
@@ -4405,10 +4236,10 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
-            "CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT",
-            "CODEX_APP_UPDATER_TEST_PACMAN_PATH",
-            "CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT",
+            "CHATGPT_UPDATER_TEST_PACMAN_PATH",
+            "CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST",
         ]);
         std::env::set_var("HOME", temp.path());
         set_test_path_with_tool_bin(&tool_bin)?;
@@ -4417,10 +4248,10 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::remove_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
-        std::env::set_var("CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_PACMAN_PATH", &pacman_path);
-        std::env::set_var("CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST", "1");
+        std::env::remove_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
+        std::env::set_var("CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT", &system_root);
+        std::env::set_var("CHATGPT_UPDATER_TEST_PACMAN_PATH", &pacman_path);
+        std::env::set_var("CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST", "1");
 
         let mut state = PersistedState::new(true);
         let outcome = preflight_selected(&mut state, &paths, Some(codex_path.clone()), false)?;
@@ -4560,76 +4391,6 @@ exit 1
     }
 
     #[test]
-    fn refresh_cached_status_invalidates_missing_cached_cli_path() -> Result<()> {
-        let _env_guard = env_lock();
-        let _restore_fnm_env =
-            EnvRestoreGuard::capture(&["XDG_DATA_HOME", "FNM_DIR", "FNM_MULTISHELL_PATH"]);
-        let temp = tempdir()?;
-        let paths = test_runtime_paths(temp.path());
-        paths.ensure_dirs()?;
-
-        let original_home = std::env::var_os("HOME");
-        let original_path = std::env::var_os("PATH");
-        let original_nvm_dir = std::env::var_os("NVM_DIR");
-        let original_codex_cli_path = std::env::var_os("CODEX_CLI_PATH");
-        let original_skip_system_cli_lookup =
-            std::env::var_os("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
-        std::env::set_var("HOME", temp.path());
-        std::env::set_var("PATH", temp.path().join("missing-bin"));
-        std::env::remove_var("NVM_DIR");
-        std::env::remove_var("XDG_DATA_HOME");
-        std::env::remove_var("FNM_DIR");
-        std::env::remove_var("FNM_MULTISHELL_PATH");
-        std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
-
-        let missing_path = temp.path().join("missing-codex");
-        let mut state = PersistedState::new(true);
-        state.cli_path = Some(missing_path);
-        state.cli_installed_version = Some("0.42.0".to_string());
-        state.cli_package_manager_latest_version = Some("0.42.1-1".to_string());
-        state.cli_last_verified_at = Some(Utc::now() - Duration::minutes(30));
-
-        refresh_cached_status_selected(&mut state, &paths)?;
-
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        } else {
-            std::env::remove_var("HOME");
-        }
-        if let Some(path) = original_path {
-            std::env::set_var("PATH", path);
-        } else {
-            std::env::remove_var("PATH");
-        }
-        if let Some(nvm_dir) = original_nvm_dir {
-            std::env::set_var("NVM_DIR", nvm_dir);
-        } else {
-            std::env::remove_var("NVM_DIR");
-        }
-        if let Some(cli_path) = original_codex_cli_path {
-            std::env::set_var("CODEX_CLI_PATH", cli_path);
-        } else {
-            std::env::remove_var("CODEX_CLI_PATH");
-        }
-        if let Some(value) = original_skip_system_cli_lookup {
-            std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", value);
-        } else {
-            std::env::remove_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
-        }
-
-        assert_eq!(state.cli_path, None);
-        assert_eq!(state.cli_installed_version, None);
-        assert_eq!(state.cli_package_manager_latest_version, None);
-        assert_eq!(state.cli_status, CliStatus::NotInstalled);
-        assert_eq!(
-            state.cli_error_message.as_deref(),
-            Some(CLI_NOT_INSTALLED_MESSAGE)
-        );
-        Ok(())
-    }
-
-    #[test]
     fn refresh_status_marks_missing_cli_as_not_installed() -> Result<()> {
         let _env_guard = env_lock();
         let _restore_fnm_env =
@@ -4643,7 +4404,7 @@ exit 1
         let original_nvm_dir = std::env::var_os("NVM_DIR");
         let original_codex_cli_path = std::env::var_os("CODEX_CLI_PATH");
         let original_skip_system_cli_lookup =
-            std::env::var_os("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::var_os("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", temp.path().join("missing-bin"));
         std::env::remove_var("NVM_DIR");
@@ -4651,11 +4412,12 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let mut state = PersistedState::new(true);
         state.cli_package_manager_latest_version = Some("0.42.1-1".to_string());
-        refresh_status_selected(&mut state, &paths)?;
+        let requested_path = resolve_runtime_cli_path(&test_runtime_config(&paths), &state, None)?;
+        refresh_status_with_requested_path(&mut state, &paths, requested_path)?;
 
         if let Some(home) = original_home {
             std::env::set_var("HOME", home);
@@ -4678,9 +4440,9 @@ exit 1
             std::env::remove_var("CODEX_CLI_PATH");
         }
         if let Some(value) = original_skip_system_cli_lookup {
-            std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", value);
+            std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::remove_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP");
         }
 
         assert_eq!(state.cli_path, None);
@@ -4714,18 +4476,19 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", std::env::join_paths([bin_dir])?);
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let mut state = PersistedState::new(true);
         state.cli_path = Some(codex_path.clone());
         state.cli_package_manager_latest_version = Some("0.42.1-1".to_string());
-        refresh_status_selected(&mut state, &paths)?;
+        let requested_path = resolve_runtime_cli_path(&test_runtime_config(&paths), &state, None)?;
+        refresh_status_with_requested_path(&mut state, &paths, requested_path)?;
 
         assert_eq!(state.cli_path.as_deref(), Some(codex_path.as_path()));
         assert_eq!(state.cli_installed_version, None);
@@ -5130,9 +4893,9 @@ exit 1
         }
 
         let _restore_env =
-            EnvRestoreGuard::capture(&["PATH", "CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH"]);
+            EnvRestoreGuard::capture(&["PATH", "CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH"]);
         std::env::set_var("PATH", std::env::join_paths([user_bin.clone()])?);
-        std::env::remove_var("CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH");
+        std::env::remove_var("CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH");
         let trusted_path = trusted_standalone_installer_path()?;
 
         assert!(
@@ -5254,7 +5017,8 @@ exit 1
 
         let mut state = PersistedState::new(true);
         state.cli_path = Some(visible_codex);
-        refresh_status_selected(&mut state, &paths)?;
+        let requested_path = resolve_runtime_cli_path(&test_runtime_config(&paths), &state, None)?;
+        refresh_status_with_requested_path(&mut state, &paths, requested_path)?;
 
         assert_eq!(state.cli_status, CliStatus::Unknown);
         assert_eq!(state.cli_installed_version.as_deref(), Some("0.42.0"));
@@ -5289,13 +5053,13 @@ exit 1
             "PATH",
             "NVM_DIR",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
-            "CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH",
         ]);
         std::env::set_var("HOME", &home);
         set_test_path_with_tool_bin(&tool_bin)?;
         std::env::set_var(
-            "CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH",
+            "CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH",
             std::env::join_paths([tool_bin.clone()])?,
         );
         std::env::remove_var("NVM_DIR");
@@ -5303,7 +5067,7 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let visible_launch_path = canonical_cli_launch_path(&visible_codex)?;
         assert_eq!(
@@ -5363,7 +5127,7 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", &home);
         set_test_path_with_tool_bin(&tool_bin)?;
@@ -5372,11 +5136,11 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let mut state = PersistedState::new(true);
         state.cli_path = Some(visible_codex.clone());
-        let updated = reconcile_if_present_selected(&mut state, &paths)?;
+        let updated = reconcile_if_present(&test_runtime_config(&paths), &mut state, &paths)?;
 
         assert!(!updated);
         let stable_cli = fs::canonicalize(initial_release.join("bin/codex"))?;
@@ -5416,18 +5180,18 @@ exit 1
             "PATH",
             "NVM_DIR",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
-            "CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH",
         ]);
         std::env::set_var("HOME", &home);
         set_test_path_with_tool_bin(&tool_bin)?;
         std::env::set_var(
-            "CODEX_APP_UPDATER_TEST_STANDALONE_TOOL_PATH",
+            "CHATGPT_UPDATER_TEST_STANDALONE_TOOL_PATH",
             std::env::join_paths([tool_bin.clone()])?,
         );
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let mut state = PersistedState::new(true);
         state.cli_path = Some(visible_codex.clone());
@@ -5562,7 +5326,7 @@ exit 1
         let error = preflight_selected(&mut state, &paths, Some(fixture.visible_cli), false)
             .expect_err("pending explicit repair must block automatic npm mutation");
 
-        assert!(error.to_string().contains("codex-app-updater diagnose"));
+        assert!(error.to_string().contains("chatgpt-updater diagnose"));
         assert_eq!(state.cli_status, CliStatus::UpdateRequired);
         assert!(!npm_log.exists());
         assert!(npm_cli_repair::load(&paths)?.is_some());
@@ -5961,7 +5725,7 @@ wait
         assert!(state
             .cli_error_message
             .as_deref()
-            .is_some_and(|message| message.contains("codex-app-updater diagnose")));
+            .is_some_and(|message| message.contains("chatgpt-updater diagnose")));
         let persisted = PersistedState::load_or_default(&paths.state_file, true)?;
         assert_eq!(persisted.cli_status, CliStatus::UpdateRequired);
         assert_eq!(persisted.cli_path.as_deref(), Some(winner_path.as_path()));
@@ -6168,7 +5932,7 @@ wait
             CliInstallKind::Npm
         );
 
-        let updated = reconcile_if_present_selected(&mut state, &paths)?;
+        let updated = reconcile_if_present(&test_runtime_config(&paths), &mut state, &paths)?;
 
         assert!(updated);
         assert_eq!(
@@ -6194,7 +5958,7 @@ wait
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
             "FAKE_CODEX_PATH",
             "NPM_ACTIVE_PACKAGE",
             "NPM_INSTALL_RESULT",
@@ -6264,7 +6028,7 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
         std::env::set_var("FAKE_CODEX_PATH", &codex_path);
         std::env::set_var("NPM_ACTIVE_PACKAGE", &active_package);
         std::env::set_var("NPM_INSTALL_LOG", &install_log);
@@ -6273,7 +6037,7 @@ exit 1
         let mut state = PersistedState::new(true);
         state.cli_path = Some(codex_path.clone());
 
-        let updated = reconcile_if_present_selected(&mut state, &paths)?;
+        let updated = reconcile_if_present(&test_runtime_config(&paths), &mut state, &paths)?;
 
         assert!(!updated);
         assert_eq!(state.cli_status, CliStatus::UpdateRequired);
@@ -6283,9 +6047,9 @@ exit 1
         assert!(state
             .cli_error_message
             .as_deref()
-            .is_some_and(|message| message.contains("codex-app-updater diagnose")));
+            .is_some_and(|message| message.contains("chatgpt-updater diagnose")));
 
-        let updated = reconcile_if_present_selected(&mut state, &paths)?;
+        let updated = reconcile_if_present(&test_runtime_config(&paths), &mut state, &paths)?;
         assert!(!updated);
         assert_eq!(fs::read_to_string(&install_log)?, "attempt\n");
         assert!(retirement_path.exists());
@@ -6312,7 +6076,7 @@ exit 1
             "FNM_DIR",
             "FNM_MULTISHELL_PATH",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
             "NPM_ACTIVE_PACKAGE",
             "NPM_INSTALL_RESULT",
             "NPM_INSTALL_LOG",
@@ -6372,7 +6136,7 @@ exit 1
         std::env::remove_var("FNM_DIR");
         std::env::remove_var("FNM_MULTISHELL_PATH");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
         std::env::set_var("NPM_ACTIVE_PACKAGE", &source);
         std::env::set_var("NPM_INSTALL_LOG", &install_log);
         std::env::set_var("NPM_MANAGED_CLI", &managed_cli);
@@ -6577,7 +6341,7 @@ exit 1
         let mut state = PersistedState::new(true);
         state.cli_path = Some(codex_path.clone());
 
-        let updated = reconcile_if_present_selected(&mut state, &paths)?;
+        let updated = reconcile_if_present(&test_runtime_config(&paths), &mut state, &paths)?;
 
         assert!(!updated);
         assert_eq!(state.cli_path.as_deref(), Some(codex_path.as_path()));

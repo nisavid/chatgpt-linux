@@ -247,8 +247,8 @@ mod tests {
         WindowInfo {
             window_id: 1,
             title: Some("Codex".to_string()),
-            app_id: Some("codex-app".to_string()),
-            wm_class: Some("codex-app".to_string()),
+            app_id: Some("chatgpt".to_string()),
+            wm_class: Some("chatgpt".to_string()),
             pid: Some(1234),
             bounds: Some(WindowBounds {
                 x: Some(0),

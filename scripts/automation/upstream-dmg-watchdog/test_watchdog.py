@@ -134,7 +134,7 @@ class WatchdogTests(unittest.TestCase):
         return "sha256-" + base64.b64encode(digest).decode()
 
     def flake(self, sri: str) -> str:
-        return f'''{{ pkgs }}: let\n  codexDmg = pkgs.fetchurl {{\n    url = "https://example.test/Codex.dmg";\n    hash = "{sri}";\n  }};\nin codexDmg\n'''
+        return f'''{{ pkgs }}: let\n  chatgptDmg = pkgs.fetchurl {{\n    url = "https://example.test/ChatGPT.dmg";\n    hash = "{sri}";\n  }};\nin chatgptDmg\n'''
 
     def checks(self, outcome: str = "SUCCESS") -> list[dict]:
         names = [
@@ -154,11 +154,11 @@ class WatchdogTests(unittest.TestCase):
     def nix_pr(self, sri: str, *, head: str = "a" * 40, **overrides) -> dict:
         value = {
             "number": 99,
-            "url": "https://github.com/ilysenko/codex-desktop-linux/pull/99",
+            "url": "https://github.com/nisavid/chatgpt-linux/pull/99",
             "state": "OPEN",
             "author": {"login": "app/github-actions"},
-            "headRepositoryOwner": {"login": "ilysenko"},
-            "headRefName": "codex/nix-upstream-refresh",
+            "headRepositoryOwner": {"login": "nisavid"},
+            "headRefName": "chatgpt/nix-upstream-refresh",
             "headRefOid": head,
             "baseRefName": "main",
             "isDraft": False,

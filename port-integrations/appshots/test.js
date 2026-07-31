@@ -109,10 +109,10 @@ test("appshots can be disabled in integrations.json", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "appshots-integration-"));
   const configPath = path.join(tempDir, "integrations.json");
   const integrationsRoot = path.resolve(__dirname, "..");
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
 
   try {
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     fs.writeFileSync(
       configPath,
       `${JSON.stringify({ enabled: [], disabled: defaultEnabledIntegrationIds })}\n`,
@@ -141,9 +141,9 @@ test("appshots can be disabled in integrations.json", () => {
     assert.ok(loaded.every((descriptor) => descriptor.ciPolicy === "optional"));
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -337,38 +337,38 @@ test("routes AppShots capture through the self-contained port integration", () =
 
   assert.match(
     patched,
-    /process\.platform===`linux`\?codexLinuxAppshotFrontmostWindow\(\):process\.platform===`darwin`\?Xo\(\):null/,
+    /process\.platform===`linux`\?chatgptLinuxAppshotFrontmostWindow\(\):process\.platform===`darwin`\?Xo\(\):null/,
   );
   assert.match(
     patched,
-    /if\(process\.platform===`linux`\)return codexLinuxAppshotStartCapture\(\{origin:n,requestId:r,bundleIdentifier:t,windowManager:this\.windowManager\}\);/,
+    /if\(process\.platform===`linux`\)return chatgptLinuxAppshotStartCapture\(\{origin:n,requestId:r,bundleIdentifier:t,windowManager:this\.windowManager\}\);/,
   );
-  assert.match(patched, /function codexLinuxAppshotBackendPath/);
-  assert.match(patched, /codexLinuxAppshotBackendJson\(\[`windows`\],5000\)/);
-  assert.match(patched, /codexLinuxAppshotBackendJson\(\[`state`,e\],10000\)/);
+  assert.match(patched, /function chatgptLinuxAppshotBackendPath/);
+  assert.match(patched, /chatgptLinuxAppshotBackendJson\(\[`windows`\],5000\)/);
+  assert.match(patched, /chatgptLinuxAppshotBackendJson\(\[`state`,e\],10000\)/);
   assert.match(patched, /spectacle.*-b.*-n/);
   assert.match(patched, /programs:\[`spectacle`,`\/usr\/bin\/spectacle`\]/);
-  assert.match(patched, /mkdtempSync\(i\.join\(r\.tmpdir\(\),`codex-appshot-`\)\)/);
-  assert.doesNotMatch(patched, /i\.join\(r\.tmpdir\(\),`codex-appshot-\$\{process\.pid\}/);
-  assert.match(patched, /codexLinuxAppshotCropWithImageMagick/);
+  assert.match(patched, /mkdtempSync\(i\.join\(r\.tmpdir\(\),`chatgptshot-`\)\)/);
+  assert.doesNotMatch(patched, /i\.join\(r\.tmpdir\(\),`chatgptshot-\$\{process\.pid\}/);
+  assert.match(patched, /chatgptLinuxAppshotCropWithImageMagick/);
   assert.ok(
-    patched.indexOf("await codexLinuxAppshotCropWithImageMagick") <
-      patched.indexOf("codexLinuxAppshotCropNativeImage(o,d,s)"),
+    patched.indexOf("await chatgptLinuxAppshotCropWithImageMagick") <
+      patched.indexOf("chatgptLinuxAppshotCropNativeImage(o,d,s)"),
   );
   assert.match(patched, /\[linux-appshots\]/);
-  assert.match(patched, /codexLinuxAppshotCropRects/);
-  assert.match(patched, /codexLinuxAppshotFirstValidCrop/);
-  assert.match(patched, /mkdtempSync\(i\.join\(r\.tmpdir\(\),`codex-appshot-`\)\)/);
+  assert.match(patched, /chatgptLinuxAppshotCropRects/);
+  assert.match(patched, /chatgptLinuxAppshotFirstValidCrop/);
+  assert.match(patched, /mkdtempSync\(i\.join\(r\.tmpdir\(\),`chatgptshot-`\)\)/);
   assert.match(patched, /chmodSync\(u,448\)/);
   assert.match(patched, /i\.join\(u,`source\.png`\)/);
   assert.match(patched, /i\.join\(u,`crop\.png`\)/);
   assert.match(patched, /rmSync\(u,\{recursive:true,force:true\}\)/);
-  assert.doesNotMatch(patched, /i\.join\(r\.tmpdir\(\),`codex-appshot-\$\{/);
+  assert.doesNotMatch(patched, /i\.join\(r\.tmpdir\(\),`chatgptshot-\$\{/);
   assert.doesNotMatch(patched, /\[`appshot`/);
   assert.doesNotMatch(patched, /bare-modifier-monitor/);
   assert.match(
     patched,
-    /function codexLinuxAppshotSend\(e,t,n,r\)\{try\{e\.sendInlineMessageForView\(t,\{requestId:n,type:`computer-use-capture-updated`,update:r\}\)\}catch\{\}\}/,
+    /function chatgptLinuxAppshotSend\(e,t,n,r\)\{try\{e\.sendInlineMessageForView\(t,\{requestId:n,type:`computer-use-capture-updated`,update:r\}\)\}catch\{\}\}/,
   );
   assert.doesNotMatch(
     patched,
@@ -383,7 +383,7 @@ test("routes AppShots capture through the self-contained port integration", () =
 
 test("AppShots capture uses and removes its private temporary directory", async () => {
   const patched = applyLinuxAppshotMainProcessPatch(appshotMainProcessBundleFixture());
-  const helperStart = patched.lastIndexOf(";function codexLinuxAppshotRequire");
+  const helperStart = patched.lastIndexOf(";function chatgptLinuxAppshotRequire");
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "appshots-private-capture-"));
   const captureDirs = [];
   const chmodModes = [];
@@ -451,7 +451,7 @@ test("AppShots capture uses and removes its private temporary directory", async 
 
   try {
     vm.runInContext(patched.slice(helperStart), context, { timeout: 1_000 });
-    const result = await context.codexLinuxAppshotScreenshot(
+    const result = await context.chatgptLinuxAppshotScreenshot(
       { bounds: { height: 40, width: 50, x: 0, y: 0 } },
       [],
     );
@@ -463,7 +463,7 @@ test("AppShots capture uses and removes its private temporary directory", async 
     assert.equal(fs.existsSync(captureDirs[0]), false);
 
     failCaptures = true;
-    const failedResult = await context.codexLinuxAppshotScreenshot(
+    const failedResult = await context.chatgptLinuxAppshotScreenshot(
       { bounds: { height: 40, width: 50, x: 0, y: 0 } },
       [],
     );
@@ -485,11 +485,11 @@ test("enables the current AppShots hotkey class and bare modifiers on Linux", ()
 
   assert.match(
     patched,
-    /function codexLinuxAppshotIsWayland\(\)\{return process\.platform===`linux`&&\(\(process\.env\.XDG_SESSION_TYPE\|\|``\)\.toLowerCase\(\)===`wayland`\|\|!!process\.env\.WAYLAND_DISPLAY\)\}/,
+    /function chatgptLinuxAppshotIsWayland\(\)\{return process\.platform===`linux`&&\(\(process\.env\.XDG_SESSION_TYPE\|\|``\)\.toLowerCase\(\)===`wayland`\|\|!!process\.env\.WAYLAND_DISPLAY\)\}/,
   );
   assert.match(
     patched,
-    /function Lk\(e,t=process\.platform\)\{return \(t===`darwin`\|\|t===`linux`&&!codexLinuxAppshotIsWayland\(\)\)&&zk\(e\)!=null\}/,
+    /function Lk\(e,t=process\.platform\)\{return \(t===`darwin`\|\|t===`linux`&&!chatgptLinuxAppshotIsWayland\(\)\)&&zk\(e\)!=null\}/,
   );
   assert.match(
     patched,
@@ -502,7 +502,7 @@ test("enables the current AppShots hotkey class and bare modifiers on Linux", ()
   );
   assert.match(
     patched,
-    /supported:this\.enabled&&\(process\.platform===`darwin`\|\|process\.platform===`linux`\),configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null,linuxWayland:codexLinuxAppshotIsWayland\(\)/,
+    /supported:this\.enabled&&\(process\.platform===`darwin`\|\|process\.platform===`linux`\),configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null,linuxWayland:chatgptLinuxAppshotIsWayland\(\)/,
   );
   assert.match(
     patched,
@@ -531,7 +531,7 @@ test("enables the current AppShots hotkey class and bare modifiers on Linux", ()
 test("preserves AppShots hotkey strict mode when adding the Wayland helper", () => {
   const patched = applyLinuxAppshotHotkeyPatch(`"use strict";${currentAppshotHotkeyMainBundleFixture()}`);
 
-  assert.match(patched, /^"use strict";function codexLinuxAppshotIsWayland/);
+  assert.match(patched, /^"use strict";function chatgptLinuxAppshotIsWayland/);
 });
 
 test("AppShots hotkey patch fails closed when one current class shape drifts", () => {
@@ -578,12 +578,12 @@ test("shows Linux AppShots accelerator choices in current settings chunk", () =>
     currentAppshotSettingsBundleFixture(),
   );
 
-  assert.match(patched, /function codexLinuxAppshotHotkeyOptions\(e\)/);
+  assert.match(patched, /function chatgptLinuxAppshotHotkeyOptions\(e\)/);
   assert.match(
     patched,
-    /codexLinuxAppshotHotkeyOptions\(o\)\.find\(e=>e\.hotkey===f\)/,
+    /chatgptLinuxAppshotHotkeyOptions\(o\)\.find\(e=>e\.hotkey===f\)/,
   );
-  assert.match(patched, /codexLinuxAppshotHotkeyOptions\(o\)\.map/);
+  assert.match(patched, /chatgptLinuxAppshotHotkeyOptions\(o\)\.map/);
   assert.doesNotMatch(patched, /\bX\.find\(/);
   assert.doesNotMatch(patched, /\bX\.map\(/);
   assert.match(patched, /hotkey:`DoubleOption`,label:`Alt \+ Alt`/);
@@ -607,11 +607,11 @@ test("current AppShots settings helper is declared in strict module scope", () =
     Array.from(context.globalThis.result.labels),
     ["Alt + Alt", "Shift + Shift", "Ctrl + Super + A"],
   );
-  assert.doesNotMatch(patched, /,codexLinuxAppshotHotkeyOptions=/);
+  assert.doesNotMatch(patched, /,chatgptLinuxAppshotHotkeyOptions=/);
   assert.match(patched, /AX\.find\(e=>e\)\+AX\.map\(e=>e\)/);
   assert.match(patched, /obj\.X\.find\(e=>e\)\+obj\.X\.map\(e=>e\)/);
   assert.ok(
-    patched.indexOf("function codexLinuxAppshotHotkeyOptions") <
+    patched.indexOf("function chatgptLinuxAppshotHotkeyOptions") <
       patched.indexOf("//# sourceMappingURL=fixture.js.map"),
   );
   assert.ok(patched.endsWith("//# sourceMappingURL=fixture.js.map"));

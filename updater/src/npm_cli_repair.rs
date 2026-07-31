@@ -24,7 +24,7 @@ const JOURNAL_FILE_NAME: &str = "cli-repair.json";
 const LOCK_FILE_NAME: &str = "cli-install.lock";
 const LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
-const QUARANTINE_DIRECTORY_NAME: &str = ".codex-linux-quarantine";
+const QUARANTINE_DIRECTORY_NAME: &str = ".chatgpt-linux-quarantine";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct RepairJournal {
@@ -157,7 +157,7 @@ fn acquire_install_lock_with_timeout(
                 }
                 #[cfg(test)]
                 if let Some(path) =
-                    std::env::var_os("CODEX_APP_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING")
+                    std::env::var_os("CHATGPT_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING")
                 {
                     let _ = fs::write(path, b"waiting");
                 }

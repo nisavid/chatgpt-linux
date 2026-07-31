@@ -18,8 +18,8 @@ test("requireName finds require with backticks", () => {
   assert.strictEqual(requireName(source, "electron"), "myModule");
 });
 
-test("requireName finds wrapped require with codexLinuxPatchExternalOpen", () => {
-  const source = `let a=1,electronAlias=codexLinuxPatchExternalOpen(require(\`electron\`)),c=3`;
+test("requireName finds wrapped require with chatgptLinuxPatchExternalOpen", () => {
+  const source = `let a=1,electronAlias=chatgptLinuxPatchExternalOpen(require(\`electron\`)),c=3`;
   assert.strictEqual(requireName(source, "electron"), "electronAlias");
 });
 
@@ -29,7 +29,7 @@ test("requireName rejects an arbitrary require wrapper", () => {
 });
 
 test("requireName limits the Linux external-open wrapper to electron", () => {
-  const source = `const fsAlias=codexLinuxPatchExternalOpen(require("node:fs"))`;
+  const source = `const fsAlias=chatgptLinuxPatchExternalOpen(require("node:fs"))`;
   assert.strictEqual(requireName(source, "node:fs"), null);
 });
 
@@ -44,7 +44,7 @@ test("inferModuleAlias delegates to requireName for direct require", () => {
 });
 
 test("inferModuleAlias delegates to requireName for the Linux external-open wrapper", () => {
-  const source = `let electronAlias=codexLinuxPatchExternalOpen(require("electron"))`;
+  const source = `let electronAlias=chatgptLinuxPatchExternalOpen(require("electron"))`;
   assert.strictEqual(inferModuleAlias(source, "electron"), "electronAlias");
 });
 

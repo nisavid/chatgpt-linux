@@ -4,22 +4,20 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$REPO_DIR/scripts/lib/package-common.sh"
-APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/codex-app}"
+APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
 PKGBUILD_TEMPLATE="$REPO_DIR/packaging/linux/PKGBUILD.template"
-INSTALL_HOOKS="$REPO_DIR/packaging/linux/codex-app.install"
-DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
-SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
-USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
+INSTALL_HOOKS="$REPO_DIR/packaging/linux/chatgpt.install"
+DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
+SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
+USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
+PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh"
 
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
-PACKAGE_PROVIDES="${PACKAGE_PROVIDES:-codex-desktop}"
-PACKAGE_CONFLICTS="${PACKAGE_CONFLICTS:-codex-desktop}"
 ICON_SOURCE="$(resolve_package_icon_source)"
 MAX_BUILD_THREADS="${MAX_BUILD_THREADS:-0}"
-UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
+UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/chatgpt-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
 PACKAGED_RUNTIME_SOURCE="${PACKAGED_RUNTIME_SOURCE:-$PACKAGED_RUNTIME_TEMPLATE}"
 
@@ -89,7 +87,7 @@ main() {
 		ensure_file_exists "$UPDATER_SERVICE_SOURCE" "updater service template"
 		ensure_file_exists "$USER_SERVICE_HELPER_TEMPLATE" "updater user service helper"
 	else
-		info "Building package without codex-app-updater (PACKAGE_WITH_UPDATER=0)"
+		info "Building package without chatgpt-updater (PACKAGE_WITH_UPDATER=0)"
 	fi
 	command -v makepkg >/dev/null 2>&1 || error "makepkg is required (part of pacman)"
 
@@ -131,15 +129,11 @@ main() {
 	restore_port_integration_package_resource_permissions "$staging_root" "pacman"
 
 	local package_name
-	local package_provides
-	local package_conflicts
 	local pacman_pkgver
 	local pacman_pkgrel
 	local staging_dir
 	local arch_replacement
 	package_name="$(sed_escape_replacement "$PACKAGE_NAME")"
-	package_provides="$(sed_escape_replacement "$PACKAGE_PROVIDES")"
-	package_conflicts="$(sed_escape_replacement "$PACKAGE_CONFLICTS")"
 	pacman_pkgver="$(sed_escape_replacement "$PACMAN_PKGVER")"
 	pacman_pkgrel="$(sed_escape_replacement "$PACMAN_PKGREL")"
 	staging_dir="$(sed_escape_replacement "$staging_root")"
@@ -156,8 +150,6 @@ main() {
 	fi
 	sed \
 		-e "s/__PACKAGE_NAME__/$package_name/g" \
-		-e "s/__PACKAGE_PROVIDES__/$package_provides/g" \
-		-e "s/__PACKAGE_CONFLICTS__/$package_conflicts/g" \
 		-e "s/__PKGVER__/$pacman_pkgver/g" \
 		-e "s/__PKGREL__/$pacman_pkgrel/g" \
 		-e "s|__STAGING_DIR__|$staging_dir|g" \
@@ -198,20 +190,20 @@ main() {
 	local updater_pre_remove="    :"
 	local updater_post_remove="    :"
 	if package_with_updater_enabled; then
-		updater_service_preamble="SERVICE_HELPER=\"/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh\"
+		updater_service_preamble="SERVICE_HELPER=\"/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/chatgpt-updater-user-service.sh\"
 if [ -f \"\$SERVICE_HELPER\" ]; then
-    # shellcheck source=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
+    # shellcheck source=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/chatgpt-updater-user-service.sh
     . \"\$SERVICE_HELPER\"
 fi"
 		updater_post_install="    if [ -f \"\$SERVICE_HELPER\" ]; then
-        codex_ensure_user_service_running || true
+        chatgpt_ensure_user_service_running || true
     fi"
 		updater_pre_remove="    if [ -f \"\$SERVICE_HELPER\" ]; then
-        codex_cleanup_user_service stop || true
-        codex_cleanup_user_service disable || true
+        chatgpt_cleanup_user_service stop || true
+        chatgpt_cleanup_user_service disable || true
     fi"
 		updater_post_remove="    if [ -f \"\$SERVICE_HELPER\" ]; then
-        codex_reload_user_managers || true
+        chatgpt_reload_user_managers || true
     fi"
 		AWK_PACKAGE_NAME="$PACKAGE_NAME" \
 		AWK_UPDATER_SERVICE_PREAMBLE="$updater_service_preamble" \
@@ -230,8 +222,8 @@ fi"
 				if ($0 == "__UPDATER_PRE_REMOVE__") { emit_env("AWK_UPDATER_PRE_REMOVE"); next }
 				if ($0 == "__UPDATER_POST_REMOVE__") { emit_env("AWK_UPDATER_POST_REMOVE"); next }
 				gsub(/__PACKAGE_NAME__/, ENVIRON["AWK_PACKAGE_NAME"])
-				gsub(/\/opt\/codex-app/, "/opt/" ENVIRON["AWK_PACKAGE_NAME"])
-				gsub(/\/usr\/lib\/codex-app/, "/usr/lib/" ENVIRON["AWK_PACKAGE_NAME"])
+				gsub(/\/opt\/chatgpt/, "/opt/" ENVIRON["AWK_PACKAGE_NAME"])
+				gsub(/\/usr\/lib\/chatgpt/, "/usr/lib/" ENVIRON["AWK_PACKAGE_NAME"])
 				print
 			}
 		' "$INSTALL_HOOKS" >"$build_root/${PACKAGE_NAME}.install"

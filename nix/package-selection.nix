@@ -15,7 +15,7 @@ in
     if cfg.package != null then
       cfg.package
     else
-      flakePackages.codex-app.override {
+      flakePackages.chatgpt.override {
         enableComputerUseUi = cfg.computerUseUi.enable;
         portIntegrationIds = normalizedIntegrationIds;
       };

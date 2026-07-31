@@ -13,8 +13,8 @@ use std::{
 };
 use tracing::warn;
 
-const SERVICE_NAME: &str = "codex-app-updater";
-pub const PACKAGED_BUILDER_BUNDLE_ROOT: &str = "/usr/lib/codex-app/update-builder";
+const SERVICE_NAME: &str = "chatgpt-updater";
+pub const PACKAGED_BUILDER_BUNDLE_ROOT: &str = "/usr/lib/chatgpt/update-builder";
 const SECONDS_PER_HOUR: u64 = 60 * 60;
 const DEFAULT_CHECK_INTERVAL_HOURS: u64 = 6;
 
@@ -49,7 +49,7 @@ fn default_generated_artifact_cleanup_min_free_bytes() -> u64 {
 }
 
 fn default_generated_artifact_cleanup_entries() -> Vec<PathBuf> {
-    ["codex-app", "codex-app-next", "dist", "dist-next", "target"]
+    ["chatgpt", "chatgpt-next", "dist", "dist-next", "target"]
         .into_iter()
         .map(PathBuf::from)
         .collect()
@@ -70,8 +70,8 @@ pub struct RuntimeConfig {
     pub app_executable_path: PathBuf,
     #[serde(default)]
     pub cli_path: Option<PathBuf>,
-    /// Opt-in tracking of newer codex-app wrapper releases in addition to the
-    /// official Codex DMG. Off by default so existing installs keep DMG-only
+    /// Opt-in tracking of newer chatgpt wrapper releases in addition to the
+    /// official ChatGPT DMG. Off by default so existing installs keep DMG-only
     /// behavior.
     #[serde(default)]
     pub enable_wrapper_updates: bool,
@@ -183,7 +183,7 @@ impl RuntimeConfig {
             developer_mode: false,
             workspace_root: paths.cache_dir.clone(),
             builder_bundle_root,
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -306,16 +306,16 @@ impl RuntimeConfig {
 }
 
 const APP_SETTINGS_FILE: &str = "settings.json";
-pub(crate) const DEFAULT_APP_ID: &str = "codex-app";
-const AUTO_INSTALL_SETTING_KEY: &str = "codex-linux-auto-update-on-exit";
-const WRAPPER_UPDATES_SETTING_KEY: &str = "codex-linux-wrapper-updates-enabled";
+pub(crate) const DEFAULT_APP_ID: &str = "chatgpt";
+const AUTO_INSTALL_SETTING_KEY: &str = "chatgpt-linux-auto-update-on-exit";
+const WRAPPER_UPDATES_SETTING_KEY: &str = "chatgpt-linux-wrapper-updates-enabled";
 
-/// Resolves the Codex App id the same way the Linux launcher and main bundle do:
-/// `CODEX_LINUX_APP_ID`, then `CODEX_APP_ID`, then `codex-app`.
+/// Resolves the ChatGPT id the same way the Linux launcher and main bundle do:
+/// `CHATGPT_LINUX_APP_ID`, then `CHATGPT_APP_ID`, then `chatgpt`.
 /// Invalid ids fall back to the default so a malformed env value can never point
 /// the lookup at an attacker-controlled path.
 pub(crate) fn resolve_app_id() -> String {
-    for var in ["CODEX_LINUX_APP_ID", "CODEX_APP_ID"] {
+    for var in ["CHATGPT_LINUX_APP_ID", "CHATGPT_APP_ID"] {
         if let Ok(value) = std::env::var(var) {
             if valid_app_id(&value) {
                 return value;
@@ -333,7 +333,7 @@ pub(crate) fn valid_app_id(id: &str) -> bool {
 }
 
 pub(crate) fn resolve_launch_instance_id() -> Option<String> {
-    std::env::var("CODEX_LINUX_INSTANCE_ID")
+    std::env::var("CHATGPT_LINUX_INSTANCE_ID")
         .ok()
         .filter(|value| valid_app_id(value))
 }
@@ -352,10 +352,10 @@ pub(crate) fn resolve_app_state_dir() -> Result<PathBuf> {
 
 /// Resolves the app `settings.json` path mirroring the launcher
 /// (`launcher/start.sh.template`) and the main-bundle persistence helper
-/// (`scripts/patches/launch-actions.js`): honor `CODEX_LINUX_SETTINGS_FILE`
+/// (`scripts/patches/launch-actions.js`): honor `CHATGPT_LINUX_SETTINGS_FILE`
 /// first, then `XDG_CONFIG_HOME`, then `$HOME/.config`, joined with the app id.
 fn app_settings_path() -> Option<PathBuf> {
-    if let Ok(explicit) = std::env::var("CODEX_LINUX_SETTINGS_FILE") {
+    if let Ok(explicit) = std::env::var("CHATGPT_LINUX_SETTINGS_FILE") {
         if !explicit.is_empty() {
             return Some(PathBuf::from(explicit));
         }
@@ -411,14 +411,14 @@ pub fn settings_wrapper_updates_override() -> Option<bool> {
 }
 
 const FEATURE_CONFIG_FILE: &str = "port-integrations.json";
-const PACKAGED_FEATURE_CONFIG_DIR: &str = ".codex-linux";
+const PACKAGED_FEATURE_CONFIG_DIR: &str = ".chatgpt-linux";
 const BUNDLED_FEATURE_CONFIG_FILE: &str = "integrations.json";
-const FEATURE_PICKER_ON_UPDATE_SETTING_KEY: &str = "codex-linux-integration-picker-on-update";
+const FEATURE_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integration-picker-on-update";
 
 /// Resolves the stable per-user port-integration config path
 /// (`<config>/<appId>/port-integrations.json`), alongside `settings.json`. The
 /// wrapper-update picker writes the chosen `{"enabled":[...]}` here, and the
-/// rebuild points `CODEX_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside
+/// rebuild points `CHATGPT_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside
 /// any wrapper-src checkout so a fresh clone cannot clobber it.
 pub fn integration_config_path() -> Option<PathBuf> {
     let settings = app_settings_path()?;
@@ -553,20 +553,20 @@ mod tests {
     fn runtime_config_toml(initial_delay: u64, check_interval: u64) -> String {
         format!(
             r#"
-dmg_url = "https://example.com/Codex.dmg"
+dmg_url = "https://example.com/ChatGPT.dmg"
 initial_check_delay_seconds = {initial_delay}
 check_interval_hours = {check_interval}
 auto_install_on_app_exit = false
 notifications = false
-workspace_root = "/tmp/codex-workspaces"
-builder_bundle_root = "/tmp/codex-builder"
-app_executable_path = "/opt/codex-app/electron"
+workspace_root = "/tmp/chatgpt-workspaces"
+builder_bundle_root = "/tmp/chatgpt-builder"
+app_executable_path = "/opt/chatgpt/electron"
 "#
         )
     }
 
     /// Writes `settings.json` content to a tempfile, points
-    /// `CODEX_LINUX_SETTINGS_FILE` at it, and returns the override result.
+    /// `CHATGPT_LINUX_SETTINGS_FILE` at it, and returns the override result.
     /// `None` content means "do not create the file" (missing-file case).
     fn override_with_settings(content: Option<&str>, key: &str) -> Option<bool> {
         let _guard = crate::test_util::env_lock();
@@ -575,9 +575,9 @@ app_executable_path = "/opt/codex-app/electron"
         if let Some(body) = content {
             std::fs::write(&settings_path, body).expect("write settings");
         }
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
         let result = settings_bool_override(key);
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         result
     }
 
@@ -585,14 +585,14 @@ app_executable_path = "/opt/codex-app/electron"
     fn settings_override_reads_explicit_bool() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": false}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": false}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": true}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": true}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
@@ -603,28 +603,28 @@ app_executable_path = "/opt/codex-app/electron"
     fn settings_override_coerces_string_and_number() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": "off"}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": "off"}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": "on"}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": "on"}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": 0}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": 0}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": 1}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": 1}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
@@ -653,14 +653,14 @@ app_executable_path = "/opt/codex-app/electron"
     fn wrapper_settings_override_reads_explicit_bool() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-wrapper-updates-enabled": true}"#),
+                Some(r#"{"chatgpt-linux-wrapper-updates-enabled": true}"#),
                 WRAPPER_UPDATES_SETTING_KEY
             ),
             Some(true)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-wrapper-updates-enabled": false}"#),
+                Some(r#"{"chatgpt-linux-wrapper-updates-enabled": false}"#),
                 WRAPPER_UPDATES_SETTING_KEY
             ),
             Some(false)
@@ -675,7 +675,7 @@ app_executable_path = "/opt/codex-app/electron"
         fs::write(&settings_path, r#"{"theme":"dark"}"#)?;
         let _settings_guard = crate::test_util::EnvVarGuard::set(
             &_guard,
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_LINUX_SETTINGS_FILE",
             &settings_path,
         );
 
@@ -685,7 +685,7 @@ app_executable_path = "/opt/codex-app/electron"
         let value = serde_json::from_str::<serde_json::Value>(&settings)?;
         assert_eq!(value["theme"], serde_json::Value::String("dark".into()));
         assert_eq!(
-            value["codex-linux-integration-picker-on-update"],
+            value["chatgpt-linux-integration-picker-on-update"],
             serde_json::Value::Bool(false)
         );
         let temp_entries = fs::read_dir(temp.path())?
@@ -712,7 +712,7 @@ app_executable_path = "/opt/codex-app/electron"
         let saved_integration_config = settings_dir.join("port-integrations.json");
         let packaged_integration_config = temp
             .path()
-            .join("builder/.codex-linux/port-integrations.json");
+            .join("builder/.chatgpt-linux/port-integrations.json");
         let builder_integration_config = temp
             .path()
             .join("builder/port-integrations/integrations.json");
@@ -725,9 +725,9 @@ app_executable_path = "/opt/codex-app/electron"
         )?;
         fs::write(
             &builder_integration_config,
-            r#"{"enabled":["codex-wrapper-updater"]}"#,
+            r#"{"enabled":["chatgpt-wrapper-updater"]}"#,
         )?;
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
 
         let paths = RuntimePaths {
             config_file: temp.path().join("config/config.toml"),
@@ -763,7 +763,7 @@ app_executable_path = "/opt/codex-app/electron"
             Some(saved_integration_config)
         );
 
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         Ok(())
     }
 
@@ -792,8 +792,8 @@ app_executable_path = "/opt/codex-app/electron"
         assert_eq!(
             config.generated_artifact_cleanup.entries,
             vec![
-                PathBuf::from("codex-app"),
-                PathBuf::from("codex-app-next"),
+                PathBuf::from("chatgpt"),
+                PathBuf::from("chatgpt-next"),
                 PathBuf::from("dist"),
                 PathBuf::from("dist-next"),
                 PathBuf::from("target"),
@@ -817,28 +817,28 @@ app_executable_path = "/opt/codex-app/electron"
         fs::write(
             &paths.config_file,
             r#"
-dmg_url = "https://example.com/Codex.dmg"
+dmg_url = "https://example.com/ChatGPT.dmg"
 initial_check_delay_seconds = 5
 check_interval_hours = 12
 auto_install_on_app_exit = false
 notifications = false
 developer_mode = true
-workspace_root = "/tmp/codex-workspaces"
-builder_bundle_root = "/tmp/codex-builder"
-app_executable_path = "/opt/codex-app/electron"
+workspace_root = "/tmp/chatgpt-workspaces"
+builder_bundle_root = "/tmp/chatgpt-builder"
+app_executable_path = "/opt/chatgpt/electron"
 cli_path = "/opt/codex/bin/codex"
 
 
 [generated_artifact_cleanup]
 enabled = true
 min_free_bytes = 2147483648
-roots = ["/tmp/codex-app-linux"]
-entries = ["dist", "target", "Codex.dmg"]
+roots = ["/tmp/chatgpt-linux"]
+entries = ["dist", "target", "ChatGPT.dmg"]
 "#,
         )?;
 
         let config = RuntimeConfig::load_or_default(&paths)?;
-        assert_eq!(config.dmg_url, "https://example.com/Codex.dmg");
+        assert_eq!(config.dmg_url, "https://example.com/ChatGPT.dmg");
         assert_eq!(config.initial_check_delay_seconds, 5);
         assert_eq!(config.check_interval_hours, 12);
         assert_eq!(
@@ -858,29 +858,29 @@ entries = ["dist", "target", "Codex.dmg"]
         assert!(config.developer_mode);
         assert_eq!(
             config.workspace_root,
-            PathBuf::from("/tmp/codex-workspaces")
+            PathBuf::from("/tmp/chatgpt-workspaces")
         );
         assert_eq!(
             config.builder_bundle_root,
-            PathBuf::from("/tmp/codex-builder")
+            PathBuf::from("/tmp/chatgpt-builder")
         );
         assert_eq!(
             config.app_executable_path,
-            PathBuf::from("/opt/codex-app/electron")
+            PathBuf::from("/opt/chatgpt/electron")
         );
         assert_eq!(config.cli_path, Some(PathBuf::from("/opt/codex/bin/codex")));
         assert!(config.generated_artifact_cleanup.enabled);
         assert_eq!(config.generated_artifact_cleanup.min_free_bytes, 2147483648);
         assert_eq!(
             config.generated_artifact_cleanup.roots,
-            vec![PathBuf::from("/tmp/codex-app-linux")]
+            vec![PathBuf::from("/tmp/chatgpt-linux")]
         );
         assert_eq!(
             config.generated_artifact_cleanup.entries,
             vec![
                 PathBuf::from("dist"),
                 PathBuf::from("target"),
-                PathBuf::from("Codex.dmg"),
+                PathBuf::from("ChatGPT.dmg"),
             ]
         );
         Ok(())
@@ -971,11 +971,11 @@ entries = ["dist", "target", "Codex.dmg"]
     #[test]
     fn packaged_builder_root_overrides_configured_root_without_developer_mode() {
         let temp = tempdir().expect("tempdir");
-        let packaged_root = temp.path().join("usr/lib/codex-app/update-builder");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
         let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
+            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 5,
             check_interval_hours: 12,
             auto_install_on_app_exit: false,
@@ -983,7 +983,7 @@ entries = ["dist", "target", "Codex.dmg"]
             developer_mode: false,
             workspace_root: temp.path().join("workspace"),
             builder_bundle_root: configured_root,
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -999,11 +999,11 @@ entries = ["dist", "target", "Codex.dmg"]
     #[test]
     fn developer_mode_preserves_configured_builder_root() {
         let temp = tempdir().expect("tempdir");
-        let packaged_root = temp.path().join("usr/lib/codex-app/update-builder");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
         let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
+            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 5,
             check_interval_hours: 12,
             auto_install_on_app_exit: false,
@@ -1011,7 +1011,7 @@ entries = ["dist", "target", "Codex.dmg"]
             developer_mode: true,
             workspace_root: temp.path().join("workspace"),
             builder_bundle_root: configured_root.clone(),
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -1039,13 +1039,13 @@ entries = ["dist", "target", "Codex.dmg"]
         fs::write(
             &paths.config_file,
             r#"
-dmg_url = "https://example.com/Codex.dmg"
+dmg_url = "https://example.com/ChatGPT.dmg"
 notifications = false
 "#,
         )?;
 
         let config = RuntimeConfig::load_or_default(&paths)?;
-        assert_eq!(config.dmg_url, "https://example.com/Codex.dmg");
+        assert_eq!(config.dmg_url, "https://example.com/ChatGPT.dmg");
         assert_eq!(config.initial_check_delay_seconds, 30);
         assert_eq!(config.check_interval_hours, 6);
         assert!(config.auto_install_on_app_exit);

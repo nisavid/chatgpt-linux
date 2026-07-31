@@ -18,7 +18,7 @@ const {
 } = require("./patch.js");
 
 const currentProjectSource =
-  "function xe(e,t){switch(e.kind){case`local`:return e.conversation==null?e.pendingWorktree.createdAt:t===`updated_at`?e.conversation.recencyAt??e.conversation.updatedAt:e.conversation.createdAt;case`remote`:return((t===`updated_at`?e.task.updated_at??e.task.created_at:e.task.created_at??e.task.updated_at)??0)*1e3}}";
+  "function _os(e,t){switch(e.kind){case`local`:return e.conversation==null?e.pendingWorktree.createdAt:t===`updated_at`?e.conversation.recencyAt??e.conversation.updatedAt:e.conversation.createdAt;case`remote`:return((t===`updated_at`?e.task.updated_at??e.task.created_at:e.task.created_at??e.task.updated_at)??0)*1e3}}";
 
 function captureWarns(fn) {
   const originalWarn = console.warn;
@@ -52,17 +52,17 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withFeatureConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "project-task-sort-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
     return fn();
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -96,7 +96,7 @@ test("patch recovers local UUIDv7 creation time", () => {
   );
 
   const context = {};
-  vm.runInNewContext(`${patched};globalThis.timestamp=xe`, context);
+  vm.runInNewContext(`${patched};globalThis.timestamp=_os`, context);
   const older = {
     key: "local:019e0000-0000-7000-8000-000000000001",
     kind: "local",
@@ -171,7 +171,7 @@ test("descriptor targets and patches the current project chunk", () => {
     const assetsDir = path.join(tempDir, "webview", "assets");
     const assetPath = path.join(
       assetsDir,
-      "app-initial~app-main~onboarding-page~projects-index-page~quick-chat-window-page~codex-micro~iqsnin5k-Bxmd3ja1.js",
+      "app-initial-DRyZ1Lin.js",
     );
     fs.mkdirSync(assetsDir, { recursive: true });
     fs.writeFileSync(assetPath, currentProjectSource);

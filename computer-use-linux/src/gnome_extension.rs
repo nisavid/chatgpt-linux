@@ -366,8 +366,10 @@ mod tests {
 
     #[test]
     fn write_extension_files_reports_changed_assets() {
-        let extension_dir =
-            env::temp_dir().join(format!("codex-gnome-extension-test-{}", std::process::id()));
+        let extension_dir = env::temp_dir().join(format!(
+            "chatgpt-gnome-extension-test-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&extension_dir);
 
         let first = write_extension_files(&extension_dir).unwrap();

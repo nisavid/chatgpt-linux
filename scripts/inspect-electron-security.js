@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const target = process.argv[2] || "codex-app";
+const target = process.argv[2] || "chatgpt";
 const root = path.resolve(target);
 
 function usage() {

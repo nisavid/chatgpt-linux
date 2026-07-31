@@ -1,10 +1,10 @@
 use anyhow::{bail, Context, Result};
-use clap::{ArgGroup, Parser};
-use codex_mcp_helper_reaper::{
+use chatgpt_mcp_helper_reaper::{
     all_processes, codex_home_for_parent, discover_config_paths, escalate_orphan_helpers,
     is_codex_process, load_config_server_specs, load_plugin_cache_server_specs, plan_orphan_reap,
     read_proc, same_process, sleep_duration, terminate_orphan_helpers, ProcInfo, ServerSpec,
 };
+use clap::{ArgGroup, Parser};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -27,7 +27,7 @@ struct Args {
     #[arg(long)]
     all_codex_parents: bool,
 
-    /// Installed Codex Desktop app directory for bundled helper matching.
+    /// Installed ChatGPT for Linux app directory for bundled helper matching.
     #[arg(long, value_name = "PATH")]
     app_dir: Option<PathBuf>,
 
@@ -70,7 +70,7 @@ struct Args {
 
 fn main() {
     if let Err(error) = run(Args::parse()) {
-        eprintln!("codex-mcp-helper-reaper: {error:#}");
+        eprintln!("chatgpt-mcp-helper-reaper: {error:#}");
         std::process::exit(1);
     }
 }
@@ -170,7 +170,7 @@ fn load_server_specs(parent: &ProcInfo, args: &Args) -> Result<Vec<ServerSpec>> 
         }
         match load_config_server_specs(&path) {
             Ok(mut loaded) => specs.append(&mut loaded),
-            Err(error) => eprintln!("codex-mcp-helper-reaper: {error:#}"),
+            Err(error) => eprintln!("chatgpt-mcp-helper-reaper: {error:#}"),
         }
     }
 
@@ -217,7 +217,7 @@ fn load_orphan_server_specs(args: &Args, processes: &BTreeMap<i32, ProcInfo>) ->
         }
         match load_config_server_specs(&path) {
             Ok(mut loaded) => specs.append(&mut loaded),
-            Err(error) => eprintln!("codex-mcp-helper-reaper: {error:#}"),
+            Err(error) => eprintln!("chatgpt-mcp-helper-reaper: {error:#}"),
         }
     }
     specs.extend(load_plugin_cache_server_specs(&codex_home));

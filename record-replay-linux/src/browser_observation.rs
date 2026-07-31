@@ -1,4 +1,4 @@
-use codex_computer_use_linux::windowing;
+use chatgpt_computer_use_linux::windowing;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -4,19 +4,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FILES_DIR="${SCRIPT_DIR}/files"
 SCRIPT_REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_REPO_ROOT="${CODEX_USER_LOCAL_SOURCE_REPO_DIR:-$SCRIPT_REPO_ROOT}"
-DESKTOP_ENTRY_DOCTOR="${SOURCE_REPO_ROOT}/packaging/linux/codex-app-desktop-entry-doctor.sh"
+SOURCE_REPO_ROOT="${CHATGPT_USER_LOCAL_SOURCE_REPO_DIR:-$SCRIPT_REPO_ROOT}"
+DESKTOP_ENTRY_DOCTOR="${SOURCE_REPO_ROOT}/packaging/linux/chatgpt-desktop-entry-doctor.sh"
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
 APP_BIN_DIR="${INSTALL_ROOT}/bin"
 APP_LIB_DIR="${INSTALL_ROOT}/lib"
 USER_BIN_DIR="${HOME}/.local/bin"
-CONFIG_DIR="${XDG_CONFIG_HOME}/codex-app"
+CONFIG_DIR="${XDG_CONFIG_HOME}/chatgpt"
 USER_LOCAL_ENV_FILE="${CONFIG_DIR}/user-local.env"
 MANAGED_REPO_DIR="${INSTALL_ROOT}/managed-repo"
-STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/codex-app"
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/chatgpt"
 FROM_UPDATE=0
 ENABLE_TIMER=0
 USER_LOCAL_OZONE_PLATFORM_SETTING=""
@@ -58,7 +58,7 @@ write_user_local_preferences() {
 
     mkdir -p "$CONFIG_DIR"
     cat > "$USER_LOCAL_ENV_FILE" <<EOF
-CODEX_USER_LOCAL_OZONE_PLATFORM=$(printf '%q' "$USER_LOCAL_OZONE_PLATFORM_SETTING")
+CHATGPT_USER_LOCAL_OZONE_PLATFORM=$(printf '%q' "$USER_LOCAL_OZONE_PLATFORM_SETTING")
 EOF
 }
 
@@ -88,44 +88,44 @@ install_manager_files() {
     mkdir -p "$APP_BIN_DIR" "$APP_LIB_DIR" "${XDG_DATA_HOME}/applications" "$USER_BIN_DIR" "$STATE_DIR" "$systemd_user_dir"
 
     copy_file "${FILES_DIR}/share/common.sh" "${APP_LIB_DIR}/common.sh"
-    copy_file "${FILES_DIR}/.local/bin/codex-app" "${APP_BIN_DIR}/codex-app"
-    copy_file "${FILES_DIR}/.local/bin/codex-app-check-update" "${APP_BIN_DIR}/codex-app-check-update"
-    copy_file "${FILES_DIR}/.local/bin/codex-app-update" "${APP_BIN_DIR}/codex-app-update"
-    copy_file "${FILES_DIR}/.local/bin/codex-app-version" "${APP_BIN_DIR}/codex-app-version"
+    copy_file "${FILES_DIR}/.local/bin/chatgpt" "${APP_BIN_DIR}/chatgpt"
+    copy_file "${FILES_DIR}/.local/bin/chatgpt-check-update" "${APP_BIN_DIR}/chatgpt-check-update"
+    copy_file "${FILES_DIR}/.local/bin/chatgpt-update" "${APP_BIN_DIR}/chatgpt-update"
+    copy_file "${FILES_DIR}/.local/bin/chatgpt-version" "${APP_BIN_DIR}/chatgpt-version"
 
-    cat > "${USER_BIN_DIR}/codex-app" <<'EOF'
+    cat > "${USER_BIN_DIR}/chatgpt" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
-exec "${INSTALL_ROOT}/bin/codex-app" "$@"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+exec "${INSTALL_ROOT}/bin/chatgpt" "$@"
 EOF
-    cat > "${USER_BIN_DIR}/codex-app-check-update" <<'EOF'
+    cat > "${USER_BIN_DIR}/chatgpt-check-update" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
-exec "${INSTALL_ROOT}/bin/codex-app-check-update" "$@"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+exec "${INSTALL_ROOT}/bin/chatgpt-check-update" "$@"
 EOF
-    cat > "${USER_BIN_DIR}/codex-app-update" <<'EOF'
+    cat > "${USER_BIN_DIR}/chatgpt-update" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
-exec "${INSTALL_ROOT}/bin/codex-app-update" "$@"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+exec "${INSTALL_ROOT}/bin/chatgpt-update" "$@"
 EOF
-    cat > "${USER_BIN_DIR}/codex-app-version" <<'EOF'
+    cat > "${USER_BIN_DIR}/chatgpt-version" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
-exec "${INSTALL_ROOT}/bin/codex-app-version" "$@"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+exec "${INSTALL_ROOT}/bin/chatgpt-version" "$@"
 EOF
 
-    sed "s|@USER_BIN_DIR@|${USER_BIN_DIR}|g" "${FILES_DIR}/.local/share/applications/codex-app.desktop" > "${XDG_DATA_HOME}/applications/codex-app.desktop"
+    sed "s|@USER_BIN_DIR@|${USER_BIN_DIR}|g" "${FILES_DIR}/.local/share/applications/chatgpt.desktop" > "${XDG_DATA_HOME}/applications/chatgpt.desktop"
 
-    copy_file "${FILES_DIR}/.config/systemd/user/codex-app-update.service" "${systemd_user_dir}/codex-app-update.service"
-    copy_file "${FILES_DIR}/.config/systemd/user/codex-app-update.timer" "${systemd_user_dir}/codex-app-update.timer"
+    copy_file "${FILES_DIR}/.config/systemd/user/chatgpt-update.service" "${systemd_user_dir}/chatgpt-update.service"
+    copy_file "${FILES_DIR}/.config/systemd/user/chatgpt-update.timer" "${systemd_user_dir}/chatgpt-update.timer"
 
     cat > "${STATE_DIR}/install.env" <<EOF
 REPO_DIR=$(printf '%q' "$SOURCE_REPO_ROOT")
@@ -138,15 +138,15 @@ XDG_DATA_HOME=$(printf '%q' "$XDG_DATA_HOME")
 EOF
 
     chmod +x \
-        "${APP_BIN_DIR}/codex-app" \
-        "${APP_BIN_DIR}/codex-app-check-update" \
-        "${APP_BIN_DIR}/codex-app-update" \
-        "${APP_BIN_DIR}/codex-app-version" \
+        "${APP_BIN_DIR}/chatgpt" \
+        "${APP_BIN_DIR}/chatgpt-check-update" \
+        "${APP_BIN_DIR}/chatgpt-update" \
+        "${APP_BIN_DIR}/chatgpt-version" \
         "${APP_LIB_DIR}/common.sh" \
-        "${USER_BIN_DIR}/codex-app" \
-        "${USER_BIN_DIR}/codex-app-check-update" \
-        "${USER_BIN_DIR}/codex-app-update" \
-        "${USER_BIN_DIR}/codex-app-version"
+        "${USER_BIN_DIR}/chatgpt" \
+        "${USER_BIN_DIR}/chatgpt-check-update" \
+        "${USER_BIN_DIR}/chatgpt-update" \
+        "${USER_BIN_DIR}/chatgpt-version"
 }
 
 install_manager_files
@@ -155,7 +155,7 @@ write_user_local_preferences
 if command -v systemctl >/dev/null 2>&1; then
     systemctl --user daemon-reload >/dev/null 2>&1 || true
     if [ "$ENABLE_TIMER" -eq 1 ]; then
-        systemctl --user enable --now codex-app-update.timer >/dev/null 2>&1 || true
+        systemctl --user enable --now chatgpt-update.timer >/dev/null 2>&1 || true
     fi
 fi
 
@@ -163,10 +163,10 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "${XDG_DATA_HOME}/applications" >/dev/null 2>&1 || true
 fi
 
-if [ "$FROM_UPDATE" -eq 0 ] && [ -x "${USER_BIN_DIR}/codex-app-update" ]; then
-    "${USER_BIN_DIR}/codex-app-update" --record-only >/dev/null 2>&1 || true
+if [ "$FROM_UPDATE" -eq 0 ] && [ -x "${USER_BIN_DIR}/chatgpt-update" ]; then
+    "${USER_BIN_DIR}/chatgpt-update" --record-only >/dev/null 2>&1 || true
 fi
 
 if [ "$FROM_UPDATE" -eq 0 ]; then
-    echo "Installed user-local ChatGPT Desktop integration."
+    echo "Installed user-local ChatGPT for Linux integration."
 fi

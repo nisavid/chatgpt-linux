@@ -10,7 +10,7 @@ const {
   findMainBundle,
 } = require("../../../../lib/assets.js");
 
-const PATCH_MARKER = "codexLinuxWorkspaceRootOpenTarget";
+const PATCH_MARKER = "chatgptLinuxWorkspaceRootOpenTarget";
 const MISSING_FILE_MANAGER_ACTION_REASON =
   "Workspace-root File Manager open action is not present in this upstream build";
 
@@ -93,13 +93,13 @@ function enabledWorkspaceRootTargets(mainSource) {
   const targets = [];
   if (
     mainSource.includes("id:`vscode`") &&
-    mainSource.includes("function codexLinuxIdeCommand(")
+    mainSource.includes("function chatgptLinuxIdeCommand(")
   ) {
     targets.push({ id: "vscode", label: "VS Code" });
   }
   if (
     mainSource.includes("id:`vscodeInsiders`") &&
-    mainSource.includes("function codexLinuxIdeCommand(")
+    mainSource.includes("function chatgptLinuxIdeCommand(")
   ) {
     targets.push({ id: "vscodeInsiders", label: "VS Code Insiders" });
   }

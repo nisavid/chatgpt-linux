@@ -5,14 +5,14 @@ that agents need without keeping them in the main quick-start.
 
 ## Generated Artifacts
 
-- `codex-app/`
+- `chatgpt/`
   Generated Linux app directory. Treat as build output.
-- `codex-app-next/`
+- `chatgpt-next/`
   Side-by-side rebuild candidate from `scripts/rebuild-candidate.sh`. Hidden
-  sibling `.codex-app.candidate-*` directories are temporary transactional
+  sibling `.chatgpt.candidate-*` directories are temporary transactional
   install state and are removed after success or rejection by default.
-- `codex-*-app/`
-  Alternate identity app directories, such as `codex-cua-lab-app/`.
+- `chatgpt-*-app/`
+  Alternate identity app directories, such as `chatgpt-cua-lab-app/`.
 - `dist/`
   Native package and AppImage outputs.
 - `dist/appimage.AppDir/`
@@ -21,27 +21,27 @@ that agents need without keeping them in the main quick-start.
   Rebuild candidate reports.
 - `target/`
   Rust build output for all workspace crates.
-- `Codex.dmg`
-  Cached upstream DMG.
+- `ChatGPT.dmg`
+  Cached official OpenAI DMG.
 - `port-integrations/integrations.json`
   Gitignored local opt-in integration config.
 - `port-integrations/local/`
   Gitignored user-local integration directory.
-- `codex-app/.codex-linux/port-integrations-staged.json`
+- `chatgpt/.chatgpt-linux/port-integrations-staged.json`
   Staged declarative integration ownership manifest.
-- `~/.config/codex-update-manager/config.toml`
+- `~/.config/chatgpt-updater/config.toml`
   Runtime updater config.
-- `~/.local/state/codex-update-manager/state.json`
+- `~/.local/state/chatgpt-updater/state.json`
   Updater state-machine persistence.
-- `~/.local/state/codex-update-manager/service.log`
+- `~/.local/state/chatgpt-updater/service.log`
   Updater service log.
-- `~/.cache/codex-update-manager/`
+- `~/.cache/chatgpt-updater/`
   Downloaded DMGs, rebuild workspaces, staged package artifacts, and build logs.
-- `~/.cache/codex-desktop/launcher.log`
+- `~/.cache/chatgpt/launcher.log`
   Launcher log for the default app identity.
-- `~/.local/state/codex-desktop/app.pid` and `webview.pid`
+- `~/.local/state/chatgpt/app.pid` and `webview.pid`
   Launcher liveness files.
-- `$XDG_RUNTIME_DIR/codex-desktop/launch-action.sock`
+- `$XDG_RUNTIME_DIR/chatgpt/launch-action.sock`
   Warm-start handoff socket.
 
 ## Runtime Notes
@@ -49,9 +49,9 @@ that agents need without keeping them in the main quick-start.
 - DMG extraction can warn when `7z` cannot materialize the `/Applications`
   symlink. This is acceptable if a `.app` bundle was extracted successfully.
 - The managed Node.js runtime is installed under
-  `codex-app/resources/node-runtime/`. Override only with
-  `CODEX_MANAGED_NODE_VERSION`, `CODEX_MANAGED_NODE_URL`, and
-  `CODEX_MANAGED_NODE_SHA256`; the SHA must be set when overriding version or
+  `chatgpt/resources/node-runtime/`. Override only with
+  `CHATGPT_MANAGED_NODE_VERSION`, `CHATGPT_MANAGED_NODE_URL`, and
+  `CHATGPT_MANAGED_NODE_SHA256`; the SHA must be set when overriding version or
   URL.
 - GUI launchers often do not inherit shell `PATH`. The generated launcher
   searches common Codex CLI and `nvm` locations and respects `CODEX_CLI_PATH`.
@@ -62,8 +62,8 @@ that agents need without keeping them in the main quick-start.
 - ASAR patches are fail-soft unless intentionally marked required. Each patch
   should be idempotent and report warnings when upstream drift prevents a
   needle from matching.
-- Patch reports are written for installs/rebuilds. Upstream-build CI fails only
-  for required upstream patches that are missing or skipped.
+- Patch reports are written for installs and rebuilds. Official-DMG validation
+  fails only for required official-app patches that are missing or skipped.
 - Linux Computer Use plugin registration is default-on platform port glue, but
   Computer Use UI enablement remains opt-in and must not bypass upstream
   server-side rollouts unrelated to local Linux support.

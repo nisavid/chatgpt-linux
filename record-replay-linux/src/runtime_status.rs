@@ -69,11 +69,11 @@ impl RecordingRuntimeStatus {
 }
 
 pub fn status_path() -> PathBuf {
-    if let Some(path) = env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH").map(PathBuf::from) {
+    if let Some(path) = env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH").map(PathBuf::from) {
         return path;
     }
     runtime_root()
-        .join("codex-record-replay")
+        .join("chatgpt-record-replay")
         .join("status.json")
 }
 
@@ -225,7 +225,9 @@ pub(crate) fn runtime_root() -> PathBuf {
                 .map(PathBuf::from)
                 .map(|state| state.join("run"))
         })
-        .unwrap_or_else(|| env::temp_dir().join(format!("codex-record-replay-{}", effective_uid())))
+        .unwrap_or_else(|| {
+            env::temp_dir().join(format!("chatgpt-record-replay-{}", effective_uid()))
+        })
 }
 
 fn manifest_has_end_reason(session_dir: &Path) -> bool {

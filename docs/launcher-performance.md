@@ -2,7 +2,7 @@
 
 ## Context
 
-This decision record captures a performance comparison between ChatGPT Desktop
+This decision record captures a performance comparison between ChatGPT for Linux
 and another Electron 42 app (Claude Desktop) running side by side on the same
 X11 GNOME 4K host, what the launcher changed as a result, and — just as
 importantly — what was reviewed and deliberately left alone so future work
@@ -18,10 +18,10 @@ launcher log, and repository history rather than synthetic benchmarks.
   tiny `/dev/shm` (Docker defaults to 64 MiB); everywhere else it pushed
   Chromium's renderer/GPU shared-memory buffers into disk-backed temp storage
   (observable as `/tmp/.org.chromium.Chromium.*` mappings in every process).
-  Override: `CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1`.
+  Override: `CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1`.
 - `--force-renderer-accessibility` is now added only when an assistive
   technology is detected: Orca or brltty running, the GNOME screen-reader
-  setting, the AT-SPI state that `codex-computer-use-linux setup` enables
+  setting, the AT-SPI state that `chatgpt-computer-use-linux setup` enables
   (`org.a11y.Status IsEnabled` via busctl, or its
   `org.gnome.desktop.interface toolkit-accessibility` gsettings fallback), or
   accessibility env markers. Keeping the accessibility engine on in every
@@ -30,10 +30,10 @@ launcher log, and repository history rather than synthetic benchmarks.
   reason. Session-bus probes (gsettings/busctl) run under the launcher's
   ppid-guarded watchdog pattern capped at 0.5 s, so a broken session bus
   counts as "not detected" instead of delaying launch.
-  Override: `CODEX_FORCE_RENDERER_ACCESSIBILITY=1|0`.
+  Override: `CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1|0`.
 
 Both decisions are visible at runtime in the `Electron launch mode:` line of
-`~/.cache/codex-desktop/launcher.log` (`dev_shm_usage_disabled=`,
+`~/.cache/chatgpt/launcher.log` (`dev_shm_usage_disabled=`,
 `renderer_accessibility_forced=`).
 
 ## Reviewed And Deliberately Not Changed
@@ -50,7 +50,7 @@ promise `--no-sandbox` behavior. Out of scope for performance work.
 
 On Wayland sessions the launcher intentionally trades compositing performance
 for side-panel rendering stability. That is a documented workaround with an
-explicit opt-out (`CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0`); do not remove
+explicit opt-out (`CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0`); do not remove
 it for performance reasons without re-testing the side-panel flicker it
 papers over.
 
@@ -117,7 +117,7 @@ canonical executable file. Missing, broken, or non-executable paths still block
 startup with a direct reinstall or `CODEX_CLI_PATH` hint, but normal Linux
 layouts such as group-writable user directories, symlinked home directories,
 Linuxbrew, and standalone `current` symlinks are not rejected by a separate
-trust policy. `CODEX_SYNC_CLI_PREFLIGHT=1` still opts into the full synchronous
+trust policy. `CHATGPT_SYNC_CLI_PREFLIGHT=1` still opts into the full synchronous
 update/version check while preserving fail-soft behavior for a CLI that is not
 known broken. A detected npm-managed CLI missing
 `@openai/codex-linux-x64` or `@openai/codex-linux-arm64` is the blocking

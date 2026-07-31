@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use codex_record_replay_linux::{
+use chatgpt_record_replay_linux::{
     import_skill, inspect_skill, ImportMode, ImportTarget, SkillCapability, SkillImportOptions,
     SkillStatus,
 };

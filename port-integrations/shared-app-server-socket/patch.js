@@ -19,7 +19,7 @@ function findTransportSymbols(source) {
   const [, namespace, webSocketClass, webSocketUrl] = webSocketMatch;
   const lifecycleMatch = sshClassSource.match(
     new RegExp(
-      `return ${namespace}\\.(${IDENT})\\((${IDENT}),\\{onPongTimeout:[\\s\\S]{0,160}?\\}\\),new ${namespace}\\.(${IDENT})\\(\\2\\)`,
+      `return ${namespace}\\.(${IDENT})\\((${IDENT}),\\{onPongTimeout:[\\s\\S]{0,160}?\\}\\),this\\.hasConnected=!0,new ${namespace}\\.(${IDENT})\\(\\2\\)`,
     ),
   );
   if (lifecycleMatch == null) return null;
@@ -35,7 +35,7 @@ function findTransportSymbols(source) {
 
 function sharedTransportClassSource(symbols) {
   return (
-    "class CodexLinuxSharedAppServerSocketTransport{" +
+    "class ChatGPTLinuxSharedAppServerSocketTransport{" +
     "kind=`websocket`;proxyStreams=new Set;authority=null;authorityError=null;authorityReady=null;lockIdentity=null;socketIdentity=null;disposed=!1;" +
     "constructor(e){this.socketPath=e;this.lockPath=`${e}.lock`}" +
     "supportsReconnect(){return!0}" +
@@ -55,7 +55,7 @@ function sharedTransportClassSource(symbols) {
 }
 
 function applySharedAppServerSocketPatch(source) {
-  if (source.includes("class CodexLinuxSharedAppServerSocketTransport")) return source;
+  if (source.includes("class ChatGPTLinuxSharedAppServerSocketTransport")) return source;
 
   const symbols = findTransportSymbols(source);
   if (symbols == null) {
@@ -85,7 +85,7 @@ function applySharedAppServerSocketPatch(source) {
   const patchedFactory = factorySource.replace(
     localFallbackPattern,
     (match) =>
-      `${match}if(process.env.CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET&&e.hostConfig.kind===\`local\`)return new CodexLinuxSharedAppServerSocketTransport(process.env.CODEX_LINUX_APP_SERVER_BRIDGE_SOCKET);`,
+      `${match}if(process.env.CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET&&e.hostConfig.kind===\`local\`)return new ChatGPTLinuxSharedAppServerSocketTransport(process.env.CHATGPT_LINUX_APP_SERVER_BRIDGE_SOCKET);`,
   );
   return source.slice(0, factoryStart) + classSource + patchedFactory + source.slice(factoryEnd);
 }

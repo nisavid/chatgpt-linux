@@ -14,10 +14,10 @@ const {
 // They stay fail-soft because upstream chunk names and minified symbols drift.
 const LINUX_TOOLTIP_COLLISION_PADDING_TOP = 44;
 const LINUX_WINDOW_CONTROLS_SAFE_AREA_RIGHT = 138;
-const LINUX_WINDOW_CONTROLS_SAFE_AREA_PROP = "codexLinuxUseWindowControlsSafeArea";
+const LINUX_WINDOW_CONTROLS_SAFE_AREA_PROP = "chatgptLinuxUseWindowControlsSafeArea";
 
 function applyLinuxSettingsSearchVisibilityPatch(currentSource) {
-  if (currentSource.includes("function codexLinuxFilterSettingsSearchSection(")) {
+  if (currentSource.includes("function chatgptLinuxFilterSettingsSearchSection(")) {
     return currentSource;
   }
 
@@ -63,10 +63,10 @@ function applyLinuxSettingsSearchVisibilityPatch(currentSource) {
   }
 
   const helper =
-    `var codexLinuxDarwinOnlySettingsSearchMessageIds=new Set([\`settings.general.appearance.dockIcon.chatGPT.ariaLabel\`,\`settings.general.appearance.dockIcon.codex.ariaLabel\`,\`settings.general.appearance.dockIcon.label\`,\`settings.general.appearance.dockIcon.row.description\`]);function codexLinuxFilterSettingsSearchSection(e){if(e.sectionSlug!==\`appearance\`)return e;let t=e.messages.filter(e=>!codexLinuxDarwinOnlySettingsSearchMessageIds.has(e.id));return t.length===e.messages.length?e:{...e,messages:t}}`;
+    `var chatgptLinuxDarwinOnlySettingsSearchMessageIds=new Set([\`settings.general.appearance.dockIcon.chatGPT.ariaLabel\`,\`settings.general.appearance.dockIcon.codex.ariaLabel\`,\`settings.general.appearance.dockIcon.label\`,\`settings.general.appearance.dockIcon.row.description\`]);function chatgptLinuxFilterSettingsSearchSection(e){if(e.sectionSlug!==\`appearance\`)return e;let t=e.messages.filter(e=>!chatgptLinuxDarwinOnlySettingsSearchMessageIds.has(e.id));return t.length===e.messages.length?e:{...e,messages:t}}`;
   const returnNeedle = `return ${resultVariable}}`;
   const returnPatch =
-    `return ${resultVariable}.map(codexLinuxFilterSettingsSearchSection)}`;
+    `return ${resultVariable}.map(chatgptLinuxFilterSettingsSearchSection)}`;
   const patchedFunction = settingsSearchFunction.text
     .replace(returnNeedle, returnPatch);
 
@@ -419,7 +419,7 @@ function applyLinuxBrowserUseNonLocalNavigationPatch(currentSource) {
 }
 
 function applyLinuxChatSearchHydrationPatch(currentSource) {
-  if (currentSource.includes("function codexLinuxHydrateSearchConversation(")) {
+  if (currentSource.includes("function chatgptLinuxHydrateSearchConversation(")) {
     return currentSource;
   }
 
@@ -438,7 +438,7 @@ function applyLinuxChatSearchHydrationPatch(currentSource) {
   patchedSource = patchedSource.replace(
     asyncSearchNeedle,
     (_match, hostsVar, hostVar, requestVar, queryVar, limitVar) =>
-      `${hostsVar}.map(${hostVar}=>${requestVar}(\`search-threads-for-host\`,{hostId:${hostVar},query:${queryVar},limit:${limitVar}}).then(codexLinuxSearchResults=>codexLinuxSearchResults.map(codexLinuxSearchResult=>({...codexLinuxSearchResult,hostId:${hostVar}}))))`,
+      `${hostsVar}.map(${hostVar}=>${requestVar}(\`search-threads-for-host\`,{hostId:${hostVar},query:${queryVar},limit:${limitVar}}).then(chatgptLinuxSearchResults=>chatgptLinuxSearchResults.map(chatgptLinuxSearchResult=>({...chatgptLinuxSearchResult,hostId:${hostVar}}))))`,
   );
 
   patchedSource = patchedSource.replace(
@@ -491,8 +491,8 @@ function applyLinuxChatSearchHydrationPatch(currentSource) {
         return patchedSource.replace(
           currentRoutePattern,
           (_match, routeFn, resultVar, localNavigateArg, routeNavigateArg, modeArg, navigateFn) => {
-            const helper = `function codexLinuxHydrateSearchConversation(e,t){try{if(e==null||typeof e!==\`object\`||e.kind!==\`local\`)return Promise.resolve();let n=e.hostId??\`local\`,r=${requestAlias}(\`load-recent-conversation-ids-for-host\`,{hostId:n,conversationIds:[t]}),i=new Promise(e=>globalThis.setTimeout(e,1500));return Promise.race([r,i]).catch(()=>{})}catch{return Promise.resolve()}}`;
-            return `${helper}async function ${routeFn}(${resultVar},${localNavigateArg},${routeNavigateArg},${modeArg}){switch(${resultVar}.kind){case\`local\`:await codexLinuxHydrateSearchConversation(${resultVar},${resultVar}.threadKey);${navigateFn}(${resultVar}.threadKey,${localNavigateArg},${routeNavigateArg});return;case\`remote\`:${navigateFn}(${resultVar}.threadKey,${localNavigateArg},${routeNavigateArg});return;case\`chatgpt\`:return}}`;
+            const helper = `function chatgptLinuxHydrateSearchConversation(e,t){try{if(e==null||typeof e!==\`object\`||e.kind!==\`local\`)return Promise.resolve();let n=e.hostId??\`local\`,r=${requestAlias}(\`load-recent-conversation-ids-for-host\`,{hostId:n,conversationIds:[t]}),i=new Promise(e=>globalThis.setTimeout(e,1500));return Promise.race([r,i]).catch(()=>{})}catch{return Promise.resolve()}}`;
+            return `${helper}async function ${routeFn}(${resultVar},${localNavigateArg},${routeNavigateArg},${modeArg}){switch(${resultVar}.kind){case\`local\`:await chatgptLinuxHydrateSearchConversation(${resultVar},${resultVar}.threadKey);${navigateFn}(${resultVar}.threadKey,${localNavigateArg},${routeNavigateArg});return;case\`remote\`:${navigateFn}(${resultVar}.threadKey,${localNavigateArg},${routeNavigateArg});return;case\`chatgpt\`:return}}`;
           },
         );
       }
@@ -547,9 +547,9 @@ function applyLinuxChatSearchHydrationPatch(currentSource) {
     localThreadKeyFn,
     routeThreadKeyFn,
   ] = routeMatch;
-  const helper = `function codexLinuxSearchThreadKey(e){return e&&typeof e===\`object\`?e.threadKey:e}function codexLinuxHydrateSearchConversation(e,t){try{if(e==null||typeof e!==\`object\`||e.kind!==\`local\`)return Promise.resolve();let n=e.hostId??\`local\`,r=${requestAlias}(\`load-recent-conversation-ids-for-host\`,{hostId:n,conversationIds:[t]}),i=new Promise(e=>globalThis.setTimeout(e,1500));return Promise.race([r,i]).catch(()=>{})}catch{return Promise.resolve()}}`;
+  const helper = `function chatgptLinuxSearchThreadKey(e){return e&&typeof e===\`object\`?e.threadKey:e}function chatgptLinuxHydrateSearchConversation(e,t){try{if(e==null||typeof e!==\`object\`||e.kind!==\`local\`)return Promise.resolve();let n=e.hostId??\`local\`,r=${requestAlias}(\`load-recent-conversation-ids-for-host\`,{hostId:n,conversationIds:[t]}),i=new Promise(e=>globalThis.setTimeout(e,1500));return Promise.race([r,i]).catch(()=>{})}catch{return Promise.resolve()}}`;
   const routePatch =
-    `${helper}async function ${routeFn}(${targetArg},${localNavigateArg},${routeNavigateArg}){let codexLinuxRouteKey=codexLinuxSearchThreadKey(${targetArg}),${conversationVar}=${localThreadKeyFn}(codexLinuxRouteKey);if(${conversationVar}!=null){await codexLinuxHydrateSearchConversation(${targetArg},${conversationVar});${localNavigateArg}(${conversationVar});return}${routeNavigateArg}(${routeThreadKeyFn}(codexLinuxRouteKey))}`;
+    `${helper}async function ${routeFn}(${targetArg},${localNavigateArg},${routeNavigateArg}){let chatgptLinuxRouteKey=chatgptLinuxSearchThreadKey(${targetArg}),${conversationVar}=${localThreadKeyFn}(chatgptLinuxRouteKey);if(${conversationVar}!=null){await chatgptLinuxHydrateSearchConversation(${targetArg},${conversationVar});${localNavigateArg}(${conversationVar});return}${routeNavigateArg}(${routeThreadKeyFn}(chatgptLinuxRouteKey))}`;
   patchedSource = patchedSource.replace(routeNeedle, routePatch);
 
   return patchedSource;
@@ -557,7 +557,7 @@ function applyLinuxChatSearchHydrationPatch(currentSource) {
 
 // The upstream main process waits 15 seconds for attachment. Two bounded
 // 5-second renderer attempts leave time for did-attach handling and rejection.
-function codexLinuxWatchBrowserWebviewAttachment({
+function chatgptLinuxWatchBrowserWebviewAttachment({
   active,
   browserTabId,
   conversationId,
@@ -712,10 +712,10 @@ function hasCompleteLinuxBrowserUseWebviewRemountStorePatch(source) {
     source.includes("linuxCompleteWebviewRecovery(e,t,n)") &&
     source.includes("linuxFailWebviewRecovery(e,t,n)") &&
     source.includes("linuxRemountWebview(e,t,n,r)") &&
-    source.includes("for(let e of this.linuxBrowserUseRecoveryStates.keys())") &&
+    source.includes("for(let chatgptLinuxRecoveryKey of this.linuxBrowserUseRecoveryStates.keys())") &&
     source.includes("this.linuxBrowserUseRecoveryStates.clear()") &&
     source.includes("this.linuxBrowserUseRecoveryStates.set(") &&
-    (source.match(/linuxBrowserUseRecoveryStates\.delete\(/gu) ?? []).length >= 7
+    (source.match(/linuxBrowserUseRecoveryStates\.delete\(/gu) ?? []).length >= 6
   );
 }
 
@@ -729,93 +729,72 @@ function applyLinuxBrowserUseWebviewRemountStorePatch(currentSource) {
   const classOpenIndex = classPrefixIndex === -1 ? -1 : classPrefixIndex + "=class".length;
   const classCloseIndex =
     classOpenIndex === -1 ? -1 : findMatchingBrace(currentSource, classOpenIndex);
-  const registerMethodMatch =
-    markerIndex === -1
-      ? null
-      : /registerWebviewHost\([A-Za-z_$][\w$]*,[A-Za-z_$][\w$]*\)\{/gu.exec(
-          currentSource.slice(markerIndex),
-        );
   const classSource =
     classOpenIndex === -1 || classCloseIndex === -1
       ? ""
       : currentSource.slice(classOpenIndex, classCloseIndex + 1);
   const keyHelper =
-    classSource.match(
-      /this\.webviews\.get\(([A-Za-z_$][\w$]*)\(/u,
-    )?.[1] ??
-    classSource.match(
-      /this\.snapshots\.get\(([A-Za-z_$][\w$]*)\(/u,
-    )?.[1];
+    classSource.match(/this\.webviews\.get\(([A-Za-z_$][\w$]*)\(/u)?.[1] ??
+    classSource.match(/this\.snapshots\.get\(([A-Za-z_$][\w$]*)\(/u)?.[1];
   const activeMethodMatch =
-    /setBrowserUseActive\(([A-Za-z_$][\w$]*),\.\.\.([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*)=typeof \2\[0\]==`boolean`\?([A-Za-z_$][\w$]*)\(\1,void 0\):\2\[0\],([A-Za-z_$][\w$]*)=typeof \2\[0\]==`boolean`\?\2\[0\]:\2\[1\],/u.exec(
+    /setBrowserUseActive\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\1,\2\),([A-Za-z_$][\w$]*)=this\.browserUseActiveTabKeys\.has\(\4\),/u.exec(
       classSource,
     );
   const removeTabMatch =
     keyHelper == null
       ? null
       : new RegExp(
-          `removeTab\\(([A-Za-z_$][\\w$]*),([A-Za-z_$][\\w$]*)\\)\\{let ([A-Za-z_$][\\w$]*)=${escapeRegExp(keyHelper)}\\(\\1,\\2\\),`,
+          "removeTab\\(([A-Za-z_$][\\w$]*),([A-Za-z_$][\\w$]*)\\)\\{let ([A-Za-z_$][\\w$]*)=" +
+            escapeRegExp(keyHelper) +
+            "\\(\\1,\\2\\),",
           "u",
         ).exec(classSource);
   const removeConversationTabsMatch =
-    /removeConversationTabs\(([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*)=`\$\{\1\}\\0`;/u.exec(
+    /removeConversationTabs\(([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*)=\x60\$\{\1\}\\0\x60;/u.exec(
       classSource,
     );
   const releaseBrowserUseTabMatch =
     keyHelper == null
       ? null
       : new RegExp(
-          `releaseBrowserUseTab\\(([A-Za-z_$][\\w$]*),([A-Za-z_$][\\w$]*)\\)\\{let ([A-Za-z_$][\\w$]*)=${escapeRegExp(keyHelper)}\\(\\1,\\2\\),`,
+          "releaseBrowserUseTab\\(([A-Za-z_$][\\w$]*),([A-Za-z_$][\\w$]*)\\)\\{let ([A-Za-z_$][\\w$]*)=" +
+            escapeRegExp(keyHelper) +
+            "\\(\\1,\\2\\),",
           "u",
         ).exec(classSource);
-  const siblingDeactivateMatch =
-    /for\(let ([A-Za-z_$][\w$]*) of Array\.from\(this\.browserUseActiveTabKeys\)\)\{if\(\1===([A-Za-z_$][\w$]*)\|\|!\1\.startsWith\(([A-Za-z_$][\w$]*)\)\)continue;this\.browserUseActiveTabKeys\.delete\(\1\);let /u.exec(
+  const reassociateKeysMatch =
+    /reassociateTabState\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{let [A-Za-z_$][\w$]*=[\s\S]*?,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\1,\2\),([A-Za-z_$][\w$]*)=\7\(\3,\4\);/u.exec(
       classSource,
     );
-  const reassociateMethodIndex = classSource.indexOf("reassociateTabState(");
-  const reassociateMethodOpenIndex =
-    reassociateMethodIndex === -1
-      ? -1
-      : classSource.indexOf("{", reassociateMethodIndex);
-  const reassociateMethodCloseIndex =
-    reassociateMethodOpenIndex === -1
-      ? -1
-      : findMatchingBrace(classSource, reassociateMethodOpenIndex);
-  const reassociateMethodSource =
-    reassociateMethodCloseIndex === -1
-      ? ""
-      : classSource.slice(reassociateMethodIndex, reassociateMethodCloseIndex + 1);
-  const reassociateKeysMatch =
-    keyHelper == null
-      ? null
-      : new RegExp(
-          `,([A-Za-z_$][\\w$]*)=${escapeRegExp(keyHelper)}\\([^)]*\\),([A-Za-z_$][\\w$]*)=${escapeRegExp(keyHelper)}\\([^)]*\\);if\\(\\1===\\2\\|\\|this\\.transferredWebviewKeys\\.has\\(`,
-          "u",
-        ).exec(reassociateMethodSource);
   const reassociateStateMatch =
     reassociateKeysMatch == null
       ? null
       : new RegExp(
-          `;let ([A-Za-z_$][\\w$]*)=this\\.browserUseViewportSizes\\.get\\(${escapeRegExp(reassociateKeysMatch[1])}\\)\\?\\?null,`,
+          ";let ([A-Za-z_$][\\w$]*)=this\\.browserUseViewportSizes\\.get\\(" +
+            escapeRegExp(reassociateKeysMatch[6]) +
+            "\\)\\?\\?null,",
           "u",
-        ).exec(reassociateMethodSource);
-  const disposeAllMatch = /disposeAll\(\)\{this\.electronPageHandoff\.disposeAll\(\),/u.exec(
-    classSource,
-  );
+        ).exec(classSource);
+  const disposeAllMatch =
+    /disposeAll\(\)\{this\.electronPageHandoff\.disposeAll\(\),/u.exec(classSource);
+  const registerMethodMatch =
+    /registerWebviewHost\([A-Za-z_$][\w$]*,[A-Za-z_$][\w$]*\)\{/u.exec(classSource);
+
   if (
     markerIndex === -1 ||
     classOpenIndex === -1 ||
     classCloseIndex === -1 ||
-    registerMethodMatch == null ||
+    keyHelper == null ||
     activeMethodMatch == null ||
+    activeMethodMatch[5] !== keyHelper ||
     removeTabMatch == null ||
     removeConversationTabsMatch == null ||
     releaseBrowserUseTabMatch == null ||
-    siblingDeactivateMatch == null ||
     reassociateKeysMatch == null ||
+    reassociateKeysMatch[7] !== keyHelper ||
     reassociateStateMatch == null ||
     disposeAllMatch == null ||
-    keyHelper == null ||
+    registerMethodMatch == null ||
     !classSource.includes("disposeWebviewHost(") ||
     !classSource.includes("emitChange()")
   ) {
@@ -825,65 +804,74 @@ function applyLinuxBrowserUseWebviewRemountStorePatch(currentSource) {
     return currentSource;
   }
 
-  const [
-    activeMethodNeedle,
-    activeConversationVar,
-    activeArgsVar,
-    activeBrowserTabVar,
-    activeDefaultTabHelper,
-    activeValueVar,
-  ] = activeMethodMatch;
+  const activeMethodNeedle = activeMethodMatch[0];
+  const activeValueVar = activeMethodMatch[3];
+  const activeKeyVar = activeMethodMatch[4];
   const activeMethodPatch =
-    `setBrowserUseActive(${activeConversationVar},...${activeArgsVar}){let ${activeBrowserTabVar}=typeof ${activeArgsVar}[0]==\`boolean\`?${activeDefaultTabHelper}(${activeConversationVar},void 0):${activeArgsVar}[0],${activeValueVar}=typeof ${activeArgsVar}[0]==\`boolean\`?${activeArgsVar}[0]:${activeArgsVar}[1];${activeValueVar}||this.linuxBrowserUseRecoveryStates.delete(${keyHelper}(${activeConversationVar},${activeBrowserTabVar}));let `;
-  const method = `linuxStartWebviewRecovery(e,t,n){let r=${keyHelper}(e,t),i=this.linuxBrowserUseRecoveryStates.get(r);return i??(i={attempt:0,deadlineAt:n},this.linuxBrowserUseRecoveryStates.set(r,i)),i}linuxCompleteWebviewRecovery(e,t,n){let r=${keyHelper}(e,t);this.webviews.get(r)===n&&this.linuxBrowserUseRecoveryStates.delete(r)}linuxFailWebviewRecovery(e,t,n){let r=${keyHelper}(e,t);this.webviews.get(r)===n&&this.linuxBrowserUseRecoveryStates.set(r,{attempt:2,deadlineAt:null})}linuxRemountWebview(e,t,n,r){let i=${keyHelper}(e,t),a=this.linuxBrowserUseRecoveryStates.get(i);if(a?.attempt>=1)return{started:!1,state:a};if(this.webviews.get(i)!==n)return null;let o={attempt:1,deadlineAt:r};return this.linuxBrowserUseRecoveryStates.set(i,o),this.disposeWebviewHost(e,t,i,\`web\`),this.emitChange(),{started:!0,state:o}}`;
-  const [
-    removeTabNeedle,
-    removeTabConversationVar,
-    removeTabBrowserTabVar,
-    removeTabKeyVar,
-  ] = removeTabMatch;
-  const [removeConversationNeedle, , removeConversationPrefixVar] =
-    removeConversationTabsMatch;
+    activeMethodNeedle.slice(0, -1) +
+    ";" +
+    activeValueVar +
+    "||this.linuxBrowserUseRecoveryStates.delete(" +
+    activeKeyVar +
+    ");let ";
+  const method =
+    "linuxStartWebviewRecovery(e,t,n){let r=" + keyHelper + "(e,t),i=this.linuxBrowserUseRecoveryStates.get(r);return i??(i={attempt:0,deadlineAt:n},this.linuxBrowserUseRecoveryStates.set(r,i)),i}" +
+    "linuxCompleteWebviewRecovery(e,t,n){let r=" + keyHelper + "(e,t);this.webviews.get(r)===n&&this.linuxBrowserUseRecoveryStates.delete(r)}" +
+    "linuxFailWebviewRecovery(e,t,n){let r=" + keyHelper + "(e,t);this.webviews.get(r)===n&&this.linuxBrowserUseRecoveryStates.set(r,{attempt:2,deadlineAt:null})}" +
+    "linuxRemountWebview(e,t,n,r){let i=" + keyHelper + "(e,t),a=this.linuxBrowserUseRecoveryStates.get(i);if(a?.attempt>=1)return{started:!1,state:a};if(this.webviews.get(i)!==n)return null;let o={attempt:1,deadlineAt:r};return this.linuxBrowserUseRecoveryStates.set(i,o),this.disposeWebviewHost(e,t,i,'web'),this.emitChange(),{started:!0,state:o}}";
+  const removeTabNeedle = removeTabMatch[0];
+  const removeTabKeyVar = removeTabMatch[3];
   const removeTabPatch =
-    `removeTab(${removeTabConversationVar},${removeTabBrowserTabVar}){let ${removeTabKeyVar}=${keyHelper}(${removeTabConversationVar},${removeTabBrowserTabVar});` +
-    `this.linuxBrowserUseRecoveryStates.delete(${removeTabKeyVar});let `;
-  const removeConversationPatch = `${removeConversationNeedle}for(let e of this.linuxBrowserUseRecoveryStates.keys())e.startsWith(${removeConversationPrefixVar})&&this.linuxBrowserUseRecoveryStates.delete(e);`;
-  const [
-    releaseBrowserUseTabNeedle,
-    releaseConversationVar,
-    releaseBrowserTabVar,
-    releaseKeyVar,
-  ] = releaseBrowserUseTabMatch;
-  const releaseBrowserUseTabPatch =
-    `releaseBrowserUseTab(${releaseConversationVar},${releaseBrowserTabVar}){let ${releaseKeyVar}=${keyHelper}(${releaseConversationVar},${releaseBrowserTabVar});` +
-    `this.linuxBrowserUseRecoveryStates.delete(${releaseKeyVar});let `;
-  const [siblingDeactivateNeedle, siblingKeyVar] = siblingDeactivateMatch;
-  const siblingDeactivatePatch = siblingDeactivateNeedle.replace(
-    ";let ",
-    `;this.linuxBrowserUseRecoveryStates.delete(${siblingKeyVar});let `,
-  );
+    removeTabNeedle.slice(0, -1) +
+    ";this.linuxBrowserUseRecoveryStates.delete(" +
+    removeTabKeyVar +
+    ");let ";
+  const removeConversationNeedle = removeConversationTabsMatch[0];
+  const removeConversationPrefixVar = removeConversationTabsMatch[2];
+  const removeConversationPatch =
+    removeConversationNeedle +
+    "for(let chatgptLinuxRecoveryKey of this.linuxBrowserUseRecoveryStates.keys())chatgptLinuxRecoveryKey.startsWith(" +
+    removeConversationPrefixVar +
+    ")&&this.linuxBrowserUseRecoveryStates.delete(chatgptLinuxRecoveryKey);";
+  const releaseNeedle = releaseBrowserUseTabMatch[0];
+  const releaseKeyVar = releaseBrowserUseTabMatch[3];
+  const releasePatch =
+    releaseNeedle.slice(0, -1) +
+    ";this.linuxBrowserUseRecoveryStates.delete(" +
+    releaseKeyVar +
+    ");let ";
+  const sourceKeyVar = reassociateKeysMatch[6];
+  const targetKeyVar = reassociateKeysMatch[8];
   const reassociateStateNeedle = reassociateStateMatch[0];
   const reassociateStateVar = reassociateStateMatch[1];
-  const reassociateSourceKeyVar = reassociateKeysMatch[1];
-  const reassociateTargetKeyVar = reassociateKeysMatch[2];
   const reassociateStatePatch =
-    `;let codexLinuxRecoveryState=this.linuxBrowserUseRecoveryStates.get(${reassociateSourceKeyVar});codexLinuxRecoveryState==null||(this.linuxBrowserUseRecoveryStates.delete(${reassociateSourceKeyVar}),this.linuxBrowserUseRecoveryStates.set(${reassociateTargetKeyVar},codexLinuxRecoveryState));` +
-    `let ${reassociateStateVar}=this.browserUseViewportSizes.get(${reassociateSourceKeyVar})??null,`;
-  const disposeAllPatch = `${disposeAllMatch[0]}this.linuxBrowserUseRecoveryStates.clear(),`;
+    ";let chatgptLinuxRecoveryState=this.linuxBrowserUseRecoveryStates.get(" +
+    sourceKeyVar +
+    ");chatgptLinuxRecoveryState==null||(this.linuxBrowserUseRecoveryStates.delete(" +
+    sourceKeyVar +
+    "),this.linuxBrowserUseRecoveryStates.set(" +
+    targetKeyVar +
+    ",chatgptLinuxRecoveryState));let " +
+    reassociateStateVar +
+    "=this.browserUseViewportSizes.get(" +
+    sourceKeyVar +
+    ")??null,";
+  const disposeAllPatch =
+    disposeAllMatch[0] + "this.linuxBrowserUseRecoveryStates.clear(),";
   const registrationAttemptsNeedle = "registrationAttempts=new WeakMap;";
-  let patchedClass = classSource
+  const patchedClass = classSource
     .replace(
       registrationAttemptsNeedle,
-      `${registrationAttemptsNeedle}linuxBrowserUseRecoveryStates=new Map;`,
+      registrationAttemptsNeedle + "linuxBrowserUseRecoveryStates=new Map;",
     )
     .replace(activeMethodNeedle, activeMethodPatch)
-    .replace(registerMethodMatch[0], `${method}${registerMethodMatch[0]}`)
     .replace(removeTabNeedle, removeTabPatch)
     .replace(removeConversationNeedle, removeConversationPatch)
-    .replace(releaseBrowserUseTabNeedle, releaseBrowserUseTabPatch)
-    .replace(siblingDeactivateNeedle, siblingDeactivatePatch)
+    .replace(releaseNeedle, releasePatch)
     .replace(reassociateStateNeedle, reassociateStatePatch)
-    .replace(disposeAllMatch[0], disposeAllPatch);
+    .replace(disposeAllMatch[0], disposeAllPatch)
+    .replace(registerMethodMatch[0], method + registerMethodMatch[0]);
+
   if (!hasCompleteLinuxBrowserUseWebviewRemountStorePatch(patchedClass)) {
     console.warn(
       "WARN: Browser webview store remount patch was incomplete — skipping Linux attachment recovery store patch",
@@ -891,13 +879,14 @@ function applyLinuxBrowserUseWebviewRemountStorePatch(currentSource) {
     return currentSource;
   }
   return (
-    `${currentSource.slice(0, classOpenIndex)}${patchedClass}` +
-    `${currentSource.slice(classCloseIndex + 1)}`
+    currentSource.slice(0, classOpenIndex) +
+    patchedClass +
+    currentSource.slice(classCloseIndex + 1)
   );
 }
 
 function applyLinuxBrowserUseWebviewHostRecoveryPatch(currentSource) {
-  if (currentSource.includes("function codexLinuxWatchBrowserWebviewAttachment(")) {
+  if (currentSource.includes("function chatgptLinuxWatchBrowserWebviewAttachment(")) {
     return currentSource;
   }
 
@@ -979,12 +968,12 @@ function applyLinuxBrowserUseWebviewHostRecoveryPatch(currentSource) {
     return currentSource;
   }
 
-  const helperSource = codexLinuxWatchBrowserWebviewAttachment.toString();
+  const helperSource = chatgptLinuxWatchBrowserWebviewAttachment.toString();
   const declarations =
-    `let codexLinuxBrowserWebviewRecoveryRef=(0,${reactVar}.useRef)({attempt:0,key:${conversationIdVar}+\`\\0\`+${browserTabIdVar}}),codexLinuxBrowserUseActive=(0,${reactVar}.useSyncExternalStore)(${storeVar}.subscribe,()=>${storeVar}.isBrowserUseActive(${conversationIdVar},${browserTabIdVar}),()=>!1);` +
-    `(0,${reactVar}.useEffect)(()=>{codexLinuxBrowserUseActive||(codexLinuxBrowserWebviewRecoveryRef.current={attempt:0,deadlineAt:null,host:null,key:${conversationIdVar}+\`\\0\`+${browserTabIdVar}})},[codexLinuxBrowserUseActive,${conversationIdVar},${browserTabIdVar}]);`;
+    `let chatgptLinuxBrowserWebviewRecoveryRef=(0,${reactVar}.useRef)({attempt:0,key:${conversationIdVar}+\`\\0\`+${browserTabIdVar}}),chatgptLinuxBrowserUseActive=(0,${reactVar}.useSyncExternalStore)(${storeVar}.subscribe,()=>${storeVar}.isBrowserUseActive(${conversationIdVar},${browserTabIdVar}),()=>!1);` +
+    `(0,${reactVar}.useEffect)(()=>{chatgptLinuxBrowserUseActive||(chatgptLinuxBrowserWebviewRecoveryRef.current={attempt:0,deadlineAt:null,host:null,key:${conversationIdVar}+\`\\0\`+${browserTabIdVar}})},[chatgptLinuxBrowserUseActive,${conversationIdVar},${browserTabIdVar}]);`;
   const watchSource =
-    `let codexLinuxBrowserWebviewRecoveryCleanup=codexLinuxWatchBrowserWebviewAttachment({active:codexLinuxBrowserUseActive,browserTabId:${browserTabIdVar},completeRecovery:()=>typeof ${storeVar}.linuxCompleteWebviewRecovery==\`function\`&&${storeVar}.linuxCompleteWebviewRecovery(${conversationIdVar},${browserTabIdVar},${webviewVar}),conversationId:${conversationIdVar},failRecovery:()=>typeof ${storeVar}.linuxFailWebviewRecovery==\`function\`&&${storeVar}.linuxFailWebviewRecovery(${conversationIdVar},${browserTabIdVar},${webviewVar}),host:${webviewVar},recoveryRef:codexLinuxBrowserWebviewRecoveryRef,recoveryState:codexLinuxBrowserUseActive&&typeof ${storeVar}.linuxStartWebviewRecovery==\`function\`?${storeVar}.linuxStartWebviewRecovery(${conversationIdVar},${browserTabIdVar},Date.now()+5e3):null,remount:codexLinuxRemountDeadline=>typeof ${storeVar}.linuxRemountWebview==\`function\`&&${storeVar}.linuxRemountWebview(${conversationIdVar},${browserTabIdVar},${webviewVar},codexLinuxRemountDeadline)});`;
+    `let chatgptLinuxBrowserWebviewRecoveryCleanup=chatgptLinuxWatchBrowserWebviewAttachment({active:chatgptLinuxBrowserUseActive,browserTabId:${browserTabIdVar},completeRecovery:()=>typeof ${storeVar}.linuxCompleteWebviewRecovery==\`function\`&&${storeVar}.linuxCompleteWebviewRecovery(${conversationIdVar},${browserTabIdVar},${webviewVar}),conversationId:${conversationIdVar},failRecovery:()=>typeof ${storeVar}.linuxFailWebviewRecovery==\`function\`&&${storeVar}.linuxFailWebviewRecovery(${conversationIdVar},${browserTabIdVar},${webviewVar}),host:${webviewVar},recoveryRef:chatgptLinuxBrowserWebviewRecoveryRef,recoveryState:chatgptLinuxBrowserUseActive&&typeof ${storeVar}.linuxStartWebviewRecovery==\`function\`?${storeVar}.linuxStartWebviewRecovery(${conversationIdVar},${browserTabIdVar},Date.now()+5e3):null,remount:chatgptLinuxRemountDeadline=>typeof ${storeVar}.linuxRemountWebview==\`function\`&&${storeVar}.linuxRemountWebview(${conversationIdVar},${browserTabIdVar},${webviewVar},chatgptLinuxRemountDeadline)});`;
   const componentBodyOpenIndex = openBraceIndex - match.index;
   let patchedComponent = `${componentSource.slice(0, componentBodyOpenIndex + 1)}${declarations}${componentSource.slice(componentBodyOpenIndex + 1)}`;
   const patchedSyncIndex = patchedComponent.indexOf(syncNeedle);
@@ -993,7 +982,7 @@ function applyLinuxBrowserUseWebviewHostRecoveryPatch(currentSource) {
     "},[",
     patchedComponent.lastIndexOf(`,${cursorHostVar}==null`),
   );
-  patchedComponent = `${patchedComponent.slice(0, patchedEffectEndIndex)};return codexLinuxBrowserWebviewRecoveryCleanup${patchedComponent.slice(patchedEffectEndIndex)}`;
+  patchedComponent = `${patchedComponent.slice(0, patchedEffectEndIndex)};return chatgptLinuxBrowserWebviewRecoveryCleanup${patchedComponent.slice(patchedEffectEndIndex)}`;
   patchedEffectEndIndex = patchedComponent.lastIndexOf(
     "},[",
     patchedComponent.lastIndexOf(`,${cursorHostVar}==null`),
@@ -1004,7 +993,7 @@ function applyLinuxBrowserUseWebviewHostRecoveryPatch(currentSource) {
   );
   patchedComponent =
     `${patchedComponent.slice(0, patchedDependenciesEndIndex)}` +
-    `,codexLinuxBrowserUseActive,${cursorHostVar}` +
+    `,chatgptLinuxBrowserUseActive,${cursorHostVar}` +
     `${patchedComponent.slice(patchedDependenciesEndIndex)}`;
 
   return (
@@ -1015,16 +1004,10 @@ function applyLinuxBrowserUseWebviewHostRecoveryPatch(currentSource) {
 
 function applyLinuxBrowserUseHiddenHostOwnershipPatch(currentSource) {
   const keyMatch = /browserUseTabIdsKey:([A-Za-z_$][\w$]*)/u.exec(currentSource);
-  if (keyMatch == null) {
-    console.warn(
-      "WARN: Could not find hidden Browser Use host tab ownership key — skipping Linux inactive-route host patch",
-    );
-    return currentSource;
-  }
-
-  const browserUseTabIdsKeyVar = keyMatch[1];
-  const componentStartIndex = currentSource.lastIndexOf("function ", keyMatch.index);
-  const componentOpenIndex = currentSource.indexOf("{", componentStartIndex);
+  const componentStartIndex =
+    keyMatch == null ? -1 : currentSource.lastIndexOf("function ", keyMatch.index);
+  const componentOpenIndex =
+    componentStartIndex === -1 ? -1 : currentSource.indexOf("{", componentStartIndex);
   const componentCloseIndex =
     componentOpenIndex === -1
       ? -1
@@ -1033,46 +1016,24 @@ function applyLinuxBrowserUseHiddenHostOwnershipPatch(currentSource) {
     componentStartIndex === -1 || componentCloseIndex === -1
       ? ""
       : currentSource.slice(componentStartIndex, componentCloseIndex + 1);
-  const parsedTabIdsMatch = new RegExp(
-    `${escapeRegExp(browserUseTabIdsKeyVar)}\\.split\\(\`\\\\0\`\\)\\.map\\(([A-Za-z_$][\\w$]*)\\)\\.filter`,
-    "u",
-  ).exec(componentSource);
-  const guardMatch =
-    /if\(!([A-Za-z_$][\w$]*)&&([A-Za-z_$][\w$]*)\.size>0(?:&&([A-Za-z_$][\w$]*)\.split\(`\\0`\)\.map\(([A-Za-z_$][\w$]*)\)\.every\(([A-Za-z_$][\w$]*)=>\2\.has\(\5\)\))?\)return null;/u.exec(
+  const nativeOwnershipMatch =
+    /([A-Za-z_$][\w$]*)=\1=>!([A-Za-z_$][\w$]*)\.has\(\1\)[\s\S]{0,500}?let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.split\(\x60\\0\x60\)\.map\([A-Za-z_$][\w$]*\)\.filter\(\1\);if\(\3\.length===0\)/u.exec(
       componentSource,
     );
+  const hasNativeOwnership =
+    nativeOwnershipMatch != null &&
+    nativeOwnershipMatch[4] === keyMatch?.[1] &&
+    currentSource.includes("hidden-browser-use") &&
+    currentSource.includes("shouldBootstrapWhenHidden:!0");
 
-  if (
-    guardMatch != null &&
-    guardMatch[3] === browserUseTabIdsKeyVar &&
-    guardMatch[4] === parsedTabIdsMatch?.[1]
-  ) {
-    return currentSource;
-  }
-  if (
-    componentStartIndex === -1 ||
-    componentCloseIndex === -1 ||
-    parsedTabIdsMatch == null ||
-    guardMatch == null
-  ) {
-    console.warn(
-      "WARN: Could not find hidden Browser Use host ownership guard — skipping Linux inactive-route host patch",
-    );
+  if (hasNativeOwnership) {
     return currentSource;
   }
 
-  const [guardNeedle, routeOwnerVar, visibleTabIdsVar] = guardMatch;
-  const parseBrowserTabIdVar = parsedTabIdsMatch[1];
-  const visibleTabIdVar = "codexLinuxBrowserUseTabId";
-  const guardPatch =
-    `if(!${routeOwnerVar}&&${visibleTabIdsVar}.size>0&&` +
-    `${browserUseTabIdsKeyVar}.split(\`\\0\`).map(${parseBrowserTabIdVar}).every(` +
-    `${visibleTabIdVar}=>${visibleTabIdsVar}.has(${visibleTabIdVar})))return null;`;
-  const patchedComponent = componentSource.replace(guardNeedle, guardPatch);
-  return (
-    `${currentSource.slice(0, componentStartIndex)}${patchedComponent}` +
-    `${currentSource.slice(componentCloseIndex + 1)}`
+  console.warn(
+    "WARN: Could not verify native hidden Browser Use host ownership — skipping Linux inactive-route host contract",
   );
+  return currentSource;
 }
 
 function applyLinuxBrowserUseExternalAvailabilityPatch(currentSource) {
@@ -1259,7 +1220,7 @@ function applyLinuxAppServerFeatureEnablementPatch(currentSource) {
 const AUTOMATION_UPDATE_EAGER_MARKER_PATTERN =
   /[A-Za-z_$][\w$]*\.name===`automation_update`&&delete [A-Za-z_$][\w$]*\.deferLoading/u;
 const AUTOMATION_UPDATE_DYNAMIC_TOOLS_PATTERN =
-  /\.map\(([A-Za-z_$][\w$]*)=>\(\{type:`function`,\.\.\.\1,\.\.\.([A-Za-z_$][\w$]*)\.has\(\1\.name\)\?\{\}:\{deferLoading:!0\}\}\)\)/u;
+  /\.map\(([A-Za-z_$][\w$]*)=>\(\{type:`function`,\.\.\.\1,\.\.\.([A-Za-z_$][\w$]*)&&!([A-Za-z_$][\w$]*)\.has\(\1\.name\)\?\{deferLoading:!0\}:\{\}\}\)\)/u;
 
 function matchesAutomationUpdateEagerToolContract(currentSource) {
   return (
@@ -1284,26 +1245,26 @@ function applyAutomationUpdateEagerToolPatch(currentSource) {
 
   return currentSource.replace(
     AUTOMATION_UPDATE_DYNAMIC_TOOLS_PATTERN,
-    (_match, toolVar, eagerToolsVar) => {
-      const descriptorVar = toolVar === "t" ? "codexLinuxAutomationDescriptor" : "t";
-      return `.map(${toolVar}=>{let ${descriptorVar}={type:\`function\`,...${toolVar},...${eagerToolsVar}.has(${toolVar}.name)?{}:{deferLoading:!0}};return ${toolVar}.name===\`automation_update\`&&delete ${descriptorVar}.deferLoading,${descriptorVar}})`;
+    (_match, toolVar, dynamicNamespacesVar, eagerToolsVar) => {
+      const descriptorVar = toolVar === "t" ? "chatgptLinuxAutomationDescriptor" : "t";
+      return `.map(${toolVar}=>{let ${descriptorVar}={type:\`function\`,...${toolVar},...${dynamicNamespacesVar}&&!${eagerToolsVar}.has(${toolVar}.name)?{deferLoading:!0}:{}};return ${toolVar}.name===\`automation_update\`&&delete ${descriptorVar}.deferLoading,${descriptorVar}})`;
     },
   );
 }
 
 function applyLinuxAppServerBackfillWaitPatch(currentSource) {
   const helperSource =
-    "function codexLinuxIsStateDbBackfillMessage(e){return typeof e===`string`&&e.toLowerCase().includes(`state db backfill is running`)}" +
-    "function codexLinuxStateDbBackfillMessage(e){return`Codex state database backfill is still running; waiting up to 5 minutes before surfacing a startup error. ${e}`}" +
-    "function codexLinuxAppServerBackfillTimeoutMs(e,t){return t===3e4&&(e===`thread/start`||e===`config/read`||e===`account/read`)?3e5:t}";
+    "function chatgptLinuxIsStateDbBackfillMessage(e){return typeof e===`string`&&e.toLowerCase().includes(`state db backfill is running`)}" +
+    "function chatgptLinuxStateDbBackfillMessage(e){return`Codex state database backfill is still running; waiting up to 5 minutes before surfacing a startup error. ${e}`}" +
+    "function chatgptLinuxAppServerBackfillTimeoutMs(e,t){return t===3e4&&(e===`thread/start`||e===`config/read`||e===`account/read`)?3e5:t}";
   const parserNeedle =
     /function\s+([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\{if\(\2\.startsWith\(`Parse Error`\)\)return\{code:`restart-required`\};/;
   const parserPatchedRegex =
-    /codexLinuxIsStateDbBackfillMessage\([A-Za-z_$][\w$]*\)\)return\{code:`connection-failed`/;
+    /chatgptLinuxIsStateDbBackfillMessage\([A-Za-z_$][\w$]*\)\)return\{code:`connection-failed`/;
   const timeoutNeedle =
     /createRequest\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*)=([^,]+),([A-Za-z_$][\w$]*)=\3\?\.timeoutMs\?\?0,/;
   const timeoutPatchedRegex =
-    /(?:^|[;,])\s*[A-Za-z_$][\w$]*=codexLinuxAppServerBackfillTimeoutMs\([A-Za-z_$][\w$]*,[A-Za-z_$][\w$]*\)/;
+    /(?:^|[;,])\s*[A-Za-z_$][\w$]*=chatgptLinuxAppServerBackfillTimeoutMs\([A-Za-z_$][\w$]*,[A-Za-z_$][\w$]*\)/;
   const shouldPatchParser = parserNeedle.test(currentSource) || parserPatchedRegex.test(currentSource);
   const shouldPatchTimeout = timeoutNeedle.test(currentSource) || timeoutPatchedRegex.test(currentSource);
   const topLevelInsertionPointBefore = (source, index) => {
@@ -1357,7 +1318,7 @@ function applyLinuxAppServerBackfillWaitPatch(currentSource) {
   let patchedSource = currentSource;
   let changed = false;
 
-  if (!patchedSource.includes("function codexLinuxIsStateDbBackfillMessage(")) {
+  if (!patchedSource.includes("function chatgptLinuxIsStateDbBackfillMessage(")) {
     // Insert helpers at module top-level so they're visible to ALL scopes.
     // The helpers must not land inside the Sentry error handler because
     // createRequest() calls them from a different scope.
@@ -1397,10 +1358,10 @@ function applyLinuxAppServerBackfillWaitPatch(currentSource) {
     const parserPatched = patchedSource.replace(
       parserNeedle,
       (_match, fnName, messageVar) => {
-        const helperPrefix = patchedSource.includes("function codexLinuxIsStateDbBackfillMessage(")
+        const helperPrefix = patchedSource.includes("function chatgptLinuxIsStateDbBackfillMessage(")
           ? ""
           : helperSource;
-        return `${helperPrefix}function ${fnName}(${messageVar}){if(codexLinuxIsStateDbBackfillMessage(${messageVar}))return{code:\`connection-failed\`,message:codexLinuxStateDbBackfillMessage(${messageVar})};if(${messageVar}.startsWith(\`Parse Error\`))return{code:\`restart-required\`};`;
+        return `${helperPrefix}function ${fnName}(${messageVar}){if(chatgptLinuxIsStateDbBackfillMessage(${messageVar}))return{code:\`connection-failed\`,message:chatgptLinuxStateDbBackfillMessage(${messageVar})};if(${messageVar}.startsWith(\`Parse Error\`))return{code:\`restart-required\`};`;
       },
     );
     if (parserPatched !== patchedSource) {
@@ -1412,12 +1373,12 @@ function applyLinuxAppServerBackfillWaitPatch(currentSource) {
   if (
     shouldPatchTimeout &&
     !timeoutPatchedRegex.test(patchedSource) &&
-    patchedSource.includes("function codexLinuxAppServerBackfillTimeoutMs(")
+    patchedSource.includes("function chatgptLinuxAppServerBackfillTimeoutMs(")
   ) {
     const timeoutPatched = patchedSource.replace(
       timeoutNeedle,
       (_match, methodVar, paramsVar, optionsVar, requestIdVar, requestIdExpr, timeoutVar) =>
-        `createRequest(${methodVar},${paramsVar},${optionsVar}){let ${requestIdVar}=${requestIdExpr},${timeoutVar}=${optionsVar}?.timeoutMs??0;${timeoutVar}=codexLinuxAppServerBackfillTimeoutMs(${methodVar},${timeoutVar});let `,
+        `createRequest(${methodVar},${paramsVar},${optionsVar}){let ${requestIdVar}=${requestIdExpr},${timeoutVar}=${optionsVar}?.timeoutMs??0;${timeoutVar}=chatgptLinuxAppServerBackfillTimeoutMs(${methodVar},${timeoutVar});let `,
     );
     if (timeoutPatched !== patchedSource) {
       patchedSource = timeoutPatched;
@@ -1427,7 +1388,7 @@ function applyLinuxAppServerBackfillWaitPatch(currentSource) {
 
   if (
     (shouldPatchParser || shouldPatchTimeout) &&
-    !patchedSource.includes("function codexLinuxIsStateDbBackfillMessage(")
+    !patchedSource.includes("function chatgptLinuxIsStateDbBackfillMessage(")
   ) {
     console.warn(
       "WARN: Could not insert app-server backfill wait helper — startup backfill may still time out early",
@@ -1604,7 +1565,7 @@ function applySubagentNicknameMetadataPatch(currentSource) {
 }
 
 function applyLocalEnvironmentActionModalDraftPatch(currentSource) {
-  if (currentSource.includes("codexLinuxActionDraft")) {
+  if (currentSource.includes("chatgptLinuxActionDraft")) {
     return currentSource;
   }
 
@@ -1632,7 +1593,7 @@ function applyLocalEnvironmentActionModalDraftPatch(currentSource) {
   const { actionVar, cacheVar, paramVar, updateVar, workspaceVar } = modalFunction;
   const stateNeedle = `workspaceRoot:${workspaceVar}}=${paramVar},`;
   const statePatch =
-    `workspaceRoot:${workspaceVar}}=${paramVar},[codexLinuxActionDraft,codexLinuxSetActionDraft]=(0,${reactVar}.useState)(()=>${actionVar}),codexLinuxUpdateActionDraft=codexLinuxPatch=>(codexLinuxSetActionDraft(codexLinuxDraft=>({...codexLinuxDraft,...codexLinuxPatch})),${updateVar}(codexLinuxPatch)),`;
+    `workspaceRoot:${workspaceVar}}=${paramVar},[chatgptLinuxActionDraft,chatgptLinuxSetActionDraft]=(0,${reactVar}.useState)(()=>${actionVar}),chatgptLinuxUpdateActionDraft=chatgptLinuxPatch=>(chatgptLinuxSetActionDraft(chatgptLinuxDraft=>({...chatgptLinuxDraft,...chatgptLinuxPatch})),${updateVar}(chatgptLinuxPatch)),`;
   const memoGuardPattern = new RegExp(
     String.raw`if\(${cacheVar}\[(\d+)\]!==${actionVar}\|\|`,
   );
@@ -1652,37 +1613,37 @@ function applyLocalEnvironmentActionModalDraftPatch(currentSource) {
     },
     {
       needle: memoGuardMatch[0],
-      replacement: `if(${cacheVar}[${memoGuardSlot}]!==codexLinuxActionDraft||${cacheVar}[${memoGuardSlot}]!==${actionVar}||`,
+      replacement: `if(${cacheVar}[${memoGuardSlot}]!==chatgptLinuxActionDraft||${cacheVar}[${memoGuardSlot}]!==${actionVar}||`,
       description: "modal memo guard",
     },
     {
       needle: `${actionVar}.icon`,
-      replacement: "codexLinuxActionDraft.icon",
+      replacement: "chatgptLinuxActionDraft.icon",
       description: "icon draft references",
     },
     {
       needle: `${actionVar}.name`,
-      replacement: "codexLinuxActionDraft.name",
+      replacement: "chatgptLinuxActionDraft.name",
       description: "name draft references",
     },
     {
       needle: `${actionVar}.command`,
-      replacement: "codexLinuxActionDraft.command",
+      replacement: "chatgptLinuxActionDraft.command",
       description: "command draft references",
     },
     {
       needle: `${updateVar}({icon:e.value})`,
-      replacement: "codexLinuxUpdateActionDraft({icon:e.value})",
+      replacement: "chatgptLinuxUpdateActionDraft({icon:e.value})",
       description: "icon update callback",
     },
     {
       needle: `${updateVar}({name:e.target.value})`,
-      replacement: "codexLinuxUpdateActionDraft({name:e.target.value})",
+      replacement: "chatgptLinuxUpdateActionDraft({name:e.target.value})",
       description: "name update callback",
     },
     {
       needle: `${updateVar}({command:e})`,
-      replacement: "codexLinuxUpdateActionDraft({command:e})",
+      replacement: "chatgptLinuxUpdateActionDraft({command:e})",
       description: "command update callback",
     },
   ];
@@ -1698,7 +1659,7 @@ function applyLocalEnvironmentActionModalDraftPatch(currentSource) {
   }
   patchedFunction = patchedFunction.replace(
     savedPayloadPattern,
-    "{...codexLinuxActionDraft,command:$1,name:$2}",
+    "{...chatgptLinuxActionDraft,command:$1,name:$2}",
   );
 
   const missingReplacement = requiredReplacements.find(
@@ -1720,13 +1681,13 @@ function applyLocalEnvironmentActionModalDraftPatch(currentSource) {
 
 function applyBrowserAnnotationScreenshotPatch(currentSource) {
   const storedAnchorRegex =
-    /if\([A-Za-z_$][\w$]*&&([A-Za-z_$][\w$]*)\?\.annotation\.anchor\.kind===`element`\)\{[^;{}]+;let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\1\.annotation\.anchor\);([A-Za-z_$][\w$]*)=void 0,/;
+    /if\([A-Za-z_$][\w$]*&&([A-Za-z_$][\w$]*)\?\.annotation\.anchor\.kind===\x60element\x60\)\{let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\1\.annotation\.anchor\);([A-Za-z_$][\w$]*)=void 0,/u;
   if (storedAnchorRegex.test(currentSource)) {
     return currentSource;
   }
 
   const liveAnchorRegex =
-    /(if\([A-Za-z_$][\w$]*&&([A-Za-z_$][\w$]*)\?\.annotation\.anchor\.kind===`element`\)\{[^;{}]+;)let e=([A-Za-z_$][\w$]*)==null\?null:[A-Za-z_$][\w$]*\(\3\),([A-Za-z_$][\w$]*)=e\?\.rect\?\?([A-Za-z_$][\w$]*)\(\2\.annotation\.anchor\);([A-Za-z_$][\w$]*)=e\?\.borderRadius,/;
+    /(if\([A-Za-z_$][\w$]*&&([A-Za-z_$][\w$]*)\?\.annotation\.anchor\.kind===\x60element\x60\)\{)let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)==null\?null:([A-Za-z_$][\w$]*)\(\4\),([A-Za-z_$][\w$]*)=\3\?\.rect\?\?([A-Za-z_$][\w$]*)\(\2\.annotation\.anchor\);([A-Za-z_$][\w$]*)=\3\?\.borderRadius,/u;
   const match = currentSource.match(liveAnchorRegex);
   if (match == null) {
     console.warn(
@@ -1735,10 +1696,23 @@ function applyBrowserAnnotationScreenshotPatch(currentSource) {
     return currentSource;
   }
 
-  const [, prefix, selectedAnnotationVar, , rectVar, anchorRectFn, radiusVar] = match;
+  const prefix = match[1];
+  const selectedAnnotationVar = match[2];
+  const rectVar = match[6];
+  const anchorRectFn = match[7];
+  const radiusVar = match[8];
   return currentSource.replace(
     liveAnchorRegex,
-    `${prefix}let ${rectVar}=${anchorRectFn}(${selectedAnnotationVar}.annotation.anchor);${radiusVar}=void 0,`,
+    prefix +
+      "let " +
+      rectVar +
+      "=" +
+      anchorRectFn +
+      "(" +
+      selectedAnnotationVar +
+      ".annotation.anchor);" +
+      radiusVar +
+      "=void 0,",
   );
 }
 
@@ -1820,7 +1794,7 @@ function detectLatestComposerFooterControls(source) {
     });
   }
   for (const match of source.matchAll(
-    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\),([A-Za-z_$][\w$]*)\]\}/g,
+    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\),([A-Za-z_$][\w$]*)\]\}/g,
   )) {
     candidates.push({
       index: match.index,
@@ -1830,7 +1804,7 @@ function detectLatestComposerFooterControls(source) {
     });
   }
   for (const match of source.matchAll(
-    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)==null\?null:\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:\2\}\),([A-Za-z_$][\w$]*)\]\}/g,
+    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)==null\?null:\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:\2\}\),([A-Za-z_$][\w$]*)\]\}/g,
   )) {
     candidates.push({
       index: match.index,
@@ -1840,7 +1814,7 @@ function detectLatestComposerFooterControls(source) {
     });
   }
   for (const match of source.matchAll(
-    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\)\]\}/g,
+    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\)\]\}/g,
   )) {
     candidates.push({
       index: match.index,
@@ -1880,9 +1854,9 @@ function detectLatestComposerFooterControls(source) {
       footerControlsNeedle:
         `FooterInlineControls,{gap:\`normal\`,children:[${firstChildVar},${secondChildVar}]}`,
       footerControlsPatch:
-        `FooterInlineControls,{gap:\`normal\`,children:[${firstChildVar},(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:${conversationIdVar}}),${secondChildVar}]}`,
+        `FooterInlineControls,{gap:\`normal\`,children:[${firstChildVar},(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:${conversationIdVar}}),${secondChildVar}]}`,
       footerControlsAfterPermissionsPatch:
-        `FooterInlineControls,{gap:\`normal\`,children:[${firstChildVar},${secondChildVar},(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:${conversationIdVar}})]}`,
+        `FooterInlineControls,{gap:\`normal\`,children:[${firstChildVar},${secondChildVar},(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:${conversationIdVar}})]}`,
     };
   }
 
@@ -1905,7 +1879,7 @@ function detectLatestComposerRateLimitQuery(source) {
 
 function removeBroadFooterInlineControlsRateLimitPatch(source) {
   return source.replace(
-    /let ([A-Za-z_$][\w$]*);return \1=\(0,([A-Za-z_$][\w$]*)\.jsxs\)\(`div`,\{ref:([A-Za-z_$][\w$]*),className:([A-Za-z_$][\w$]*),children:\[([A-Za-z_$][\w$]*),\(0,\2\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:null\}\)\]\}\),\1\}/g,
+    /let ([A-Za-z_$][\w$]*);return \1=\(0,([A-Za-z_$][\w$]*)\.jsxs\)\(`div`,\{ref:([A-Za-z_$][\w$]*),className:([A-Za-z_$][\w$]*),children:\[([A-Za-z_$][\w$]*),\(0,\2\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:null\}\)\]\}\),\1\}/g,
     "let $1;return $1=(0,$2.jsx)(`div`,{ref:$3,className:$4,children:$5}),$1}",
   );
 }
@@ -1942,14 +1916,14 @@ function detectCurrentPermissionsRateLimitFooterSymbols(source) {
 }
 
 function replaceCodexLinuxRateLimitFooterFunction(source, replacement) {
-  const functionStart = source.indexOf("function codexLinuxRateLimitFooter(");
+  const functionStart = source.indexOf("function chatgptLinuxRateLimitFooter(");
   if (functionStart === -1) {
     return source;
   }
 
   const headerMatch = source
     .slice(functionStart)
-    .match(/^function codexLinuxRateLimitFooter\([^)]*\)\{/);
+    .match(/^function chatgptLinuxRateLimitFooter\([^)]*\)\{/);
   if (headerMatch == null) {
     return source;
   }
@@ -1981,11 +1955,11 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   const currentComposerStatusNeedle =
     "function zg(e){";
   const currentComposerFooterFunction =
-    `function codexLinuxRateLimitFooter({conversationId:e,rateLimit:t}){try{let n=Et(),{activeMode:r}=or(e),i=r?.settings.model??null,a=sa(t),o=ta(t),s=da(a,{activeLimitName:o,selectedModel:i}),c=s.filter(kg).slice(0,2);c.length===0&&(c=da(a,{activeLimitName:o,selectedModel:null}).filter(kg).slice(0,2));if(c.length===0)return null;let l=c.map(e=>\`\${bg(e.bucket.windowDurationMins??null,n,{withColon:!1})} \${n.formatNumber(Yi(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%\`).join(\` / \`);return(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:l})}catch(e){return null}}`;
+    `function chatgptLinuxRateLimitFooter({conversationId:e,rateLimit:t}){try{let n=Et(),{activeMode:r}=or(e),i=r?.settings.model??null,a=sa(t),o=ta(t),s=da(a,{activeLimitName:o,selectedModel:i}),c=s.filter(kg).slice(0,2);c.length===0&&(c=da(a,{activeLimitName:o,selectedModel:null}).filter(kg).slice(0,2));if(c.length===0)return null;let l=c.map(e=>\`\${bg(e.bucket.windowDurationMins??null,n,{withColon:!1})} \${n.formatNumber(Yi(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%\`).join(\` / \`);return(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:l})}catch(e){return null}}`;
   const currentComposerFooterCallNeedle =
     "children:[ue,de,W,fe,pe,me,G,he,_e,ve,ye,xe,Se,Ce,we,Te,Ee,Oe,Ae,je,Me]";
   const currentComposerFooterCallPatch =
-    "children:[ue,de,W,fe,pe,me,G,he,_e,ve,ye,xe,Se,Ce,we,Te,Ee,De==null?null:(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:x,rateLimit:De}),Oe,Ae,je,Me]";
+    "children:[ue,de,W,fe,pe,me,G,he,_e,ve,ye,xe,Se,Ce,we,Te,Ee,De==null?null:(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:x,rateLimit:De}),Oe,Ae,je,Me]";
   const currentPermissionsControlsNeedle =
     /\(0,Q\.jsx\)\(([A-Za-z_$][\w$]*),\{conversationId:f,hostId:C,cwdOverride:w\}\),\(0,Q\.jsx\)\(([A-Za-z_$][\w$]*),\{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0\}\)/;
   const shouldWarnAboutMissingFooterHelper =
@@ -2000,11 +1974,11 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   const homeFooterGroupNeedle =
     "t[131]!==Ut||t[132]!==Wt||t[133]!==Gt?(Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,Wt,Gt]}),t[131]=Ut,t[132]=Wt,t[133]=Gt,t[134]=Kt):Kt=t[134]";
   const previousHomeOnlyCall =
-    "w===`home`?(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:z}):null";
+    "w===`home`?(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:z}):null";
   const previousUnguardedHomeGroupCall =
-    "children:[Ut,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:z}),Wt,Gt]";
+    "children:[Ut,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:z}),Wt,Gt]";
   const previousBrokenCurrentCallNeedle =
-    "(0,Q.jsx)(codexLinuxRateLimitFooter,{rateLimitEntries:";
+    "(0,Q.jsx)(chatgptLinuxRateLimitFooter,{rateLimitEntries:";
   const homeFooterConversationIdVar = detectComposerFooterConversationIdVar(
     currentSource,
     [
@@ -2016,26 +1990,26 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   );
   const homeFooterCall = homeFooterConversationIdVar == null
     ? null
-    : `(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:${homeFooterConversationIdVar}})`;
+    : `(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:${homeFooterConversationIdVar}})`;
 
   const currentFooterFunction = currentSymbols == null
     ? null
-    : `function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,Z.c)(22),{activeMode:n}=Bi(e),r=n?.settings.model??null,{data:i}=ci(${currentSymbols.accountSignalVar}),a=i===void 0?null:i,o=Ro(a),s=Zo(a),c=Xo(Jo(o,{activeLimitName:s,selectedModel:r})).slice(0,2);c.length===0&&(c=Xo(Jo(o,{activeLimitName:s,selectedModel:null})).slice(0,2));if(c.length===0)return null;let l;t[0]===Symbol.for(\`react.memo_cache_sentinel\`)?(l=(0,Q.jsx)(X,{id:\`composer.linuxRateLimitFooter.tooltip\`,defaultMessage:\`Rate limits remaining\`,description:\`Tooltip for compact footer rate limit status\`}),t[0]=l):l=t[0];let u;if(t[1]!==c){u=c.map((e,t)=>{let n=No(e.bucket.usedPercent??0);return(0,Q.jsxs)(\`span\`,{className:\`flex items-center gap-1 whitespace-nowrap\`,children:[t>0?(0,Q.jsx)(\`span\`,{className:\`text-token-input-placeholder-foreground\`,children:\`/\`}):null,(0,Q.jsx)(\`span\`,{children:(0,Q.jsx)(${currentSymbols.durationComponent},{minutes:e.bucket.windowDurationMins,variant:\`summary\`})}),(0,Q.jsx)(\`span\`,{className:\`font-medium text-token-text-primary\`,children:Do(n)})]},e.key)}),t[1]=c,t[2]=u}else u=t[2];let d;t[3]!==u?(d=(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:u}),t[3]=u,t[4]=d):d=t[4];let f;return t[5]!==l||t[6]!==d?(f=(0,Q.jsx)(nc,{tooltipContent:l,children:d}),t[5]=l,t[6]=d,t[7]=f):f=t[7],f}catch(e){return null}}`;
+    : `function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,Z.c)(22),{activeMode:n}=Bi(e),r=n?.settings.model??null,{data:i}=ci(${currentSymbols.accountSignalVar}),a=i===void 0?null:i,o=Ro(a),s=Zo(a),c=Xo(Jo(o,{activeLimitName:s,selectedModel:r})).slice(0,2);c.length===0&&(c=Xo(Jo(o,{activeLimitName:s,selectedModel:null})).slice(0,2));if(c.length===0)return null;let l;t[0]===Symbol.for(\`react.memo_cache_sentinel\`)?(l=(0,Q.jsx)(X,{id:\`composer.linuxRateLimitFooter.tooltip\`,defaultMessage:\`Rate limits remaining\`,description:\`Tooltip for compact footer rate limit status\`}),t[0]=l):l=t[0];let u;if(t[1]!==c){u=c.map((e,t)=>{let n=No(e.bucket.usedPercent??0);return(0,Q.jsxs)(\`span\`,{className:\`flex items-center gap-1 whitespace-nowrap\`,children:[t>0?(0,Q.jsx)(\`span\`,{className:\`text-token-input-placeholder-foreground\`,children:\`/\`}):null,(0,Q.jsx)(\`span\`,{children:(0,Q.jsx)(${currentSymbols.durationComponent},{minutes:e.bucket.windowDurationMins,variant:\`summary\`})}),(0,Q.jsx)(\`span\`,{className:\`font-medium text-token-text-primary\`,children:Do(n)})]},e.key)}),t[1]=c,t[2]=u}else u=t[2];let d;t[3]!==u?(d=(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:u}),t[3]=u,t[4]=d):d=t[4];let f;return t[5]!==l||t[6]!==d?(f=(0,Q.jsx)(nc,{tooltipContent:l,children:d}),t[5]=l,t[6]=d,t[7]=f):f=t[7],f}catch(e){return null}}`;
   const latestFooterFunction =
-    `function codexLinuxRateLimitFooter(){try{let e=(0,$.c)(6),t=${latestRateLimitQuery.queryHook}(${latestRateLimitQuery.queryKey})?.data,n=t?.rate_limit,r=[n?.primary_window,n?.secondary_window].filter(e=>e!=null&&Number.isFinite(e.used_percent)).slice(0,2);if(r.length===0)return null;let i;if(e[0]!==r){i=r.map(e=>{let t=e.limit_window_seconds==null?null:e.limit_window_seconds/60,n=t==null?\`Rate\`:t>=1440?\`\${Math.ceil(t/1440)}d\`:t>=60?\`\${Math.ceil(t/60)}h\`:\`\${Math.ceil(t)}m\`,r=Math.max(0,100-(e.used_percent??0));return\`\${n} \${Math.round(r)}%\`}).join(\` / \`),e[0]=r,e[1]=i}else i=e[1];let a;return e[2]!==i?(a=(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:i}),e[2]=i,e[3]=a):a=e[3],a}catch(e){return null}}`;
+    `function chatgptLinuxRateLimitFooter(){try{let e=(0,$.c)(6),t=${latestRateLimitQuery.queryHook}(${latestRateLimitQuery.queryKey})?.data,n=t?.rate_limit,r=[n?.primary_window,n?.secondary_window].filter(e=>e!=null&&Number.isFinite(e.used_percent)).slice(0,2);if(r.length===0)return null;let i;if(e[0]!==r){i=r.map(e=>{let t=e.limit_window_seconds==null?null:e.limit_window_seconds/60,n=t==null?\`Rate\`:t>=1440?\`\${Math.ceil(t/1440)}d\`:t>=60?\`\${Math.ceil(t/60)}h\`:\`\${Math.ceil(t)}m\`,r=Math.max(0,100-(e.used_percent??0));return\`\${n} \${Math.round(r)}%\`}).join(\` / \`),e[0]=r,e[1]=i}else i=e[1];let a;return e[2]!==i?(a=(0,Q.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:i}),e[2]=i,e[3]=a):a=e[3],a}catch(e){return null}}`;
   const previousLatestFooterFunctionWithVisibleFallback =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`});let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`});let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
   const previousLatestFooterFunctionWithVisibleCatchFallback =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`});let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`})}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`});let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:`Usage limits`})}}";
   const previousLatestFooterFunctionWithModelFallback =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
   const previousLatestFooterFunction =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
   const currentPermissionsFooterFunction = currentPermissionsFooterSymbols == null
     ? null
-    : `function codexLinuxRateLimitFooter({conversationId:e}){try{let t=${currentPermissionsFooterSymbols.activeModeHook}(e)?.activeMode?.settings.model??null,{data:n}=${currentPermissionsFooterSymbols.queryHook}(${currentPermissionsFooterSymbols.queryKey}),r=${currentPermissionsFooterSymbols.entriesFn}(n),i=${currentPermissionsFooterSymbols.activeLimitFn}(n),a=${currentPermissionsFooterSymbols.summaryFn}(r,{activeLimitName:i,selectedModel:t});if(a==null)return null;let o=[];if(a.windowMinutes!=null){let e=a.windowMinutes;o.push(e>=1440?\`\${Math.ceil(e/1440)}d\`:e>=60?\`\${Math.ceil(e/60)}h\`:\`\${Math.ceil(e)}m\`)}a.remainingPercent!=null&&o.push(\`\${Math.round(a.remainingPercent)}%\`);if(o.length===0)return null;return(0,${currentPermissionsFooterSymbols.jsxAlias}.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:o.join(\` \`)})}catch(e){return null}}`;
+    : `function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=${currentPermissionsFooterSymbols.activeModeHook}(e)?.activeMode?.settings.model??null,{data:n}=${currentPermissionsFooterSymbols.queryHook}(${currentPermissionsFooterSymbols.queryKey}),r=${currentPermissionsFooterSymbols.entriesFn}(n),i=${currentPermissionsFooterSymbols.activeLimitFn}(n),a=${currentPermissionsFooterSymbols.summaryFn}(r,{activeLimitName:i,selectedModel:t});if(a==null)return null;let o=[];if(a.windowMinutes!=null){let e=a.windowMinutes;o.push(e>=1440?\`\${Math.ceil(e/1440)}d\`:e>=60?\`\${Math.ceil(e/60)}h\`:\`\${Math.ceil(e)}m\`)}a.remainingPercent!=null&&o.push(\`\${Math.round(a.remainingPercent)}%\`);if(o.length===0)return null;return(0,${currentPermissionsFooterSymbols.jsxAlias}.jsx)(\`span\`,{className:\`${footerLabelClass}\`,children:o.join(\` \`)})}catch(e){return null}}`;
 
-  if (!patchedSource.includes("function codexLinuxRateLimitFooter(")) {
+  if (!patchedSource.includes("function chatgptLinuxRateLimitFooter(")) {
     if (currentPermissionsFooterSymbols != null && currentPermissionsFooterFunction != null) {
       patchedSource = patchedSource.replace(
         currentPermissionsFooterSymbols.insertionNeedle,
@@ -2080,7 +2054,7 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
     );
   }
 
-  const hasFooterFunction = patchedSource.includes("function codexLinuxRateLimitFooter(");
+  const hasFooterFunction = patchedSource.includes("function chatgptLinuxRateLimitFooter(");
   if (!hasFooterFunction) {
     if (currentSource.includes("FooterInlineControls")) {
       // Composer-shaped bundle, but the footer controls drifted from the
@@ -2112,13 +2086,13 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   patchedSource = removeBroadFooterInlineControlsRateLimitPatch(patchedSource);
 
   patchedSource = patchedSource.replace(
-    /([A-Za-z_$][\w$]*)==null\?null:\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:\1\}\)/g,
-    "(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:$1})",
+    /([A-Za-z_$][\w$]*)==null\?null:\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:\1\}\)/g,
+    "(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:$1})",
   );
 
   patchedSource = patchedSource.replace(
-    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\),([A-Za-z_$][\w$]*)\]\}/g,
-    "FooterInlineControls,{gap:`normal`,children:[$1,$3,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:$2})]}",
+    /FooterInlineControls,\{gap:`normal`,children:\[([A-Za-z_$][\w$]*),\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:([A-Za-z_$][\w$]*)\}\),([A-Za-z_$][\w$]*)\]\}/g,
+    "FooterInlineControls,{gap:`normal`,children:[$1,$3,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:$2})]}",
   );
 
   if (
@@ -2133,7 +2107,7 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
 
   if (
     latestFooterControls != null &&
-    !patchedSource.includes(`codexLinuxRateLimitFooter,{conversationId:${latestFooterControls.conversationIdVar}}`) &&
+    !patchedSource.includes(`chatgptLinuxRateLimitFooter,{conversationId:${latestFooterControls.conversationIdVar}}`) &&
     patchedSource.includes(latestFooterControls.footerControlsNeedle)
   ) {
     patchedSource = patchedSource.replace(
@@ -2173,7 +2147,7 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   }
 
   const previousBrokenCurrentCall =
-    /\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{rateLimitEntries:[A-Za-z_$][\w$]*,activeLimitName:[A-Za-z_$][\w$]*,selectedModel:[A-Za-z_$][\w$]*\}\)/g;
+    /\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{rateLimitEntries:[A-Za-z_$][\w$]*,activeLimitName:[A-Za-z_$][\w$]*,selectedModel:[A-Za-z_$][\w$]*\}\)/g;
   if (
     currentFooterFunction != null &&
     previousBrokenCurrentCall.test(patchedSource) &&
@@ -2194,20 +2168,20 @@ function applyPersistentRateLimitFooterPatch(currentSource) {
   const permissionsControlsNeedle =
     "(0,Q.jsx)(nz,{conversationId:f,hostId:C,cwdOverride:w}),(0,Q.jsx)(vz,{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0})";
   const permissionsControlsPatch =
-    "(0,Q.jsx)(nz,{conversationId:f,hostId:C,cwdOverride:w}),(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:f}),(0,Q.jsx)(vz,{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0})";
+    "(0,Q.jsx)(nz,{conversationId:f,hostId:C,cwdOverride:w}),(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:f}),(0,Q.jsx)(vz,{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0})";
   if (patchedSource.includes(permissionsControlsNeedle)) {
     patchedSource = patchedSource.replace(permissionsControlsNeedle, permissionsControlsPatch);
   }
   if (currentPermissionsControlsNeedle.test(patchedSource)) {
     patchedSource = patchedSource.replace(
       currentPermissionsControlsNeedle,
-      "(0,Q.jsx)($1,{conversationId:f,hostId:C,cwdOverride:w}),(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:f}),(0,Q.jsx)($2,{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0})",
+      "(0,Q.jsx)($1,{conversationId:f,hostId:C,cwdOverride:w}),(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:f}),(0,Q.jsx)($2,{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0})",
     );
   }
 
   if (
     patchedSource === currentSource &&
-    !currentSource.includes("function codexLinuxRateLimitFooter(") &&
+    !currentSource.includes("function chatgptLinuxRateLimitFooter(") &&
     shouldWarnAboutMissingFooterHelper
   ) {
     console.warn("WARN: Could not find persistent rate limit footer needles — skipping composer footer limit patch");
@@ -2246,7 +2220,7 @@ function applyLinuxFastModeModelGuardPatch(currentSource) {
 }
 
 function applyLinuxSkillsListDedupePatch(currentSource) {
-  if (currentSource.includes("function codexLinuxDedupeSkills(")) {
+  if (currentSource.includes("function chatgptLinuxDedupeSkills(")) {
     return currentSource;
   }
 
@@ -2258,7 +2232,7 @@ function applyLinuxSkillsListDedupePatch(currentSource) {
   }
 
   const flatMapNeedle = "b=y.flatMap(IJ)";
-  const flatMapPatch = "b=codexLinuxDedupeSkills(y.flatMap(IJ))";
+  const flatMapPatch = "b=chatgptLinuxDedupeSkills(y.flatMap(IJ))";
   if (!currentSource.includes(flatMapNeedle)) {
     console.warn(
       "WARN: Could not find skills list flatten insertion point — skipping Linux skills dedupe patch",
@@ -2267,7 +2241,7 @@ function applyLinuxSkillsListDedupePatch(currentSource) {
   }
 
   const helper =
-    "function codexLinuxDedupeSkills(e){try{let t=[],n=new Set;for(let r of e??[]){if(r==null){t.push(r);continue}let e=r.path??r.id??r.privateIdentity;if(e==null){t.push(r);continue}let i=String(e);if(n.has(i))continue;n.add(i),t.push(r)}return t}catch{return e}}";
+    "function chatgptLinuxDedupeSkills(e){try{let t=[],n=new Set;for(let r of e??[]){if(r==null){t.push(r);continue}let e=r.path??r.id??r.privateIdentity;if(e==null){t.push(r);continue}let i=String(e);if(n.has(i))continue;n.add(i),t.push(r)}return t}catch{return e}}";
   return currentSource
     .replace(flatMapNeedle, flatMapPatch)
     .replace("function IJ(e){return e.skills}", `${helper}function IJ(e){return e.skills}`);
@@ -2317,6 +2291,6 @@ module.exports = {
   applyLinuxSkillsListDedupePatch,
   applyLocalEnvironmentActionModalDraftPatch,
   applySubagentNicknameMetadataPatch,
-  codexLinuxWatchBrowserWebviewAttachment,
+  chatgptLinuxWatchBrowserWebviewAttachment,
   patchCommentPreloadBundle,
 };

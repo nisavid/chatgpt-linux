@@ -22,21 +22,21 @@ if [ ! -d "$omarchy_home" ] && ! command -v omarchy >/dev/null 2>&1; then
     exit 0
 fi
 
-integrations_dir="${CODEX_PORT_INTEGRATIONS_DIR:-${CODEX_LINUX_FEATURES_DIR:-}}"
+integrations_dir="${CHATGPT_PORT_INTEGRATIONS_DIR:-}"
 if [ -z "$integrations_dir" ]; then
-    warn "CODEX_PORT_INTEGRATIONS_DIR is unavailable; skipping Omarchy template setup"
+    warn "CHATGPT_PORT_INTEGRATIONS_DIR is unavailable; skipping Omarchy template setup"
     exit 0
 fi
 
-source_path="$integrations_dir/omarchy-theme/codex-app.css.tpl"
+source_path="$integrations_dir/omarchy-theme/chatgpt.css.tpl"
 if [ ! -f "$source_path" ]; then
     warn "template source not found at $source_path"
     exit 0
 fi
 
 target_dir="$omarchy_home/themed"
-target_path="$target_dir/codex-app.css.tpl"
-generated_path="$omarchy_home/current/theme/codex-app.css"
+target_path="$target_dir/chatgpt.css.tpl"
+generated_path="$omarchy_home/current/theme/chatgpt.css"
 
 if [ -f "$target_path" ] && ! cmp -s "$source_path" "$target_path"; then
     warn "$target_path already exists with local changes; leaving it untouched"
@@ -45,14 +45,14 @@ elif [ ! -f "$target_path" ]; then
         warn "could not install Omarchy template at $target_path"
         exit 0
     fi
-    echo "Installed Omarchy Codex App theme template at $target_path" >&2
+    echo "Installed Omarchy ChatGPT theme template at $target_path" >&2
 fi
 
 if [ -s "$generated_path" ]; then
     exit 0
 fi
 
-if ! truthy "${CODEX_OMARCHY_THEME_AUTO_REFRESH:-1}"; then
+if ! truthy "${CHATGPT_OMARCHY_THEME_AUTO_REFRESH:-1}"; then
     warn "theme CSS is not generated yet; run 'omarchy theme refresh'"
     exit 0
 fi
@@ -62,7 +62,7 @@ if ! command -v omarchy >/dev/null 2>&1; then
     exit 0
 fi
 
-refresh_timeout_seconds="${CODEX_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS:-15}"
+refresh_timeout_seconds="${CHATGPT_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS:-15}"
 case "$refresh_timeout_seconds" in
     [1-9]|[1-5][0-9]|60) ;;
     *)
@@ -77,5 +77,5 @@ if ! command -v timeout >/dev/null 2>&1; then
 fi
 
 if ! timeout --kill-after=2s "${refresh_timeout_seconds}s" omarchy theme refresh; then
-    warn "'omarchy theme refresh' timed out or failed; run it manually to generate the Codex stylesheet"
+    warn "'omarchy theme refresh' timed out or failed; run it manually to generate the ChatGPT stylesheet"
 fi

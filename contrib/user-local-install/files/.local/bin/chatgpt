@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+APP_DIR="${INSTALL_ROOT}/app"
+CONFIG_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/chatgpt/user-local.env"
+
+USER_LOCAL_OZONE_PLATFORM_OVERRIDE="${CHATGPT_USER_LOCAL_OZONE_PLATFORM:-}"
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+fi
+if [ -n "$USER_LOCAL_OZONE_PLATFORM_OVERRIDE" ]; then
+    CHATGPT_USER_LOCAL_OZONE_PLATFORM="$USER_LOCAL_OZONE_PLATFORM_OVERRIDE"
+fi
+
+case "${CHATGPT_USER_LOCAL_OZONE_PLATFORM:-auto}" in
+    auto|"")
+        exec "${APP_DIR}/start.sh" "$@"
+        ;;
+    x11)
+        exec "${APP_DIR}/start.sh" --x11 "$@"
+        ;;
+    wayland)
+        exec "${APP_DIR}/start.sh" --wayland "$@"
+        ;;
+    *)
+        echo "Invalid CHATGPT_USER_LOCAL_OZONE_PLATFORM='${CHATGPT_USER_LOCAL_OZONE_PLATFORM}'; expected auto, x11, or wayland" >&2
+        exec "${APP_DIR}/start.sh" "$@"
+        ;;
+esac

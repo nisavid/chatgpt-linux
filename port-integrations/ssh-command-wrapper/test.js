@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 const {
   loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
@@ -27,31 +28,32 @@ const {
   wrapRemoteCommand,
 } = require("./patch.js");
 
-const managementCall = "n.Xn({args:[`ssh`,...oS(c),...cS(this.options.sshConnection),Gx(e,s)],spawnInsideWsl:!1})";
-const proxyCall = "(0,x.spawn)(n.nr.resolve(`ssh`)??`ssh`,[`-T`,...oS(this.options.getConnectTimeoutSeconds?.()),...cS(this.options.sshConnection),Gx(t,i)],{env:r.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})";
+const managementCall = "n.Bn({args:[`ssh`,...pC(c),...hC(this.options.sshConnection),QS(e,s)],spawnInsideWsl:!1})";
+const proxyCall = "(0,x.spawn)(n.Kn.resolve(`ssh`)??`ssh`,[`-T`,...pC(this.options.getConnectTimeoutSeconds?.()),...hC(this.options.sshConnection),QS(t,r)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})";
 
 const mainFixture = [
-  "function Gx(e,t){return e+t}",
+  "const existingArraySchema=n.il(n.hl())",
+  "function QS(e,t){return e+t}",
   `function management(){let u=${managementCall};return u}`,
   `function proxy(){let a=${proxyCall};return a}`,
   "function uS(e){let t=Hre(e);return t?{sshConnection:{alias:t.sshAlias,host:t.sshHost,port:t.sshPort,identity:t.identity}}:null}",
-  "function Wre(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`:",
+  "function Zae(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`:",
   "aliasLoad.then(t=>t==null?null:{...t,hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,autoConnect:!1})",
   "let direct=[{hostId:e.hostId,sshPort:e.sshPort,identity:e.identity}]),...t.filter",
   "let current=e.alias==null?{hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,source:`codex-managed`,alias:null,hostname:e.hostname,sshPort:e.sshPort,identity:e.identity}:{hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,source:`discovered`,alias:e.alias,hostname:null,sshPort:null,identity:null}",
   "let legacy=n==null?{hostId:t.hostId,connectionAnalyticsId:t.connectionAnalyticsId,displayName:t.displayName,source:`codex-managed`,alias:null,hostname:t.sshHost,sshPort:t.sshPort,identity:t.identity}:{hostId:t.hostId,connectionAnalyticsId:t.connectionAnalyticsId,displayName:t.displayName,source:`discovered`,alias:n,hostname:null,sshPort:null,identity:null}",
   "let host={metadata:{identity:e.identity}};return e.homeDir",
-  "var O$=n.mu({sshAlias:n._u().nullable(),sshHost:n._u(),sshPort:n.pu().nullable(),identity:n._u().nullable()});",
+  "var Fde=n.fl({sshAlias:n.hl().nullable(),sshHost:n.hl(),sshPort:n.dl().nullable(),identity:n.hl().nullable()});",
   "let config={sshPort:e.sshPort,identity:e.identity,codexCliCommand:[]}",
 ].join(";");
 
 const webviewFixture = [
-  "function Pi(){return{displayName:``,targetKind:`hostname`,sshHost:``,sshPort:``,authMode:`none`,identity:``}}",
-  "function Fi(e){return{authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
-  "function Ii(e){return e.targetKind===`hostname`?{identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:x,sshPort:null,identity:null}}",
-  "function Li(e){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
-  "function Bi(e){let _,q,U,Wi,l,D,k,A,j;j=(0,q.jsx)(x,{children:(0,q.jsxs)(`div`,{children:[D,k,A]})});return j}",
-  "function Gi(e){switch(e){case`displayNameRequired`:return null}}",
+  "function Fi(){return{displayName:``,targetKind:`hostname`,sshHost:``,sshPort:``,authMode:`none`,identity:``}}",
+  "function Ii(e){return{authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
+  "function Li(e){return e.targetKind===`hostname`?{identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:x,sshPort:null,identity:null}}",
+  "function Ri(e){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
+  "function Vi(e){let v,K,R,Gi,u,O,ee,te,A;A=(0,K.jsx)(x,{children:(0,K.jsxs)(`div`,{children:[O,ee,te]})});return A}",
+  "function Ki(e){switch(e){case`displayNameRequired`:return null}}",
 ].join("");
 
 function withCapturedWarnings(callback) {
@@ -76,15 +78,15 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withIntegrationConfig(enabled, callback) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ssh-command-wrapper-integration-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
-  fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
   try {
     return callback(path.resolve(__dirname, ".."));
   } finally {
-    if (originalConfig == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
@@ -159,10 +161,31 @@ test("patches all main-process transport and persistence paths idempotently", ()
   const patched = applyMainBundlePatch(mainFixture);
   assert.notEqual(patched, mainFixture);
   assert.equal(applyMainBundlePatch(patched), patched);
-  assert.match(patched, /codexLinuxSshWrapRemoteCommand\(Gx\(e,s\)/u);
-  assert.match(patched, /codexLinuxSshWrapRemoteCommand\(Gx\(t,i\)/u);
-  assert.match(patched, /codexLinuxSshCommandWrapperArgs\(e\.codexLinuxSshCommandWrapper\)/u);
-  assert.ok(patched.split("codexLinuxSshCommandWrapper").length > 10);
+  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(QS\(e,s\)/u);
+  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(QS\(t,r\)/u);
+  assert.match(patched, /chatgptLinuxSshCommandWrapperArgs\(e\.chatgptLinuxSshCommandWrapper\)/u);
+  assert.ok(patched.split("chatgptLinuxSshCommandWrapper").length > 10);
+});
+
+test("uses the current main-bundle array schema factory", () => {
+  const currentBundleFixture = "const existingArraySchema=n.il(n.hl());" + mainFixture;
+  const patched = applyMainBundlePatch(currentBundleFixture);
+  const schemaSource = /var Fde=[^;]+;/u.exec(patched)?.[0];
+
+  assert.ok(schemaSource, "patched SSH schema was not found");
+  assert.match(schemaSource, /chatgptLinuxSshCommandWrapper:n\.il\(n\.hl\(\)\)\.optional\(\)/u);
+
+  const scalarSchema = () => ({
+    nullable() { return this; },
+    optional() { return this; },
+  });
+  const namespace = {
+    fl: (value) => value,
+    hl: scalarSchema,
+    dl: scalarSchema,
+    il: (value) => ({ optional: () => ({ element: value }) }),
+  };
+  assert.doesNotThrow(() => vm.runInNewContext(schemaSource + "Fde", { n: namespace }));
 });
 
 test("main-process patch rejects a stale injected helper implementation", () => {
@@ -196,8 +219,8 @@ test("main-process patch rejects duplicate owned SSH targets", () => {
 
 test("main-process helper-only partial state is reported as integration drift", () => {
   const partial = mainFixture.replace(
-    "function Gx(",
-    "function codexLinuxSshCommandWrapperArgs(e){}function Gx(",
+    "function QS(",
+    "function chatgptLinuxSshCommandWrapperArgs(e){}function QS(",
   );
   withIntegrationConfig(["ssh-command-wrapper"], (integrationsRoot) => {
     const descriptor = loadPortIntegrationPatchDescriptors({ integrationsRoot })
@@ -220,7 +243,7 @@ test("patches the SSH connection editor for manual hosts and aliases", () => {
   assert.match(patched, /Remote command wrapper/u);
   assert.match(patched, /ssh -T target-host --/u);
   assert.match(patched, /invalidSshCommandWrapper/u);
-  assert.match(patched, /codexLinuxSshCommandWrapper:codexLinuxParseSshCommandWrapper/u);
+  assert.match(patched, /chatgptLinuxSshCommandWrapper:chatgptLinuxParseSshCommandWrapper/u);
 });
 
 test("webview patch rejects a damaged injected helper implementation", () => {
@@ -242,8 +265,8 @@ test("webview patch rejects duplicate owned editor targets", () => {
 
 test("webview helper-only partial state is reported as integration drift", () => {
   const partial = webviewFixture.replace(
-    "function Pi(){",
-    "function codexLinuxParseSshCommandWrapper(e){}function Pi(){",
+    "function Fi(){",
+    "function chatgptLinuxParseSshCommandWrapper(e){}function Fi(){",
   );
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ssh-command-wrapper-webview-"));
   const assetsDir = path.join(tempDir, "webview", "assets");
@@ -268,7 +291,7 @@ test("webview helper-only partial state is reported as integration drift", () =>
   }
 });
 
-test("exports opt-in main and settings descriptors", () => {
+test("exports main and settings descriptors for default-enabled builds", () => {
   assert.deepEqual(
     descriptors.map(({ phase, ciPolicy }) => [phase, ciPolicy]),
     [
@@ -282,7 +305,9 @@ test("exports opt-in main and settings descriptors", () => {
   );
 });
 
-test("integration stays disabled until explicitly enabled", () => {
+test("integration is enabled by default and explicit config can disable it", () => {
+  assert.equal(require("./integration.json").defaultEnabled, true);
+
   withIntegrationConfig([], (integrationsRoot) => {
     assert.deepEqual(loadPortIntegrationPatchDescriptors({ integrationsRoot }), []);
   });

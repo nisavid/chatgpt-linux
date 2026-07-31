@@ -6,7 +6,7 @@ use std::{
     process::Command,
 };
 
-pub const COSMIC_HELPER_BINARY: &str = "codex-computer-use-cosmic";
+pub const COSMIC_HELPER_BINARY: &str = "chatgpt-computer-use-cosmic";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CosmicHelperProbe {
@@ -23,7 +23,7 @@ pub struct CosmicHelperActivation {
 }
 
 pub fn resolve_helper_binary() -> Result<PathBuf> {
-    if let Some(path) = env_var("CODEX_COMPUTER_USE_COSMIC_HELPER")
+    if let Some(path) = env_var("CHATGPT_COMPUTER_USE_COSMIC_HELPER")
         .or_else(|| env_var("COMPUTER_USE_LINUX_COSMIC_HELPER"))
     {
         let path = PathBuf::from(path);

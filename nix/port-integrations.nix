@@ -3,7 +3,7 @@ let
   supportedIntegrationIds = [
     "appshots"
     "codex-micro"
-    "codex-wrapper-updater"
+    "chatgpt-wrapper-updater"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"

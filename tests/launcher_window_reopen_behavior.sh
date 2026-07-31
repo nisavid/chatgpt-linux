@@ -7,7 +7,7 @@ MUTATION_DETECTED_EXIT=86
 PIDFD_UNAVAILABLE_EXIT=77
 
 pidfd_cleanup_probe() {
-    [ "${CODEX_TEST_FORCE_NO_PIDFD:-0}" != "1" ] || return "$PIDFD_UNAVAILABLE_EXIT"
+    [ "${CHATGPT_TEST_FORCE_NO_PIDFD:-0}" != "1" ] || return "$PIDFD_UNAVAILABLE_EXIT"
     python3 - <<'PY'
 import errno
 import os
@@ -55,12 +55,12 @@ TMP_DIR="$(mktemp -d)"
 APP_DIR="$TMP_DIR/app"
 HOME_DIR="$TMP_DIR/home"
 RUNTIME_DIR="$TMP_DIR/runtime"
-STATE_DIR="$HOME_DIR/.local/state/codex-desktop"
-SOCKET_PATH="$RUNTIME_DIR/codex-desktop/launch-action.sock"
+STATE_DIR="$HOME_DIR/.local/state/chatgpt"
+SOCKET_PATH="$RUNTIME_DIR/chatgpt/launch-action.sock"
 HANDOFF_RESULT="$TMP_DIR/handoff.json"
 FIRST_LOG="$TMP_DIR/first-launch.log"
 SECOND_LOG="$TMP_DIR/second-launch.log"
-APP_LOG="$HOME_DIR/.cache/codex-desktop/launcher.log"
+APP_LOG="$HOME_DIR/.cache/chatgpt/launcher.log"
 LAUNCHER_PID=""
 SECOND_LAUNCHER_PID=""
 SOCKET_PID=""
@@ -81,9 +81,9 @@ count_test_main_processes() {
         pid="${cmdline#/proc/}"
         pid="${pid%/cmdline}"
         IFS= read -r -d '' arg0 < "$cmdline" 2>/dev/null || true
-        if [ "${arg0:-}" = "$APP_DIR/electron" ]; then
-            count=$((count + 1))
-        fi
+        case "${arg0:-}" in
+            "$APP_DIR/electron"|"$APP_DIR/electron "*) count=$((count + 1)) ;;
+        esac
         arg0=""
     done
     printf '%s\n' "$count"
@@ -144,7 +144,10 @@ try:
         raise SystemExit(1)
     argv = [part.decode(errors="surrogateescape") for part in raw_cmdline.split(b"\0") if part]
     matches = bool(argv) and (
-        (match_mode == "arg0" and argv[0] == expected)
+        (
+            match_mode == "arg0"
+            and (argv[0] == expected or argv[0].startswith(expected + " "))
+        )
         or (match_mode == "argv" and expected in argv)
     )
     if not matches:
@@ -182,19 +185,23 @@ cleanup() {
     stop_owned_process_bounded "$LAUNCHER_PID" argv "$APP_DIR/start.sh" || cleanup_failed=1
     stop_owned_process_bounded "$SECOND_LAUNCHER_PID" argv "$APP_DIR/start.sh" || cleanup_failed=1
     stop_owned_process_bounded "$SOCKET_PID" argv "$SOCKET_PATH" || cleanup_failed=1
-    stop_owned_process_bounded "$webview_pid" argv "$APP_DIR/.codex-linux/webview-server.py" || cleanup_failed=1
+    stop_owned_process_bounded "$webview_pid" argv "$APP_DIR/.chatgpt-linux/webview-server.py" || cleanup_failed=1
     stop_owned_process_bounded "$DECOY_PID" arg0 "$TMP_DIR/decoy-electron" || cleanup_failed=1
     for cmdline in /proc/[0-9]*/cmdline; do
         [ -r "$cmdline" ] || continue
         pid="${cmdline#/proc/}"
         pid="${pid%/cmdline}"
         IFS= read -r -d '' arg0 < "$cmdline" 2>/dev/null || true
-        if [ "${arg0:-}" = "$APP_DIR/electron" ]; then
-            IFS= read -r -d '' revalidated_arg0 < "$cmdline" 2>/dev/null || true
-            if [ "${revalidated_arg0:-}" = "$APP_DIR/electron" ]; then
-                stop_owned_process_bounded "$pid" arg0 "$APP_DIR/electron" || cleanup_failed=1
-            fi
-        fi
+        case "${arg0:-}" in
+            "$APP_DIR/electron"|"$APP_DIR/electron "*)
+                IFS= read -r -d '' revalidated_arg0 < "$cmdline" 2>/dev/null || true
+                case "${revalidated_arg0:-}" in
+                    "$APP_DIR/electron"|"$APP_DIR/electron "*)
+                        stop_owned_process_bounded "$pid" arg0 "$APP_DIR/electron" || cleanup_failed=1
+                        ;;
+                esac
+                ;;
+        esac
         arg0=""
         revalidated_arg0=""
     done
@@ -256,6 +263,34 @@ pid_file_is_live() {
     read_live_app_pid >/dev/null
 }
 
+pid_environment_is_scrubbed() {
+    local pid
+    pid="$(read_live_app_pid)" || return 1
+    python3 - "$pid" <<'PY'
+import sys
+
+with open(f"/proc/{sys.argv[1]}/environ", "rb") as handle:
+    environment = handle.read()
+raise SystemExit(0 if environment and not any(environment) else 1)
+PY
+}
+
+pid_cmdline_is_rewritten() {
+    local pid
+    pid="$(read_live_app_pid)" || return 1
+    python3 - "$pid" <<'PY'
+import sys
+
+with open(f"/proc/{sys.argv[1]}/cmdline", "rb") as handle:
+    fields = [field for field in handle.read().split(b"\0") if field]
+raise SystemExit(
+    0
+    if len(fields) == 1 and b" --app-id=chatgpt" in fields[0]
+    else 1
+)
+PY
+}
+
 handoff_was_recorded() {
     [ -s "$HANDOFF_RESULT" ]
 }
@@ -275,20 +310,20 @@ resident_policy_regressed() {
 }
 
 mkdir -p \
-    "$APP_DIR/.codex-linux/cold-start.d" \
-    "$APP_DIR/.codex-linux/env.d" \
-    "$APP_DIR/.codex-linux/port-integrations" \
-    "$APP_DIR/.codex-linux/prelaunch.d" \
-    "$APP_DIR/.codex-linux/electron-args.d" \
-    "$APP_DIR/.codex-linux/launcher.d" \
-    "$APP_DIR/.codex-linux/after-exit.d" \
+    "$APP_DIR/.chatgpt-linux/cold-start.d" \
+    "$APP_DIR/.chatgpt-linux/env.d" \
+    "$APP_DIR/.chatgpt-linux/port-integrations" \
+    "$APP_DIR/.chatgpt-linux/prelaunch.d" \
+    "$APP_DIR/.chatgpt-linux/electron-args.d" \
+    "$APP_DIR/.chatgpt-linux/launcher.d" \
+    "$APP_DIR/.chatgpt-linux/after-exit.d" \
     "$APP_DIR/content/webview" \
     "$APP_DIR/resources/node-runtime/bin" \
-    "$HOME_DIR/.config/codex-desktop" \
-    "$RUNTIME_DIR/codex-desktop"
+    "$HOME_DIR/.config/chatgpt" \
+    "$RUNTIME_DIR/chatgpt"
 
-printf '%s\n' '{"codex-linux-warm-start-enabled":true}' \
-    > "$HOME_DIR/.config/codex-desktop/settings.json"
+printf '%s\n' '{"chatgpt-linux-warm-start-enabled":true}' \
+    > "$HOME_DIR/.config/chatgpt/settings.json"
 PORT="$(python3 - <<'PY'
 import socket
 with socket.socket() as sock:
@@ -301,14 +336,14 @@ PY
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'set -Eeuo pipefail' \
-        'CODEX_LINUX_APP_ID=codex-desktop' \
-        'CODEX_LINUX_APP_DISPLAY_NAME="ChatGPT Desktop"' \
-        'CODEX_LINUX_WEBVIEW_PORT="${CODEX_WEBVIEW_PORT:-5175}"'
+        'CHATGPT_LINUX_APP_ID=chatgpt' \
+        'CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"' \
+        'CHATGPT_LINUX_WEBVIEW_PORT="${CHATGPT_WEBVIEW_PORT:-5175}"'
     cat "$REPO_DIR/launcher/start.sh.template"
 } > "$APP_DIR/start.sh"
 chmod +x "$APP_DIR/start.sh"
-if [ "${CODEX_TEST_FORCE_RESIDENT_REPLACEMENT:-0}" = "1" ] \
-    && [ "${CODEX_TEST_MUTATION_CONTROL_ONLY:-0}" != "1" ]; then
+if [ "${CHATGPT_TEST_FORCE_RESIDENT_REPLACEMENT:-0}" = "1" ] \
+    && [ "${CHATGPT_TEST_MUTATION_CONTROL_ONLY:-0}" != "1" ]; then
     python3 - "$APP_DIR/start.sh" <<'PY'
 import sys
 
@@ -333,24 +368,38 @@ if source.count(needle) != 1:
 open(path, "w", encoding="utf-8").write(source.replace(needle, "\n" + mutation, 1))
 PY
 fi
-cp "$REPO_DIR/launcher/webview-server.py" "$APP_DIR/.codex-linux/webview-server.py"
-cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.codex-linux/cli-launch-path.py"
+cp "$REPO_DIR/launcher/webview-server.py" "$APP_DIR/.chatgpt-linux/webview-server.py"
+cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.chatgpt-linux/cli-launch-path.py"
+cp "$REPO_DIR/launcher/state-migration.py" "$APP_DIR/.chatgpt-linux/state-migration.py"
+chmod 0755 "$APP_DIR/.chatgpt-linux/state-migration.py"
 ln -s "$(command -v node)" "$APP_DIR/resources/node-runtime/bin/node"
 printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader"></div>' \
     > "$APP_DIR/content/webview/index.html"
 (
     cd "$APP_DIR/content/webview"
-    sha256sum index.html > "$APP_DIR/.codex-linux/webview-integrity.sha256"
+    sha256sum index.html > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
 )
 
 g++ -x c++ -O2 -o "$APP_DIR/electron" - <<'CPP'
 #include <csignal>
+#include <cstring>
 #include <unistd.h>
+
+extern char **environ;
 
 static volatile sig_atomic_t running = 1;
 static void stop(int) { running = 0; }
 
-int main() {
+int main(int argc, char **argv) {
+    if (argc > 1) {
+        char *const argv_end = argv[argc - 1] + std::strlen(argv[argc - 1]);
+        for (char *cursor = argv[0]; cursor < argv_end; ++cursor) {
+            if (*cursor == '\0') *cursor = ' ';
+        }
+    }
+    for (char **entry = environ; entry != nullptr && *entry != nullptr; ++entry) {
+        std::memset(*entry, 0, std::strlen(*entry));
+    }
     std::signal(SIGTERM, stop);
     std::signal(SIGINT, stop);
     while (running) pause();
@@ -358,7 +407,7 @@ int main() {
 }
 CPP
 cp "$APP_DIR/electron" "$TMP_DIR/decoy-electron"
-"$TMP_DIR/decoy-electron" --app-id=codex-desktop &
+"$TMP_DIR/decoy-electron" --app-id=chatgpt &
 DECOY_PID=$!
 
 COMMON_ENV=(
@@ -367,7 +416,7 @@ COMMON_ENV=(
     "HOME=$HOME_DIR"
     "XDG_RUNTIME_DIR=$RUNTIME_DIR"
     "CODEX_CLI_PATH=$(command -v true)"
-    "CODEX_WEBVIEW_PORT=$PORT"
+    "CHATGPT_WEBVIEW_PORT=$PORT"
 )
 
 "${COMMON_ENV[@]}" "$APP_DIR/start.sh" > "$FIRST_LOG" 2>&1 &
@@ -375,6 +424,8 @@ LAUNCHER_PID=$!
 wait_for "first Electron marker" pid_file_is_live
 wait_for "first launcher lock release" launcher_lock_is_available
 FIRST_ELECTRON_PID="$(read_live_app_pid)"
+wait_for "first Electron environment scrub" pid_environment_is_scrubbed
+wait_for "first Electron command-line rewrite" pid_cmdline_is_rewritten
 
 python3 - "$SOCKET_PATH" "$HANDOFF_RESULT" <<'PY' &
 import json
@@ -405,10 +456,10 @@ PY
 SOCKET_PID=$!
 wait_for "controlled handoff socket" test -S "$SOCKET_PATH"
 
-if [ "${CODEX_TEST_FORCE_RESIDENT_REPLACEMENT:-0}" = "1" ]; then
+if [ "${CHATGPT_TEST_FORCE_RESIDENT_REPLACEMENT:-0}" = "1" ]; then
     "${COMMON_ENV[@]}" "$APP_DIR/start.sh" --new-chat > "$SECOND_LOG" 2>&1 &
     SECOND_LAUNCHER_PID=$!
-    if [ "${CODEX_TEST_MUTATION_CONTROL_ONLY:-0}" = "1" ]; then
+    if [ "${CHATGPT_TEST_MUTATION_CONTROL_ONLY:-0}" = "1" ]; then
         set +e
         wait "$SECOND_LAUNCHER_PID"
         rc=$?

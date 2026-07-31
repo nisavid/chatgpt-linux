@@ -1,12 +1,12 @@
 [package]
-name = "codex-global-dictation-linux"
+name = "chatgpt-global-dictation-linux"
 version = "0.1.0"
 edition = "2021"
 
 [workspace]
 
 [[bin]]
-name = "codex-global-dictation-linux"
+name = "chatgpt-global-dictation-linux"
 path = "src/main.rs"
 
 [dependencies]

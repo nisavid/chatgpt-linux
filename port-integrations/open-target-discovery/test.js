@@ -43,7 +43,7 @@ const fileManagerBundle =
 const terminalOpenTargetBundle =
   "var uh={id:`terminal`,platforms:{darwin:{label:`Terminal`,icon:`apps/terminal.png`,kind:`terminal`,detect:()=>`open`,args:e=>[`-a`,`Terminal`,e]},win32:{label:`Terminal`,icon:`apps/microsoft-terminal.png`,kind:`terminal`,detect:vh,iconPath:()=>null,args:yh,open:({command:e,path:t})=>bh(e,yh(t))}}};function vh(){return `wt.exe`}function yh(e){return[`-d`,e]}async function bh(){}";
 const ideOpenTargetsBundle =
-  "function ih({id:e,label:t,icon:n,darwinDetect:r,win32Detect:i,linuxDetect:a,darwinEnv:o,darwinArgs:s,hidden:l}){return{id:e,platforms:{darwin:r?{label:t,icon:n,kind:`editor`,hidden:l,detect:r,env:o,args:s??ah,supportsSsh:!0}:void 0,win32:i?{label:t,icon:n,kind:`editor`,hidden:l,detect:i,args:ah,supportsSsh:!0}:void 0,linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:ah,supportsSsh:!0}:void 0}}}var ah=(e,t)=>t?[`${e}:${t.line}:${t.column}`]:[e];var Og=ih({id:`vscode`,label:`VS Code`,icon:`apps/vscode.png`,darwinDetect:()=>`open`,win32Detect:()=>`Code.exe`,linuxDetect:()=>codexLinuxFindExecutable(`code`)});var jh=ih({id:`cursor`,label:`Cursor`,icon:`apps/cursor.png`,darwinDetect:()=>`open`,win32Detect:()=>`Cursor.exe`,linuxDetect:()=>codexLinuxFindExecutable(`cursor`)});function sg({id:e,label:t,icon:n,toolboxTarget:r,macExecutable:i,windowsPathCommands:a,windowsInstallDirPrefixes:o,windowsInstallExecutables:s}){return{id:e,platforms:{darwin:{label:t,icon:n,kind:`editor`,detect:()=>`open`,args:mg},win32:a&&o&&s?{label:t,icon:n,kind:`editor`,detect:()=>`idea.exe`,args:mg}:void 0}}}function mg(e,t){return t?[`--line`,t.line.toString(),`--column`,t.column.toString(),e]:[e]}var $h=sg({id:`intellij`,label:`IntelliJ IDEA`,icon:`apps/intellij.png`,toolboxTarget:`intellij`,macExecutable:`idea`,windowsPathCommands:[`idea`],windowsInstallDirPrefixes:[`idea`],windowsInstallExecutables:[`idea`]});var Wg={id:`zed`,platforms:{darwin:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Gg,args:hg},win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg},linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxFindExecutable(`zed`),args:hg}}};function Gg(){}function Kg(){}function hg(e,t){return t?[`${e}:${t.line}:${t.column}`]:[e]}var Xg=[Og,jh,Wg,$h];";
+  "function ih({id:e,label:t,icon:n,darwinDetect:r,win32Detect:i,linuxDetect:a,darwinEnv:o,darwinArgs:s,hidden:l}){return{id:e,platforms:{darwin:r?{label:t,icon:n,kind:`editor`,hidden:l,detect:r,env:o,args:s??ah,supportsSsh:!0}:void 0,win32:i?{label:t,icon:n,kind:`editor`,hidden:l,detect:i,args:ah,supportsSsh:!0}:void 0,linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:ah,supportsSsh:!0}:void 0}}}var ah=(e,t)=>t?[`${e}:${t.line}:${t.column}`]:[e];var Og=ih({id:`vscode`,label:`VS Code`,icon:`apps/vscode.png`,darwinDetect:()=>`open`,win32Detect:()=>`Code.exe`,linuxDetect:()=>chatgptLinuxFindExecutable(`code`)});var jh=ih({id:`cursor`,label:`Cursor`,icon:`apps/cursor.png`,darwinDetect:()=>`open`,win32Detect:()=>`Cursor.exe`,linuxDetect:()=>chatgptLinuxFindExecutable(`cursor`)});function sg({id:e,label:t,icon:n,toolboxTarget:r,macExecutable:i,windowsPathCommands:a,windowsInstallDirPrefixes:o,windowsInstallExecutables:s}){return{id:e,platforms:{darwin:{label:t,icon:n,kind:`editor`,detect:()=>`open`,args:mg},win32:a&&o&&s?{label:t,icon:n,kind:`editor`,detect:()=>`idea.exe`,args:mg}:void 0}}}function mg(e,t){return t?[`--line`,t.line.toString(),`--column`,t.column.toString(),e]:[e]}var $h=sg({id:`intellij`,label:`IntelliJ IDEA`,icon:`apps/intellij.png`,toolboxTarget:`intellij`,macExecutable:`idea`,windowsPathCommands:[`idea`],windowsInstallDirPrefixes:[`idea`],windowsInstallExecutables:[`idea`]});var Wg={id:`zed`,platforms:{darwin:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Gg,args:hg},win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg},linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:hg}}};function Gg(){}function Kg(){}function hg(e,t){return t?[`${e}:${t.line}:${t.column}`]:[e]}var Xg=[Og,jh,Wg,$h];";
 const openTargetsBundle = `${mainBundlePrefix}${fileManagerBundle}${terminalOpenTargetBundle}${ideOpenTargetsBundle}`;
 const collidingPathAliasBundle =
   "let n=require(`electron`),o=require(`node:path`),c=require(`node:fs`),u=require(`node:child_process`);" +
@@ -169,51 +169,51 @@ function evaluatePatched(source, env, expression, spawnRecorder, openPathCalls) 
 }
 
 function downgradeOpenTargetGuard(source) {
-  const fsVar = "codexLinuxNodeFs()";
-  const pathVar = "codexLinuxNodePath()";
+  const fsVar = "chatgptLinuxNodeFs()";
+  const pathVar = "chatgptLinuxNodePath()";
   const guard =
-    "function codexLinuxOpenTargetPath(e){if(typeof e!==`string`||e.trim().length===0||e.startsWith(`-`)||/[\\x00-\\x1F\\x7F]/u.test(e)||/^[A-Za-z][A-Za-z0-9+.-]*:/u.test(e))throw Error(`Unsafe Linux open target`);return e}";
+    "function chatgptLinuxOpenTargetPath(e){if(typeof e!==`string`||e.trim().length===0||e.startsWith(`-`)||/[\\x00-\\x1F\\x7F]/u.test(e)||/^[A-Za-z][A-Za-z0-9+.-]*:/u.test(e))throw Error(`Unsafe Linux open target`);return e}";
   const guardedResolve =
-    `function codexLinuxResolveExistingTarget(e){e=codexLinuxOpenTargetPath(e);let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
+    `function chatgptLinuxResolveExistingTarget(e){e=chatgptLinuxOpenTargetPath(e);let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
   const legacyResolve =
-    `function codexLinuxResolveExistingTarget(e){if(typeof e!==\`string\`||e.length===0)return null;let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
+    `function chatgptLinuxResolveExistingTarget(e){if(typeof e!==\`string\`||e.length===0)return null;let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
   const guardedTerminalCwd =
-    `function codexLinuxTerminalCwd(e){let t=codexLinuxResolveExistingTarget(e)??codexLinuxOpenTargetPath(e);try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
+    `function chatgptLinuxTerminalCwd(e){let t=chatgptLinuxResolveExistingTarget(e)??chatgptLinuxOpenTargetPath(e);try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
   const legacyTerminalCwd =
-    `function codexLinuxTerminalCwd(e){let t=codexLinuxResolveExistingTarget(e)??e;if(typeof t!==\`string\`||t.length===0)return process.env.HOME||\`/\`;try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
+    `function chatgptLinuxTerminalCwd(e){let t=chatgptLinuxResolveExistingTarget(e)??e;if(typeof t!==\`string\`||t.length===0)return process.env.HOME||\`/\`;try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
   const guardedDesktopArgs =
-    `function codexLinuxDesktopArgs(e,t){t=codexLinuxOpenTargetPath(t);let n=[],r=codexLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
+    `function chatgptLinuxDesktopArgs(e,t){t=chatgptLinuxOpenTargetPath(t);let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const legacyDesktopArgs =
-    `function codexLinuxDesktopArgs(e,t){let n=[],r=codexLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
+    `function chatgptLinuxDesktopArgs(e,t){let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const guardedLaunchDesktopEntry =
-    "async function codexLinuxLaunchDesktopEntry(e,t,n,r){t=codexLinuxOpenTargetPath(t);let i=codexLinuxFindExecutable(`gio`),a=codexLinuxDesktopLaunchOptions();if(i)try{await codexLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=codexLinuxFindExecutable(`gtk-launch`);if(o)try{await codexLinuxLaunchDetached(o,[codexLinuxDesktopEntryLaunchId(e),codexLinuxPathToFileUri(t)],a);return}catch{}await codexLinuxLaunchDetached(n,codexLinuxDesktopArgs(r,t),a)}";
+    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){t=chatgptLinuxOpenTargetPath(t);let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}await chatgptLinuxLaunchDetached(n,chatgptLinuxDesktopArgs(r,t),a)}";
   const legacyLaunchDesktopEntry =
-    "async function codexLinuxLaunchDesktopEntry(e,t,n,r){let i=codexLinuxFindExecutable(`gio`),a=codexLinuxDesktopLaunchOptions();if(i)try{await codexLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=codexLinuxFindExecutable(`gtk-launch`);if(o)try{await codexLinuxLaunchDetached(o,[codexLinuxDesktopEntryLaunchId(e),codexLinuxPathToFileUri(t)],a);return}catch{}await codexLinuxLaunchDetached(n,codexLinuxDesktopArgs(r,t),a)}";
+    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}await chatgptLinuxLaunchDetached(n,chatgptLinuxDesktopArgs(r,t),a)}";
   const guardedIdePlatform =
-    "function codexLinuxIdePlatform(e,t,n,r,i){let a=codexLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:(...e)=>i(codexLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0}";
+    "function chatgptLinuxIdePlatform(e,t,n,r,i){let a=chatgptLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:(...e)=>i(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0}";
   const legacyIdePlatform =
-    "function codexLinuxIdePlatform(e,t,n,r,i){let a=codexLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:i,supportsSsh:!0}:void 0}";
+    "function chatgptLinuxIdePlatform(e,t,n,r,i){let a=chatgptLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:i,supportsSsh:!0}:void 0}";
   const guardedJetBrainsIdePlatform =
-    "function codexLinuxJetBrainsIdePlatform(e,t,n,r){let i=codexLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:(...e)=>r(codexLinuxOpenTargetPath(e[0]),...e.slice(1))}:void 0}";
+    "function chatgptLinuxJetBrainsIdePlatform(e,t,n,r){let i=chatgptLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:(...e)=>r(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}:void 0}";
   const legacyJetBrainsIdePlatform =
-    "function codexLinuxJetBrainsIdePlatform(e,t,n,r){let i=codexLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:r}:void 0}";
+    "function chatgptLinuxJetBrainsIdePlatform(e,t,n,r){let i=chatgptLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:r}:void 0}";
   const guardedZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxIdeCommand(`zed`),args:(...e)=>hg(codexLinuxOpenTargetPath(e[0]),...e.slice(1))}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxIdeCommand(`zed`),args:(...e)=>hg(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}";
   const legacyZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxIdeCommand(`zed`),args:hg}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxIdeCommand(`zed`),args:hg}";
   const guardedCurrentFactory =
-    "linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:(...e)=>ah(codexLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0";
+    "linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:(...e)=>ah(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0";
   const legacyCurrentFactory =
     "linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:ah,supportsSsh:!0}:void 0";
   const guardedCurrentZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxFindExecutable(`zed`),args:(...e)=>hg(codexLinuxOpenTargetPath(e[0]),...e.slice(1))}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:(...e)=>hg(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}";
   const legacyCurrentZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxFindExecutable(`zed`),args:hg}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:hg}";
 
   const downgraded = source
     .replace(guard, "")
     .replace(guardedResolve, legacyResolve)
-    .replace("args:e=>[codexLinuxOpenTargetPath(e)],open:async({path:e})=>{e=codexLinuxOpenTargetPath(e);await", "args:e=>[e],open:async({path:e})=>{await")
+    .replace("args:e=>[chatgptLinuxOpenTargetPath(e)],open:async({path:e})=>{e=chatgptLinuxOpenTargetPath(e);await", "args:e=>[e],open:async({path:e})=>{await")
     .replace(guardedTerminalCwd, legacyTerminalCwd)
     .replace(guardedDesktopArgs, legacyDesktopArgs)
     .replace(guardedLaunchDesktopEntry, legacyLaunchDesktopEntry)
@@ -257,34 +257,34 @@ function downgradeOpenTargetGuard(source) {
 }
 
 function withTempIntegrationConfig(config, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const root = path.resolve(__dirname, "..");
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-config-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
     const configData = Array.isArray(config) ? { enabled: config } : { enabled: [], ...config };
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 function withPortIntegrationRootEnv(root, fn) {
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
   }
 }
@@ -292,9 +292,9 @@ function withPortIntegrationRootEnv(root, fn) {
 test("open-target discovery upgrades file manager and terminal support and adds dynamic IDEs", () => {
   const patched = applyPatchTwice(applyMainBundlePatch, openTargetsBundle);
 
-  assert.match(patched, /codexLinuxOpenFileManager\(e\)/);
+  assert.match(patched, /chatgptLinuxOpenFileManager\(e\)/);
   assert.match(patched, /linux:\{label:`Terminal`/);
-  assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
+  assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
 });
 
 test("open-target discovery prefers xdg-terminal-exec for Terminal", () => {
@@ -549,7 +549,7 @@ test("open-target discovery evaluates TryExec parser", () => {
     const result = evaluatePatched(
       openTargetsBundle,
       tryExecEnv(tmp, { binNames, flatpakApps, setup }),
-      "[codexLinuxDesktopTryExecAvailable(" + quoted + "),codexLinuxTerminalTryExecAvailable(" + quoted + ")]",
+      "[chatgptLinuxDesktopTryExecAvailable(" + quoted + "),chatgptLinuxTerminalTryExecAvailable(" + quoted + ")]",
     );
     assert.deepEqual(result, [expected, expected], command);
   });
@@ -561,7 +561,7 @@ test("open-target discovery tolerates path and fs aliases used by helper locals"
     const result = evaluatePatched(
       collidingPathAliasBundle,
       tryExecEnv(tmp, { binNames: ["env"] }),
-      "[codexLinuxDesktopTryExecAvailable(" + JSON.stringify(command) + "),codexLinuxTerminalTryExecAvailable(" + JSON.stringify(command) + ")]",
+      "[chatgptLinuxDesktopTryExecAvailable(" + JSON.stringify(command) + "),chatgptLinuxTerminalTryExecAvailable(" + JSON.stringify(command) + ")]",
     );
 
     assert.deepEqual(result, [false, false]);
@@ -740,7 +740,7 @@ test("open-target discovery sanitizes desktop launch environment", async () => {
         LD_PRELOAD: "/codex/electron/lib/libhook.so",
         CHROME_DESKTOP: "codex-open-target-launchers.desktop",
         ELECTRON_RENDERER_URL: "http://127.0.0.1:5203/",
-        CODEX_ELECTRON_USER_DATA_DIR: path.join(
+        CHATGPT_ELECTRON_USER_DATA_DIR: path.join(
           tmp,
           ".local",
           "state",
@@ -761,8 +761,8 @@ test("open-target discovery sanitizes desktop launch environment", async () => {
     assert.equal(spawnRecorder.calls[0].options.env.LD_PRELOAD, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.CHROME_DESKTOP, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.ELECTRON_RENDERER_URL, undefined);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_ELECTRON_USER_DATA_DIR, undefined);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_LINUX_APP_ID, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_ELECTRON_USER_DATA_DIR, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_LINUX_APP_ID, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.XDG_CONFIG_HOME, undefined);
   });
 });
@@ -867,7 +867,7 @@ test("open-target discovery upgrades previously patched target paths", async () 
     );
 
     const legacySource = downgradeOpenTargetGuard(applyMainBundlePatch(openTargetsBundle));
-    assert.doesNotMatch(legacySource, /codexLinuxOpenTargetPath/);
+    assert.doesNotMatch(legacySource, /chatgptLinuxOpenTargetPath/);
 
     const targets = evaluatePatched(
       legacySource,
@@ -1002,7 +1002,7 @@ test("open-target discovery preserves user-scoped XDG_CONFIG_HOME", async () => 
         XDG_CONFIG_HOME: userConfigHome,
         XDG_DATA_HOME: dataHome,
         XDG_DATA_DIRS: path.join(tmp, "empty"),
-        CODEX_ELECTRON_USER_DATA_DIR: path.join(tmp, "codex-user-data"),
+        CHATGPT_ELECTRON_USER_DATA_DIR: path.join(tmp, "codex-user-data"),
       },
       "Xg.find((target)=>target.platforms.linux?.label===`Workspace Agent`).platforms.linux",
       spawnRecorder,
@@ -1011,7 +1011,7 @@ test("open-target discovery preserves user-scoped XDG_CONFIG_HOME", async () => 
     await platform.open({ command: editorCommand, path: projectDir });
 
     assert.equal(spawnRecorder.calls[0].command, gio);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_ELECTRON_USER_DATA_DIR, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_ELECTRON_USER_DATA_DIR, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.XDG_CONFIG_HOME, userConfigHome);
   });
 });
@@ -1121,7 +1121,7 @@ test("open-target discovery resolves iconPath on current upstream bundle shape",
   ];
 
   assert.match(patched, /return\(e===`win32`\|\|e===`linux`\)\?Promise\.all/);
-  assert.match(patched, /function codexLinuxOpenTargetIconImage/);
+  assert.match(patched, /function chatgptLinuxOpenTargetIconImage/);
   const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], new Map());`)(
     (name) => (name === "electron" ? electron : require(name)),
     { platform: "linux", env: {} },
@@ -1332,7 +1332,7 @@ test("open-target discovery resolves iconPath in Linux target summaries", async 
     },
   ];
 
-  assert.match(patched, /function codexLinuxOpenTargetSummaryIcon/);
+  assert.match(patched, /function chatgptLinuxOpenTargetSummaryIcon/);
   const result = new Function("require", "process", `${patched};return HN(arguments[2]);`)(
     (name) => (name === "electron" ? electron : require(name)),
     { platform: "linux", env: {} },
@@ -1409,7 +1409,7 @@ test("open-target discovery patches current app command lookup through its regis
   assert.equal(workerCalls, 0);
   assert.match(patched, /n\.detect\(FN\)/);
   assert.doesNotMatch(patched, /n\.detect\(WRONG\)|n\.detect\(void 0\)/);
-  assert.match(patched, /_codexLinuxOpenTargetCommand/);
+  assert.match(patched, /_chatgptLinuxOpenTargetCommand/);
 
   const darwinApp = new Function("process", `${patched};return new App(arguments[1],arguments[2]);`)(
     { platform: "darwin" },
@@ -1447,7 +1447,7 @@ test("open-target discovery rejects a partial current command marker byte-identi
     ideOpenTargetsBundle +
     currentAppOpenInCommandBundle.replace(
       "async#t(e){",
-      "async#t(e){let _codexLinuxOpenTargetCommand=null;",
+      "async#t(e){let _chatgptLinuxOpenTargetCommand=null;",
     );
   const { value, warnings } = captureWarns(() => applyMainBundlePatch(source));
 
@@ -1464,8 +1464,8 @@ test("open-target discovery rejects a corrupted patched command guard byte-ident
     currentAppOpenInCommandBundle;
   const patched = applyMainBundlePatch(original);
   const source = patched.replace(
-    "if(process.platform===`linux`){let _codexLinuxOpenTargetCommand=",
-    "if(process.platform===`darwin`){let _codexLinuxOpenTargetCommand=",
+    "if(process.platform===`linux`){let _chatgptLinuxOpenTargetCommand=",
+    "if(process.platform===`darwin`){let _chatgptLinuxOpenTargetCommand=",
   );
   assert.notEqual(source, patched);
 
@@ -1544,7 +1544,7 @@ test("open-target discovery patches current app bridge detection through its reg
   assert.deepEqual(await app.detectTarget({ target: "missing" }), { available: false });
   assert.deepEqual(await app.detectTarget({ target: "broken" }), { available: false });
   assert.equal(workerCalls, 0);
-  assert.match(patched, /if\(process\.platform===`linux`\)\{let t=await codexLinuxOpenTargetRegistryCommand/);
+  assert.match(patched, /if\(process\.platform===`linux`\)\{let t=await chatgptLinuxOpenTargetRegistryCommand/);
 });
 
 test("open-target discovery inserts shared Linux registry command helper", async () => {
@@ -1557,17 +1557,17 @@ test("open-target discovery inserts shared Linux registry command helper", async
   ]);
   const command = await new Function(
     "process",
-    `${patched};return codexLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
+    `${patched};return chatgptLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
   )({ platform: "linux" }, settingsStore);
 
-  assert.match(patched, /async function codexLinuxOpenTargetRegistryCommand/);
+  assert.match(patched, /async function chatgptLinuxOpenTargetRegistryCommand/);
   assert.match(patched, /n\.detect\(FN\)/);
   assert.equal(command, "/usr/bin/kate");
 });
 
 test("open-target discovery inserts registry helper in the registry module scope", async () => {
   const source =
-    `function codexLinuxPatchExternalOpen(){async function __codexOpenExternal(){}}` +
+    `function chatgptLinuxPatchExternalOpen(){async function __codexOpenExternal(){}}` +
     currentAppOpenTargetPrelude;
   const patched = applyPatchTwice(applyOpenInTargetRegistryCommandPatch, source);
   const settingsStore = currentAppSettingsStore([
@@ -1578,12 +1578,12 @@ test("open-target discovery inserts registry helper in the registry module scope
   ]);
   const command = await new Function(
     "process",
-    `${patched};return codexLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
+    `${patched};return chatgptLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
   )({ platform: "linux" }, settingsStore);
 
   assert.match(
     patched,
-    /async function codexLinuxOpenTargetRegistryCommand[\s\S]*?function QN\(e\)/,
+    /async function chatgptLinuxOpenTargetRegistryCommand[\s\S]*?function QN\(e\)/,
   );
   assert.equal(command, "/usr/bin/kate");
 });
@@ -1600,8 +1600,8 @@ test("open-target discovery reports missing current registry once per main patch
 test("open-target discovery patches current app directory mode expression", () => {
   const patched = applyPatchTwice(applyOpenInTargetsDirectoryModePatch, currentAppOpenInTargetsBundle);
 
-  assert.match(patched, /codexLinuxOpenTargetIsDirectory/);
-  assert.match(patched, /f!=null&&codexLinuxOpenTargetIsDirectory\(f\)/);
+  assert.match(patched, /chatgptLinuxOpenTargetIsDirectory/);
+  assert.match(patched, /f!=null&&chatgptLinuxOpenTargetIsDirectory\(f\)/);
   assert.match(patched, /g=d\|\|[^,]+\|\|f!=null&&n\.ys\(f\)/);
 });
 
@@ -1673,7 +1673,7 @@ test("open-target discovery filters broad non-IDE desktop entries", () => {
       ["pinta", "Pinta", "Image Editor", "Graphics;2DGraphics;RasterGraphics;GTK;"],
       ["electron37", "Electron 37", "", "Development;GTK;"],
       ["cmake-gui", "CMake", "Cross-platform buildsystem", "Development;Building;"],
-      ["codex-desktop", "ChatGPT", "Run ChatGPT Desktop on Linux", "Development;"],
+      ["chatgpt", "ChatGPT", "Run ChatGPT for Linux", "Development;"],
       ["codex-monitor", "Codex Monitor", "Orchestrate Codex agents across local workspaces", "Development;"],
       ["stably-orca", "Orca", "Agentic Coding IDE", "Development;IDE;TextEditor;"],
     ];
@@ -1738,8 +1738,8 @@ test("open-target discovery is enabled by default", () => {
     withPortIntegrationRootEnv(root, () => {
       const patched = captureWarns(() => patchMainBundleSource(openTargetsBundle, null)).value;
       assert.match(patched, /linux:\{label:`Terminal`/);
-      assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
-      assert.match(patched, /codexLinuxOpenFileManager\(e\)/);
+      assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+      assert.match(patched, /chatgptLinuxOpenFileManager\(e\)/);
     });
   });
 });
@@ -1759,8 +1759,8 @@ test("open-target discovery can be disabled in integrations.json", () => {
     withPortIntegrationRootEnv(root, () => {
       const patched = captureWarns(() => patchMainBundleSource(openTargetsBundle, null)).value;
       assert.doesNotMatch(patched, /linux:\{label:`Terminal`/);
-      assert.doesNotMatch(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
-      assert.doesNotMatch(patched, /codexLinuxOpenFileManager\(e\)/);
+      assert.doesNotMatch(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+      assert.doesNotMatch(patched, /chatgptLinuxOpenFileManager\(e\)/);
     });
   });
 });
@@ -1821,8 +1821,8 @@ test("open-target discovery participates in integration loading and patch report
         const patched = fs.readFileSync(path.join(buildDir, "main.js"), "utf8");
 
         assert.match(patched, /linux:\{label:`Terminal`/);
-        assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
-        assert.match(patched, /_codexLinuxOpenTargetCommand/);
+        assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+        assert.match(patched, /_chatgptLinuxOpenTargetCommand/);
         assert.ok(
           report.patches.some((patch) => patch.name === "integration:open-target-discovery:main-bundle-open-target-discovery" && patch.status === "applied"),
         );
@@ -1886,7 +1886,7 @@ test("open-target discovery preserves the upstream built-in Zed target without d
   assert.equal((patched.match(/linux:\{label:`Zed`/g) || []).length, 1);
   assert.match(
     patched,
-    /linux:\{label:`Zed`,icon:`apps\/zed\.png`,kind:`editor`,detect:\(\)=>codexLinuxFindExecutable\(`zed`\),args:\(\.\.\.e\)=>hg\(codexLinuxOpenTargetPath\(e\[0\]\)/,
+    /linux:\{label:`Zed`,icon:`apps\/zed\.png`,kind:`editor`,detect:\(\)=>chatgptLinuxFindExecutable\(`zed`\),args:\(\.\.\.e\)=>hg\(chatgptLinuxOpenTargetPath\(e\[0\]\)/,
   );
-  assert.doesNotMatch(patched, /detect:\(\)=>codexLinuxIdeCommand\(`zed`\)/);
+  assert.doesNotMatch(patched, /detect:\(\)=>chatgptLinuxIdeCommand\(`zed`\)/);
 });

@@ -59,10 +59,10 @@ function run(command, args, options = {}) {
 }
 
 test("stage hook installs the orphan reaper without wrapping node_repl", () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-stage-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-stage-");
   const appDir = path.join(tempDir, "app");
   const workDir = path.join(tempDir, "work");
-  const source = path.join(tempDir, "source", "codex-mcp-helper-reaper");
+  const source = path.join(tempDir, "source", "chatgpt-mcp-helper-reaper");
   const nodeRepl = path.join(appDir, "resources", "node_repl");
   fs.mkdirSync(path.dirname(nodeRepl), { recursive: true });
   fs.mkdirSync(workDir, { recursive: true });
@@ -74,32 +74,32 @@ test("stage hook installs the orphan reaper without wrapping node_repl", () => {
     INSTALL_DIR: appDir,
     WORK_DIR: workDir,
     ARCH: process.arch,
-    CODEX_MCP_HELPER_REAPER_SOURCE: source,
+    CHATGPT_MCP_HELPER_REAPER_SOURCE: source,
   };
 
   run("bash", [STAGE], { env });
   run("bash", [STAGE], { env });
 
-  const installedRoot = path.join(appDir, ".codex-linux");
-  const installedReaper = path.join(installedRoot, "mcp-helper-reaper", "codex-mcp-helper-reaper");
+  const installedRoot = path.join(appDir, ".chatgpt-linux");
+  const installedReaper = path.join(installedRoot, "mcp-helper-reaper", "chatgpt-mcp-helper-reaper");
   assert.equal(fs.statSync(installedReaper).mode & 0o111, 0o111);
   assert.equal(fs.statSync(path.join(installedRoot, "mcp-helper-reaper", "install-session-hook.sh")).mode & 0o111, 0o111);
   assert.equal(fs.statSync(path.join(installedRoot, "cold-start.d", "mcp-helper-reaper")).mode & 0o111, 0o111);
   assert.equal(fs.statSync(path.join(installedRoot, "after-exit.d", "mcp-helper-reaper")).mode & 0o111, 0o111);
   assert.match(fs.readFileSync(nodeRepl, "utf8"), /original node_repl/);
-  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.codex-linux-original")), false);
+  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.chatgpt-linux-original")), false);
   assert.equal(fs.existsSync(path.join(installedRoot, "mcp-helper-reaper", "node-repl-wrapper.sh")), false);
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test("stage hook restores a node_repl wrapper left by the previous feature version", () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-refresh-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-refresh-");
   const appDir = path.join(tempDir, "app");
   const workDir = path.join(tempDir, "work");
-  const source = path.join(tempDir, "source", "codex-mcp-helper-reaper");
+  const source = path.join(tempDir, "source", "chatgpt-mcp-helper-reaper");
   const nodeRepl = path.join(appDir, "resources", "node_repl");
-  const originalNodeRepl = path.join(appDir, "resources", "node_repl.codex-linux-original");
+  const originalNodeRepl = path.join(appDir, "resources", "node_repl.chatgpt-linux-original");
   fs.mkdirSync(path.dirname(nodeRepl), { recursive: true });
   fs.mkdirSync(workDir, { recursive: true });
   writeExecutable(source, "#!/usr/bin/env bash\nexit 0\n");
@@ -114,7 +114,7 @@ test("stage hook restores a node_repl wrapper left by the previous feature versi
     INSTALL_DIR: appDir,
     WORK_DIR: workDir,
     ARCH: process.arch,
-    CODEX_MCP_HELPER_REAPER_SOURCE: source,
+    CHATGPT_MCP_HELPER_REAPER_SOURCE: source,
   };
 
   run("bash", [STAGE], { env });
@@ -127,7 +127,7 @@ test("stage hook restores a node_repl wrapper left by the previous feature versi
 });
 
 test("stage hook finds cargo in HOME cargo bin when PATH omits it", () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-cargo-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-cargo-");
   const scriptRoot = path.join(tempDir, "repo");
   const appDir = path.join(tempDir, "app");
   const workDir = path.join(tempDir, "work");
@@ -154,13 +154,13 @@ test("stage hook finds cargo in HOME cargo bin when PATH omits it", () => {
     path.join(homeDir, ".cargo", "bin", "cargo"),
     `#!${hostTool("bash")}
 set -euo pipefail
-printf '%s\\n' "$PWD $*" > "$CODEX_MCP_HELPER_REAPER_TEST_CARGO_LOG"
+printf '%s\\n' "$PWD $*" > "$CHATGPT_MCP_HELPER_REAPER_TEST_CARGO_LOG"
 mkdir -p target/release
-cat > target/release/codex-mcp-helper-reaper <<'EOF'
+cat > target/release/chatgpt-mcp-helper-reaper <<'EOF'
 #!${hostTool("bash")}
 exit 0
 EOF
-chmod 0755 target/release/codex-mcp-helper-reaper
+chmod 0755 target/release/chatgpt-mcp-helper-reaper
 `,
   );
 
@@ -172,8 +172,8 @@ chmod 0755 target/release/codex-mcp-helper-reaper
       ARCH: process.arch,
       HOME: homeDir,
       PATH: fakeBin,
-      CODEX_MCP_HELPER_REAPER_SOURCE: "",
-      CODEX_MCP_HELPER_REAPER_TEST_CARGO_LOG: cargoLog,
+      CHATGPT_MCP_HELPER_REAPER_SOURCE: "",
+      CHATGPT_MCP_HELPER_REAPER_TEST_CARGO_LOG: cargoLog,
     },
   });
 
@@ -182,20 +182,20 @@ chmod 0755 target/release/codex-mcp-helper-reaper
     new RegExp(`${reaperCrateDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} build --release$`),
   );
   assert.equal(
-    fs.existsSync(path.join(appDir, ".codex-linux", "mcp-helper-reaper", "codex-mcp-helper-reaper")),
+    fs.existsSync(path.join(appDir, ".chatgpt-linux", "mcp-helper-reaper", "chatgpt-mcp-helper-reaper")),
     true,
   );
   assert.match(fs.readFileSync(nodeRepl, "utf8"), /original node_repl/);
-  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.codex-linux-original")), false);
+  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.chatgpt-linux-original")), false);
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test("cleanup hook restores node_repl and removes staged hooks", () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-cleanup-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-cleanup-");
   const appDir = path.join(tempDir, "app");
   const workDir = path.join(tempDir, "work");
-  const source = path.join(tempDir, "source", "codex-mcp-helper-reaper");
+  const source = path.join(tempDir, "source", "chatgpt-mcp-helper-reaper");
   const codexHome = path.join(tempDir, "codex-home");
   const nodeRepl = path.join(appDir, "resources", "node_repl");
   fs.mkdirSync(path.dirname(nodeRepl), { recursive: true });
@@ -212,7 +212,7 @@ test("cleanup hook restores node_repl and removes staged hooks", () => {
             matcher: "startup|resume",
             hooks: [
               { type: "command", command: "existing mcp report # existing-session-hook", timeout: 15 },
-              { type: "command", command: "true # codex-mcp-helper-reaper-session", timeout: 1 },
+              { type: "command", command: "true # chatgpt-mcp-helper-reaper-session", timeout: 1 },
             ],
           },
         ],
@@ -226,7 +226,7 @@ test("cleanup hook restores node_repl and removes staged hooks", () => {
     WORK_DIR: workDir,
     ARCH: process.arch,
     CODEX_HOME: codexHome,
-    CODEX_MCP_HELPER_REAPER_SOURCE: source,
+    CHATGPT_MCP_HELPER_REAPER_SOURCE: source,
   };
 
   run("bash", [STAGE], { env });
@@ -234,10 +234,10 @@ test("cleanup hook restores node_repl and removes staged hooks", () => {
   run("bash", [CLEANUP], { env });
 
   assert.match(fs.readFileSync(nodeRepl, "utf8"), /original node_repl/);
-  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.codex-linux-original")), false);
-  assert.equal(fs.existsSync(path.join(appDir, ".codex-linux", "mcp-helper-reaper")), false);
-  assert.equal(fs.existsSync(path.join(appDir, ".codex-linux", "cold-start.d", "mcp-helper-reaper")), false);
-  assert.equal(fs.existsSync(path.join(appDir, ".codex-linux", "after-exit.d", "mcp-helper-reaper")), false);
+  assert.equal(fs.existsSync(path.join(appDir, "resources", "node_repl.chatgpt-linux-original")), false);
+  assert.equal(fs.existsSync(path.join(appDir, ".chatgpt-linux", "mcp-helper-reaper")), false);
+  assert.equal(fs.existsSync(path.join(appDir, ".chatgpt-linux", "cold-start.d", "mcp-helper-reaper")), false);
+  assert.equal(fs.existsSync(path.join(appDir, ".chatgpt-linux", "after-exit.d", "mcp-helper-reaper")), false);
   const hooks = JSON.parse(fs.readFileSync(path.join(codexHome, "hooks.json"), "utf8"));
   const commands = hooks.hooks.SessionStart.flatMap((entry) => entry.hooks ?? []).map((hook) => hook.command);
   assert.deepEqual(commands, ["existing mcp report # existing-session-hook"]);
@@ -246,12 +246,12 @@ test("cleanup hook restores node_repl and removes staged hooks", () => {
 });
 
 test("session hook merge preserves existing SessionStart hook and deduplicates reaper hook", () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-hooks-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-hooks-");
   const appDir = path.join(tempDir, "app");
   const stateDir = path.join(tempDir, "state");
   const logDir = path.join(tempDir, "log");
   const codexHome = path.join(tempDir, "codex-home");
-  const reaper = path.join(appDir, ".codex-linux", "mcp-helper-reaper", "codex-mcp-helper-reaper");
+  const reaper = path.join(appDir, ".chatgpt-linux", "mcp-helper-reaper", "chatgpt-mcp-helper-reaper");
   fs.mkdirSync(codexHome, { recursive: true });
   fs.mkdirSync(stateDir, { recursive: true });
   fs.mkdirSync(logDir, { recursive: true });
@@ -287,7 +287,7 @@ test("session hook merge preserves existing SessionStart hook and deduplicates r
   const merged = JSON.parse(fs.readFileSync(path.join(codexHome, "hooks.json"), "utf8"));
   const commands = merged.hooks.SessionStart.flatMap((entry) => entry.hooks ?? []).map((hook) => hook.command);
   assert.equal(commands.filter((command) => command.includes("existing-session-hook")).length, 1);
-  const reaperCommands = commands.filter((command) => command.includes("codex-mcp-helper-reaper-session"));
+  const reaperCommands = commands.filter((command) => command.includes("chatgpt-mcp-helper-reaper-session"));
   assert.equal(reaperCommands.length, 1);
   assert.match(reaperCommands[0], /--codex-parent "\$PPID"/);
   assert.match(reaperCommands[0], /--include-orphans/);
@@ -297,25 +297,25 @@ test("session hook merge preserves existing SessionStart hook and deduplicates r
 });
 
 test("cold-start hook launches a short all-parent scan", async () => {
-  const tempDir = makeTempDir("codex-mcp-helper-reaper-cold-");
+  const tempDir = makeTempDir("chatgpt-mcp-helper-reaper-cold-");
   const appDir = path.join(tempDir, "app");
   const stateDir = path.join(tempDir, "state");
   const logDir = path.join(tempDir, "log");
   const callLog = path.join(tempDir, "calls.log");
-  const featureDir = path.join(appDir, ".codex-linux", "mcp-helper-reaper");
-  const reaper = path.join(featureDir, "codex-mcp-helper-reaper");
+  const featureDir = path.join(appDir, ".chatgpt-linux", "mcp-helper-reaper");
+  const reaper = path.join(featureDir, "chatgpt-mcp-helper-reaper");
   fs.mkdirSync(stateDir, { recursive: true });
   fs.mkdirSync(logDir, { recursive: true });
   writeExecutable(
     reaper,
-    "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$CODEX_MCP_HELPER_REAPER_TEST_LOG\"\n",
+    "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$CHATGPT_MCP_HELPER_REAPER_TEST_LOG\"\n",
   );
 
   run("bash", [COLD_START_HOOK, appDir, stateDir, logDir], {
     env: {
-      CODEX_MCP_HELPER_REAPER_TEST_LOG: callLog,
-      CODEX_MCP_HELPER_REAPER_DELAY: "0",
-      CODEX_MCP_HELPER_REAPER_PASSES: "1",
+      CHATGPT_MCP_HELPER_REAPER_TEST_LOG: callLog,
+      CHATGPT_MCP_HELPER_REAPER_DELAY: "0",
+      CHATGPT_MCP_HELPER_REAPER_PASSES: "1",
     },
   });
 

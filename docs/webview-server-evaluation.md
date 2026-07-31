@@ -3,15 +3,15 @@
 ## Context
 
 The current launcher starts the bundled `launcher/webview-server.py` helper
-with `python3 "$SCRIPT_DIR/.codex-linux/webview-server.py" "$CODEX_LINUX_WEBVIEW_PORT"
+with `python3 "$SCRIPT_DIR/.chatgpt-linux/webview-server.py" "$CHATGPT_LINUX_WEBVIEW_PORT"
 --bind 127.0.0.1` for the extracted webview bundle. It waits for the configured port to
 become reachable, validates the served origin, verifies startup markers and the
 generated startup-asset graph hashes, then exports `ELECTRON_RENDERER_URL` so
 side-by-side app IDs can use an isolated local origin. An inherited renderer URL is
 ignored by default so a new build cannot load another running install's stale assets;
-explicit debugging overrides require `CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1`.
+explicit debugging overrides require `CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1`.
 
-The extracted webview payload is a static bundle under `codex-app/content/webview`.
+The extracted webview payload is a static bundle under `chatgpt/content/webview`.
 The official app bundle can include hundreds of hashed chunks and static assets.
 The generated `index.html` references hashed assets through relative paths, so
 the app still expects a stable local origin.
@@ -101,7 +101,7 @@ points are:
 
 - `install.sh` staging for the webview helper
 - the launcher startup block around the configured webview port
-- the generated webview integrity manifest under `.codex-linux/`
+- the generated webview integrity manifest under `.chatgpt-linux/`
 - packaging if a Rust server binary is added
 - launcher logging, ownership, adoption, and cleanup logic around the PID file
   and helper shutdown

@@ -8,7 +8,7 @@ use std::{
 pub(crate) fn spawn_reaped(command: &mut Command, context: &str) -> Result<u32> {
     let (sender, receiver) = mpsc::sync_channel::<Child>(1);
     thread::Builder::new()
-        .name("codex-record-replay-reaper".to_string())
+        .name("chatgpt-record-replay-reaper".to_string())
         .spawn(move || {
             if let Ok(mut child) = receiver.recv() {
                 let _ = child.wait();

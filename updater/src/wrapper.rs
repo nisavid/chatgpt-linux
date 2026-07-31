@@ -1,6 +1,6 @@
 //! Wrapper-repo update detection.
 //!
-//! Beyond tracking the official OpenAI Codex DMG, the updater can detect when the
+//! Beyond tracking the official OpenAI ChatGPT DMG, the updater can detect when the
 //! *wrapper* itself (this repository — new port integrations, patches, fixes) has
 //! advanced. Detection is git-based and leaves the user's working tree and
 //! current branch untouched: it inspects the builder bundle checkout, or the
@@ -215,7 +215,7 @@ fn string_field<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
 }
 
 fn source_info_path(bundle_root: &Path) -> PathBuf {
-    bundle_root.join(".codex-linux/source-info.json")
+    bundle_root.join(".chatgpt-linux/source-info.json")
 }
 
 fn source_info_field(bundle_root: &Path, key: &str) -> Option<String> {
@@ -254,9 +254,9 @@ fn installed_metadata_paths(
 ) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(app_root) = app_root_from_executable(app_executable_path) {
-        paths.push(app_root.join(".codex-linux/build-info.json"));
-        paths.push(app_root.join("resources/codex-linux-build-info.json"));
-        paths.push(app_root.join(".codex-linux/source-info.json"));
+        paths.push(app_root.join(".chatgpt-linux/build-info.json"));
+        paths.push(app_root.join("resources/chatgpt-linux-build-info.json"));
+        paths.push(app_root.join(".chatgpt-linux/source-info.json"));
     }
     paths.push(source_info_path(builder_bundle_root));
     paths
@@ -570,7 +570,7 @@ mod tests {
         std::fs::create_dir_all(dir.join("updater")).unwrap();
         std::fs::write(
             dir.join("updater/Cargo.toml"),
-            "[package]\nname = \"codex-app-updater\"\nversion = \"0.8.1\"\n",
+            "[package]\nname = \"chatgpt-updater\"\nversion = \"0.8.1\"\n",
         )
         .unwrap();
         std::fs::write(dir.join("CHANGELOG.md"), "# Changelog\n").unwrap();
@@ -668,7 +668,7 @@ exit 0
         // advance origin with a changelog bump
         std::fs::write(
             origin.path().join("updater/Cargo.toml"),
-            "[package]\nname = \"codex-app-updater\"\nversion = \"0.9.0\"\n",
+            "[package]\nname = \"chatgpt-updater\"\nversion = \"0.9.0\"\n",
         )
         .unwrap();
         std::fs::write(
@@ -762,9 +762,9 @@ exit 0
         let installed = installed_wrapper(&clone_path).expect("installed");
 
         let app_root = clone.path().join("app");
-        std::fs::create_dir_all(app_root.join(".codex-linux")).unwrap();
+        std::fs::create_dir_all(app_root.join(".chatgpt-linux")).unwrap();
         std::fs::write(
-            app_root.join(".codex-linux/build-info.json"),
+            app_root.join(".chatgpt-linux/build-info.json"),
             format!(
                 r#"{{
   "source": {{
@@ -784,7 +784,7 @@ exit 0
 
         std::fs::write(
             origin.path().join("updater/Cargo.toml"),
-            "[package]\nname = \"codex-app-updater\"\nversion = \"0.9.0\"\n",
+            "[package]\nname = \"chatgpt-updater\"\nversion = \"0.9.0\"\n",
         )
         .unwrap();
         std::fs::write(
@@ -818,9 +818,9 @@ exit 0
     fn packaged_builder_without_git_without_remote_is_unknown_offline() {
         let temp = tempdir().unwrap();
         let builder = temp.path().join("update-builder");
-        std::fs::create_dir_all(builder.join(".codex-linux")).unwrap();
+        std::fs::create_dir_all(builder.join(".chatgpt-linux")).unwrap();
         std::fs::write(
-            builder.join(".codex-linux/source-info.json"),
+            builder.join(".chatgpt-linux/source-info.json"),
             r#"{
   "commit": "0123456789012345678901234567890123456789",
   "version": "0.8.1",
@@ -853,9 +853,9 @@ exit 0
         let installed = installed_wrapper(origin.path()).expect("installed");
 
         let builder = temp.path().join("update-builder");
-        std::fs::create_dir_all(builder.join(".codex-linux")).unwrap();
+        std::fs::create_dir_all(builder.join(".chatgpt-linux")).unwrap();
         std::fs::write(
-            builder.join(".codex-linux/source-info.json"),
+            builder.join(".chatgpt-linux/source-info.json"),
             format!(
                 r#"{{
   "commit": "{}",
@@ -880,7 +880,7 @@ exit 0
 
         std::fs::write(
             origin.path().join("updater/Cargo.toml"),
-            "[package]\nname = \"codex-app-updater\"\nversion = \"0.9.0\"\n",
+            "[package]\nname = \"chatgpt-updater\"\nversion = \"0.9.0\"\n",
         )
         .unwrap();
         git(origin.path(), &["add", "-A"]);

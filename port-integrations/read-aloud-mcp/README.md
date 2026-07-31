@@ -29,7 +29,7 @@ cache so the agent-facing tool is available.
 The stage hook is fail-soft when no prebuilt backend is configured and the Rust
 backend cannot be built in the current environment. In that case the app build
 continues without staging the MCP plugin. Native packages and reproducible
-builds should provide `CODEX_LINUX_READ_ALOUD_MCP_SOURCE` when network access
+builds should provide `CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE` when network access
 or Cargo registry access is unavailable during staging.
 
 The response-level speaker button and settings UI come from the default-on
@@ -43,7 +43,7 @@ The response-level speaker button and settings UI come from the default-on
 
 The MCP integration reuses the same Kokoro defaults as the UI integration:
 
-- Python runtime: `~/.local/share/codex-app/read-aloud/kokoro-venv/bin/python`
+- Python runtime: `~/.local/share/chatgpt/read-aloud/kokoro-venv/bin/python`
 - Model: `~/.local/share/kokoro/kokoro-v1.0.onnx`
 - Voices: `~/.local/share/kokoro/voices-v1.0.bin`
 
@@ -60,25 +60,25 @@ integration is enabled.
 
 The MCP server reads the same overrides as the UI integration:
 
-- `CODEX_LINUX_READ_ALOUD_COMMAND`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_RUNNER`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_MODEL`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_VOICES`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_VOICE`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_SPEED`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_LANG`
-- `CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK=0`
+- `CHATGPT_LINUX_READ_ALOUD_COMMAND`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_RUNNER`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICE`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_LANG`
+- `CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK=0`
 
 Native `spd-say` / `espeak-ng` fallback is available by default after this MCP
 plugin is enabled, but Kokoro remains preferred. Set
-`CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK=0` to disable the machine voice
+`CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK=0` to disable the machine voice
 fallback.
 
 ## Validate
 
 ```bash
 node port-integrations/read-aloud-mcp/test.js
-cargo check -p codex-read-aloud-linux
-cargo test -p codex-read-aloud-linux
+cargo check -p chatgpt-read-aloud-linux
+cargo test -p chatgpt-read-aloud-linux
 ```

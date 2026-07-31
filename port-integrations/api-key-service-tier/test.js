@@ -54,16 +54,16 @@ function allIntegrationIds() {
 function withIntegrationConfig(enabled, callback) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "api-key-service-tier-"));
   const configPath = path.join(tempDir, "integrations.json");
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const disabled = allIntegrationIds().filter((id) => id !== "api-key-service-tier");
   if (!enabled) disabled.push("api-key-service-tier");
   try {
     fs.writeFileSync(configPath, JSON.stringify({ enabled: enabled ? ["api-key-service-tier"] : [], disabled }));
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     return callback();
   } finally {
-    if (originalConfig == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
@@ -92,8 +92,9 @@ test("api-key-service-tier is default-on but can be disabled", () => {
 
 test("current DMG descriptor targets only the owning auth-gate bundle", () => {
   assert.deepEqual(descriptors.map((descriptor) => descriptor.id), ["api-key-service-tier-gate"]);
-  assert.equal(descriptors[0].pattern.test("app-initial~app-main~onboarding-page-DjTNhJXu.js"), true);
-  assert.equal(descriptors[0].pattern.test("app-initial~app-main~thread-app-shell-DjTNhJXu.js"), false);
+  assert.equal(descriptors[0].pattern.test("app-initial-DRyZ1Lin.js"), true);
+  assert.equal(descriptors[0].pattern.test("app-initial~app-main~onboarding-page-DjTNhJXu.js"), false);
+  assert.equal(descriptors[0].pattern.test("settings-page-DjTNhJXu.js"), false);
 });
 
 test("current auth-gate wrapper warns when its exact contract disappears", () => {
@@ -118,7 +119,7 @@ test("auth-gate descriptor applies and records a report entry", () => {
     try {
       const assetsDir = path.join(tempApp, "webview", "assets");
       fs.mkdirSync(assetsDir, { recursive: true });
-      const assetPath = path.join(assetsDir, "app-initial~app-main~onboarding-page-current.js");
+      const assetPath = path.join(assetsDir, "app-initial-current.js");
       fs.writeFileSync(assetPath, gateSource);
       const report = createPatchReport();
       captureWarnings(() => patchExtractedApp(tempApp, { report }));
@@ -173,18 +174,18 @@ test("recognizable but unpatchable auth gates warn and remain unchanged", () => 
 test("provider model metadata remains authoritative", () => {
   assert.equal(hasApiKeyModelListMappingShape(modelSource), true);
   assert.equal(applyApiKeyServiceTierPatch(modelSource), modelSource);
-  assert.doesNotMatch(applyApiKeyServiceTierPatch(modelSource), /codexLinuxApiKeyServiceTierModel/);
+  assert.doesNotMatch(applyApiKeyServiceTierPatch(modelSource), /chatgptLinuxApiKeyServiceTierModel/);
 });
 
 test("no synthetic fast tier is added when provider metadata omits it", () => {
   assert.equal(applyFallbackFastTierPatch(providerTierSource), providerTierSource);
-  assert.doesNotMatch(applyFallbackFastTierPatch(providerTierSource), /codexLinuxApiKeyFastTier/);
+  assert.doesNotMatch(applyFallbackFastTierPatch(providerTierSource), /chatgptLinuxApiKeyFastTier/);
 });
 
 test("combined patch changes only the API-key auth gate", () => {
   const source = gateSource + modelSource + providerTierSource;
   const patched = applyApiKeyServiceTierPatch(source);
   assert.match(patched, /o===`apikey`/);
-  assert.doesNotMatch(patched, /codexLinuxApiKeyServiceTierModel|codexLinuxApiKeyFastTier/);
+  assert.doesNotMatch(patched, /chatgptLinuxApiKeyServiceTierModel|chatgptLinuxApiKeyFastTier/);
   assert.match(patched, /e\?\.serviceTiers/);
 });

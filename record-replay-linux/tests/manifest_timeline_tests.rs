@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use codex_record_replay_linux::{
+use chatgpt_record_replay_linux::{
     append_timeline_record, bundle_draft_prompt, cancel_session, command_json, expire_session,
     mark_session, parse_timeline_line, read_runtime_status, read_timeline, record_browser_trace,
     record_speech_context, start_session, stop_session, update_active_status, validate_bundle_dir,
@@ -82,7 +82,7 @@ fn speech_context_is_timeline_evidence() {
         "speech-context".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(root, &manifest).unwrap();
     fs::write(root.join("timeline.jsonl"), "").unwrap();
 
     let record = record_speech_context(
@@ -194,8 +194,8 @@ fn event_stream_uses_sky_compatible_event_kinds() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("bundle");
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -216,7 +216,7 @@ fn event_stream_uses_sky_compatible_event_kinds() {
     record_speech_context(
         &root,
         "Open Chrome, open the image workspace, enter the image prompt, generate it, and download the image.",
-        Some("codex-dictation-send".to_string()),
+        Some("chatgpt-dictation-send".to_string()),
     )
     .unwrap();
     record_browser_trace(
@@ -331,8 +331,8 @@ fn event_stream_uses_sky_compatible_event_kinds() {
     assert!(session["suppressedEventCount"].as_u64().is_some());
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -342,8 +342,8 @@ fn image_generation_workflow_bundle_prompt_has_transcript_browser_and_window_con
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("bundle");
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -364,7 +364,7 @@ fn image_generation_workflow_bundle_prompt_has_transcript_browser_and_window_con
     record_speech_context(
         &root,
         "Open Chrome, open the image workspace, enter a prompt to create an image of a neon cabin, generate it, then download the image.",
-        Some("codex-dictation-send".to_string()),
+        Some("chatgpt-dictation-send".to_string()),
     )
     .unwrap();
     let browser_record = record_browser_trace(
@@ -464,8 +464,8 @@ fn image_generation_workflow_bundle_prompt_has_transcript_browser_and_window_con
     assert!(prompt.contains("download the image"));
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -476,8 +476,8 @@ fn start_session_writes_browser_input_capture_and_x11_evidence() {
     let root = temp.path().join("bundle");
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -518,8 +518,8 @@ fn start_session_writes_browser_input_capture_and_x11_evidence() {
     assert!(validate_bundle_dir(&root).unwrap().is_valid());
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -532,8 +532,8 @@ fn start_session_creates_private_bundle_and_status_files() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("bundle");
     let status_path = temp.path().join("status").join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -577,8 +577,8 @@ fn start_session_creates_private_bundle_and_status_files() {
     }
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -588,10 +588,10 @@ fn start_and_stop_session_records_audio_metadata_without_composer_dictation() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("bundle");
     let status_path = temp.path().join("status.json");
-    let previous_status = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    let previous_audio = std::env::var_os("CODEX_RECORD_REPLAY_AUDIO");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
-    std::env::set_var("CODEX_RECORD_REPLAY_AUDIO", "0");
+    let previous_status = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    let previous_audio = std::env::var_os("CHATGPT_RECORD_REPLAY_AUDIO");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
+    std::env::set_var("CHATGPT_RECORD_REPLAY_AUDIO", "0");
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -625,12 +625,12 @@ fn start_and_stop_session_records_audio_metadata_without_composer_dictation() {
     assert!(validate_bundle_dir(&root).unwrap().is_valid());
 
     match previous_status {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
     match previous_audio {
-        Some(value) => std::env::set_var("CODEX_RECORD_REPLAY_AUDIO", value),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_AUDIO"),
+        Some(value) => std::env::set_var("CHATGPT_RECORD_REPLAY_AUDIO", value),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_AUDIO"),
     }
 }
 
@@ -645,8 +645,8 @@ fn runtime_status_tightens_preexisting_private_directory() {
     fs::create_dir(&status_dir).unwrap();
     fs::set_permissions(&status_dir, fs::Permissions::from_mode(0o777)).unwrap();
     let status_path = status_dir.join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     write_active_status(
         &temp.path().join("bundle"),
@@ -661,8 +661,8 @@ fn runtime_status_tightens_preexisting_private_directory() {
     );
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -674,8 +674,8 @@ fn start_session_rejects_existing_or_symlink_session_dir() {
     let _guard = status_env_guard();
     let temp = tempfile::tempdir().unwrap();
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -719,8 +719,8 @@ fn start_session_rejects_existing_or_symlink_session_dir() {
     assert!(result.is_err(), "session_dir symlinks must be rejected");
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -730,8 +730,8 @@ fn sealed_sessions_reject_mutations_and_terminal_rewrites() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("bundle");
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -750,7 +750,7 @@ fn sealed_sessions_reject_mutations_and_terminal_rewrites() {
         .unwrap();
 
     stop_session(&root).unwrap();
-    let stopped_manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let stopped_manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     let stopped_timeline = fs::read_to_string(root.join("timeline.jsonl")).unwrap();
 
     assert!(mark_session(&root, "after stop").is_err());
@@ -760,7 +760,7 @@ fn sealed_sessions_reject_mutations_and_terminal_rewrites() {
     );
     assert!(stop_session(&root).is_err());
 
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(manifest.end_reason, stopped_manifest.end_reason);
     assert_eq!(
         fs::read_to_string(root.join("timeline.jsonl")).unwrap(),
@@ -768,8 +768,8 @@ fn sealed_sessions_reject_mutations_and_terminal_rewrites() {
     );
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -784,7 +784,7 @@ fn status_command_persists_expired_session() {
         "expired-session".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
     fs::write(
         root.join("timeline.jsonl"),
         "{\"index\":0,\"recorded_at\":\"2026-06-28T12:00:00Z\",\"kind\":\"session_started\",\"payload\":{}}\n",
@@ -793,8 +793,8 @@ fn status_command_persists_expired_session() {
     fs::write(root.join("diagnostics.json"), "{}\n").unwrap();
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
     fs::write(
         &status_path,
         serde_json::json!({
@@ -824,7 +824,7 @@ fn status_command_persists_expired_session() {
         Some("expired")
     );
 
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(manifest.end_reason.as_deref(), Some("max_duration"));
     assert!(read_timeline(&root)
         .unwrap()
@@ -833,8 +833,8 @@ fn status_command_persists_expired_session() {
     assert_eq!(read_runtime_status().state, RecordingRuntimeState::Expired);
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -847,7 +847,7 @@ fn stale_recording_lock_is_recovered_for_dead_pid() {
     fs::write(root.join("timeline.jsonl"), "").unwrap();
     let manifest =
         RecordingBundleManifest::new("stale-lock".to_string(), "2026-06-28T12:00:00Z".to_string());
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
     fs::write(root.join(".recording.lock"), "999999999\n").unwrap();
 
     let record = mark_session(&root, "after stale lock").unwrap();
@@ -921,11 +921,11 @@ fn explicit_stop_after_expiry_persists_max_duration_end_reason() {
         "expired-before-stop".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
     fs::write(
         &status_path,
         serde_json::json!({
@@ -948,13 +948,13 @@ fn explicit_stop_after_expiry_persists_max_duration_end_reason() {
     let record = stop_session(&root).unwrap();
 
     assert!(matches!(record.event, TimelineEvent::SessionExpired));
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(manifest.end_reason.as_deref(), Some("max_duration"));
     assert_eq!(read_runtime_status().state, RecordingRuntimeState::Expired);
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -973,11 +973,11 @@ fn explicit_cancel_after_expiry_persists_max_duration_end_reason() {
         "expired-before-cancel".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
     fs::write(
         &status_path,
         serde_json::json!({
@@ -1000,13 +1000,13 @@ fn explicit_cancel_after_expiry_persists_max_duration_end_reason() {
     let record = cancel_session(&root, true).unwrap();
 
     assert!(matches!(record.event, TimelineEvent::SessionExpired));
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(manifest.end_reason.as_deref(), Some("max_duration"));
     assert_eq!(read_runtime_status().state, RecordingRuntimeState::Expired);
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -1038,8 +1038,8 @@ fn runtime_status_tracks_active_and_stopped_recording() {
     let _guard = status_env_guard();
     let temp = tempfile::tempdir().unwrap();
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
     let session_dir = temp.path().join("bundle");
     let active =
@@ -1060,8 +1060,8 @@ fn runtime_status_tracks_active_and_stopped_recording() {
     assert_eq!(read_runtime_status().last_event.as_deref(), Some("stop"));
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -1147,7 +1147,7 @@ fn bundle_draft_prompt_refuses_canceled_bundles() {
     );
     manifest.end_reason = Some("recording_controls_canceled_discarded".to_string());
     manifest.ended_at = Some("2026-06-28T12:05:00Z".to_string());
-    codex_record_replay_linux::manifest::write_manifest(root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(root, &manifest).unwrap();
     fs::write(
         root.join("timeline.jsonl"),
         concat!(
@@ -1175,11 +1175,11 @@ fn record_cancel_marks_bundle_as_canceled_and_discarded() {
         "fixture-session".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
     write_active_status(&root, Some("cancel parity smoke".to_string())).unwrap();
 
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1187,12 +1187,14 @@ fn record_cancel_marks_bundle_as_canceled_and_discarded() {
         .build()
         .unwrap();
     let response = runtime
-        .block_on(command_json(codex_record_replay_linux::Commands::Record {
-            command: RecordCommand::Cancel(SessionCancelArgs {
-                session_dir: root.clone(),
-                discarded: true,
-            }),
-        }))
+        .block_on(command_json(
+            chatgpt_record_replay_linux::Commands::Record {
+                command: RecordCommand::Cancel(SessionCancelArgs {
+                    session_dir: root.clone(),
+                    discarded: true,
+                }),
+            },
+        ))
         .unwrap();
 
     assert_eq!(response["ok"], true);
@@ -1222,7 +1224,7 @@ fn record_cancel_marks_bundle_as_canceled_and_discarded() {
         Some("recording_controls_cancelled_discarded")
     );
 
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(
         manifest.end_reason.as_deref(),
         Some("recording_controls_cancelled_discarded")
@@ -1235,8 +1237,8 @@ fn record_cancel_marks_bundle_as_canceled_and_discarded() {
     );
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 
@@ -1252,11 +1254,11 @@ fn record_expire_marks_bundle_at_max_duration() {
         "fixture-session".to_string(),
         "2026-06-28T12:00:00Z".to_string(),
     );
-    codex_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
+    chatgpt_record_replay_linux::manifest::write_manifest(&root, &manifest).unwrap();
 
     let status_path = temp.path().join("status.json");
-    let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
-    std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+    let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
+    std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
     write_active_status(&root, Some("max duration parity smoke".to_string())).unwrap();
 
     let record = expire_session(&root).unwrap();
@@ -1266,7 +1268,7 @@ fn record_expire_marks_bundle_at_max_duration() {
     assert_eq!(status.state, RecordingRuntimeState::Expired);
     assert_eq!(status.end_reason.as_deref(), Some("max_duration"));
 
-    let manifest = codex_record_replay_linux::manifest::read_manifest(&root).unwrap();
+    let manifest = chatgpt_record_replay_linux::manifest::read_manifest(&root).unwrap();
     assert_eq!(manifest.end_reason.as_deref(), Some("max_duration"));
     assert!(manifest.ended_at.is_some());
 
@@ -1277,8 +1279,8 @@ fn record_expire_marks_bundle_at_max_duration() {
     ));
 
     match previous {
-        Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-        None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+        Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+        None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
     }
 }
 

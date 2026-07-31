@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
+use chatgpt_computer_use_linux::{atspi_tree, diagnostics::DoctorReport, screenshot, windowing};
 use chrono::Utc;
-use codex_computer_use_linux::{atspi_tree, diagnostics::DoctorReport, screenshot, windowing};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -69,8 +69,8 @@ pub async fn start_session(options: RecordStartOptions) -> Result<RecordStartRep
     )
     .with_context(|| "failed to initialize event-stream events")?;
 
-    codex_computer_use_linux::diagnostics::hydrate_session_bus_env();
-    let diagnostics = codex_computer_use_linux::diagnostics::doctor_report();
+    chatgpt_computer_use_linux::diagnostics::hydrate_session_bus_env();
+    let diagnostics = chatgpt_computer_use_linux::diagnostics::doctor_report();
     let backend_catalog = recording_backend_catalog(&diagnostics);
     crate::secure_fs::write_private_file(
         &options.session_dir.join(DIAGNOSTICS_FILE_NAME),
@@ -736,9 +736,9 @@ mod tests {
     fn desktop_snapshot_writes_focused_window_bundle_evidence() {
         let _guard = status_env_guard();
         let temp = tempfile::tempdir().unwrap();
-        let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
+        let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
         std::env::set_var(
-            "CODEX_RECORD_REPLAY_STATUS_PATH",
+            "CHATGPT_RECORD_REPLAY_STATUS_PATH",
             temp.path().join("status.json"),
         );
         let root = temp.path().join("bundle");
@@ -799,8 +799,8 @@ mod tests {
         assert!(!artifact.contains("image-studio.example"));
 
         match previous {
-            Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-            None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+            Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+            None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
         }
     }
 }

@@ -277,36 +277,37 @@ mod tests {
 
     #[test]
     fn redacts_secret_assignments_before_persistence() {
-        let input = "npm ERR! _authToken=shh access_token: abc123 api_key=\"quoted-\\\"secret\" package=codex-app";
+        let input = "npm ERR! _authToken=shh access_token: abc123 api_key=\"quoted-\\\"secret\" package=chatgpt";
 
         let redacted = redact_for_persistence(input);
 
         assert_eq!(
             redacted,
-            "npm ERR! _authToken=[REDACTED] access_token: [REDACTED] api_key=\"[REDACTED]\" package=codex-app"
+            "npm ERR! _authToken=[REDACTED] access_token: [REDACTED] api_key=\"[REDACTED]\" package=chatgpt"
         );
     }
 
     #[test]
     fn redacts_authorization_payloads_before_persistence() {
-        let input = "Authorization: Bearer abc.def.ghi failed with status 1\nok\nproxy authorization=Basic dXNlcjpwYXNz status=401 package=codex-app\nProxy-Authorization: Basic proxy-secret";
+        let input = "Authorization: Bearer abc.def.ghi failed with status 1\nok\nproxy authorization=Basic dXNlcjpwYXNz status=401 package=chatgpt\nProxy-Authorization: Basic proxy-secret";
 
         let redacted = redact_for_persistence(input);
 
         assert_eq!(
             redacted,
-            "Authorization: [REDACTED] failed with status 1\nok\nproxy authorization=[REDACTED] status=401 package=codex-app\nProxy-Authorization: [REDACTED]"
+            "Authorization: [REDACTED] failed with status 1\nok\nproxy authorization=[REDACTED] status=401 package=chatgpt\nProxy-Authorization: [REDACTED]"
         );
         assert!(!redacted.contains("proxy-secret"));
     }
 
     #[test]
     fn redacts_non_basic_authorization_payloads_to_line_end() {
-        let input = "Authorization: Digest username=\"u\", response=\"secret\" status=401\npackage=codex-app";
+        let input =
+            "Authorization: Digest username=\"u\", response=\"secret\" status=401\npackage=chatgpt";
 
         let redacted = redact_for_persistence(input);
 
-        assert_eq!(redacted, "Authorization: [REDACTED]\npackage=codex-app");
+        assert_eq!(redacted, "Authorization: [REDACTED]\npackage=chatgpt");
         assert!(!redacted.contains("username"));
         assert!(!redacted.contains("secret"));
     }
@@ -314,7 +315,7 @@ mod tests {
     #[test]
     fn preserves_ordinary_diagnostics() {
         let input =
-            "installing /tmp/codex-app-26.513.31313-1-x86_64.pkg.tar.zst exited with status 1";
+            "installing /tmp/chatgpt-26.513.31313-1-x86_64.pkg.tar.zst exited with status 1";
 
         let redacted = redact_for_persistence(input);
 

@@ -4,7 +4,7 @@
 # Sourced by install.sh. Do not run directly.
 # shellcheck shell=bash
 
-MANAGED_NODE_VERSION="${CODEX_MANAGED_NODE_VERSION:-v22.22.2}"
+MANAGED_NODE_VERSION="${CHATGPT_MANAGED_NODE_VERSION:-v22.22.2}"
 case "$MANAGED_NODE_VERSION" in
     v*) ;;
     *) MANAGED_NODE_VERSION="v$MANAGED_NODE_VERSION" ;;
@@ -28,8 +28,8 @@ managed_node_arch() {
 managed_node_archive_sha256() {
     local node_arch="$1"
 
-    if [ -n "${CODEX_MANAGED_NODE_SHA256:-}" ]; then
-        echo "$CODEX_MANAGED_NODE_SHA256"
+    if [ -n "${CHATGPT_MANAGED_NODE_SHA256:-}" ]; then
+        echo "$CHATGPT_MANAGED_NODE_SHA256"
         return
     fi
 
@@ -39,7 +39,7 @@ managed_node_archive_sha256() {
         v22.22.2:armv7l) echo "2ebc6746e517f345da340ec76a108203eb6c2365391eb525c0e0dd6135b0b9df" ;;
         *)
             error "No SHA256 configured for Node.js $MANAGED_NODE_VERSION linux-$node_arch.
-Set CODEX_MANAGED_NODE_SHA256 when overriding CODEX_MANAGED_NODE_VERSION or CODEX_MANAGED_NODE_URL."
+Set CHATGPT_MANAGED_NODE_SHA256 when overriding CHATGPT_MANAGED_NODE_VERSION or CHATGPT_MANAGED_NODE_URL."
             ;;
     esac
 }
@@ -157,8 +157,8 @@ probe_node_runtime() {
 managed_node_archive_url() {
     local node_arch="$1"
 
-    if [ -n "${CODEX_MANAGED_NODE_URL:-}" ]; then
-        echo "$CODEX_MANAGED_NODE_URL"
+    if [ -n "${CHATGPT_MANAGED_NODE_URL:-}" ]; then
+        echo "$CHATGPT_MANAGED_NODE_URL"
     else
         echo "https://nodejs.org/dist/$MANAGED_NODE_VERSION/node-$MANAGED_NODE_VERSION-linux-$node_arch.tar.xz"
     fi
@@ -177,7 +177,7 @@ download_managed_node_runtime() {
     node_arch="$(managed_node_arch)"
     url="$(managed_node_archive_url "$node_arch")"
     expected_sha="$(managed_node_archive_sha256 "$node_arch")"
-    cache_dir="${CODEX_MANAGED_NODE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/codex-app/node-runtime}"
+    cache_dir="${CHATGPT_MANAGED_NODE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/chatgpt/node-runtime}"
     archive="$cache_dir/$(basename "$url")"
     extract_dir="$WORK_DIR/managed-node-runtime"
     extracted_root="$extract_dir/node-$MANAGED_NODE_VERSION-linux-$node_arch"
@@ -238,7 +238,7 @@ ensure_managed_node_runtime() {
     fi
 
     for source_dir in \
-        "${CODEX_MANAGED_NODE_SOURCE:-}" \
+        "${CHATGPT_MANAGED_NODE_SOURCE:-}" \
         "$SCRIPT_DIR/node-runtime" \
         "$SCRIPT_DIR/resources/node-runtime" \
         "$SCRIPT_DIR/../node-runtime"
@@ -263,5 +263,5 @@ export_managed_node_runtime() {
 
     [ -x "$bin_dir/node" ] || error "Managed Node.js runtime is missing node: $bin_dir/node"
     export PATH="$bin_dir:$PATH"
-    export CODEX_MANAGED_NODE_RUNTIME_DIR="$runtime_dir"
+    export CHATGPT_MANAGED_NODE_RUNTIME_DIR="$runtime_dir"
 }

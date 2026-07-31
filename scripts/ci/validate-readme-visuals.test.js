@@ -17,10 +17,10 @@ function errorsFor(markdown) {
 test("accepts the existing app icon and shields.io badges", () => {
   const markdown = `
 <div align="center">
-  <img src="assets/codex.png" alt="Codex app icon" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT app icon" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
-    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
+    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/chatgpt-linux"></a>
   </p>
 </div>
 `;
@@ -161,13 +161,13 @@ test("reports external URLs before checking alt text", () => {
 
 test("rejects generated or runtime artifact paths even when local", () => {
   const markdown = `
-![Generated app screenshot](codex-app/screenshot.png)
+![Generated app screenshot](chatgpt/screenshot.png)
 ![Package output screenshot](dist/workbench.png)
 `;
 
   assert.deepEqual(errorsFor(markdown), [
-    "README showcase image must live under docs/assets/readme/: codex-app/screenshot.png",
-    "README showcase image must not reference generated or runtime artifacts: codex-app/screenshot.png",
+    "README showcase image must live under docs/assets/readme/: chatgpt/screenshot.png",
+    "README showcase image must not reference generated or runtime artifacts: chatgpt/screenshot.png",
     "README showcase image must live under docs/assets/readme/: dist/workbench.png",
     "README showcase image must not reference generated or runtime artifacts: dist/workbench.png",
   ]);

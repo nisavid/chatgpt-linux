@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn cosmic_backend_can_exact_focus_targets() {
-        let mut window = window(2, "Codex", "codex-app", "codex-app");
+        let mut window = window(2, "Codex", "chatgpt", "chatgpt");
         window.backend = COSMIC_WAYLAND_BACKEND.to_string();
 
         ensure_backend_can_focus_target(
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn i3_backend_can_exact_focus_targets() {
-        let mut window = window(2, "Codex", "codex-app", "codex-app");
+        let mut window = window(2, "Codex", "chatgpt", "chatgpt");
         window.backend = I3_BACKEND.to_string();
 
         ensure_backend_can_focus_target(
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn resolves_target_by_window_id_and_secondary_selectors() {
         let windows = vec![
-            window(1, "Codex", "codex.desktop", "Codex"),
+            window(1, "Codex", "chatgpt.desktop", "Codex"),
             window(2, "Ghostty", "com.mitchellh.ghostty.desktop", "Ghostty"),
         ];
 
@@ -525,14 +525,14 @@ mod tests {
                 "/dev/pts/1",
                 201,
                 "codex",
-                "/home/avifenesh/projects/codex-app-linux",
+                "/home/avifenesh/projects/chatgpt-linux",
             ),
         ];
 
         let matched = resolve_window_target(
             &windows,
             &WindowTarget {
-                terminal_cwd: Some("projects/codex-app-linux".to_string()),
+                terminal_cwd: Some("projects/chatgpt-linux".to_string()),
                 ..Default::default()
             },
         )
@@ -549,7 +549,7 @@ mod tests {
             "/dev/pts/1",
             201,
             "codex",
-            "/home/avifenesh/projects/codex-app-linux",
+            "/home/avifenesh/projects/chatgpt-linux",
         )];
 
         let error = resolve_window_target(
@@ -617,7 +617,7 @@ mod tests {
             "at": [10, 48],
             "size": [1900, 1022],
             "workspace": {"id": 1, "name": "1"},
-            "class": "codex-app",
+            "class": "chatgpt",
             "title": "Codex",
             "pid": 68986,
             "xwayland": false,
@@ -763,8 +763,8 @@ mod tests {
             {
               "uuid": "{b4dfacf8-a559-43c9-8b1f-ecd5cfd78359}",
               "caption": "Codex",
-              "desktopFile": "codex-app",
-              "resourceClass": "codex-app",
+              "desktopFile": "chatgpt",
+              "resourceClass": "chatgpt",
               "resourceName": "codex",
               "pid": 68986,
               "x": 10,
@@ -792,8 +792,8 @@ mod tests {
         assert_eq!(windows.len(), 1);
         assert_eq!(windows[0].window_id, kwin_window_id_from_uuid(uuid));
         assert_eq!(windows[0].title.as_deref(), Some("Codex"));
-        assert_eq!(windows[0].app_id.as_deref(), Some("codex-app"));
-        assert_eq!(windows[0].wm_class.as_deref(), Some("codex-app"));
+        assert_eq!(windows[0].app_id.as_deref(), Some("chatgpt"));
+        assert_eq!(windows[0].wm_class.as_deref(), Some("chatgpt"));
         assert_eq!(windows[0].pid, Some(68986));
         assert_eq!(windows[0].bounds.as_ref().unwrap().x, Some(10));
         assert_eq!(windows[0].bounds.as_ref().unwrap().height, 800);
@@ -855,7 +855,7 @@ mod tests {
 
     #[test]
     fn hyprland_backend_can_exact_focus_targets() {
-        let mut window = window(2, "Codex", "codex-app", "codex-app");
+        let mut window = window(2, "Codex", "chatgpt", "chatgpt");
         window.backend = HYPRLAND_BACKEND.to_string();
 
         ensure_backend_can_focus_target(
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn kwin_backend_can_exact_focus_targets() {
-        let mut window = window(2, "Codex", "codex-app", "codex-app");
+        let mut window = window(2, "Codex", "chatgpt", "chatgpt");
         window.backend = KWIN_BACKEND.to_string();
 
         ensure_backend_can_focus_target(

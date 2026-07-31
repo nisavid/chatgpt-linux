@@ -3,10 +3,10 @@ set -Eeuo pipefail
 
 : "${INSTALL_DIR:?INSTALL_DIR is required}"
 
-codex_linux_dir="$INSTALL_DIR/.codex-linux"
+chatgpt_linux_dir="$INSTALL_DIR/.chatgpt-linux"
 resources_dir="$INSTALL_DIR/resources"
 node_repl="$resources_dir/node_repl"
-original_node_repl="$resources_dir/node_repl.codex-linux-original"
+original_node_repl="$resources_dir/node_repl.chatgpt-linux-original"
 
 restore_node_repl() {
     [ -e "$original_node_repl" ] || return 0
@@ -33,13 +33,13 @@ remove_session_hook() {
     [ -f "$hooks_file" ] || return 0
     command -v python3 >/dev/null 2>&1 || return 0
 
-    CODEX_MCP_HELPER_REAPER_HOOKS_FILE="$hooks_file" python3 - <<'PY'
+    CHATGPT_MCP_HELPER_REAPER_HOOKS_FILE="$hooks_file" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
 
-marker = "codex-mcp-helper-reaper-session"
-hooks_file = Path(os.environ["CODEX_MCP_HELPER_REAPER_HOOKS_FILE"])
+marker = "chatgpt-mcp-helper-reaper-session"
+hooks_file = Path(os.environ["CHATGPT_MCP_HELPER_REAPER_HOOKS_FILE"])
 
 try:
     data = json.loads(hooks_file.read_text(encoding="utf-8"))
@@ -88,7 +88,7 @@ PY
 }
 
 restore_node_repl
-rm -rf "$codex_linux_dir/mcp-helper-reaper"
-rm -f "$codex_linux_dir/cold-start.d/mcp-helper-reaper"
-rm -f "$codex_linux_dir/after-exit.d/mcp-helper-reaper"
+rm -rf "$chatgpt_linux_dir/mcp-helper-reaper"
+rm -f "$chatgpt_linux_dir/cold-start.d/mcp-helper-reaper"
+rm -f "$chatgpt_linux_dir/after-exit.d/mcp-helper-reaper"
 remove_session_hook

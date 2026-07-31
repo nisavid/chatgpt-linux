@@ -3,11 +3,11 @@ set -euo pipefail
 
 integration_dir="$SCRIPT_DIR/port-integrations/mcp-helper-reaper"
 reaper_crate_dir="$integration_dir/reaper"
-codex_linux_dir="$INSTALL_DIR/.codex-linux"
-mcp_reaper_dir="$codex_linux_dir/mcp-helper-reaper"
+chatgpt_linux_dir="$INSTALL_DIR/.chatgpt-linux"
+mcp_reaper_dir="$chatgpt_linux_dir/mcp-helper-reaper"
 resources_dir="$INSTALL_DIR/resources"
 node_repl="$resources_dir/node_repl"
-original_node_repl="$resources_dir/node_repl.codex-linux-original"
+original_node_repl="$resources_dir/node_repl.chatgpt-linux-original"
 
 find_cargo_for_mcp_helper_reaper() {
     if command -v cargo >/dev/null 2>&1; then
@@ -34,14 +34,14 @@ find_cargo_for_mcp_helper_reaper() {
 
 resolve_reaper_source() {
     local cargo_cmd=""
-    local source_binary="$reaper_crate_dir/target/release/codex-mcp-helper-reaper"
+    local source_binary="$reaper_crate_dir/target/release/chatgpt-mcp-helper-reaper"
 
-    if [ -n "${CODEX_MCP_HELPER_REAPER_SOURCE:-}" ]; then
-        [ -x "$CODEX_MCP_HELPER_REAPER_SOURCE" ] || {
-            echo "mcp-helper-reaper source is not executable: $CODEX_MCP_HELPER_REAPER_SOURCE" >&2
+    if [ -n "${CHATGPT_MCP_HELPER_REAPER_SOURCE:-}" ]; then
+        [ -x "$CHATGPT_MCP_HELPER_REAPER_SOURCE" ] || {
+            echo "mcp-helper-reaper source is not executable: $CHATGPT_MCP_HELPER_REAPER_SOURCE" >&2
             return 1
         }
-        printf '%s\n' "$CODEX_MCP_HELPER_REAPER_SOURCE"
+        printf '%s\n' "$CHATGPT_MCP_HELPER_REAPER_SOURCE"
         return 0
     fi
 
@@ -83,10 +83,10 @@ restore_previous_node_repl_wrapper() {
 reaper_source="$(resolve_reaper_source)"
 restore_previous_node_repl_wrapper
 
-mkdir -p "$mcp_reaper_dir" "$codex_linux_dir/cold-start.d" "$codex_linux_dir/after-exit.d"
-install -m 0755 "$reaper_source" "$mcp_reaper_dir/codex-mcp-helper-reaper"
+mkdir -p "$mcp_reaper_dir" "$chatgpt_linux_dir/cold-start.d" "$chatgpt_linux_dir/after-exit.d"
+install -m 0755 "$reaper_source" "$mcp_reaper_dir/chatgpt-mcp-helper-reaper"
 install -m 0755 "$integration_dir/install-session-hook.sh" "$mcp_reaper_dir/install-session-hook.sh"
-install -m 0755 "$integration_dir/cold-start-hook.sh" "$codex_linux_dir/cold-start.d/mcp-helper-reaper"
-install -m 0755 "$integration_dir/after-exit-hook.sh" "$codex_linux_dir/after-exit.d/mcp-helper-reaper"
+install -m 0755 "$integration_dir/cold-start-hook.sh" "$chatgpt_linux_dir/cold-start.d/mcp-helper-reaper"
+install -m 0755 "$integration_dir/after-exit-hook.sh" "$chatgpt_linux_dir/after-exit.d/mcp-helper-reaper"
 
 echo "mcp-helper-reaper staged: orphan MCP helper reaper installed" >&2

@@ -351,9 +351,9 @@ done
 }
 
 parent_pid="$PPID"
-max_seconds="${CODEX_GLOBAL_DICTATION_MAX_HOLD_SECONDS:-1800}"
+max_seconds="${CHATGPT_GLOBAL_DICTATION_MAX_HOLD_SECONDS:-1800}"
 [[ "$max_seconds" =~ ^[1-9][0-9]*$ ]] || max_seconds=1800
-event_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-global-dictation.XXXXXX")"
+event_dir="$(mktemp -d "${TMPDIR:-/tmp}/chatgpt-global-dictation.XXXXXX")"
 event_fifo="$event_dir/events"
 monitor_pids=()
 

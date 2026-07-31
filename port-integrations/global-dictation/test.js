@@ -183,10 +183,10 @@ test("global dictation stays disabled until selected", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "global-dictation-feature-"));
   const configPath = path.join(tempDir, "integrations.json");
   const integrationsRoot = path.resolve(__dirname, "..");
-  const previous = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const previous = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
 
   try {
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     fs.writeFileSync(configPath, `${JSON.stringify(integrationSelection(integrationsRoot, []))}\n`);
     assert.deepEqual(loadPortIntegrationPatchDescriptors({ integrationsRoot }), []);
 
@@ -197,8 +197,8 @@ test("global dictation stays disabled until selected", () => {
     ]);
     assert.equal(loaded[0].ciPolicy, "optional");
   } finally {
-    if (previous == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = previous;
+    if (previous == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = previous;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -209,10 +209,10 @@ test("main patch enables Linux and preserves the other platform gates", () => {
     patched,
     /function W7\(\)\{return process\.platform===`darwin`\|\|process\.platform===`win32`\|\|process\.platform===`linux`\}/,
   );
-  assert.match(patched, /case`linux`:if\(codexLinuxGlobalDictationUsesWayland\(\)\)/);
+  assert.match(patched, /case`linux`:if\(chatgptLinuxGlobalDictationUsesWayland\(\)\)/);
   assert.match(
     patched,
-    /await codexLinuxGlobalDictationPasteX11\(\)/,
+    /await chatgptLinuxGlobalDictationPasteX11\(\)/,
   );
   assert.doesNotMatch(patched, /return _A\(n,t\)/);
   assert.doesNotMatch(patched, /await k7\(`xdotool`/);
@@ -232,9 +232,9 @@ test("main patch handles dollar signs in minified identifiers", () => {
 
 test("Wayland registration uses a release-aware portal helper", () => {
   const patched = applyPatchTwice(mainBundleFixture());
-  assert.match(patched, /function codexLinuxGlobalDictationUsesWayland\(/);
-  assert.match(patched, /function codexLinuxGlobalDictationPortalRegistration\(/);
-  assert.match(patched, /codexLinuxGlobalDictationPortalQueue=Promise\.resolve\(\)/);
+  assert.match(patched, /function chatgptLinuxGlobalDictationUsesWayland\(/);
+  assert.match(patched, /function chatgptLinuxGlobalDictationPortalRegistration\(/);
+  assert.match(patched, /chatgptLinuxGlobalDictationPortalQueue=Promise\.resolve\(\)/);
   assert.match(patched, /handlesRelease: true/);
   assert.match(patched, /line === "down" && isReady && !pressed/);
   assert.match(patched, /line === "up" && isReady && pressed/);
@@ -248,7 +248,7 @@ test("Wayland registration forwards one press and release per helper transition"
   let pressed = 0;
   let released = 0;
   let unavailable = 0;
-  const registration = context.codexLinuxGlobalDictationPortalRegistration("Ctrl+Space", {
+  const registration = context.chatgptLinuxGlobalDictationPortalRegistration("Ctrl+Space", {
     onPressed: () => pressed++,
     onReleased: () => released++,
     onUnavailable: () => unavailable++,
@@ -273,7 +273,7 @@ test("Wayland registration forwards one press and release per helper transition"
 test("Wayland paste errors reject only the active request", async () => {
   const child = fakeHelperChild();
   const context = waylandPatchContext([child]);
-  const registration = context.codexLinuxGlobalDictationPortalRegistration("Ctrl+Space", {});
+  const registration = context.chatgptLinuxGlobalDictationPortalRegistration("Ctrl+Space", {});
   await new Promise(setImmediate);
   child.stdout.emit("data", Buffer.from("ready\n"));
   await new Promise(setImmediate);
@@ -322,7 +322,7 @@ test("Wayland helper failure is reported once and releases the registration queu
   const secondChild = fakeHelperChild();
   const context = waylandPatchContext([firstChild, secondChild]);
   const failures = [];
-  context.codexLinuxGlobalDictationPortalRegistration("Ctrl+Space", {
+  context.chatgptLinuxGlobalDictationPortalRegistration("Ctrl+Space", {
     onPressed() {
       assert.fail("failed helper must not emit a press");
     },
@@ -336,7 +336,7 @@ test("Wayland helper failure is reported once and releases the registration queu
   assert.deepEqual(failures, ["portal unavailable"]);
   assert.equal(firstChild.killed, true);
 
-  const next = context.codexLinuxGlobalDictationPortalRegistration("Ctrl+Space", {});
+  const next = context.chatgptLinuxGlobalDictationPortalRegistration("Ctrl+Space", {});
   await new Promise(setImmediate);
   secondChild.stdout.emit("data", Buffer.from("ready\n"));
   await new Promise(setImmediate);
@@ -346,8 +346,8 @@ test("Wayland helper failure is reported once and releases the registration queu
 
 test("X11 hold mode starts the bounded release watcher", () => {
   const patched = applyPatchTwice(mainBundleFixture());
-  assert.match(patched, /function codexLinuxGlobalDictationReleaseWatcher\(/);
-  assert.match(patched, /case`linux`:\{let n=codexLinuxGlobalDictationReleaseWatcher\(e,t\)/);
+  assert.match(patched, /function chatgptLinuxGlobalDictationReleaseWatcher\(/);
+  assert.match(patched, /case`linux`:\{let n=chatgptLinuxGlobalDictationReleaseWatcher\(e,t\)/);
   assert.match(patched, /t===`darwin`\|\|t===`linux`\?mA\(e\)\.length>0/);
   assert.match(
     patched,
@@ -635,13 +635,13 @@ test("stage hook accepts a verified prebuilt helper", () => {
       cwd: path.resolve(__dirname, "../.."),
       env: {
         ...process.env,
-        CODEX_GLOBAL_DICTATION_LINUX_SOURCE: process.execPath,
+        CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE: process.execPath,
         INSTALL_DIR: tempDir,
         SCRIPT_DIR: path.resolve(__dirname, "../.."),
       },
       stdio: "pipe",
     });
-    const target = path.join(tempDir, "resources", "native", "codex-global-dictation-linux");
+    const target = path.join(tempDir, "resources", "native", "chatgpt-global-dictation-linux");
     assert.equal(fs.statSync(target).mode & 0o777, 0o755);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -665,7 +665,7 @@ test("stage hook builds from the repository root", () => {
       "printf '%s\\n' \"$*\" > \"$FAKE_CARGO_ARGS\"",
       "target_dir=\"$FAKE_SOURCE_ROOT/global-dictation-linux/target/release\"",
       "mkdir -p \"$target_dir\"",
-      "cp \"$FAKE_SOURCE_BINARY\" \"$target_dir/codex-global-dictation-linux\"",
+      "cp \"$FAKE_SOURCE_BINARY\" \"$target_dir/chatgpt-global-dictation-linux\"",
     ].join("\n"),
     { mode: 0o755 },
   );
@@ -692,7 +692,7 @@ test("stage hook builds from the repository root", () => {
     );
     assert.equal(
       fs.statSync(
-        path.join(installDir, "resources", "native", "codex-global-dictation-linux"),
+        path.join(installDir, "resources", "native", "chatgpt-global-dictation-linux"),
       ).mode & 0o777,
       0o755,
     );

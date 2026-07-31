@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO="nisavid/codex-app-linux"
+DEFAULT_REPO="nisavid/chatgpt-linux"
 DEFAULT_WORKFLOW="verify-apple-dmg.yml"
 DEFAULT_RUN_PREFIX="Verify Apple DMG"
 
@@ -80,10 +80,10 @@ wait_apple_verification() {
     local repo="$DEFAULT_REPO"
     local workflow="$DEFAULT_WORKFLOW"
     local ref="main"
-    local dmg_url="https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+    local dmg_url="https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
     local dmg_sha256=""
-    local timeout_seconds="${CODEX_HASH_REFRESH_VERIFY_TIMEOUT_SECONDS:-1800}"
-    local poll_interval_seconds="${CODEX_HASH_REFRESH_VERIFY_POLL_SECONDS:-15}"
+    local timeout_seconds="${CHATGPT_HASH_REFRESH_VERIFY_TIMEOUT_SECONDS:-1800}"
+    local poll_interval_seconds="${CHATGPT_HASH_REFRESH_VERIFY_POLL_SECONDS:-15}"
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -103,7 +103,7 @@ wait_apple_verification() {
     [[ "$poll_interval_seconds" =~ ^[0-9]+$ ]] || error "--poll-interval-seconds must be numeric"
     [ "$poll_interval_seconds" -gt 0 ] || error "--poll-interval-seconds must be greater than zero"
 
-    local dispatch_id="${CODEX_HASH_REFRESH_VERIFY_DISPATCH_ID:-hash-refresh-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-0}-$$-$RANDOM}"
+    local dispatch_id="${CHATGPT_HASH_REFRESH_VERIFY_DISPATCH_ID:-hash-refresh-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-0}-$$-$RANDOM}"
     local run_name="$DEFAULT_RUN_PREFIX $dmg_sha256 $dispatch_id"
     echo "[hash-refresh-evidence] Dispatching $workflow for $dmg_sha256 with dispatch ID $dispatch_id" >&2
     gh workflow run "$workflow" \
@@ -179,7 +179,7 @@ render_pr_body() {
     [ -n "$verification_url" ] || error "--verification-url is required"
 
     cat > "$output" <<EOF
-Refreshed Codex.dmg SRI hash to \`$dmg_sri\`.
+Refreshed ChatGPT.dmg SRI hash to \`$dmg_sri\`.
 
 This scheduled workflow pushes refreshed hashes to \`$branch\` and attempts to open or update a PR for maintainer review.
 
@@ -189,8 +189,8 @@ This scheduled workflow pushes refreshed hashes to \`$branch\` and attempts to o
 - Official app build: \`$app_build\`
 - Electron version: \`$electron_version\`
 - Native module pins: \`better-sqlite3=$better_sqlite3_version\`, \`node-pty=$node_pty_version\`
-- Codex.dmg SRI: \`$dmg_sri\`
-- Codex.dmg SHA-256: \`$dmg_sha256\`
+- ChatGPT.dmg SRI: \`$dmg_sri\`
+- ChatGPT.dmg SHA-256: \`$dmg_sha256\`
 - Apple DMG verification: passed in $verification_url
 EOF
 }

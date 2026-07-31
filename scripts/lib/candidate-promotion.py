@@ -167,7 +167,7 @@ def prepare(args: argparse.Namespace) -> None:
             "oldInode": old_identity[1],
         }
         write_file_durably(journal_path, f"{json.dumps(journal, indent=2, sort_keys=True)}\n")
-        if os.environ.get("CODEX_PROMOTION_TEST_FAIL_PREPARE_AFTER_JOURNAL") == "1":
+        if os.environ.get("CHATGPT_PROMOTION_TEST_FAIL_PREPARE_AFTER_JOURNAL") == "1":
             raise OSError("Simulated failure after writing the promotion journal")
     except Exception as error:
         try:
@@ -195,7 +195,7 @@ def abort(args: argparse.Namespace) -> None:
 
 
 def exchange(args: argparse.Namespace) -> None:
-    if os.environ.get("CODEX_PROMOTION_TEST_FAIL_EXCHANGE") == "1":
+    if os.environ.get("CHATGPT_PROMOTION_TEST_FAIL_EXCHANGE") == "1":
         raise RuntimeError("Simulated unsupported atomic directory exchange")
     atomic_exchange(Path(args.left).absolute(), Path(args.right).absolute())
 
@@ -213,7 +213,7 @@ def finalize(args: argparse.Namespace) -> None:
         raise RuntimeError("The exchanged previous app no longer matches the promotion journal")
     if backup.exists():
         raise RuntimeError(f"Promotion backup already exists: {backup}")
-    if os.environ.get("CODEX_PROMOTION_TEST_FAIL_BACKUP_MOVE") == "1":
+    if os.environ.get("CHATGPT_PROMOTION_TEST_FAIL_BACKUP_MOVE") == "1":
         raise RuntimeError("Simulated backup move failure")
 
     os.rename(candidate, backup)

@@ -31,9 +31,9 @@ fine.
 - `Linux-port upstream`: `ilysenko/codex-desktop-linux`, the git remote named
   `upstream`, and sync work that imports that repository's Linux conversion
   changes.
-- `Official OpenAI Codex DMG`: the OpenAI-distributed macOS app artifact used
+- `Official OpenAI ChatGPT DMG`: the OpenAI-distributed macOS app artifact used
   as app-generation input.
-- `Official OpenAI app bundle`: the `Codex.app` bundle extracted from the DMG
+- `Official OpenAI app bundle`: the `ChatGPT.app` bundle extracted from the DMG
   and patched for Linux.
 - `OpenAI-hosted services`: account, rollout, entitlement, remote-control, and
   other service-side behavior outside this fork's local packaging path.
@@ -43,11 +43,11 @@ fine.
 Use `port integration` for configurable build-time modules that adapt official app
 behavior or local runtime helpers to this Linux port. The implementation path,
 config file, and environment variables are `port-integrations/`,
-`port-integrations.json`, and `CODEX_PORT_INTEGRATIONS_*`; mention those exact names
+`port-integrations.json`, and `CHATGPT_PORT_INTEGRATIONS_*`; mention those exact names
 only when documenting source paths or config APIs.
 
 Do not call port integrations features of Linux. They are port-authored
-integrations for user-facing Codex app surfaces, and this fork enables the
+integrations for user-facing ChatGPT app surfaces, and this fork enables the
 supported integration set by default as part of the complete local package.
 
 ## File structure

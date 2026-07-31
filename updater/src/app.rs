@@ -87,8 +87,8 @@ pub async fn run(cli: Cli) -> Result<()> {
         PersistedState::load_or_default(&paths.state_file, effective_auto_install(&config))?;
     #[cfg(test)]
     wait_for_process_test_barrier(
-        "CODEX_APP_UPDATER_TEST_ENTRYPOINT_LOADED",
-        "CODEX_APP_UPDATER_TEST_ENTRYPOINT_CONTINUE",
+        "CHATGPT_UPDATER_TEST_ENTRYPOINT_LOADED",
+        "CHATGPT_UPDATER_TEST_ENTRYPOINT_CONTINUE",
     )?;
     if !matches!(
         &cli.command,
@@ -99,7 +99,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         persist_if_changed(&paths, &state, &original_state)?;
     }
     #[cfg(test)]
-    signal_process_test_marker("CODEX_APP_UPDATER_TEST_ENTRYPOINT_PRE_DISPATCH")?;
+    signal_process_test_marker("CHATGPT_UPDATER_TEST_ENTRYPOINT_PRE_DISPATCH")?;
 
     match cli.command {
         Commands::Daemon => run_daemon(&config, &mut state, &paths).await,
@@ -606,7 +606,7 @@ async fn ensure_downloaded_dmg_still_matches_verified_metadata(
 }
 
 fn packaged_runtime_removed(config: &RuntimeConfig) -> bool {
-    config.builder_bundle_root == Path::new("/usr/lib/codex-app/update-builder")
+    config.builder_bundle_root == Path::new("/usr/lib/chatgpt/update-builder")
         && !config.app_executable_path.exists()
         && !install::is_primary_package_installed()
 }
@@ -678,7 +678,7 @@ async fn acquire_check_lock(
             return Ok(Some(check_lock));
         }
         #[cfg(test)]
-        signal_process_test_marker("CODEX_APP_UPDATER_TEST_CHECK_LOCK_BUSY")?;
+        signal_process_test_marker("CHATGPT_UPDATER_TEST_CHECK_LOCK_BUSY")?;
 
         if behavior == CheckLockBehavior::SkipIfBusy {
             return Ok(None);
@@ -832,20 +832,6 @@ async fn run_check_now(
     run_check_cycle_with_options(config, state, paths, lock_behavior, if_stale, true, true).await
 }
 
-fn remote_dmg_check_is_fresh(config: &RuntimeConfig, state: &PersistedState) -> bool {
-    let Some(last_successful_check_at) = state.last_successful_check_at else {
-        return false;
-    };
-
-    let elapsed = Utc::now().signed_duration_since(last_successful_check_at);
-    if elapsed < ChronoDuration::zero() {
-        return false;
-    }
-
-    let freshness_window = ChronoDuration::hours(config.check_interval_hours as i64);
-    elapsed < freshness_window
-}
-
 /// Detects a newer wrapper release and records it into state. Returns
 /// `Ok(true)` when an update was found and recorded. No-ops (returning
 /// `Ok(false)`) when wrapper tracking is disabled, the builder bundle is not a
@@ -911,9 +897,9 @@ fn detect_and_record_wrapper_update(
                 paths,
                 config.notifications,
                 &format!("wrapper_update:{}", update.candidate_commit),
-                "Codex App wrapper update available",
+                "ChatGPT wrapper update available",
                 &format!(
-                    "A newer codex-app build is available ({change_count} change(s)). Rebuild to apply."
+                    "A newer chatgpt build is available ({change_count} change(s)). Rebuild to apply."
                 ),
             )?;
 
@@ -1302,7 +1288,7 @@ fn run_kdialog_prompt() -> Result<bool> {
     let status = Command::new("kdialog")
         .args([
             "--title",
-            "Codex App",
+            "ChatGPT",
             "--yesno",
             "Codex CLI is not installed. Install it now?",
         ])
@@ -1315,7 +1301,7 @@ fn run_zenity_prompt() -> Result<bool> {
     let status = Command::new("zenity")
         .args([
             "--question",
-            "--title=Codex App",
+            "--title=ChatGPT",
             "--text=Codex CLI is not installed. Install it now?",
         ])
         .status()
@@ -1326,7 +1312,7 @@ fn run_zenity_prompt() -> Result<bool> {
 fn run_actionable_notification_prompt() -> Result<bool> {
     match notify::send_actionable(
         "Codex CLI not installed",
-        "Codex App needs the Codex CLI. Choose Install now to let Codex App install it.",
+        "ChatGPT needs the Codex CLI. Choose Install now to let ChatGPT install it.",
         &[("install", "Install now"), ("dismiss", "Dismiss")],
     )? {
         notify::ActionResponse::Invoked(action) if action == "install" => Ok(true),
@@ -1530,7 +1516,7 @@ async fn run_check_cycle_with_options(
             paths,
             config.notifications,
             "update_detected",
-            "New Codex App update detected",
+            "New ChatGPT update detected",
             "Preparing a local Linux package from the new official OpenAI ChatGPT DMG.",
         )?;
 
@@ -1651,8 +1637,8 @@ async fn reconcile_pending_install(
                     paths,
                     config.notifications,
                     "ready_to_install",
-                    "Codex App update ready",
-                    "Open Codex App and choose Update to install the ready update.",
+                    "ChatGPT update ready",
+                    "Open ChatGPT and choose Update to install the ready update.",
                 )?;
                 return Ok(());
             }
@@ -1708,8 +1694,8 @@ async fn reconcile_pending_install(
                     paths,
                     config.notifications,
                     "waiting_for_app_exit",
-                    "Codex App update ready",
-                    "An update is ready and will install after you close Codex App.",
+                    "ChatGPT update ready",
+                    "An update is ready and will install after you close ChatGPT.",
                 )?;
                 return Ok(());
             }
@@ -1751,8 +1737,8 @@ async fn run_install_ready(
     reload_state_from_disk(config, state, paths)?;
     #[cfg(test)]
     wait_for_process_test_barrier(
-        "CODEX_APP_UPDATER_TEST_INSTALL_READY_RELOADED",
-        "CODEX_APP_UPDATER_TEST_INSTALL_READY_CONTINUE",
+        "CHATGPT_UPDATER_TEST_INSTALL_READY_RELOADED",
+        "CHATGPT_UPDATER_TEST_INSTALL_READY_CONTINUE",
     )?;
     run_install_ready_locked(config, state, paths).await
 }
@@ -1810,14 +1796,14 @@ async fn run_install_ready_locked(
             .unwrap_or_else(|| "Previous install attempt could not be recovered".to_string());
         maybe_send_notification(
             config.notifications,
-            "Codex update failed",
+            "ChatGPT update failed",
             "The previous install attempt could not be recovered. Check the updater log for details.",
         );
         return Err(anyhow::anyhow!(message));
     }
 
     if complete_current_dmg_update_if_already_installed(config, state, paths)? {
-        println!("Codex App is already up to date.");
+        println!("ChatGPT is already up to date.");
         return Ok(());
     }
 
@@ -1827,7 +1813,7 @@ async fn run_install_ready_locked(
         if pending_recovery.should_notify_installed() {
             let _ = maybe_notify_installed(state, paths, config.notifications);
         }
-        println!("Codex App update is already installed or superseded.");
+        println!("ChatGPT update is already installed or superseded.");
         return Ok(());
     }
 
@@ -1836,19 +1822,19 @@ async fn run_install_ready_locked(
         UpdateStatus::Installing => {
             maybe_send_notification(
                 config.notifications,
-                "Codex update already installing",
-                "Codex App is already applying the ready update.",
+                "ChatGPT update already installing",
+                "ChatGPT is already applying the ready update.",
             );
-            println!("Codex App update is already installing.");
+            println!("ChatGPT update is already installing.");
             return Ok(());
         }
         _ => {
             maybe_send_notification(
                 config.notifications,
-                "No Codex update ready",
-                "There is no rebuilt Codex App update waiting to install.",
+                "No ChatGPT update ready",
+                "There is no rebuilt ChatGPT update waiting to install.",
             );
-            println!("No Codex App update is ready to install.");
+            println!("No ChatGPT update is ready to install.");
             return Ok(());
         }
     }
@@ -1858,7 +1844,7 @@ async fn run_install_ready_locked(
         mark_failed_and_persist(state, paths, message)?;
         maybe_send_notification(
             config.notifications,
-            "Codex App update failed",
+            "ChatGPT update failed",
             "The updater has no package path recorded for the ready update.",
         );
         return Err(anyhow::anyhow!(message));
@@ -1872,7 +1858,7 @@ async fn run_install_ready_locked(
         mark_failed_and_persist(state, paths, message.clone())?;
         maybe_send_notification(
             config.notifications,
-            "Codex App update failed",
+            "ChatGPT update failed",
             "The rebuilt package is missing. Check the updater log for details.",
         );
         return Err(anyhow::anyhow!(message));
@@ -1881,7 +1867,7 @@ async fn run_install_ready_locked(
     if let Err(error) = ensure_ready_update_has_verified_dmg(state) {
         let message = error.to_string();
         mark_failed_and_persist(state, paths, message.clone())?;
-        maybe_send_notification(config.notifications, "Codex update failed", &message);
+        maybe_send_notification(config.notifications, "ChatGPT update failed", &message);
         return Err(anyhow::anyhow!(message));
     }
     let expected_package =
@@ -1890,7 +1876,7 @@ async fn run_install_ready_locked(
             Err(error) => {
                 let message = error.to_string();
                 mark_failed_and_persist(state, paths, message.clone())?;
-                maybe_send_notification(config.notifications, "Codex update failed", &message);
+                maybe_send_notification(config.notifications, "ChatGPT update failed", &message);
                 return Err(anyhow::anyhow!(message));
             }
         };
@@ -1906,10 +1892,10 @@ async fn run_install_ready_locked(
         set_waiting_for_app_exit(state, paths, false)?;
         maybe_send_notification(
             config.notifications,
-            "Codex App update ready",
-            "Close Codex App to install the ready update.",
+            "ChatGPT update ready",
+            "Close ChatGPT to install the ready update.",
         );
-        println!("Codex App is running. Close it to install the ready update.");
+        println!("ChatGPT is running. Close it to install the ready update.");
         return Ok(());
     }
 
@@ -2044,8 +2030,8 @@ fn installed_upstream_dmg_sha256(config: &RuntimeConfig) -> Option<String> {
 fn installed_build_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(app_root) = config.app_executable_path.parent() {
-        paths.push(app_root.join(".codex-linux/build-info.json"));
-        paths.push(app_root.join("resources/codex-linux-build-info.json"));
+        paths.push(app_root.join(".chatgpt-linux/build-info.json"));
+        paths.push(app_root.join("resources/chatgpt-linux-build-info.json"));
     }
     paths
 }
@@ -2195,20 +2181,6 @@ fn installed_version_matches_candidate(installed: &str, candidate: &str) -> bool
     }
 }
 
-fn rollback_blocks_candidate(
-    state: &PersistedState,
-    candidate_sha256: &str,
-    candidate_version: &str,
-) -> bool {
-    match state.rollback_blocked_dmg_sha256.as_deref() {
-        Some(blocked_sha256) => blocked_sha256 == candidate_sha256,
-        None => state
-            .rollback_blocked_candidate_version
-            .as_deref()
-            .is_some_and(|blocked| installed_version_matches_candidate(blocked, candidate_version)),
-    }
-}
-
 fn clear_rollback_blocked_candidate(state: &mut PersistedState) {
     state.rollback_blocked_candidate_version = None;
     state.rollback_blocked_dmg_sha256 = None;
@@ -2308,7 +2280,7 @@ fn maybe_notify_cli_missing(
         enabled,
         CLI_MISSING_NOTIFICATION_EVENT,
         "Codex CLI not installed",
-        "Codex App needs the Codex CLI. Open the app to retry the automatic install flow, or install it manually with npm.",    )
+        "ChatGPT needs the Codex CLI. Open the app to retry the automatic install flow, or install it manually with npm.",    )
 }
 
 fn maybe_notify_installed(
@@ -2325,7 +2297,7 @@ fn maybe_notify_installed(
         paths,
         enabled,
         "installed",
-        "Codex App updated",
+        "ChatGPT updated",
         "The new package is installed and will be used the next time you open the app.",
     )
 }
@@ -2346,11 +2318,11 @@ fn maybe_notify_update_ready(
 
     if enabled {
         let body = if state.auto_install_on_app_exit {
-            "A rebuilt Linux package is ready. Close Codex App to install it, or open Codex App and choose Update."
+            "A rebuilt Linux package is ready. Close ChatGPT to install it, or open ChatGPT and choose Update."
         } else {
-            "A rebuilt Linux package is ready. Open Codex App and choose Update to install it."
+            "A rebuilt Linux package is ready. Open ChatGPT and choose Update to install it."
         };
-        if let Err(error) = notify::send("Codex App update ready", body) {
+        if let Err(error) = notify::send("ChatGPT update ready", body) {
             warn!(?error, "failed to send update-ready notification");
         }
     }
@@ -2422,7 +2394,7 @@ async fn trigger_install(
 
     maybe_send_notification(
         notifications,
-        "Installing Codex App update",
+        "Installing ChatGPT update",
         "Applying the locally rebuilt Linux package.",
     );
 
@@ -2469,7 +2441,7 @@ async fn trigger_install(
 
     mark_failed_and_persist(state, paths, error.to_string())?;
     let _ = notify::send(
-        "Codex App update failed",
+        "ChatGPT update failed",
         "The package could not be installed. Check the updater log for details.",
     );
     Err(error)
@@ -2497,7 +2469,7 @@ fn manual_install_required_message(
     expected_package: &install::ExpectedPackage,
 ) -> String {
     format!(
-        "No graphical polkit authentication agent is available for pkexec. Run this from a terminal after closing Codex App: {}",
+        "No graphical polkit authentication agent is available for pkexec. Run this from a terminal after closing ChatGPT: {}",
         manual_install_command(package_path, expected_package)    )
 }
 
@@ -2511,7 +2483,7 @@ fn manual_install_command(
         install::PackageKind::Pacman => "install-pacman",
     };
     format!(
-        "sudo /usr/bin/codex-app-updater {subcommand} --path {} --expected-sha256 {} --expected-package-name {} --expected-package-version {}",
+        "sudo /usr/bin/chatgpt-updater {subcommand} --path {} --expected-sha256 {} --expected-package-name {} --expected-package-version {}",
         shell_quote_path(package_path),
         shell_quote_value(expected_package.sha256()),
         shell_quote_value(expected_package.package_name()),
@@ -2529,7 +2501,7 @@ fn shell_quote_value(value: &str) -> String {
 
 fn print_manual_install_required(package_path: &Path, expected_package: &install::ExpectedPackage) {
     println!("Manual install required: no graphical polkit authentication agent is available.");
-    println!("Run this from a terminal after closing Codex App:");
+    println!("Run this from a terminal after closing ChatGPT:");
     println!("{}", manual_install_command(package_path, expected_package));
 }
 
@@ -2558,22 +2530,22 @@ fn maybe_notify_manual_install_required(
         paths,
         enabled,
         "manual_install_required",
-        "Codex update needs manual install",
-        "No graphical authentication agent was found for pkexec. Run codex-app-updater status for details.",    )
+        "ChatGPT update needs manual install",
+        "No graphical authentication agent was found for pkexec. Run chatgpt-updater status for details.",    )
 }
 
 fn maybe_send_manual_install_required_notification(enabled: bool) {
     maybe_send_notification(
         enabled,
-        "Codex update needs manual install",
-        "No graphical authentication agent was found for pkexec. Run codex-app-updater status for details.",    );
+        "ChatGPT update needs manual install",
+        "No graphical authentication agent was found for pkexec. Run chatgpt-updater status for details.",    );
 }
 
 fn graphical_polkit_auth_agent_is_likely_available() -> bool {
-    if std::env::var_os("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT").is_some() {
+    if std::env::var_os("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT").is_some() {
         return false;
     }
-    if std::env::var_os("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT").is_some() {
+    if std::env::var_os("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT").is_some() {
         return true;
     }
     if !has_user_session_bus_for_polkit() {
@@ -2650,7 +2622,7 @@ fn defer_install_until_next_app_exit(
     if let Some(event_key) = install_auth_required_event_key(state) {
         if state.notified_events.insert(event_key) {
             let _ = notify::send(
-                "Codex App update needs permission",
+                "ChatGPT update needs permission",
                 "The ready update will retry after the next app close. Approve the system authentication dialog to install it.",
             );
         }
@@ -2671,7 +2643,7 @@ fn notify_failure(
         paths,
         config.notifications,
         "build_failed",
-        "Codex App update failed",
+        "ChatGPT update failed",
         &body,
     )
 }
@@ -2694,7 +2666,7 @@ mod tests {
             version: Some(version.to_string()),
             sha256: Some(TRUSTED_TEST_DMG_SHA256.to_string()),
             manifest_path: Some(PathBuf::from(
-                "/usr/lib/codex-app/update-builder/updater/trusted-dmg-manifest.json",
+                "/usr/lib/chatgpt/update-builder/updater/trusted-dmg-manifest.json",
             )),
             verified_at: Some(Utc::now()),
             message: Some("Downloaded DMG matched repo-trusted metadata".to_string()),
@@ -2707,7 +2679,7 @@ mod tests {
         version: &str,
     ) -> Result<PathBuf> {
         let workspace = workspace_root.join("workspaces").join(version);
-        let package_path = workspace.join("dist/codex.deb");
+        let package_path = workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -2760,9 +2732,9 @@ mod tests {
             .app_executable_path
             .parent()
             .expect("test app executable should have parent");
-        std::fs::create_dir_all(app_root.join(".codex-linux"))?;
+        std::fs::create_dir_all(app_root.join(".chatgpt-linux"))?;
         std::fs::write(
-            app_root.join(".codex-linux/build-info.json"),
+            app_root.join(".chatgpt-linux/build-info.json"),
             format!(
                 r#"{{
   "upstreamDmg": {{
@@ -2773,35 +2745,6 @@ mod tests {
             ),
         )?;
         Ok(())
-    }
-
-    #[test]
-    fn remote_dmg_check_freshness_respects_configured_interval() {
-        let config = RuntimeConfig {
-            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
-            initial_check_delay_seconds: 1,
-            check_interval_hours: 6,
-            auto_install_on_app_exit: true,
-            notifications: false,
-            developer_mode: false,
-            workspace_root: std::path::PathBuf::from("/tmp/cache"),
-            builder_bundle_root: std::path::PathBuf::from("/tmp/builder"),
-            app_executable_path: std::path::PathBuf::from("/tmp/electron"),
-            cli_path: None,
-            enable_wrapper_updates: false,
-            wrapper_remote: String::new(),
-            wrapper_branch: "main".to_string(),
-            generated_artifact_cleanup: Default::default(),
-        };
-
-        let mut state = PersistedState::new(true);
-        assert!(!remote_dmg_check_is_fresh(&config, &state));
-
-        state.last_successful_check_at = Some(Utc::now() - ChronoDuration::hours(1));
-        assert!(remote_dmg_check_is_fresh(&config, &state));
-
-        state.last_successful_check_at = Some(Utc::now() - ChronoDuration::hours(7));
-        assert!(!remote_dmg_check_is_fresh(&config, &state));
     }
 
     #[test]
@@ -2936,11 +2879,11 @@ mod tests {
         paths.ensure_dirs()?;
         let mut config = test_config(temp.path());
         config.enable_wrapper_updates = true;
-        std::fs::create_dir_all(config.builder_bundle_root.join(".codex-linux"))?;
+        std::fs::create_dir_all(config.builder_bundle_root.join(".chatgpt-linux"))?;
         std::fs::write(
             config
                 .builder_bundle_root
-                .join(".codex-linux/source-info.json"),
+                .join(".chatgpt-linux/source-info.json"),
             r#"{
   "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "version": "0.8.1"
@@ -3011,14 +2954,14 @@ mod tests {
             "NVM_DIR",
             "XDG_CONFIG_HOME",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", temp.path().join("missing-bin"));
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("XDG_CONFIG_HOME");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let mut state = PersistedState::new(true);
         state.last_successful_check_at = Some(Utc::now());
@@ -3091,7 +3034,7 @@ mod tests {
         state.status = UpdateStatus::Failed;
         state.candidate_version = Some("2999.03.25.010203+deadbeef".to_string());
         state.error_message = Some("previous failure".to_string());
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -3376,7 +3319,7 @@ mod tests {
             version: None,
             sha256: Some(TRUSTED_TEST_DMG_SHA256.to_string()),
             manifest_path: Some(PathBuf::from(
-                "/usr/lib/codex-app/update-builder/updater/trusted-dmg-manifest.json",
+                "/usr/lib/chatgpt/update-builder/updater/trusted-dmg-manifest.json",
             )),
             verified_at: Some(Utc::now()),
             message: Some("Downloaded DMG matched repo-trusted metadata".to_string()),
@@ -3396,7 +3339,7 @@ mod tests {
     #[tokio::test]
     async fn interrupted_download_with_cached_hash_requires_trusted_metadata() -> Result<()> {
         let server = MockServer::start().await;
-        let body = b"codex-dmg-test-payload";
+        let body = b"chatgpt-dmg-test-payload";
         let sha256 = "678cd508ffe0071e217020a7a4eecbebe25362c022ac78c13a5ae87b7a3a0c92";
         let headers_fingerprint = format!(
             "etag=\"same-dmg\"|last_modified=|content_length={}",
@@ -3543,14 +3486,14 @@ mod tests {
                 "NVM_DIR",
                 "XDG_CONFIG_HOME",
                 "CODEX_CLI_PATH",
-                "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+                "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
             ]);
             std::env::set_var("HOME", temp.path());
             std::env::set_var("PATH", temp.path().join("missing-bin"));
             std::env::remove_var("NVM_DIR");
             std::env::remove_var("XDG_CONFIG_HOME");
             std::env::remove_var("CODEX_CLI_PATH");
-            std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+            std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
             let mut persisted_state = PersistedState::new(true);
             persisted_state.remote_headers_fingerprint = Some(format!(
@@ -3649,13 +3592,13 @@ mod tests {
     }
 
     fn process_test_paths(root: &Path) -> RuntimePaths {
-        let config_dir = root.join("xdg-config/codex-app-updater");
-        let state_dir = root.join("xdg-state/codex-app-updater");
+        let config_dir = root.join("xdg-config/chatgpt-updater");
+        let state_dir = root.join("xdg-state/chatgpt-updater");
         RuntimePaths {
             config_file: config_dir.join("config.toml"),
             state_file: state_dir.join("state.json"),
             log_file: state_dir.join("service.log"),
-            cache_dir: root.join("xdg-cache/codex-app-updater"),
+            cache_dir: root.join("xdg-cache/chatgpt-updater"),
             state_dir,
             config_dir,
         }
@@ -3672,17 +3615,21 @@ mod tests {
             .arg("--exact")
             .arg("app::tests::updater_flow_process_child")
             .arg("--nocapture")
-            .env("CODEX_APP_UPDATER_TEST_PROCESS_ROLE", role)
+            .env("CHATGPT_UPDATER_TEST_PROCESS_ROLE", role)
+            .env(
+                "CHATGPT_UPDATER_TEST_INSTALLED_BINARY",
+                std::env::current_exe().expect("current updater test executable"),
+            )
             .env("HOME", root.join("home"))
             .env("XDG_CONFIG_HOME", root.join("xdg-config"))
             .env("XDG_STATE_HOME", root.join("xdg-state"))
             .env("XDG_CACHE_HOME", root.join("xdg-cache"))
             .env(
-                "CODEX_LINUX_SETTINGS_FILE",
+                "CHATGPT_LINUX_SETTINGS_FILE",
                 root.join("missing-settings.json"),
             )
-            .env_remove("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT")
-            .env("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", "1")
+            .env_remove("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT")
+            .env("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", "1")
             .env_remove("CODEX_CLI_PATH")
             .env_remove("FNM_DIR")
             .env_remove("FNM_MULTISHELL_PATH")
@@ -3840,12 +3787,12 @@ mod tests {
         std::fs::write(
             &fake_pkexec,
             "#!/bin/sh\n\
-             printf 'install\\n' >> \"$CODEX_APP_UPDATER_TEST_INSTALL_LOG\"\n\
-             if [ -n \"${CODEX_APP_UPDATER_TEST_INSTALL_STARTED:-}\" ]; then\n\
-               /bin/touch \"$CODEX_APP_UPDATER_TEST_INSTALL_STARTED\"\n\
+             printf 'install\\n' >> \"$CHATGPT_UPDATER_TEST_INSTALL_LOG\"\n\
+             if [ -n \"${CHATGPT_UPDATER_TEST_INSTALL_STARTED:-}\" ]; then\n\
+               /bin/touch \"$CHATGPT_UPDATER_TEST_INSTALL_STARTED\"\n\
              fi\n\
-             if [ -n \"${CODEX_APP_UPDATER_TEST_INSTALL_RELEASE:-}\" ]; then\n\
-               while [ ! -e \"$CODEX_APP_UPDATER_TEST_INSTALL_RELEASE\" ]; do\n\
+             if [ -n \"${CHATGPT_UPDATER_TEST_INSTALL_RELEASE:-}\" ]; then\n\
+               while [ ! -e \"$CHATGPT_UPDATER_TEST_INSTALL_RELEASE\" ]; do\n\
                  /bin/sleep 0.01\n\
                done\n\
              fi\n",
@@ -3858,7 +3805,7 @@ mod tests {
 
     #[test]
     fn updater_flow_process_child() -> Result<()> {
-        let Some(role) = std::env::var_os("CODEX_APP_UPDATER_TEST_PROCESS_ROLE") else {
+        let Some(role) = std::env::var_os("CHATGPT_UPDATER_TEST_PROCESS_ROLE") else {
             return Ok(());
         };
         let role = role.to_string_lossy();
@@ -3879,7 +3826,7 @@ mod tests {
                 ))
             }
             "cli-preflight" => {
-                let cli_path = std::env::var_os("CODEX_APP_UPDATER_TEST_CLI_PATH")
+                let cli_path = std::env::var_os("CHATGPT_UPDATER_TEST_CLI_PATH")
                     .map(PathBuf::from)
                     .context("missing process test CLI path")?;
                 runtime.block_on(run(Cli {
@@ -3921,10 +3868,10 @@ mod tests {
             temp.path(),
             "daemon-reconcile",
             &[
-                ("CODEX_APP_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_LOG", &install_log),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_STARTED", &install_started),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_RELEASE", &install_release),
+                ("CHATGPT_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
+                ("CHATGPT_UPDATER_TEST_INSTALL_LOG", &install_log),
+                ("CHATGPT_UPDATER_TEST_INSTALL_STARTED", &install_started),
+                ("CHATGPT_UPDATER_TEST_INSTALL_RELEASE", &install_release),
             ],
             &[&install_release],
         )?;
@@ -3960,20 +3907,17 @@ mod tests {
             temp.path(),
             "install-ready",
             &[
+                ("CHATGPT_UPDATER_TEST_ENTRYPOINT_LOADED", &entrypoint_loaded),
                 (
-                    "CODEX_APP_UPDATER_TEST_ENTRYPOINT_LOADED",
-                    &entrypoint_loaded,
-                ),
-                (
-                    "CODEX_APP_UPDATER_TEST_ENTRYPOINT_CONTINUE",
+                    "CHATGPT_UPDATER_TEST_ENTRYPOINT_CONTINUE",
                     &entrypoint_continue,
                 ),
                 (
-                    "CODEX_APP_UPDATER_TEST_ENTRYPOINT_PRE_DISPATCH",
+                    "CHATGPT_UPDATER_TEST_ENTRYPOINT_PRE_DISPATCH",
                     &pre_dispatch,
                 ),
-                ("CODEX_APP_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_LOG", &install_log),
+                ("CHATGPT_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
+                ("CHATGPT_UPDATER_TEST_INSTALL_LOG", &install_log),
             ],
             &[&entrypoint_continue],
         )?;
@@ -3983,10 +3927,10 @@ mod tests {
             temp.path(),
             "daemon-reconcile",
             &[
-                ("CODEX_APP_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_LOG", &install_log),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_STARTED", &install_started),
-                ("CODEX_APP_UPDATER_TEST_INSTALL_RELEASE", &install_release),
+                ("CHATGPT_UPDATER_TEST_PKEXEC_PATH", &fake_pkexec),
+                ("CHATGPT_UPDATER_TEST_INSTALL_LOG", &install_log),
+                ("CHATGPT_UPDATER_TEST_INSTALL_STARTED", &install_started),
+                ("CHATGPT_UPDATER_TEST_INSTALL_RELEASE", &install_release),
             ],
             &[&install_release],
         )?;
@@ -4023,43 +3967,43 @@ mod tests {
 
         let common_env = [
             (
-                "CODEX_APP_UPDATER_TEST_ENTRYPOINT_CONTINUE",
+                "CHATGPT_UPDATER_TEST_ENTRYPOINT_CONTINUE",
                 entrypoint_continue.as_path(),
             ),
             (
-                "CODEX_APP_UPDATER_TEST_INSTALL_READY_CONTINUE",
+                "CHATGPT_UPDATER_TEST_INSTALL_READY_CONTINUE",
                 reload_continue.as_path(),
             ),
-            ("CODEX_APP_UPDATER_TEST_PKEXEC_PATH", fake_pkexec.as_path()),
-            ("CODEX_APP_UPDATER_TEST_INSTALL_LOG", install_log.as_path()),
+            ("CHATGPT_UPDATER_TEST_PKEXEC_PATH", fake_pkexec.as_path()),
+            ("CHATGPT_UPDATER_TEST_INSTALL_LOG", install_log.as_path()),
         ];
         let mut first_env = common_env.to_vec();
         first_env.extend([
             (
-                "CODEX_APP_UPDATER_TEST_ENTRYPOINT_LOADED",
+                "CHATGPT_UPDATER_TEST_ENTRYPOINT_LOADED",
                 first_loaded.as_path(),
             ),
             (
-                "CODEX_APP_UPDATER_TEST_INSTALL_READY_RELOADED",
+                "CHATGPT_UPDATER_TEST_INSTALL_READY_RELOADED",
                 first_reloaded.as_path(),
             ),
             (
-                "CODEX_APP_UPDATER_TEST_CHECK_LOCK_BUSY",
+                "CHATGPT_UPDATER_TEST_CHECK_LOCK_BUSY",
                 first_lock_busy.as_path(),
             ),
         ]);
         let mut second_env = common_env.to_vec();
         second_env.extend([
             (
-                "CODEX_APP_UPDATER_TEST_ENTRYPOINT_LOADED",
+                "CHATGPT_UPDATER_TEST_ENTRYPOINT_LOADED",
                 second_loaded.as_path(),
             ),
             (
-                "CODEX_APP_UPDATER_TEST_INSTALL_READY_RELOADED",
+                "CHATGPT_UPDATER_TEST_INSTALL_READY_RELOADED",
                 second_reloaded.as_path(),
             ),
             (
-                "CODEX_APP_UPDATER_TEST_CHECK_LOCK_BUSY",
+                "CHATGPT_UPDATER_TEST_CHECK_LOCK_BUSY",
                 second_lock_busy.as_path(),
             ),
         ]);
@@ -4120,14 +4064,14 @@ mod tests {
             "NVM_DIR",
             "XDG_CONFIG_HOME",
             "CODEX_CLI_PATH",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", temp.path().join("missing-bin"));
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("XDG_CONFIG_HOME");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let workspace = config.workspace_root.join("workspaces/active-build");
         std::fs::create_dir_all(workspace.join("builder"))?;
@@ -4248,7 +4192,7 @@ mod tests {
         let mut state = PersistedState::new(true);
         state.status = UpdateStatus::ReadyToInstall;
         state.candidate_version = Some("2999.03.25.010203+deadbeef".to_string());
-        state.artifact_paths.package_path = Some(temp.path().join("missing/codex.deb"));
+        state.artifact_paths.package_path = Some(temp.path().join("missing/chatgpt.deb"));
 
         reconcile_pending_install(&config, &mut state, &paths).await?;
 
@@ -4275,14 +4219,14 @@ mod tests {
         };
         paths.ensure_dirs()?;
         let settings_path = temp.path().join("settings.json");
-        let previous_settings_file = std::env::var_os("CODEX_LINUX_SETTINGS_FILE");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
+        let previous_settings_file = std::env::var_os("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": false}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": false}"#,
         )?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4321,9 +4265,9 @@ mod tests {
         let result = runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
 
         if let Some(value) = previous_settings_file {
-            std::env::set_var("CODEX_LINUX_SETTINGS_FILE", value);
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", value);
         } else {
-            std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+            std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         }
 
         result?;
@@ -4347,16 +4291,16 @@ mod tests {
         };
         paths.ensure_dirs()?;
         let settings_path = temp.path().join("settings.json");
-        let previous_settings_file = std::env::var_os("CODEX_LINUX_SETTINGS_FILE");
-        let previous_assume_agent = std::env::var_os("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
-        std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", "1");
+        let previous_settings_file = std::env::var_os("CHATGPT_LINUX_SETTINGS_FILE");
+        let previous_assume_agent = std::env::var_os("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
+        std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", "1");
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": true}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": true}"#,
         )?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4398,14 +4342,14 @@ mod tests {
         let result = runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
 
         if let Some(value) = previous_settings_file {
-            std::env::set_var("CODEX_LINUX_SETTINGS_FILE", value);
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", value);
         } else {
-            std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+            std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         }
         if let Some(value) = previous_assume_agent {
-            std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", value);
+            std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
+            std::env::remove_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
         }
 
         result?;
@@ -4419,15 +4363,15 @@ mod tests {
     fn daemon_reconcile_reloads_waiting_state_written_by_another_process() -> Result<()> {
         let _env_guard = crate::test_util::env_lock();
         let _restore_env = crate::test_util::EnvRestoreGuard::capture(&[
-            "CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT",
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT",
+            "CHATGPT_LINUX_SETTINGS_FILE",
         ]);
         let runtime = tokio::runtime::Runtime::new()?;
-        std::env::set_var("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT", "1");
+        std::env::set_var("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT", "1");
 
         let temp = tempfile::tempdir()?;
         std::env::set_var(
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_LINUX_SETTINGS_FILE",
             temp.path().join("isolated-settings.json"),
         );
         let paths = test_paths(temp.path());
@@ -4487,11 +4431,11 @@ mod tests {
         };
         paths.ensure_dirs()?;
         let settings_path = temp.path().join("settings.json");
-        let previous_settings_file = std::env::var_os("CODEX_LINUX_SETTINGS_FILE");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
+        let previous_settings_file = std::env::var_os("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": false}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": false}"#,
         )?;
 
         let config = RuntimeConfig {
@@ -4526,9 +4470,9 @@ mod tests {
         let result = runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
 
         if let Some(value) = previous_settings_file {
-            std::env::set_var("CODEX_LINUX_SETTINGS_FILE", value);
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", value);
         } else {
-            std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+            std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         }
 
         result?;
@@ -4555,13 +4499,13 @@ mod tests {
         };
         paths.ensure_dirs()?;
         let settings_path = temp.path().join("settings.json");
-        let previous_settings_file = std::env::var_os("CODEX_LINUX_SETTINGS_FILE");
-        let previous_assume_agent = std::env::var_os("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
-        std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", "1");
+        let previous_settings_file = std::env::var_os("CHATGPT_LINUX_SETTINGS_FILE");
+        let previous_assume_agent = std::env::var_os("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
+        std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", "1");
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": false}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": false}"#,
         )?;
 
         let config = RuntimeConfig {
@@ -4596,14 +4540,14 @@ mod tests {
         let result = runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
 
         if let Some(value) = previous_settings_file {
-            std::env::set_var("CODEX_LINUX_SETTINGS_FILE", value);
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", value);
         } else {
-            std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+            std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         }
         if let Some(value) = previous_assume_agent {
-            std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", value);
+            std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
+            std::env::remove_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
         }
 
         result?;
@@ -4630,8 +4574,8 @@ mod tests {
         paths.ensure_dirs()?;
         let settings_path = temp.path().join("settings.json");
 
-        let previous_settings_file = std::env::var_os("CODEX_LINUX_SETTINGS_FILE");
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
+        let previous_settings_file = std::env::var_os("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
 
         let config = RuntimeConfig {
             dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
@@ -4654,22 +4598,22 @@ mod tests {
 
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": false}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": false}"#,
         )?;
         let first_result = runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
         assert!(!state.auto_install_on_app_exit);
 
         std::fs::write(
             &settings_path,
-            r#"{"codex-linux-auto-update-on-exit": true}"#,
+            r#"{"chatgpt-linux-auto-update-on-exit": true}"#,
         )?;
         let second_result =
             runtime.block_on(reconcile_pending_install(&config, &mut state, &paths));
 
         if let Some(value) = previous_settings_file {
-            std::env::set_var("CODEX_LINUX_SETTINGS_FILE", value);
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", value);
         } else {
-            std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+            std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         }
 
         first_result?;
@@ -4681,8 +4625,8 @@ mod tests {
     #[tokio::test]
     async fn install_ready_waits_when_app_is_running() -> Result<()> {
         let _env_guard = crate::test_util::env_lock();
-        let previous_assume_agent = std::env::var_os("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
-        std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", "1");
+        let previous_assume_agent = std::env::var_os("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
+        std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", "1");
         let temp = tempfile::tempdir()?;
         let paths = RuntimePaths {
             config_file: temp.path().join("config/config.toml"),
@@ -4728,9 +4672,9 @@ mod tests {
         let result = run_install_ready_locked(&config, &mut state, &paths).await;
 
         if let Some(value) = previous_assume_agent {
-            std::env::set_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT", value);
+            std::env::set_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_ASSUME_POLKIT_AGENT");
+            std::env::remove_var("CHATGPT_UPDATER_ASSUME_POLKIT_AGENT");
         }
 
         result?;
@@ -4752,7 +4696,7 @@ mod tests {
         };
         paths.ensure_dirs()?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4834,7 +4778,7 @@ mod tests {
         mark_test_dmg_verified(&mut state, "2999.03.25.010203");
         let package_path = config
             .workspace_root
-            .join("workspaces/2999.03.25.010203/dist/codex.deb");
+            .join("workspaces/2999.03.25.010203/dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4867,7 +4811,7 @@ mod tests {
         };
         paths.ensure_dirs()?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4902,7 +4846,7 @@ mod tests {
             version: Some("2999.03.25.010203".to_string()),
             sha256: None,
             manifest_path: Some(PathBuf::from(
-                "/usr/lib/codex-app/update-builder/updater/trusted-dmg-manifest.json",
+                "/usr/lib/chatgpt/update-builder/updater/trusted-dmg-manifest.json",
             )),
             verified_at: Some(Utc::now()),
             message: Some("Downloaded DMG matched repo-trusted metadata".to_string()),
@@ -4923,8 +4867,8 @@ mod tests {
     fn install_ready_stays_open_when_no_polkit_agent_is_available() -> Result<()> {
         let _env_guard = crate::test_util::env_lock();
         let runtime = tokio::runtime::Runtime::new()?;
-        let previous_no_agent = std::env::var_os("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT");
-        std::env::set_var("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT", "1");
+        let previous_no_agent = std::env::var_os("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT");
+        std::env::set_var("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT", "1");
         let temp = tempfile::tempdir()?;
         let paths = RuntimePaths {
             config_file: temp.path().join("config/config.toml"),
@@ -4939,7 +4883,7 @@ mod tests {
         let workspace = temp
             .path()
             .join("cache/workspaces/2999.03.25.010203+deadbeef");
-        let package_path = workspace.join("dist/codex desktop.pkg.tar.zst");
+        let package_path = workspace.join("dist/chatgpt desktop.pkg.tar.zst");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -4979,9 +4923,9 @@ mod tests {
         let result = runtime.block_on(run_install_ready_locked(&config, &mut state, &paths));
 
         if let Some(value) = previous_no_agent {
-            std::env::set_var("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT", value);
+            std::env::set_var("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_ASSUME_NO_POLKIT_AGENT");
+            std::env::remove_var("CHATGPT_UPDATER_ASSUME_NO_POLKIT_AGENT");
         }
 
         result?;
@@ -4989,11 +4933,11 @@ mod tests {
         assert!(!state.waiting_for_app_exit_auto_install);
         let message = state.error_message.as_deref().unwrap_or("");
         assert!(message.contains("No graphical polkit authentication agent"));
-        assert!(message.contains("sudo /usr/bin/codex-app-updater install-pacman"));
+        assert!(message.contains("sudo /usr/bin/chatgpt-updater install-pacman"));
         assert!(message.contains("--expected-sha256"));
-        assert!(message.contains("--expected-package-name 'codex-app'"));
+        assert!(message.contains("--expected-package-name 'chatgpt'"));
         assert!(message.contains("--expected-package-version '2999.03.25.010203_deadbeef-1'"));
-        assert!(message.contains("codex desktop.pkg.tar.zst'"));
+        assert!(message.contains("chatgpt desktop.pkg.tar.zst'"));
         Ok(())
     }
 
@@ -5030,7 +4974,7 @@ mod tests {
         let mut state = PersistedState::new(false);
         state.status = UpdateStatus::ReadyToInstall;
         state.candidate_version = Some("2999.03.25.010203+deadbeef".to_string());
-        state.artifact_paths.package_path = Some(temp.path().join("missing/codex.deb"));
+        state.artifact_paths.package_path = Some(temp.path().join("missing/chatgpt.deb"));
 
         let result = run_install_ready_locked(&config, &mut state, &paths).await;
         assert!(result.is_err());
@@ -5120,7 +5064,7 @@ mod tests {
         let mut state = PersistedState::new(false);
         state.status = UpdateStatus::Installing;
         state.candidate_version = Some("2026.03.25.010203+deadbeef".to_string());
-        state.artifact_paths.package_path = Some(temp.path().join("missing/codex.deb"));
+        state.artifact_paths.package_path = Some(temp.path().join("missing/chatgpt.deb"));
 
         let result = run_install_ready_locked(&config, &mut state, &paths).await;
 
@@ -5171,17 +5115,18 @@ mod tests {
 
     #[test]
     fn manual_install_command_selects_package_kind_and_quotes_path() -> Result<()> {
-        let expected = install::ExpectedPackage::new("a".repeat(64), "codex-app", "1.2.3")?;
-        let pacman = manual_install_command(Path::new("/tmp/codex update.pkg.tar.zst"), &expected);
-        assert!(pacman.contains("codex-app-updater install-pacman"));
-        assert!(pacman.contains("--path '/tmp/codex update.pkg.tar.zst'"));
+        let expected = install::ExpectedPackage::new("a".repeat(64), "chatgpt", "1.2.3")?;
+        let pacman =
+            manual_install_command(Path::new("/tmp/chatgpt update.pkg.tar.zst"), &expected);
+        assert!(pacman.contains("chatgpt-updater install-pacman"));
+        assert!(pacman.contains("--path '/tmp/chatgpt update.pkg.tar.zst'"));
         assert!(pacman.contains("--expected-sha256"));
-        assert!(pacman.contains("--expected-package-name 'codex-app'"));
+        assert!(pacman.contains("--expected-package-name 'chatgpt'"));
         assert!(pacman.contains("--expected-package-version '1.2.3'"));
 
-        let deb = manual_install_command(Path::new("/tmp/codex'update.deb"), &expected);
-        assert!(deb.contains("codex-app-updater install-deb"));
-        assert!(deb.contains("--path '/tmp/codex'\\''update.deb'"));
+        let deb = manual_install_command(Path::new("/tmp/chatgpt'update.deb"), &expected);
+        assert!(deb.contains("chatgpt-updater install-deb"));
+        assert!(deb.contains("--path '/tmp/chatgpt'\\''update.deb'"));
         Ok(())
     }
 
@@ -5242,7 +5187,7 @@ mod tests {
             "PATH",
             "HOME",
             "NVM_DIR",
-            "CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
+            "CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP",
         ]);
 
         std::env::remove_var("DISPLAY");
@@ -5252,7 +5197,7 @@ mod tests {
         std::env::set_var("PATH", temp.path().join("missing-bin"));
         std::env::set_var("HOME", temp.path());
         std::env::remove_var("NVM_DIR");
-        std::env::set_var("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", "1");
         let invalid_cli_path = temp.path().join("codex.txt");
         std::fs::write(&invalid_cli_path, b"not executable")?;
 
@@ -5338,7 +5283,7 @@ mod tests {
 
         let package_path = temp
             .path()
-            .join("cache/workspaces/2026.06.12.120204+51eeeba5/dist/codex.pkg.tar.zst");
+            .join("cache/workspaces/2026.06.12.120204+51eeeba5/dist/chatgpt.pkg.tar.zst");
 
         let mut state = PersistedState::new(true);
         state.status = UpdateStatus::PatchingApp;
@@ -5442,7 +5387,7 @@ mod tests {
         let sha256 = "51eeeba58394c4747cbc9d9fee7aa613500253fedd7ad5b114f48dfcb89a6cbb";
         write_installed_build_info(&config, sha256)?;
 
-        let package_path = temp.path().join("dist/codex-app-wrapper.deb");
+        let package_path = temp.path().join("dist/chatgpt-wrapper.deb");
         let workspace_dir = temp
             .path()
             .join("cache/workspaces/2026.06.12.120204+51eeeba5");
@@ -5529,7 +5474,7 @@ mod tests {
         state.installed_version = "26.513.31313".to_string();
         state.candidate_version = Some("26.513.31313".to_string());
         state.dmg_sha256 = Some(TRUSTED_TEST_DMG_SHA256.to_string());
-        let package_path = temp.path().join("dist/codex.pkg.tar.zst");
+        let package_path = temp.path().join("dist/chatgpt.pkg.tar.zst");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -5703,12 +5648,12 @@ mod tests {
         let original_nvm_dir = std::env::var_os("NVM_DIR");
         let original_codex_cli_path = std::env::var_os("CODEX_CLI_PATH");
         let original_skip_system_cli_lookup =
-            std::env::var_os("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::var_os("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", temp.path().join("missing-bin"));
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let config = test_config(temp.path());
         let result = run_status(&config, &mut state, &paths, true);
@@ -5734,9 +5679,9 @@ mod tests {
             std::env::remove_var("CODEX_CLI_PATH");
         }
         if let Some(value) = original_skip_system_cli_lookup {
-            std::env::set_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", value);
+            std::env::set_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::remove_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
         }
 
         result?;
@@ -5792,12 +5737,12 @@ mod tests {
         let original_nvm_dir = std::env::var_os("NVM_DIR");
         let original_codex_cli_path = std::env::var_os("CODEX_CLI_PATH");
         let original_skip_system_cli_lookup =
-            std::env::var_os("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::var_os("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
         std::env::set_var("HOME", temp.path());
         std::env::set_var("PATH", std::env::join_paths([bin_dir])?);
         std::env::remove_var("NVM_DIR");
         std::env::remove_var("CODEX_CLI_PATH");
-        std::env::set_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", "1");
+        std::env::set_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", "1");
 
         let config = test_config(temp.path());
         let mut state = PersistedState::new(true);
@@ -5825,9 +5770,9 @@ mod tests {
             std::env::remove_var("CODEX_CLI_PATH");
         }
         if let Some(value) = original_skip_system_cli_lookup {
-            std::env::set_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", value);
+            std::env::set_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP", value);
         } else {
-            std::env::remove_var("CODEX_APP_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
+            std::env::remove_var("CHATGPT_UPDATER_TEST_SKIP_SYSTEM_CLI_LOOKUP");
         }
 
         assert!(result.is_err());
@@ -5983,44 +5928,6 @@ mod tests {
     }
 
     #[test]
-    fn rollback_blocks_same_dmg_hash_at_a_different_timestamp() {
-        let mut state = PersistedState::new(true);
-        state.rollback_blocked_candidate_version = Some("2026.05.04.131500+badcafe0".to_string());
-        state.rollback_blocked_dmg_sha256 = Some("same-full-sha256".to_string());
-
-        assert!(rollback_blocks_candidate(
-            &state,
-            "same-full-sha256",
-            "2026.05.05.090000+badcafe0"
-        ));
-    }
-
-    #[test]
-    fn rollback_hash_mismatch_is_not_overridden_by_legacy_version_match() {
-        let mut state = PersistedState::new(true);
-        state.rollback_blocked_candidate_version = Some("2026.05.04.131500".to_string());
-        state.rollback_blocked_dmg_sha256 = Some("rolled-back-sha256".to_string());
-
-        assert!(!rollback_blocks_candidate(
-            &state,
-            "different-sha256",
-            "2026.05.04.131500+different"
-        ));
-    }
-
-    #[test]
-    fn rollback_legacy_version_fallback_applies_only_without_recorded_hash() {
-        let mut state = PersistedState::new(true);
-        state.rollback_blocked_candidate_version = Some("2026.05.04.131500".to_string());
-
-        assert!(rollback_blocks_candidate(
-            &state,
-            "unrecorded-sha256",
-            "2026.05.04.131500+newhash00"
-        ));
-    }
-
-    #[test]
     fn successful_install_clears_both_rollback_block_identifiers() {
         let mut state = PersistedState::new(true);
         state.rollback_blocked_candidate_version = Some("2026.05.04.131500".to_string());
@@ -6046,7 +5953,7 @@ mod tests {
         };
         paths.ensure_dirs()?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -6111,7 +6018,7 @@ mod tests {
             developer_mode: false,
             workspace_root: paths.cache_dir.clone(),
             builder_bundle_root: temp.path().join("builder"),
-            app_executable_path: temp.path().join("codex-app"),
+            app_executable_path: temp.path().join("chatgpt"),
             cli_path: Some(codex_cli_path.clone()),
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -6128,7 +6035,7 @@ mod tests {
         state.cli_last_check_at = Some(Utc::now());
         state.cli_last_verified_at = Some(Utc::now());
         state.candidate_version = Some("2026.03.27.025604+1086e799".to_string());
-        state.artifact_paths.package_path = Some(temp.path().join("dist/missing-codex.deb"));
+        state.artifact_paths.package_path = Some(temp.path().join("dist/missing-chatgpt.deb"));
 
         run_status(&config, &mut state, &paths, true)?;
 
@@ -6153,7 +6060,7 @@ mod tests {
         };
         paths.ensure_dirs()?;
 
-        let package_path = temp.path().join("dist/codex.deb");
+        let package_path = temp.path().join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -6197,7 +6104,7 @@ mod tests {
             &paths,
             false,
             "ready_to_install",
-            "Codex App update ready",
+            "ChatGPT update ready",
             "An update is ready to install.",
         )?;
         let notified_count = state.notified_events.len();
@@ -6206,7 +6113,7 @@ mod tests {
             &paths,
             false,
             "ready_to_install",
-            "Codex App update ready",
+            "ChatGPT update ready",
             "An update is ready to install.",
         )?;
 

@@ -27,7 +27,7 @@ function commandPath(name) {
 const BASH = commandPath("bash");
 
 function makeFakeApp() {
-  const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-node-repl-reaper-test-"));
+  const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-node-repl-reaper-test-"));
   fs.mkdirSync(path.join(appDir, "resources"));
   // The fake binaries run Node through app-local symlinks; what matters is
   // that /proc/<pid>/cmdline starts with the install-scoped executable path,
@@ -53,7 +53,7 @@ function pidAlive(pid) {
 function runReaperOnce(appDir) {
   const result = spawnSync(BASH, [REAPER, appDir, "once"], {
     encoding: "utf8",
-    env: { ...process.env, CODEX_NODE_REPL_REAPER_KILL_GRACE: "1" },
+    env: { ...process.env, CHATGPT_NODE_REPL_REAPER_KILL_GRACE: "1" },
   });
   assert.equal(result.status, 0, `reaper failed: ${result.stderr}\n${result.stdout}`);
   return result.stdout;
@@ -91,7 +91,7 @@ test("reaps a node_repl whose parent is not a live codex app-server", async () =
 
 test("reaps a wrapped node_repl running from the original backup path", async () => {
   const { appDir } = makeFakeApp();
-  const originalNodeReplBin = path.join(appDir, "resources", "node_repl.codex-linux-original");
+  const originalNodeReplBin = path.join(appDir, "resources", "node_repl.chatgpt-linux-original");
   fs.symlinkSync(process.execPath, originalNodeReplBin);
   const leaked = spawn(originalNodeReplBin, LONG_RUNNING_NODE_ARGS, { stdio: "ignore" });
   try {
@@ -182,9 +182,9 @@ test("watch mode waits for the cold-start electron process before self-terminati
     encoding: "utf8",
     env: {
       ...process.env,
-      CODEX_NODE_REPL_REAPER_INTERVAL: "1",
-      CODEX_NODE_REPL_REAPER_STARTUP_GRACE: "5",
-      CODEX_NODE_REPL_REAPER_KILL_GRACE: "1",
+      CHATGPT_NODE_REPL_REAPER_INTERVAL: "1",
+      CHATGPT_NODE_REPL_REAPER_STARTUP_GRACE: "5",
+      CHATGPT_NODE_REPL_REAPER_KILL_GRACE: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -212,16 +212,16 @@ test("normalizes invalid timing environment overrides", () => {
       encoding: "utf8",
       env: {
         ...process.env,
-        CODEX_NODE_REPL_REAPER_INTERVAL: "0",
-        CODEX_NODE_REPL_REAPER_STARTUP_GRACE: "bad",
-        CODEX_NODE_REPL_REAPER_KILL_GRACE: "-1",
+        CHATGPT_NODE_REPL_REAPER_INTERVAL: "0",
+        CHATGPT_NODE_REPL_REAPER_STARTUP_GRACE: "bad",
+        CHATGPT_NODE_REPL_REAPER_KILL_GRACE: "-1",
       },
     });
 
     assert.equal(result.status, 0, `reaper failed: ${result.stderr}\n${result.stdout}`);
-    assert.match(result.stderr, /invalid CODEX_NODE_REPL_REAPER_INTERVAL='0'; using 300/);
-    assert.match(result.stderr, /invalid CODEX_NODE_REPL_REAPER_STARTUP_GRACE='bad'; using 120/);
-    assert.match(result.stderr, /invalid CODEX_NODE_REPL_REAPER_KILL_GRACE='-1'; using 5/);
+    assert.match(result.stderr, /invalid CHATGPT_NODE_REPL_REAPER_INTERVAL='0'; using 300/);
+    assert.match(result.stderr, /invalid CHATGPT_NODE_REPL_REAPER_STARTUP_GRACE='bad'; using 120/);
+    assert.match(result.stderr, /invalid CHATGPT_NODE_REPL_REAPER_KILL_GRACE='-1'; using 5/);
   } finally {
     fs.rmSync(appDir, { recursive: true, force: true });
   }

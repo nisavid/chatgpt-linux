@@ -1,6 +1,6 @@
 # Omarchy Theme
 
-Optional integration that makes Codex Desktop follow the active
+Optional integration that makes ChatGPT for Linux follow the active
 [Omarchy](https://omarchy.org/) color palette. It is disabled by default.
 
 The integration:
@@ -8,7 +8,7 @@ The integration:
 - installs an Omarchy `themed/` template in the user's configuration on first
   launch without overwriting an existing customized template;
 - asks `omarchy theme refresh` to generate
-  `~/.config/omarchy/current/theme/codex-desktop.css` when needed;
+  `~/.config/omarchy/current/theme/chatgpt.css` when needed;
 - selects that generated file through the loopback-only Codex webview server's
   generic user-stylesheet endpoint;
 - injects a guarded renderer stylesheet loader that refreshes the CSS every five
@@ -26,14 +26,14 @@ Add the integration to the gitignored `port-integrations/integrations.json`:
 }
 ```
 
-Then rebuild Codex Desktop with `./install.sh`, `make install-native`, or the
+Then rebuild ChatGPT for Linux with `./install.sh`, `make install-native`, or the
 corresponding AppImage/Nix workflow. The generated app must be rebuilt after
 changing feature selection.
 
 On first launch the prelaunch hook installs:
 
 ```text
-~/.config/omarchy/themed/codex-desktop.css.tpl
+~/.config/omarchy/themed/chatgpt.css.tpl
 ```
 
 If Omarchy cannot be refreshed automatically, run:
@@ -48,11 +48,11 @@ seconds.
 
 ## Configuration
 
-- `CODEX_LINUX_WEBVIEW_USER_STYLESHEET=/absolute/or/~/path.css` overrides the
+- `CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET=/absolute/or/~/path.css` overrides the
   generated CSS file served to Codex.
-- `CODEX_OMARCHY_THEME_AUTO_REFRESH=0` prevents the first-launch hook from
+- `CHATGPT_OMARCHY_THEME_AUTO_REFRESH=0` prevents the first-launch hook from
   invoking `omarchy theme refresh`.
-- `CODEX_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS=15` changes the bounded wait for
+- `CHATGPT_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS=15` changes the bounded wait for
   that refresh. Values must be whole seconds between 1 and 60.
 
 The generic stylesheet endpoint returns empty CSS when the configured file is

@@ -4,8 +4,8 @@ use clap::{Parser, Subcommand};
 use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Debug, Parser)]
-#[command(name = "codex-app-updater")]
-#[command(about = "Local update manager for Codex App on Linux")]
+#[command(name = "chatgpt-updater")]
+#[command(about = "Local update manager for ChatGPT on Linux")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -19,7 +19,7 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         if_stale: bool,
     },
-    /// Check whether a newer codex-app wrapper release is available, and record
+    /// Check whether a newer chatgpt wrapper release is available, and record
     /// its changelog.
     CheckWrapper {
         #[arg(long, default_value_t = false)]
@@ -157,4 +157,21 @@ pub enum Commands {
         #[arg(long, hide = true)]
         expected_package_version: Option<String>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cli;
+    use clap::CommandFactory;
+
+    #[test]
+    fn command_uses_canonical_chatgpt_updater_identity() {
+        let command = Cli::command();
+
+        assert_eq!(command.get_name(), "chatgpt-updater");
+        assert_eq!(
+            command.get_about().map(ToString::to_string).as_deref(),
+            Some("Local update manager for ChatGPT on Linux")
+        );
+    }
 }

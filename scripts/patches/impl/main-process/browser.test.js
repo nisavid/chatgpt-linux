@@ -77,7 +77,7 @@ test("Linux IAB socket alignment patch hardens the directory and socket modes", 
   assert.match(patched, /chmodSync\(this\.pipePath,384\)/);
   assert.match(patched, /this\.server\.close\(\(\)=>\{\}\)/);
   assert.match(patched, /t\(e\);return/);
-  assert.match(patched, /codexLinuxBrowserUseSocketMode/);
+  assert.match(patched, /chatgptLinuxBrowserUseSocketMode/);
   assert.equal(applyLinuxBrowserUseSocketDirectoryPatch(patched), patched);
 });
 
@@ -85,8 +85,8 @@ test("Linux external open env patch wraps electron require with helper", () => {
   const source = '"use strict";let e=require("electron");';
   const patched = applyLinuxExternalOpenEnvPatch(source);
 
-  assert.match(patched, /codexLinuxPatchExternalOpen\(require\(("|`)electron\1\)\)/);
-  assert.match(patched, /function codexLinuxPatchExternalOpen\(/);
+  assert.match(patched, /chatgptLinuxPatchExternalOpen\(require\(("|`)electron\1\)\)/);
+  assert.match(patched, /function chatgptLinuxPatchExternalOpen\(/);
 });
 
 test("Linux external open env patch injects env var guard in helper", () => {
@@ -95,8 +95,8 @@ test("Linux external open env patch injects env var guard in helper", () => {
 
   assert.match(
     patched,
-    /CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH/,
-    "helper should check CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH env var",
+    /CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH/,
+    "helper should check CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH env var",
   );
 });
 

@@ -939,7 +939,7 @@ function createNativeBinaryMap(inventory, registry = null) {
   return { binaries };
 }
 
-const LINUX_SETTINGS_PATCH_SYMBOL_PATTERN = /\bcodexLinux[A-Za-z0-9_$]*SettingsIcon\b/g;
+const LINUX_SETTINGS_PATCH_SYMBOL_PATTERN = /\bchatgptLinux[A-Za-z0-9_$]*SettingsIcon\b/g;
 
 function segmentDeclaresSymbol(segment, symbol) {
   const escaped = escapeRegExp(symbol);
@@ -1669,7 +1669,7 @@ function resolveBaselinePath({ autoBaseline = false, baselinePath = null, candid
   if (baselinePath != null || !autoBaseline) {
     return baselinePath;
   }
-  const defaultBaselinePath = path.join(repoRoot, "Codex.dmg");
+  const defaultBaselinePath = path.join(repoRoot, "ChatGPT.dmg");
   if (!fs.existsSync(defaultBaselinePath)) {
     return null;
   }

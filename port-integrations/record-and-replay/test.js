@@ -55,8 +55,8 @@ function repoRoot() {
 }
 
 function withTempFeatureRoot(enabled, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-and-replay-feature-test-"));
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-and-replay-feature-test-"));
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   try {
     fs.writeFileSync(path.join(root, "integrations.example.json"), JSON.stringify({ enabled: [] }, null, 2));
     fs.writeFileSync(path.join(root, "integrations.json"), JSON.stringify({ enabled }, null, 2));
@@ -64,28 +64,28 @@ function withTempFeatureRoot(enabled, fn) {
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
 function withTempFeatureConfig(enabled, fn) {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-and-replay-config-test-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-and-replay-config-test-"));
   const configPath = path.join(tempDir, "integrations.json");
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   try {
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     const integrationsRoot = path.resolve(__dirname, "..");
     fs.writeFileSync(configPath, JSON.stringify(integrationSelection(integrationsRoot, enabled), null, 2));
     return fn(integrationsRoot);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -184,10 +184,10 @@ test("record-and-replay bridge patch is idempotent and uses execFile", () => {
   assert.match(patched, /chronicleOcrBackend/);
   assert.match(patched, /"getChronicleSidecarControlState":async/);
   assert.match(patched, /"toggleChronicleSidecar":async/);
-  assert.match(patched, /codexLinuxChronicleControlStateFromSkysight/);
-  assert.match(patched, /codexLinuxChronicleEnsureSidecarRunning/);
-  assert.match(patched, /"chronicle-permissions":async\(\)=>\{let e=await codexLinuxChronicleSidecarControlStateAsync\(\)/);
-  assert.doesNotMatch(patched, /"chronicle-permissions":async\(\)=>\{let e=await codexLinuxChronicleEnsureSidecarRunning/);
+  assert.match(patched, /chatgptLinuxChronicleControlStateFromSkysight/);
+  assert.match(patched, /chatgptLinuxChronicleEnsureSidecarRunning/);
+  assert.match(patched, /"chronicle-permissions":async\(\)=>\{let e=await chatgptLinuxChronicleSidecarControlStateAsync\(\)/);
+  assert.doesNotMatch(patched, /"chronicle-permissions":async\(\)=>\{let e=await chatgptLinuxChronicleEnsureSidecarRunning/);
   assert.match(patched, /"skysight","status"/);
   assert.match(patched, /"linux-record-replay-status":async/);
   assert.match(patched, /"linux-record-replay-start":async/);
@@ -212,7 +212,7 @@ test("record-and-replay bridge patch is idempotent and uses execFile", () => {
   assert.match(patched, /"linux-record-replay-draft-skill":async/);
   assert.match(patched, /"linux-record-replay-import-skill":async/);
   assert.match(patched, /\.execFile\(n,e,\{encoding:"utf8",timeout:t,maxBuffer:16777216\}/);
-  assert.match(patched, /codexLinuxRecordReplayWriteTempJson/);
+  assert.match(patched, /chatgptLinuxRecordReplayWriteTempJson/);
   assert.match(patched, /finally\{try\{fs\.unlinkSync\(c\)\}catch\{\}\}/);
   assert.match(patched, /"browser-trace"/);
   assert.match(patched, /"--trace-file"/);
@@ -250,7 +250,7 @@ test("record-and-replay rejects incomplete current bridge variants byte-identica
       .replace(":tt().skysight?$9:", ":")
       .replace("if(tt().skysight)return $9;", ""),
     "missing Linux toggle branch": patched.replace(
-      "if(process.platform===`linux`)return codexLinuxChronicleToggleSidecar();",
+      "if(process.platform===`linux`)return chatgptLinuxChronicleToggleSidecar();",
       "",
     ),
     "missing current bridge handler": patched.replace(
@@ -296,7 +296,7 @@ test("record-and-replay Chronicle helpers map Skysight status into upstream side
     fs,
     path,
     process: {
-      env: { CODEX_RECORD_REPLAY_LINUX_BIN: "/tmp/codex-record-replay-linux" },
+      env: { CHATGPT_RECORD_REPLAY_LINUX_BIN: "/tmp/chatgpt-record-replay-linux" },
       cwd: () => "/tmp",
       pid: 4242,
     },
@@ -304,14 +304,14 @@ test("record-and-replay Chronicle helpers map Skysight status into upstream side
     String,
   };
 
-  const state = vm.runInNewContext(`${helperSource};codexLinuxChronicleSidecarControlState()`, context);
+  const state = vm.runInNewContext(`${helperSource};chatgptLinuxChronicleSidecarControlState()`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["skysight", "status"]]);
   assert.equal(state.enabled, true);
   assert.equal(state.running, true);
   assert.equal(state.state, "running");
 
   const ocrState = vm.runInNewContext(
-    `${helperSource};codexLinuxChronicleControlStateFromSkysight({ok:true,json:{state:"running",is_running:true,ocr_available:true,ocr_status:"completed",ocr_backend:"tesseract-cli",ocr_language:"eng"}})`,
+    `${helperSource};chatgptLinuxChronicleControlStateFromSkysight({ok:true,json:{state:"running",is_running:true,ocr_available:true,ocr_status:"completed",ocr_backend:"tesseract-cli",ocr_language:"eng"}})`,
     context,
   );
   assert.equal(ocrState.chronicleOcrAvailable, true);
@@ -320,7 +320,7 @@ test("record-and-replay Chronicle helpers map Skysight status into upstream side
   assert.equal(ocrState.chronicleOcrLanguage, "eng");
 
   const paused = vm.runInNewContext(
-    `${helperSource};codexLinuxChronicleControlStateFromSkysight({ok:true,json:{state:"paused",is_running:true,paused:true}})`,
+    `${helperSource};chatgptLinuxChronicleControlStateFromSkysight({ok:true,json:{state:"paused",is_running:true,paused:true}})`,
     context,
   );
   assert.equal(paused.enabled, true);
@@ -328,7 +328,7 @@ test("record-and-replay Chronicle helpers map Skysight status into upstream side
   assert.equal(paused.state, "stopped");
 
   const missing = vm.runInNewContext(
-    `${helperSource};codexLinuxChronicleControlStateFromSkysight({ok:false,json:null})`,
+    `${helperSource};chatgptLinuxChronicleControlStateFromSkysight({ok:false,json:null})`,
     context,
   );
   assert.equal(missing.enabled, false);
@@ -353,7 +353,7 @@ test("record-and-replay Chronicle permissions probe is side-effect free", async 
     fs,
     path,
     process: {
-      env: { CODEX_RECORD_REPLAY_LINUX_BIN: "/tmp/codex-record-replay-linux" },
+      env: { CHATGPT_RECORD_REPLAY_LINUX_BIN: "/tmp/chatgpt-record-replay-linux" },
       cwd: () => "/tmp",
       pid: 4242,
     },
@@ -362,7 +362,7 @@ test("record-and-replay Chronicle permissions probe is side-effect free", async 
     String,
   };
 
-  const state = await vm.runInNewContext(`${helperSource};codexLinuxChronicleSidecarControlStateAsync()`, context);
+  const state = await vm.runInNewContext(`${helperSource};chatgptLinuxChronicleSidecarControlStateAsync()`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["skysight", "status"]]);
   assert.equal(state.enabled, true);
   assert.equal(state.running, false);
@@ -390,7 +390,7 @@ test("record-and-replay Chronicle setup probe starts stopped Linux Skysight", as
     fs,
     path,
     process: {
-      env: { CODEX_RECORD_REPLAY_LINUX_BIN: "/tmp/codex-record-replay-linux" },
+      env: { CHATGPT_RECORD_REPLAY_LINUX_BIN: "/tmp/chatgpt-record-replay-linux" },
       cwd: () => "/tmp",
       pid: 4242,
     },
@@ -399,7 +399,7 @@ test("record-and-replay Chronicle setup probe starts stopped Linux Skysight", as
     String,
   };
 
-  const state = await vm.runInNewContext(`${helperSource};codexLinuxChronicleEnsureSidecarRunning()`, context);
+  const state = await vm.runInNewContext(`${helperSource};chatgptLinuxChronicleEnsureSidecarRunning()`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ["skysight", "status"],
     ["skysight", "start"],
@@ -430,7 +430,7 @@ test("record-and-replay Chronicle setup probe enables summary agent when Setting
     fs,
     path,
     process: {
-      env: { CODEX_RECORD_REPLAY_LINUX_BIN: "/tmp/codex-record-replay-linux" },
+      env: { CHATGPT_RECORD_REPLAY_LINUX_BIN: "/tmp/chatgpt-record-replay-linux" },
       cwd: () => "/tmp",
       pid: 4242,
     },
@@ -439,7 +439,7 @@ test("record-and-replay Chronicle setup probe enables summary agent when Setting
     String,
   };
 
-  const state = await vm.runInNewContext(`${helperSource};codexLinuxChronicleEnsureSidecarRunning(true)`, context);
+  const state = await vm.runInNewContext(`${helperSource};chatgptLinuxChronicleEnsureSidecarRunning(true)`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ["skysight", "status"],
     ["skysight", "start", "--summary-agent", "enabled"],
@@ -475,7 +475,7 @@ test("record-and-replay Chronicle setup probe does not churn start when summary 
     fs,
     path,
     process: {
-      env: { CODEX_RECORD_REPLAY_LINUX_BIN: "/tmp/codex-record-replay-linux" },
+      env: { CHATGPT_RECORD_REPLAY_LINUX_BIN: "/tmp/chatgpt-record-replay-linux" },
       cwd: () => "/tmp",
       pid: 4242,
     },
@@ -484,7 +484,7 @@ test("record-and-replay Chronicle setup probe does not churn start when summary 
     String,
   };
 
-  const state = await vm.runInNewContext(`${helperSource};codexLinuxChronicleEnsureSidecarRunning(true)`, context);
+  const state = await vm.runInNewContext(`${helperSource};chatgptLinuxChronicleEnsureSidecarRunning(true)`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["skysight", "status"]]);
   assert.equal(state.enabled, true);
   assert.equal(state.running, true);
@@ -516,8 +516,8 @@ test("record-and-replay patch wires Linux Chronicle tray controls to Skysight", 
 
   assert.notEqual(patched, source);
   assert.equal(applyRecordReplayMainBridgePatch(patched), patched);
-  assert.match(patched, /getChronicleSidecarControlState:\(\)=>process\.platform===`linux`\?codexLinuxChronicleSidecarControlState\(\)/);
-  assert.match(patched, /toggleChronicleSidecar:async\(\)=>\{if\(process\.platform===`linux`\)return codexLinuxChronicleToggleSidecar\(\)/);
+  assert.match(patched, /getChronicleSidecarControlState:\(\)=>process\.platform===`linux`\?chatgptLinuxChronicleSidecarControlState\(\)/);
+  assert.match(patched, /toggleChronicleSidecar:async\(\)=>\{if\(process\.platform===`linux`\)return chatgptLinuxChronicleToggleSidecar\(\)/);
   assert.match(patched, /if\(tt\(\)\.skysight\)return \$9/);
   assert.match(patched, /e\.pauseChronicleSidecar\(\):e\.resumeChronicleSidecar\(\)/);
 });
@@ -546,7 +546,7 @@ test("record-and-replay docs mention pause resume and Chronicle-compatible resou
 });
 
 test("record-and-replay bridge temp trace files are private", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-bridge-temp-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-bridge-temp-"));
   try {
     const tempRoot = path.join(workspace, "tmp");
     fs.mkdirSync(tempRoot, { mode: 0o777 });
@@ -556,7 +556,7 @@ test("record-and-replay bridge temp trace files are private", () => {
       pathVar: "path",
     });
     const tracePath = vm.runInNewContext(
-      `${helperSource};codexLinuxRecordReplayWriteTempJson("{\\"ok\\":true}")`,
+      `${helperSource};chatgptLinuxRecordReplayWriteTempJson("{\\"ok\\":true}")`,
       {
         childProcess: {},
         fs,
@@ -582,17 +582,17 @@ test("record-and-replay HUD patch is idempotent and appends runtime UI", () => {
   assert.notEqual(patched, source);
   assert.equal(applyRecordReplayHudPatch(patched), patched);
   assert.match(patched, /sourceMappingURL=index\.js\.map\n;\(\(\)=>/);
-  assert.match(patched, /codexLinuxRecordReplayHudVersion/);
-  assert.match(patched, /codex-linux-record-replay-hud/);
+  assert.match(patched, /chatgptLinuxRecordReplayHudVersion/);
+  assert.match(patched, /chatgpt-linux-record-replay-hud/);
   assert.match(patched, /linux-record-replay-status/);
   assert.match(patched, /linux-record-replay-stop-active/);
   assert.match(patched, /linux-record-replay-cancel-active/);
-  assert.match(patched, /codexLinuxRecordReplayCaptureTranscript/);
-  assert.match(patched, /codexLinuxRecordReplayPendingTranscripts/);
+  assert.match(patched, /chatgptLinuxRecordReplayCaptureTranscript/);
+  assert.match(patched, /chatgptLinuxRecordReplayPendingTranscripts/);
   assert.match(patched, /drainBootstrapTranscriptQueue/);
   assert.match(patched, /flushPendingTranscripts/);
   assert.match(patched, /linux-record-replay-speech-context/);
-  assert.match(patched, /codex-dictation-/);
+  assert.match(patched, /chatgpt-dictation-/);
   assert.match(patched, /linux-record-replay-desktop-snapshot/);
   assert.match(patched, /record-replay-hud/);
   assert.match(patched, /captureDesktopSnapshot/);
@@ -601,7 +601,7 @@ test("record-and-replay HUD patch is idempotent and appends runtime UI", () => {
   assert.match(patched, /finishRecording/);
   assert.match(patched, /discardRecording/);
   assert.match(patched, /Discard this Record & Replay recording/);
-  assert.doesNotMatch(patched, /codexLinuxRecordReplayVoiceControls/);
+  assert.doesNotMatch(patched, /chatgptLinuxRecordReplayVoiceControls/);
   assert.doesNotMatch(patched, /startDictation/);
   assert.doesNotMatch(patched, /stopDictation/);
   assert.doesNotMatch(patched, /finalizeVoiceCapture/);
@@ -614,8 +614,8 @@ test("record-and-replay mirrors finalized dictation transcripts into active bund
 
   assert.notEqual(patched, source);
   assert.equal(applyRecordReplayDictationTranscriptPatch(patched), patched);
-  assert.match(patched, /codexLinuxRecordReplayCaptureTranscript\?\.\(i,e\)/);
-  assert.match(patched, /codexLinuxRecordReplayPendingTranscripts\?\?=\[\]/);
+  assert.match(patched, /chatgptLinuxRecordReplayCaptureTranscript\?\.\(i,e\)/);
+  assert.match(patched, /chatgptLinuxRecordReplayPendingTranscripts\?\?=\[\]/);
   assert.match(patched, /global-dictation-record-history-item/);
   assert.match(patched, /e===`send`\?n\.onTranscriptSend\(i\):n\.onTranscriptInsert\(i\)/);
 });
@@ -627,9 +627,9 @@ test("record-and-replay mirrors global dictation completions into active bundle"
 
   assert.notEqual(patched, source);
   assert.equal(applyRecordReplayGlobalDictationTranscriptPatch(patched), patched);
-  assert.match(patched, /codex-linux-record-replay-global-dictation/);
+  assert.match(patched, /chatgpt-linux-record-replay-global-dictation/);
   assert.match(patched, /linux-record-replay-speech-context-active/);
-  assert.match(patched, /source:"codex-global-dictation"/);
+  assert.match(patched, /source:"chatgpt-global-dictation"/);
   assert.match(patched, /a\.dispatchMessage\(`global-dictation-completed`,\{sessionId:e\.sessionId,text:r\}\)/);
 });
 
@@ -677,7 +677,7 @@ test("record-and-replay HUD drains queued dictation transcripts into active bund
   });
   const documentElement = makeElement();
   const context = {
-    codexLinuxRecordReplayPendingTranscripts: [
+    chatgptLinuxRecordReplayPendingTranscripts: [
       { action: "send", queuedAt: Date.now(), transcript: "Create an image of a neon cabin" },
     ],
     clearTimeout,
@@ -758,23 +758,23 @@ test("record-and-replay HUD drains queued dictation transcripts into active bund
       (request) =>
         request.method === "linux-record-replay-speech-context" &&
         request.body.transcript === "Create an image of a neon cabin" &&
-        request.body.source === "codex-dictation-send",
+        request.body.source === "chatgpt-dictation-send",
     ),
   );
 });
 
 test("record-and-replay transcript hook composes after conversation mode transcript gate", () => {
   const source =
-    "function send(e,n){let i=`Create an image of a neon cabin`;i.length>0&&e!==`discard`&&globalThis.codexLinuxConversationShouldSendTranscript?.(i,e)!==!1&&(j.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:i}),e===`send`?n.onTranscriptSend(i):n.onTranscriptInsert(i))}";
+    "function send(e,n){let i=`Create an image of a neon cabin`;i.length>0&&e!==`discard`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(i,e)!==!1&&(j.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:i}),e===`send`?n.onTranscriptSend(i):n.onTranscriptInsert(i))}";
   const patched = applyRecordReplayDictationTranscriptPatch(source);
 
   assert.notEqual(patched, source);
   assert.equal(applyRecordReplayDictationTranscriptPatch(patched), patched);
   assert.match(
     patched,
-    /codexLinuxConversationShouldSendTranscript\?\.\(i,e\)!==!1&&\(\(globalThis\.codexLinuxRecordReplayCaptureTranscript\?\.\(i,e\)\?\?/,
+    /chatgptLinuxConversationShouldSendTranscript\?\.\(i,e\)!==!1&&\(\(globalThis\.chatgptLinuxRecordReplayCaptureTranscript\?\.\(i,e\)\?\?/,
   );
-  assert.match(patched, /codexLinuxRecordReplayPendingTranscripts\?\?=\[\]/);
+  assert.match(patched, /chatgptLinuxRecordReplayPendingTranscripts\?\?=\[\]/);
   assert.match(patched, /global-dictation-record-history-item/);
 });
 
@@ -881,10 +881,10 @@ test("record-and-replay plugin template matches upstream-shaped plugin UX", () =
 });
 
 test("record-and-replay stage hook records marketplace entry and stages plugin", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-stage-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-stage-"));
   try {
     const installDir = path.join(workspace, "install");
-    const fakeBinary = path.join(workspace, "codex-record-replay-linux");
+    const fakeBinary = path.join(workspace, "chatgpt-record-replay-linux");
     const marketplace = path.join(installDir, "resources/plugins/openai-bundled/.agents/plugins/marketplace.json");
     fs.mkdirSync(path.dirname(marketplace), { recursive: true });
     fs.writeFileSync(marketplace, JSON.stringify({ plugins: [{ name: "computer-use", source: { path: "./plugins/computer-use" } }] }));
@@ -897,12 +897,12 @@ test("record-and-replay stage hook records marketplace entry and stages plugin",
         ...process.env,
         SCRIPT_DIR: repoRoot(),
         INSTALL_DIR: installDir,
-        CODEX_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
+        CHATGPT_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
       },
       stdio: "pipe",
     });
 
-    const nativeBinary = path.join(installDir, "resources/native/codex-record-replay-linux");
+    const nativeBinary = path.join(installDir, "resources/native/chatgpt-record-replay-linux");
     const pluginDir = path.join(installDir, "resources/plugins/openai-bundled/plugins/record-and-replay");
     assert.equal(fs.existsSync(nativeBinary), true);
     assert.equal(fs.statSync(nativeBinary).mode & 0o111 ? true : false, true);
@@ -910,9 +910,9 @@ test("record-and-replay stage hook records marketplace entry and stages plugin",
     assert.equal(fs.existsSync(path.join(pluginDir, ".mcp.json")), true);
     assert.equal(fs.existsSync(path.join(pluginDir, "assets/app-icon.svg")), true);
     assert.equal(fs.existsSync(path.join(pluginDir, "skills/record-and-replay/SKILL.md")), true);
-    assert.equal(fs.existsSync(path.join(pluginDir, "bin/codex-record-replay-linux")), true);
+    assert.equal(fs.existsSync(path.join(pluginDir, "bin/chatgpt-record-replay-linux")), true);
     assert.equal(fs.existsSync(path.join(pluginDir, "bin/SkyLinuxComputerUseClient")), true);
-    assert.equal(fs.statSync(path.join(pluginDir, "bin/codex-record-replay-linux")).mode & 0o111 ? true : false, true);
+    assert.equal(fs.statSync(path.join(pluginDir, "bin/chatgpt-record-replay-linux")).mode & 0o111 ? true : false, true);
     assert.equal(fs.statSync(path.join(pluginDir, "bin/SkyLinuxComputerUseClient")).mode & 0o111 ? true : false, true);
 
     const stagedPlugin = JSON.parse(fs.readFileSync(path.join(pluginDir, ".codex-plugin/plugin.json"), "utf8"));
@@ -936,8 +936,8 @@ test("record-and-replay stage hook records marketplace entry and stages plugin",
 });
 
 test("record-and-replay disabled rebuild exposes cleanup hook for staged payload", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-cleanup-"));
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-cleanup-"));
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
   try {
     const integrationsRoot = path.join(workspace, "features");
     const installDir = path.join(workspace, "install");
@@ -945,7 +945,7 @@ test("record-and-replay disabled rebuild exposes cleanup hook for staged payload
     fs.writeFileSync(path.join(integrationsRoot, "integrations.example.json"), JSON.stringify({ enabled: [] }, null, 2));
     fs.cpSync(featureDir, path.join(integrationsRoot, "record-and-replay"), { recursive: true });
 
-    const staleNative = path.join(installDir, "resources/native/codex-record-replay-linux");
+    const staleNative = path.join(installDir, "resources/native/chatgpt-record-replay-linux");
     const stalePlugin = path.join(installDir, "resources/plugins/openai-bundled/plugins/record-and-replay");
     const marketplace = path.join(installDir, "resources/plugins/openai-bundled/.agents/plugins/marketplace.json");
     fs.mkdirSync(stalePlugin, { recursive: true });
@@ -958,7 +958,7 @@ test("record-and-replay disabled rebuild exposes cleanup hook for staged payload
       JSON.stringify({ plugins: [{ name: "record-and-replay" }, { name: "computer-use" }] }),
     );
 
-    process.env.CODEX_PORT_INTEGRATIONS_ROOT = integrationsRoot;
+    process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = integrationsRoot;
     const cleanupHooks = disabledPortIntegrationCleanupHooks({ integrationsRoot });
     assert.deepEqual(cleanupHooks.map((hook) => hook.id), ["record-and-replay"]);
     execFileSync("bash", [cleanupHooks[0].path], {
@@ -974,16 +974,16 @@ test("record-and-replay disabled rebuild exposes cleanup hook for staged payload
     assert.deepEqual(parsedMarketplace.plugins.map((plugin) => plugin.name), ["computer-use"]);
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
     fs.rmSync(workspace, { recursive: true, force: true });
   }
 });
 
 test("launcher rejects unsafe bundled plugin version path components", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-version-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-version-"));
   try {
     const launcher = fs.readFileSync(path.join(repoRoot(), "launcher/start.sh.template"), "utf8");
     const segment = launcher.slice(
@@ -1013,10 +1013,10 @@ test("launcher rejects unsafe bundled plugin version path components", () => {
 });
 
 test("record-and-replay stage hook uses the current upstream plugin shell when present", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-stage-upstream-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-stage-upstream-"));
   try {
     const installDir = path.join(workspace, "install");
-    const fakeBinary = path.join(workspace, "codex-record-replay-linux");
+    const fakeBinary = path.join(workspace, "chatgpt-record-replay-linux");
     const upstreamPlugin = path.join(
       workspace,
       "upstream/ChatGPT.app/Contents/Resources/plugins/openai-bundled/plugins/record-and-replay",
@@ -1072,8 +1072,8 @@ test("record-and-replay stage hook uses the current upstream plugin shell when p
         ...process.env,
         SCRIPT_DIR: repoRoot(),
         INSTALL_DIR: installDir,
-        CODEX_UPSTREAM_APP_DIR: path.join(workspace, "upstream/ChatGPT.app"),
-        CODEX_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
+        CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "upstream/ChatGPT.app"),
+        CHATGPT_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
       },
       stdio: "pipe",
     });
@@ -1098,7 +1098,7 @@ test("record-and-replay stage hook uses the current upstream plugin shell when p
       cwd: ".",
     });
     assert.match(stagedSkill, /event_stream_start/);
-    assert.equal(fs.existsSync(path.join(pluginDir, "bin/codex-record-replay-linux")), true);
+    assert.equal(fs.existsSync(path.join(pluginDir, "bin/chatgpt-record-replay-linux")), true);
     assert.equal(fs.existsSync(path.join(pluginDir, "bin/SkyLinuxComputerUseClient")), true);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
@@ -1106,10 +1106,10 @@ test("record-and-replay stage hook uses the current upstream plugin shell when p
 });
 
 test("record-and-replay stage hook rejects the obsolete nested-app plugin shell", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-stage-obsolete-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-stage-obsolete-"));
   try {
     const installDir = path.join(workspace, "install");
-    const fakeBinary = path.join(workspace, "codex-record-replay-linux");
+    const fakeBinary = path.join(workspace, "chatgpt-record-replay-linux");
     const upstreamPlugin = path.join(
       workspace,
       "upstream/ChatGPT.app/Contents/Resources/plugins/openai-bundled/plugins/record-and-replay",
@@ -1160,8 +1160,8 @@ test("record-and-replay stage hook rejects the obsolete nested-app plugin shell"
         ...process.env,
         SCRIPT_DIR: repoRoot(),
         INSTALL_DIR: installDir,
-        CODEX_UPSTREAM_APP_DIR: path.join(workspace, "upstream/ChatGPT.app"),
-        CODEX_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
+        CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "upstream/ChatGPT.app"),
+        CHATGPT_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
       },
       stdio: "pipe",
     });
@@ -1176,10 +1176,10 @@ test("record-and-replay stage hook rejects the obsolete nested-app plugin shell"
 });
 
 test("record-and-replay stage hook borrows upstream webview icon when present", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-record-replay-stage-icon-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-record-replay-stage-icon-"));
   try {
     const installDir = path.join(workspace, "install");
-    const fakeBinary = path.join(workspace, "codex-record-replay-linux");
+    const fakeBinary = path.join(workspace, "chatgpt-record-replay-linux");
     const assetsDir = path.join(installDir, "content/webview/assets");
     fs.mkdirSync(assetsDir, { recursive: true });
     fs.writeFileSync(path.join(assetsDir, "record-and-replay-plugin-icon-fixture.png"), "fake-png");
@@ -1192,7 +1192,7 @@ test("record-and-replay stage hook borrows upstream webview icon when present", 
         ...process.env,
         SCRIPT_DIR: repoRoot(),
         INSTALL_DIR: installDir,
-        CODEX_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
+        CHATGPT_RECORD_REPLAY_LINUX_SOURCE: fakeBinary,
       },
       stdio: "pipe",
     });

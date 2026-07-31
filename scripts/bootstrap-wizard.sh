@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Guided, conservative setup helper for native Codex App Linux builds.
+# Guided, conservative setup helper for native ChatGPT for Linux builds.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INTEGRATIONS_ROOT="${CODEX_PORT_INTEGRATIONS_ROOT:-${CODEX_LINUX_FEATURES_ROOT:-$REPO_DIR/port-integrations}}"
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
+INTEGRATIONS_ROOT="${CHATGPT_PORT_INTEGRATIONS_ROOT:-${CHATGPT_LINUX_FEATURES_ROOT:-$REPO_DIR/port-integrations}}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/linux-target-detect.sh"
 SETUP_ERROR_REPORTED=0
@@ -41,7 +41,7 @@ unexpected_error() {
     [ "$status" = "0" ] && return 0
     [ "${SETUP_ERROR_REPORTED:-0}" = "1" ] && return "$status"
     echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} setup-native stopped unexpectedly near line ${BASH_LINENO[0]:-unknown} (exit $status)." >&2
-    echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} Review the last [setup] lines above. You can rerun with CODEX_BOOTSTRAP_DRY_RUN=1 for a read-only preview." >&2
+    echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} Review the last [setup] lines above. You can rerun with CHATGPT_BOOTSTRAP_DRY_RUN=1 for a read-only preview." >&2
     return "$status"
 }
 
@@ -52,21 +52,21 @@ usage() {
 Usage: scripts/bootstrap-wizard.sh [--help]
 
 Environment:
-  CODEX_BOOTSTRAP_NONINTERACTIVE=1     never prompt
-  CODEX_BOOTSTRAP_DRY_RUN=1            preview install/cleanup actions without changing them
-  CODEX_BOOTSTRAP_INSTALL_DEPS=1       run bash scripts/install-deps.sh after checks
-  CODEX_BOOTSTRAP_INSTALL_NATIVE=1     run make install-native after checks
-  CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS=a,b cleanup integration-owned data with confirmation
-  CODEX_BOOTSTRAP_COLOR=auto|1|0       enable ANSI color automatically, force it, or disable it
-  CODEX_PORT_INTEGRATIONS=a,b             enable build-time port integrations
-  CODEX_DISABLE_PORT_INTEGRATIONS=a,b     disable build-time port integrations
-  CODEX_PORT_INTEGRATIONS_ROOT=/path      override port-integrations root
-  CODEX_PORT_INTEGRATIONS_CONFIG=/path    override integrations.json path
+  CHATGPT_BOOTSTRAP_NONINTERACTIVE=1     never prompt
+  CHATGPT_BOOTSTRAP_DRY_RUN=1            preview install/cleanup actions without changing them
+  CHATGPT_BOOTSTRAP_INSTALL_DEPS=1       run bash scripts/install-deps.sh after checks
+  CHATGPT_BOOTSTRAP_INSTALL_NATIVE=1     run make install-native after checks
+  CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS=a,b cleanup integration-owned data with confirmation
+  CHATGPT_BOOTSTRAP_COLOR=auto|1|0       enable ANSI color automatically, force it, or disable it
+  CHATGPT_PORT_INTEGRATIONS=a,b             enable build-time port integrations
+  CHATGPT_DISABLE_PORT_INTEGRATIONS=a,b     disable build-time port integrations
+  CHATGPT_PORT_INTEGRATIONS_ROOT=/path      override port-integrations root
+  CHATGPT_PORT_INTEGRATIONS_CONFIG=/path    override integrations.json path
   port-integrations/local/<id>/        user-local integrations are discovered and marked [local]
-  PACKAGE_NAME=codex-cua-lab           check side-by-side installed package state
+  PACKAGE_NAME=chatgpt-cua-lab           check side-by-side installed package state
   PACKAGE_WITH_UPDATER=0               choose manual-update package mode
 
-Legacy CODEX_LINUX_FEATURES_* and CODEX_BOOTSTRAP_CLEANUP_FEATURES variables
+Legacy CHATGPT_LINUX_FEATURES_* and CHATGPT_BOOTSTRAP_CLEANUP_FEATURES variables
 are accepted as compatibility aliases.
 
 The wizard is conservative: it does not install packages, start services, stop
@@ -111,7 +111,7 @@ falsy() {
 }
 
 init_colors() {
-    case "${CODEX_BOOTSTRAP_COLOR:-auto}" in
+    case "${CHATGPT_BOOTSTRAP_COLOR:-auto}" in
         1|true|True|TRUE|yes|Yes|YES|on|On|ON|always)
             ;;
         0|false|False|FALSE|no|No|NO|off|Off|OFF|never)
@@ -123,7 +123,7 @@ init_colors() {
             [ "${TERM:-}" != "dumb" ] || return 0
             ;;
         *)
-            error "CODEX_BOOTSTRAP_COLOR must be auto, 1, or 0"
+            error "CHATGPT_BOOTSTRAP_COLOR must be auto, 1, or 0"
             ;;
     esac
 
@@ -138,11 +138,11 @@ init_colors() {
 
 init_colors
 noninteractive_mode() {
-    truthy "${CODEX_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]
+    truthy "${CHATGPT_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]
 }
 
 dry_run_enabled() {
-    truthy "${CODEX_BOOTSTRAP_DRY_RUN:-0}"
+    truthy "${CHATGPT_BOOTSTRAP_DRY_RUN:-0}"
 }
 
 prompt_read() {
@@ -184,10 +184,10 @@ package_with_updater_enabled() {
 }
 
 integration_config_path() {
-    if [ -n "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" ]; then
-        printf '%s\n' "$CODEX_PORT_INTEGRATIONS_CONFIG"
-    elif [ -n "${CODEX_LINUX_FEATURES_CONFIG:-}" ]; then
-        printf '%s\n' "$CODEX_LINUX_FEATURES_CONFIG"
+    if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ]; then
+        printf '%s\n' "$CHATGPT_PORT_INTEGRATIONS_CONFIG"
+    elif [ -n "${CHATGPT_LINUX_FEATURES_CONFIG:-}" ]; then
+        printf '%s\n' "$CHATGPT_LINUX_FEATURES_CONFIG"
     elif [ -e "$INTEGRATIONS_ROOT/integrations.json" ]; then
         printf '%s\n' "$INTEGRATIONS_ROOT/integrations.json"
     elif [ -e "$INTEGRATIONS_ROOT/features.json" ]; then
@@ -317,7 +317,7 @@ computer_use_ydotool_packages() {
 }
 
 uinput_summary() {
-    local uinput_path="${CODEX_BOOTSTRAP_UINPUT_PATH:-/dev/uinput}"
+    local uinput_path="${CHATGPT_BOOTSTRAP_UINPUT_PATH:-/dev/uinput}"
     if [ ! -e "$uinput_path" ]; then
         printf 'missing'
         return
@@ -370,9 +370,9 @@ window_backend_hint() {
 computer_use_doctor_path() {
     local candidate
     for candidate in \
-        "$REPO_DIR/codex-app/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" \
-        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" \
-        "$(command -v codex-computer-use-linux 2>/dev/null || true)"; do
+        "$REPO_DIR/chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux" \
+        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux" \
+        "$(command -v chatgpt-computer-use-linux 2>/dev/null || true)"; do
         [ -n "$candidate" ] || continue
         if [ -x "$candidate" ]; then
             printf '%s\n' "$candidate"
@@ -383,14 +383,14 @@ computer_use_doctor_path() {
 }
 
 settings_file_path() {
-    if [ -n "${CODEX_LINUX_SETTINGS_FILE:-}" ]; then
-        printf '%s\n' "$CODEX_LINUX_SETTINGS_FILE"
+    if [ -n "${CHATGPT_LINUX_SETTINGS_FILE:-}" ]; then
+        printf '%s\n' "$CHATGPT_LINUX_SETTINGS_FILE"
     else
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local app_id="${CODEX_LINUX_APP_ID:-${CODEX_APP_ID:-codex-app}}"
+        local app_id="${CHATGPT_LINUX_APP_ID:-${CHATGPT_APP_ID:-chatgpt}}"
         case "$app_id" in
             */*|*[!A-Za-z0-9._-]*|"."|".."|"")
-                app_id="codex-app"
+                app_id="chatgpt"
                 ;;
         esac
         printf '%s\n' "$config_home/$app_id/settings.json"
@@ -419,20 +419,20 @@ PY
 }
 
 read_aloud_python_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-python")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-python")"
     fi
     if [ -z "$value" ]; then
-        value="${XDG_DATA_HOME:-$HOME/.local/share}/codex-app/read-aloud/kokoro-venv/bin/python"
+        value="${XDG_DATA_HOME:-$HOME/.local/share}/chatgpt/read-aloud/kokoro-venv/bin/python"
     fi
     printf '%s\n' "$value"
 }
 
 read_aloud_model_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_MODEL:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-model")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-model")"
     fi
     if [ -z "$value" ]; then
         value="${XDG_DATA_HOME:-$HOME/.local/share}/kokoro/kokoro-v1.0.onnx"
@@ -441,9 +441,9 @@ read_aloud_model_path() {
 }
 
 read_aloud_voices_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_VOICES:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-voices")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-voices")"
     fi
     if [ -z "$value" ]; then
         value="${XDG_DATA_HOME:-$HOME/.local/share}/kokoro/voices-v1.0.bin"
@@ -469,9 +469,9 @@ path_summary() {
 read_aloud_doctor_path() {
     local candidate
     for candidate in \
-        "$REPO_DIR/codex-app/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" \
-        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" \
-        "$(command -v codex-read-aloud-linux 2>/dev/null || true)"; do
+        "$REPO_DIR/chatgpt/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux" \
+        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux" \
+        "$(command -v chatgpt-read-aloud-linux 2>/dev/null || true)"; do
         [ -n "$candidate" ] || continue
         if [ -x "$candidate" ]; then
             printf '%s\n' "$candidate"
@@ -499,7 +499,7 @@ print_read_aloud_details() {
     if [ -n "$doctor" ]; then
         info "  Read Aloud doctor command: $doctor doctor"
     else
-        info "  Read Aloud doctor command: enable read-aloud-mcp and rebuild/install, then run codex-read-aloud-linux doctor from the staged plugin."
+        info "  Read Aloud doctor command: enable read-aloud-mcp and rebuild/install, then run chatgpt-read-aloud-linux doctor from the staged plugin."
     fi
     info "  Setup hint: use the Read Aloud settings download flow or port-integrations/read-aloud/install-kokoro-runtime.sh; custom paths stay in settings/env."
 }
@@ -520,7 +520,7 @@ print_computer_use_details() {
     if [ -n "$doctor" ]; then
         info "  Computer Use doctor command: $doctor doctor"
     else
-        info "  Computer Use doctor command: build/install first, then run codex-computer-use-linux doctor from the staged plugin."
+        info "  Computer Use doctor command: build/install first, then run chatgpt-computer-use-linux doctor from the staged plugin."
     fi
 }
 
@@ -544,7 +544,7 @@ installed_package_version() {
 }
 
 updater_install_summary() {
-    if [ -x /usr/bin/codex-app-updater ] || [ -d "/opt/$PACKAGE_NAME/update-builder" ]; then
+    if [ -x /usr/bin/chatgpt-updater ] || [ -d "/opt/$PACKAGE_NAME/update-builder" ]; then
         printf 'updater artifacts detected'
     else
         printf 'not detected'
@@ -560,7 +560,7 @@ print_system_summary() {
         atomic_host="yes"
     fi
 
-    info "Codex App Linux guided setup"
+    info "ChatGPT for Linux guided setup"
     info "Repository: $REPO_DIR"
     info "Distro: ID=${OS_RELEASE_ID:-unknown} ID_LIKE=${OS_RELEASE_ID_LIKE:-unknown} VERSION_ID=${OS_RELEASE_VERSION_ID:-unknown}"
     info "Package manager: $(detect_package_manager)"
@@ -868,7 +868,7 @@ else:
     print("[setup] Available port integrations: none found")
 
 if apply_changes and (enable or disable):
-    print("[setup] Integration changes apply after rebuilding and reinstalling Codex App Linux.")
+    print("[setup] Integration changes apply after rebuilding and reinstalling ChatGPT for Linux.")
 PY
     then
         SETUP_ERROR_REPORTED=1
@@ -895,7 +895,7 @@ print_safe_disable_guidance() {
 
     if list_includes_id "$disable_raw" "remote-mobile-control"; then
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local key_file="$config_home/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
+        local key_file="$config_home/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
         info "Remote mobile control opt-out: Not deleting $key_file."
         info "Revoke paired devices from Codex Settings/Connections or ChatGPT before deleting local keys manually."
     fi
@@ -904,7 +904,7 @@ print_safe_disable_guidance() {
         list_includes_id "$disable_raw" "read-aloud-mcp" ||
         list_includes_id "$disable_raw" "conversation-mode"; then
         local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-        local read_aloud_data="$data_home/codex-app/read-aloud"
+        local read_aloud_data="$data_home/chatgpt/read-aloud"
         local read_aloud_model
         local read_aloud_voices
         local read_aloud_cache="$HOME/.codex/plugins/cache/openai-bundled/read-aloud"
@@ -946,7 +946,7 @@ cleanup_path_is_safe() {
             ;;
     esac
     case "$path" in
-        "$config_home"/codex-app/*|"$data_home"/codex-app/read-aloud|"$data_home"/codex-app/read-aloud/*|"$data_home"/kokoro/kokoro-v1.0.onnx|"$data_home"/kokoro/voices-v1.0.bin|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud/*)
+        "$config_home"/chatgpt/*|"$data_home"/chatgpt/read-aloud|"$data_home"/chatgpt/read-aloud/*|"$data_home"/kokoro/kokoro-v1.0.onnx|"$data_home"/kokoro/voices-v1.0.bin|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud/*)
             return 0
             ;;
     esac
@@ -980,7 +980,7 @@ confirm_and_delete_path() {
 }
 
 run_integration_cleanup() {
-    local cleanup_raw="${CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS:-${CODEX_BOOTSTRAP_CLEANUP_FEATURES:-}}"
+    local cleanup_raw="${CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS:-${CHATGPT_BOOTSTRAP_CLEANUP_FEATURES:-}}"
     if [ -z "$cleanup_raw" ]; then
         if noninteractive_mode; then
             return
@@ -1016,7 +1016,7 @@ run_integration_cleanup() {
 
     if list_includes_id "$cleanup_raw" "remote-mobile-control"; then
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local key_file="$config_home/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
+        local key_file="$config_home/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
         info "Remote mobile control cleanup: revoke paired devices in Codex Settings/Connections or ChatGPT before deleting local keys."
         confirm_and_delete_path "$key_file"
     fi
@@ -1025,7 +1025,7 @@ run_integration_cleanup() {
         list_includes_id "$cleanup_raw" "read-aloud-mcp" ||
         list_includes_id "$cleanup_raw" "conversation-mode"; then
         local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-        local read_aloud_data="$data_home/codex-app/read-aloud"
+        local read_aloud_data="$data_home/chatgpt/read-aloud"
         local read_aloud_model
         local read_aloud_voices
         local read_aloud_cache="$HOME/.codex/plugins/cache/openai-bundled/read-aloud"
@@ -1041,14 +1041,14 @@ run_integration_cleanup() {
 
 print_package_mode_guidance() {
     if package_with_updater_enabled; then
-        info "Default native package mode includes codex-app-updater."
+        info "Default native package mode includes chatgpt-updater."
         info "Next rebuild/reinstall command: make install-native"
     else
         info "Manual-update native package mode selected (PACKAGE_WITH_UPDATER=0)."
         info "No-updater mode takes effect only after rebuilding and reinstalling the native package."
         info "Next rebuild/reinstall command: PACKAGE_WITH_UPDATER=0 make install-native"
     fi
-    info "AppImage builds never include codex-app-updater. Nix integration choices stay declarative in flake outputs, not port-integrations/integrations.json."
+    info "AppImage builds never include chatgpt-updater. Nix integration choices stay declarative in flake outputs, not port-integrations/integrations.json."
 }
 
 run_repo_command() {
@@ -1089,16 +1089,16 @@ maybe_run_install_steps() {
     local run_deps=0
     local run_install=0
 
-    if env_flag_enabled CODEX_BOOTSTRAP_INSTALL_DEPS; then
+    if env_flag_enabled CHATGPT_BOOTSTRAP_INSTALL_DEPS; then
         run_deps=1
     fi
-    if env_flag_enabled CODEX_BOOTSTRAP_INSTALL_NATIVE; then
+    if env_flag_enabled CHATGPT_BOOTSTRAP_INSTALL_NATIVE; then
         run_install=1
     fi
 
     if ! noninteractive_mode; then
         local answer
-        if [ -z "${CODEX_BOOTSTRAP_INSTALL_DEPS+x}" ]; then
+        if [ -z "${CHATGPT_BOOTSTRAP_INSTALL_DEPS+x}" ]; then
             prompt_read answer "[setup] Run host dependency bootstrap now (bash scripts/install-deps.sh)? [y/N]: " || true
             case "$answer" in
                 y|Y|yes|Yes|YES)
@@ -1106,7 +1106,7 @@ maybe_run_install_steps() {
                     ;;
             esac
         fi
-        if [ -z "${CODEX_BOOTSTRAP_INSTALL_NATIVE+x}" ]; then
+        if [ -z "${CHATGPT_BOOTSTRAP_INSTALL_NATIVE+x}" ]; then
             prompt_read answer "[setup] Run native build/package/install now? [y/N]: " || true
             case "$answer" in
                 y|Y|yes|Yes|YES)
@@ -1132,9 +1132,9 @@ maybe_run_install_steps() {
 
 # True when an interactive GUI checklist can be shown: a graphical session,
 # a dialog helper (zenity/kdialog), python3 for integration discovery, and no
-# explicit opt-out through CODEX_BOOTSTRAP_NO_GUI.
+# explicit opt-out through CHATGPT_BOOTSTRAP_NO_GUI.
 gui_integration_picker_available() {
-    truthy "${CODEX_BOOTSTRAP_NO_GUI:-0}" && return 1
+    truthy "${CHATGPT_BOOTSTRAP_NO_GUI:-0}" && return 1
     [ -t 0 ] || return 1
     [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || return 1
     command -v python3 >/dev/null 2>&1 || return 1
@@ -1167,7 +1167,7 @@ prompt_for_integration_changes_gui() {
             rows+=("$id" "${title_of[$id]}")
         done
         selected="$(zenity --list --checklist \
-            --title="Codex App Linux port integrations" \
+            --title="ChatGPT for Linux port integrations" \
             --text="Select optional port integrations for the next build." \
             --column="Enable" --column="Integration" --column="Description" \
             --print-column=2 --separator=$'\n' \
@@ -1220,10 +1220,10 @@ prompt_for_integration_changes_gui() {
 }
 
 prompt_for_integration_changes() {
-    local enable_raw="${CODEX_PORT_INTEGRATIONS:-${CODEX_LINUX_FEATURES:-}}"
-    local disable_raw="${CODEX_DISABLE_PORT_INTEGRATIONS:-${CODEX_LINUX_DISABLE_FEATURES:-}}"
+    local enable_raw="${CHATGPT_PORT_INTEGRATIONS:-${CHATGPT_LINUX_FEATURES:-}}"
+    local disable_raw="${CHATGPT_DISABLE_PORT_INTEGRATIONS:-${CHATGPT_LINUX_DISABLE_FEATURES:-}}"
 
-    if truthy "${CODEX_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]; then
+    if truthy "${CHATGPT_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]; then
         run_integration_config_python "$enable_raw" "$disable_raw" "1"
         print_safe_disable_guidance "$disable_raw"
         return
@@ -1253,7 +1253,7 @@ prompt_for_integration_changes() {
 prompt_package_updater_mode() {
     local answer
     if package_with_updater_enabled; then
-        prompt_read answer "[setup] Keep codex-app-updater in the next native package? [Y/n]: " || true
+        prompt_read answer "[setup] Keep chatgpt-updater in the next native package? [Y/n]: " || true
         case "$answer" in
             n|N|no|No|NO)
                 PACKAGE_WITH_UPDATER=0

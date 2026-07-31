@@ -3,7 +3,7 @@
 Use this guide when producing showcase visuals for the project README.
 
 The README should stay clean, utilitarian, and accurate for users and distro
-maintainers. Visuals should show real Codex app surfaces running on Linux, with
+maintainers. Visuals should show real ChatGPT app surfaces running on Linux, with
 non-sensitive and reproducible staged content.
 
 ## Output Contract
@@ -14,7 +14,7 @@ over several inline screenshots so the README remains scannable on GitHub
 desktop and mobile.
 
 Store committed README showcase assets under `docs/assets/readme/` and reference
-them with non-empty alt text. The existing app icon remains `assets/codex.png`
+them with non-empty alt text. The existing app icon remains `assets/chatgpt.png`
 because package and app builders use that path as an input.
 
 Run the README visual reference check before committing README visual changes:
@@ -56,7 +56,7 @@ demote candidates when a new app version introduces stronger visual states.
 
 Must-capture candidates:
 
-- Main Codex workbench on a Linux desktop, staged with a populated sidebar,
+- Main ChatGPT workbench on a Linux desktop, staged with a populated sidebar,
   colorful pull request indicators, in-chat change summaries, and non-sensitive
   conversation content.
 - Browser Use with annotations, staged against public or disposable web content.
@@ -72,7 +72,7 @@ Strong candidates:
 Optional or future candidates:
 
 - Updater notification or status sequence while building a new package from a
-  freshly fetched official OpenAI Codex DMG, once the local updater path is
+  freshly fetched official OpenAI ChatGPT DMG, once the local updater path is
   healthy enough to capture reproducibly.
 - Plugin or skill browser surfaces when they add visual value without distracting
   from the main product story.

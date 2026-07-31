@@ -4,14 +4,14 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if [ "${CODEX_SCRIPTS_SMOKE_ENV_CLEANED:-0}" != "1" ]; then
+if [ "${CHATGPT_SCRIPTS_SMOKE_ENV_CLEANED:-0}" != "1" ]; then
     bash_func_unset_args=()
     while IFS= read -r env_name; do
         bash_func_unset_args+=("-u" "$env_name")
     done < <(env | sed -n 's/^\(BASH_FUNC_[^=]*\)=.*/\1/p')
     exec env \
         "${bash_func_unset_args[@]}" \
-        CODEX_SCRIPTS_SMOKE_ENV_CLEANED=1 \
+        CHATGPT_SCRIPTS_SMOKE_ENV_CLEANED=1 \
         bash "$0" "$@"
 fi
 
@@ -53,14 +53,14 @@ TRUE_BIN="$(PATH="$HOST_TOOL_PATH" type -P true)"
 TMP_DIR="$(mktemp -d)"
 
 SMOKE_PORT_INTEGRATIONS_CONFIG="$TMP_DIR/port-integrations-disabled.json"
-CODEX_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/port-integrations/integrations.example.json" \
+CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/port-integrations/integrations.example.json" \
     node - "$REPO_DIR/scripts/lib/port-integrations.js" "$SMOKE_PORT_INTEGRATIONS_CONFIG" <<'NODE'
 const fs = require("node:fs");
 const { enabledPortIntegrationIds } = require(process.argv[2]);
 const config = { enabled: [], disabled: enabledPortIntegrationIds() };
 fs.writeFileSync(process.argv[3], `${JSON.stringify(config, null, 2)}\n`);
 NODE
-export CODEX_PORT_INTEGRATIONS_CONFIG="$SMOKE_PORT_INTEGRATIONS_CONFIG"
+export CHATGPT_PORT_INTEGRATIONS_CONFIG="$SMOKE_PORT_INTEGRATIONS_CONFIG"
 
 cleanup() {
     rm -rf "$TMP_DIR"
@@ -238,7 +238,7 @@ test_extract_webview_replaces_linux_icon_assets() {
     local workspace="$TMP_DIR/webview-icon"
     local install_dir="$workspace/install"
     local work_dir="$workspace/work"
-    local icon_source="$workspace/codex-linux.png"
+    local icon_source="$workspace/chatgpt-linux.png"
     local assets_dir="$install_dir/content/webview/assets"
     local output_log="$workspace/output.log"
 
@@ -253,7 +253,7 @@ test_extract_webview_replaces_linux_icon_assets() {
         INSTALL_DIR="$install_dir"
         WORK_DIR="$work_dir"
         ICON_SOURCE="$icon_source"
-        CODEX_LINUX_ICON_SOURCE="$icon_source"
+        CHATGPT_LINUX_ICON_SOURCE="$icon_source"
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/webview-install.sh"
         extract_webview "$INSTALL_DIR"
@@ -279,11 +279,11 @@ test_installer_prefers_compact_official_chatgpt_icon() {
     local selection_file="$workspace/selection.txt"
 
     mkdir -p "$(dirname "$compact_icon")" "$(dirname "$full_size_icon")"
-    cp "$REPO_DIR/assets/codex.png" "$compact_icon"
+    cp "$REPO_DIR/assets/chatgpt.png" "$compact_icon"
     printf '%s\n' full-size > "$full_size_icon"
 
     (
-        export CODEX_INSTALLER_SOURCE_ONLY=1
+        export CHATGPT_INSTALLER_SOURCE_ONLY=1
         # shellcheck disable=SC1091
         source "$REPO_DIR/install.sh"
         WORK_DIR="$work_dir"
@@ -297,7 +297,7 @@ test_installer_prefers_compact_official_chatgpt_icon() {
 
     rm -f "$compact_icon"
     (
-        export CODEX_INSTALLER_SOURCE_ONLY=1
+        export CHATGPT_INSTALLER_SOURCE_ONLY=1
         # shellcheck disable=SC1091
         source "$REPO_DIR/install.sh"
         WORK_DIR="$work_dir"
@@ -306,11 +306,11 @@ test_installer_prefers_compact_official_chatgpt_icon() {
         printf '%s\n' "$LINUX_ICON_SOURCE" > "$selection_file"
     )
 
-    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/codex-linux.png" ] \
+    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/chatgpt-linux.png" ] \
         || fail "Expected a missing compact ChatGPT icon to avoid the oversized upstream app icon"
 
     mkdir -p "$(dirname "$compact_icon")"
-    cp "$REPO_DIR/assets/codex.png" "$compact_icon"
+    cp "$REPO_DIR/assets/chatgpt.png" "$compact_icon"
     python3 - "$compact_icon" <<'PY'
 import struct
 import sys
@@ -320,7 +320,7 @@ with open(sys.argv[1], "r+b") as icon_file:
     icon_file.write(struct.pack(">II", 2048, 2048))
 PY
     (
-        export CODEX_INSTALLER_SOURCE_ONLY=1
+        export CHATGPT_INSTALLER_SOURCE_ONLY=1
         # shellcheck disable=SC1091
         source "$REPO_DIR/install.sh"
         WORK_DIR="$work_dir"
@@ -329,7 +329,7 @@ PY
         printf '%s\n' "$LINUX_ICON_SOURCE" > "$selection_file"
     )
 
-    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/codex-linux.png" ] \
+    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/chatgpt-linux.png" ] \
         || fail "Expected an oversized upstream ChatGPT icon to fall back safely"
 }
 
@@ -337,7 +337,7 @@ test_user_local_icon_prefers_generated_app_icon() {
     info "Checking user-local integration reuses the generated ChatGPT icon"
     local workspace="$TMP_DIR/user-local-chatgpt-icon"
     local home_dir="$workspace/home"
-    local generated_icon="$home_dir/.local/share/codex-app/app/.codex-linux/codex-app.png"
+    local generated_icon="$home_dir/.local/share/chatgpt/app/.chatgpt-linux/chatgpt.png"
 
     mkdir -p "$(dirname "$generated_icon")"
     printf '%s\n' 'generated-chatgpt-icon' > "$generated_icon"
@@ -370,7 +370,7 @@ test_extract_webview_requires_entrypoint() {
         INSTALL_DIR="$workspace/missing-dir/install"
         WORK_DIR="$workspace/missing-dir/work"
         ICON_SOURCE="$workspace/icon.png"
-        CODEX_LINUX_ICON_SOURCE="$workspace/icon.png"
+        CHATGPT_LINUX_ICON_SOURCE="$workspace/icon.png"
         error() { echo "[ERROR] $*" >&2; exit 1; }
         warn() { echo "[WARN] $*" >&2; }
         # shellcheck disable=SC1091
@@ -388,7 +388,7 @@ test_extract_webview_requires_entrypoint() {
         INSTALL_DIR="$workspace/missing-index/install"
         WORK_DIR="$workspace/missing-index/work"
         ICON_SOURCE="$workspace/icon.png"
-        CODEX_LINUX_ICON_SOURCE="$workspace/icon.png"
+        CHATGPT_LINUX_ICON_SOURCE="$workspace/icon.png"
         error() { echo "[ERROR] $*" >&2; exit 1; }
         warn() { echo "[WARN] $*" >&2; }
         # shellcheck disable=SC1091
@@ -415,7 +415,7 @@ test_package_icon_source_resolution() {
     info "Checking shared package icon source resolution"
     local workspace="$TMP_DIR/package-icon-source"
     local app_dir="$workspace/app"
-    local generated_icon="$app_dir/.codex-linux/codex-app.png"
+    local generated_icon="$app_dir/.chatgpt-linux/chatgpt.png"
     local explicit_icon="$workspace/explicit.png"
 
     mkdir -p "$(dirname "$generated_icon")"
@@ -462,8 +462,8 @@ test_package_layout_requires_webview_entrypoint() {
 test_package_payload_permission_normalization() {
     info "Checking package payload permission normalization"
     local root="$TMP_DIR/package-permissions"
-    local app_root="$root/opt/codex-app"
-    local private_file="$app_root/.codex-linux/port-integrations/private/secret.txt"
+    local app_root="$root/opt/chatgpt"
+    local private_file="$app_root/.chatgpt-linux/port-integrations/private/secret.txt"
     local integrations_root="$TMP_DIR/package-permissions-features"
     local integration_dir="$integrations_root/private-package"
     local integration_config="$integrations_root/integrations.json"
@@ -472,16 +472,16 @@ test_package_payload_permission_normalization() {
     mkdir -p "$app_root/content/webview" "$root/usr/bin" "$(dirname "$private_file")"
     printf '%s\n' "#!$BASH_BIN" 'echo start' > "$app_root/start.sh"
     printf '%s\n' '<!doctype html>' > "$app_root/content/webview/index.html"
-    printf '%s\n' "#!$BASH_BIN" 'exec /opt/codex-app/start.sh "$@"' > "$root/usr/bin/codex-app"
+    printf '%s\n' "#!$BASH_BIN" 'exec /opt/chatgpt/start.sh "$@"' > "$root/usr/bin/chatgpt"
     printf '%s\n' 'secret' > "$private_file"
-    cat > "$app_root/.codex-linux/port-integrations-staged.json" <<'JSON'
+    cat > "$app_root/.chatgpt-linux/port-integrations-staged.json" <<'JSON'
 {
   "version": 1,
   "resources": [
     {
       "id": "private",
       "type": "resource",
-      "target": ".codex-linux/port-integrations/private/secret.txt",
+      "target": ".chatgpt-linux/port-integrations/private/secret.txt",
       "mode": "0600"
     }
   ],
@@ -489,7 +489,7 @@ test_package_payload_permission_normalization() {
 }
 JSON
     chmod 0700 "$root/opt" "$app_root" "$app_root/content" "$app_root/content/webview"
-    chmod 0700 "$app_root/start.sh" "$root/usr/bin/codex-app"
+    chmod 0700 "$app_root/start.sh" "$root/usr/bin/chatgpt"
     chmod 0600 "$app_root/content/webview/index.html" "$private_file"
 
     mkdir -p "$integration_dir"
@@ -510,26 +510,26 @@ JSON
 JSON
     printf '%s\n' '{"enabled":[]}' > "$integrations_root/integrations.example.json"
     printf '%s\n' '{"enabled":["private-package"]}' > "$integration_config"
-    printf '%s\n' '{"schemaVersion":1,"linuxFeatures":{"enabled":["private-package"]}}' \
-        > "$app_root/.codex-linux/build-info.json"
+    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["private-package"]}}' \
+        > "$app_root/.chatgpt-linux/build-info.json"
 
     # shellcheck disable=SC1091
     source "$REPO_DIR/scripts/lib/package-common.sh"
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config" \
-    PACKAGE_NAME="codex-app" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+    PACKAGE_NAME="chatgpt" \
         stage_port_integration_package_resources "$root" "deb"
     normalize_package_payload_permissions "$root"
-    PACKAGE_NAME="codex-app" restore_port_integration_payload_permissions "$root"
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config" \
-    PACKAGE_NAME="codex-app" \
+    PACKAGE_NAME="chatgpt" restore_port_integration_payload_permissions "$root"
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+    PACKAGE_NAME="chatgpt" \
         restore_port_integration_package_resource_permissions "$root" "deb"
 
     assert_mode "$app_root" "755"
     assert_mode "$app_root/content/webview" "755"
     assert_mode "$app_root/start.sh" "755"
-    assert_mode "$root/usr/bin/codex-app" "755"
+    assert_mode "$root/usr/bin/chatgpt" "755"
     assert_mode "$app_root/content/webview/index.html" "644"
     assert_mode "$private_file" "600"
     assert_mode "$package_resource" "640"
@@ -539,18 +539,18 @@ JSON
     local external_file="$external_root/private-package/secret.txt"
     local attack_log="$TMP_DIR/package-permissions-symlink-attack.log"
     mkdir -p "$attack_root/usr" "$(dirname "$external_file")"
-    mkdir -p "$attack_root/opt/codex-app/.codex-linux"
-    cp "$app_root/.codex-linux/build-info.json" \
-        "$attack_root/opt/codex-app/.codex-linux/build-info.json"
+    mkdir -p "$attack_root/opt/chatgpt/.chatgpt-linux"
+    cp "$app_root/.chatgpt-linux/build-info.json" \
+        "$attack_root/opt/chatgpt/.chatgpt-linux/build-info.json"
     printf '%s\n' 'external secret' > "$external_file"
     chmod 0600 "$external_file"
     ln -s "$external_root" "$attack_root/usr/share"
 
     set +e
     (
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config" \
-        PACKAGE_NAME="codex-app" \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+        PACKAGE_NAME="chatgpt" \
             restore_port_integration_package_resource_permissions "$attack_root" "deb"
     ) >"$attack_log" 2>&1
     local attack_rc=$?
@@ -569,7 +569,7 @@ test_deb_builder_smoke() {
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
     local pkg_root="$workspace/deb-root"
-    local updater_bin="$workspace/codex-app-updater"
+    local updater_bin="$workspace/chatgpt-updater"
     local capture_dir="$workspace/capture"
 
     mkdir -p "$workspace" "$dist_dir" "$capture_dir"
@@ -613,72 +613,72 @@ SCRIPT
     PACKAGE_VERSION="2026.03.24.120000+deadbeef" \
     bash "$REPO_DIR/scripts/build-deb.sh"
 
-    assert_file_exists "$dist_dir/codex-app_2026.03.24.120000+deadbeef_amd64.deb"
+    assert_file_exists "$dist_dir/chatgpt_2026.03.24.120000+deadbeef_amd64.deb"
     [ "$(cat "$capture_dir/dpkg-deb-threads")" = "6" ] \
         || fail "Expected MAX_BUILD_THREADS to reach dpkg-deb"
     assert_file_exists "$pkg_root/DEBIAN/postinst"
     assert_file_exists "$pkg_root/DEBIAN/prerm"
-    assert_contains "$pkg_root/DEBIAN/postinst" "codex_ensure_user_service_running"
-    assert_contains "$pkg_root/DEBIAN/postinst" "codex_start_enabled_user_service"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Name=New Window"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Name=Check for Updates"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Name=Install Ready Update"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Keywords=codex;openai;ai;coding;"
+    assert_contains "$pkg_root/DEBIAN/postinst" "chatgpt_ensure_user_service_running"
+    assert_contains "$pkg_root/DEBIAN/postinst" "chatgpt_start_enabled_user_service"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Name=New Window"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Name=Check for Updates"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Name=Install Ready Update"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
     assert_file_exists "$pkg_root/DEBIAN/postrm"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/package-common.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/patch-chrome-plugin.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/node-runtime.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/upstream-dmg-intel.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/upstream-dmg-acceptance.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/candidate-promotion.py"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/validate-upstream-dmg.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/linux-update-bridge-patch.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/patch-report.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/rebuild-report.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/build-info.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/build-info.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/port-integrations.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/port-integrations.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/notification-actions.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/lib/linux-target-context.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/descriptor.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/engine.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/runner.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/lib/assets.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/lib/minified-js.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/lib/settings-keys.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/impl/webview/index.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/core/all-linux/main-process/lifecycle/patch.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/core/all-linux/webview/theme-and-sunset/patch.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/core/distro/nixos/README.md"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/core/desktop/i3/README.md"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/scripts/patches/core/package/deb/README.md"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/port-integrations/README.md"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/port-integrations/example-integration/integration.json"
-    assert_file_not_exists "$pkg_root/usr/lib/codex-app/update-builder/port-integrations/integrations.json"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/node-runtime/bin/node"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/Cargo.toml"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/CHANGELOG.md"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/launcher/cli-launch-path.py"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/computer-use-linux/Cargo.toml"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/notification-actions-linux/Cargo.toml"
-    assert_file_not_exists "$pkg_root/usr/lib/codex-app/update-builder/global-dictation-linux/Cargo.toml"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/read-aloud-linux/Cargo.toml"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/updater/Cargo.toml"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/plugins/openai-bundled/plugins/computer-use/.mcp.json"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/plugins/openai-bundled/plugins/read-aloud/.mcp.json"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/.codex-linux/source-info.json"
-    node "$pkg_root/usr/lib/codex-app/update-builder/scripts/patch-linux-window-ui.js" --help \
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/package-common.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-chrome-plugin.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/node-runtime.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-acceptance.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/candidate-promotion.py"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/validate-upstream-dmg.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/linux-update-bridge-patch.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-report.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/rebuild-report.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/build-info.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/build-info.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/port-integrations.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/port-integrations.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/notification-actions.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/linux-target-context.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/descriptor.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/engine.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/runner.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/lib/assets.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/lib/minified-js.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/lib/settings-keys.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/impl/webview/index.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/core/all-linux/main-process/lifecycle/patch.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/core/all-linux/webview/theme-and-sunset/patch.js"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/core/distro/nixos/README.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/core/desktop/i3/README.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/core/package/deb/README.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/port-integrations/README.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/port-integrations/example-integration/integration.json"
+    assert_file_not_exists "$pkg_root/usr/lib/chatgpt/update-builder/port-integrations/integrations.json"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/node-runtime/bin/node"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/CHANGELOG.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/launcher/cli-launch-path.py"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/computer-use-linux/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/notification-actions-linux/Cargo.toml"
+    assert_file_not_exists "$pkg_root/usr/lib/chatgpt/update-builder/global-dictation-linux/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/read-aloud-linux/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/updater/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/plugins/openai-bundled/plugins/computer-use/.mcp.json"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/plugins/openai-bundled/plugins/read-aloud/.mcp.json"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/source-info.json"
+    node "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patch-linux-window-ui.js" --help \
         >"$workspace/update-builder-patcher-help.txt"
     assert_contains "$workspace/update-builder-patcher-help.txt" "Usage: patch-linux-window-ui.js"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/packaged-runtime.sh"
-    assert_file_exists "$pkg_root/opt/codex-app/.codex-linux/cli-launch-path.py"
-    assert_contains "$pkg_root/usr/lib/codex-app/packaged-runtime.sh" "is-enabled codex-app-updater.service"
-    assert_not_contains "$pkg_root/usr/lib/codex-app/packaged-runtime.sh" "enable --now codex-app-updater.service"
-    assert_file_exists "$pkg_root/opt/codex-app/.codex-linux/codex-app-desktop-entry-doctor.sh"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/update-builder/packaging/linux/codex-app-desktop-entry-doctor.sh"
-    assert_file_exists "$pkg_root/opt/codex-app/resources/node-runtime/bin/node"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh"
+    assert_file_exists "$pkg_root/opt/chatgpt/.chatgpt-linux/cli-launch-path.py"
+    assert_contains "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh" "is-enabled chatgpt-updater.service"
+    assert_not_contains "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh" "enable --now chatgpt-updater.service"
+    assert_file_exists "$pkg_root/opt/chatgpt/.chatgpt-linux/chatgpt-desktop-entry-doctor.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/packaging/linux/chatgpt-desktop-entry-doctor.sh"
+    assert_file_exists "$pkg_root/opt/chatgpt/resources/node-runtime/bin/node"
     assert_contains "$pkg_root/DEBIAN/control" "libgtk-3-0t64 | libgtk-3-0"
     assert_not_contains "$pkg_root/DEBIAN/control" "libgtk-3.0-0"
 }
@@ -715,11 +715,11 @@ SCRIPT
 set -euo pipefail
 target_dir="${CARGO_TARGET_DIR:-target}"
 mkdir -p "$target_dir/release"
-cat > "$target_dir/release/codex-app-updater" <<'BIN'
+cat > "$target_dir/release/chatgpt-updater" <<'BIN'
 #!/usr/bin/env bash
 echo rebuilt updater
 BIN
-chmod +x "$target_dir/release/codex-app-updater"
+chmod +x "$target_dir/release/chatgpt-updater"
 SCRIPT
     chmod +x "$bin_dir/dpkg" "$bin_dir/dpkg-deb" "$bin_dir/cargo"
 
@@ -728,25 +728,25 @@ SCRIPT
     PKG_ROOT_OVERRIDE="$pkg_root" \
     DIST_DIR_OVERRIDE="$dist_dir" \
     CARGO_TARGET_DIR="$cargo_target_dir" \
-    UPDATER_BINARY_SOURCE="$workspace/codex-app-updater (deleted)" \
+    UPDATER_BINARY_SOURCE="$workspace/chatgpt-updater (deleted)" \
     PACKAGE_VERSION="2026.03.24.120000+rebuilt" \
     bash "$REPO_DIR/scripts/build-deb.sh"
 
-    assert_file_exists "$dist_dir/codex-app_2026.03.24.120000+rebuilt_amd64.deb"
-    assert_file_exists "$pkg_root/usr/bin/codex-app-updater"
-    assert_contains "$pkg_root/usr/bin/codex-app-updater" "rebuilt updater"
+    assert_file_exists "$dist_dir/chatgpt_2026.03.24.120000+rebuilt_amd64.deb"
+    assert_file_exists "$pkg_root/usr/bin/chatgpt-updater"
+    assert_contains "$pkg_root/usr/bin/chatgpt-updater" "rebuilt updater"
 }
 
 test_update_builder_source_info_survives_without_git_checkout() {
     info "Checking update-builder source info survives packaged no-git rebuild layout"
     local workspace="$TMP_DIR/update-builder-source-info"
     local update_builder="$workspace/update-builder"
-    local source_info="$update_builder/.codex-linux/source-info.json"
+    local source_info="$update_builder/.chatgpt-linux/source-info.json"
 
-    mkdir -p "$update_builder/.codex-linux" "$update_builder/updater"
+    mkdir -p "$update_builder/.chatgpt-linux" "$update_builder/updater"
     cat > "$update_builder/updater/Cargo.toml" <<'TOML'
 [package]
-name = "codex-app-updater"
+name = "chatgpt-updater"
 version = "0.8.1"
 TOML
     cat > "$source_info" <<'JSON'
@@ -812,16 +812,16 @@ test_port_integration_package_hook_discovery_failure_blocks_build() {
 JSON
     printf '%s\n' '# Bad Package Hook' > "$integrations_root/bad-package-hook/README.md"
     printf '%s\n' '{"enabled":["bad-package-hook"]}' > "$integration_config"
-    mkdir -p "$root/opt/codex-app/.codex-linux"
-    printf '%s\n' '{"schemaVersion":1,"linuxFeatures":{"enabled":["bad-package-hook"]}}' \
-        > "$root/opt/codex-app/.codex-linux/build-info.json"
+    mkdir -p "$root/opt/chatgpt/.chatgpt-linux"
+    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["bad-package-hook"]}}' \
+        > "$root/opt/chatgpt/.chatgpt-linux/build-info.json"
 
     if (
         export APP_DIR="$app_dir"
-        export PACKAGE_NAME="codex-app"
+        export PACKAGE_NAME="chatgpt"
         export PACKAGE_VERSION="2026.03.24.120000+hookfailure"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config"
 
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/package-common.sh"
@@ -859,15 +859,15 @@ test_port_integration_package_dependency_failure_propagates() {
 }
 JSON
     printf '%s\n' '{"enabled":["bad-package-dependency"]}' > "$integration_config"
-    printf '%s\n' '{"schemaVersion":1,"linuxFeatures":{"enabled":["bad-package-dependency"]}}' \
-        > "$app_dir/.codex-linux/build-info.json"
+    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["bad-package-dependency"]}}' \
+        > "$app_dir/.chatgpt-linux/build-info.json"
 
     set +e
     (
         export APP_DIR="$app_dir"
-        export PACKAGE_NAME="codex-app"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config"
+        export PACKAGE_NAME="chatgpt"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config"
 
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/package-common.sh"
@@ -888,7 +888,7 @@ test_deb_builder_respects_package_identity() {
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
     local pkg_root="$workspace/deb-root"
-    local updater_bin="$workspace/codex-app-updater"
+    local updater_bin="$workspace/chatgpt-updater"
 
     mkdir -p "$workspace" "$dist_dir"
     make_stub_bin_dir "$bin_dir"
@@ -922,23 +922,23 @@ SCRIPT
     PKG_ROOT_OVERRIDE="$pkg_root" \
     DIST_DIR_OVERRIDE="$dist_dir" \
     UPDATER_BINARY_SOURCE="$updater_bin" \
-    PACKAGE_NAME="codex-cua-lab" \
-    PACKAGE_DISPLAY_NAME="Codex CUA Lab" \
+    PACKAGE_NAME="chatgpt-cua-lab" \
+    PACKAGE_DISPLAY_NAME="ChatGPT CUA Lab" \
     PACKAGE_VERSION="2026.03.24.120000+deadbeef" \
     bash "$REPO_DIR/scripts/build-deb.sh"
 
-    assert_file_exists "$dist_dir/codex-cua-lab_2026.03.24.120000+deadbeef_amd64.deb"
-    assert_file_exists "$pkg_root/usr/bin/codex-cua-lab"
-    assert_file_exists "$pkg_root/opt/codex-cua-lab/start.sh"
-    assert_contains "$pkg_root/DEBIAN/control" "Package: codex-cua-lab"
+    assert_file_exists "$dist_dir/chatgpt-cua-lab_2026.03.24.120000+deadbeef_amd64.deb"
+    assert_file_exists "$pkg_root/usr/bin/chatgpt-cua-lab"
+    assert_file_exists "$pkg_root/opt/chatgpt-cua-lab/start.sh"
+    assert_contains "$pkg_root/DEBIAN/control" "Package: chatgpt-cua-lab"
     assert_not_contains "$pkg_root/DEBIAN/control" "__PORT_INTEGRATION_DEPENDENCIES__"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "Name=Codex CUA Lab"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "CHROME_DESKTOP=codex-cua-lab.desktop"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "/usr/bin/codex-cua-lab %u"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "StartupWMClass=codex-cua-lab"
-    assert_contains "$pkg_root/usr/share/applications/codex-cua-lab.desktop" "X-GNOME-WMClass=codex-cua-lab"
-    assert_contains "$pkg_root/usr/lib/codex-cua-lab/packaged-runtime.sh" 'CHROME_DESKTOP="codex-cua-lab.desktop"'
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "Name=ChatGPT CUA Lab"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "CHROME_DESKTOP=chatgpt-cua-lab.desktop"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "/usr/bin/chatgpt-cua-lab %u"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "StartupWMClass=chatgpt-cua-lab"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt-cua-lab.desktop" "X-GNOME-WMClass=chatgpt-cua-lab"
+    assert_contains "$pkg_root/usr/lib/chatgpt-cua-lab/packaged-runtime.sh" 'CHROME_DESKTOP="chatgpt-cua-lab.desktop"'
 }
 
 test_deb_builder_without_updater() {
@@ -982,17 +982,17 @@ SCRIPT
     PACKAGE_VERSION="2026.03.24.120000+manual" \
     bash "$REPO_DIR/scripts/build-deb.sh"
 
-    assert_file_exists "$dist_dir/codex-app_2026.03.24.120000+manual_amd64.deb"
-    assert_file_exists "$pkg_root/usr/bin/codex-app"
+    assert_file_exists "$dist_dir/chatgpt_2026.03.24.120000+manual_amd64.deb"
+    assert_file_exists "$pkg_root/usr/bin/chatgpt"
     assert_file_exists "$pkg_root/DEBIAN/postinst"
     assert_file_exists "$pkg_root/DEBIAN/prerm"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/packaged-runtime.sh"
-    assert_file_exists "$pkg_root/opt/codex-app/.codex-linux/cli-launch-path.py"
-    assert_file_exists "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh"
-    assert_file_not_exists "$pkg_root/usr/bin/codex-app-updater"
-    assert_file_not_exists "$pkg_root/usr/lib/systemd/user/codex-app-updater.service"
-    assert_file_not_exists "$pkg_root/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
-    assert_file_not_exists "$pkg_root/usr/lib/codex-app/update-builder"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh"
+    assert_file_exists "$pkg_root/opt/chatgpt/.chatgpt-linux/cli-launch-path.py"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh"
+    assert_file_not_exists "$pkg_root/usr/bin/chatgpt-updater"
+    assert_file_not_exists "$pkg_root/usr/lib/systemd/user/chatgpt-updater.service"
+    assert_file_not_exists "$pkg_root/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
+    assert_file_not_exists "$pkg_root/usr/lib/chatgpt/update-builder"
     assert_file_exists "$pkg_root/DEBIAN/postrm"
     assert_contains "$pkg_root/DEBIAN/postrm" "update-desktop-database"
     assert_not_contains "$pkg_root/DEBIAN/control" "pkexec"
@@ -1001,25 +1001,24 @@ SCRIPT
     assert_not_contains "$pkg_root/DEBIAN/control" "curl"
     assert_not_contains "$pkg_root/DEBIAN/control" "p7zip-full"
     assert_not_contains "$pkg_root/DEBIAN/control" "Local auto-updates"
-    assert_contains "$pkg_root/DEBIAN/control" "without codex-app-updater"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Actions=new-window;"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Desktop Action new-window"
-    assert_contains "$pkg_root/usr/share/applications/codex-app.desktop" "CODEX_MULTI_LAUNCH=1 /usr/bin/codex-app --new-instance"
-    assert_not_contains "$pkg_root/usr/share/applications/codex-app.desktop" "Desktop Action CheckForUpdates"
-    assert_not_contains "$pkg_root/usr/share/applications/codex-app.desktop" "InstallReadyUpdate"
-    assert_not_contains "$pkg_root/usr/share/applications/codex-app.desktop" "codex-app-updater"
-    assert_contains "$pkg_root/usr/lib/codex-app/packaged-runtime.sh" '[ "0" != "1" ]'
-    assert_contains "$pkg_root/usr/lib/codex-app/packaged-runtime.sh" 'CHROME_DESKTOP="codex-app.desktop"'
-    assert_contains "$pkg_root/opt/codex-app/.codex-linux/codex-app-desktop-entry-doctor.sh" "codex_app_repair_system_package_shadow_entries"
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "codex_no_updater_cleanup_update_manager_service"
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "stop \"\$SERVICE_NAME\""
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "disable \"\$SERVICE_NAME\""
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "daemon-reload"
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "codex_no_updater_cleanup_user_enablement_links"
-    assert_contains "$pkg_root/usr/lib/codex-app/no-updater-transition-cleanup.sh" "default.target.wants"
-    assert_contains "$pkg_root/DEBIAN/postinst" "codex_no_updater_cleanup_update_manager_service"
-    assert_contains "$pkg_root/DEBIAN/postinst" "codex_app_repair_system_package_shadow_entries"
-    assert_contains "$pkg_root/DEBIAN/prerm" "codex_no_updater_cleanup_update_manager_service"
+    assert_contains "$pkg_root/DEBIAN/control" "without chatgpt-updater"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Actions=new-window;"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Desktop Action new-window"
+    assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "CHATGPT_MULTI_LAUNCH=1 /usr/bin/chatgpt --new-instance"
+    assert_not_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Desktop Action CheckForUpdates"
+    assert_not_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "InstallReadyUpdate"
+    assert_not_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "chatgpt-updater"
+    assert_contains "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh" '[ "0" != "1" ]'
+    assert_contains "$pkg_root/usr/lib/chatgpt/packaged-runtime.sh" 'CHROME_DESKTOP="chatgpt.desktop"'
+    assert_contains "$pkg_root/opt/chatgpt/.chatgpt-linux/chatgpt-desktop-entry-doctor.sh" "chatgpt_repair_system_package_shadow_entries"
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "chatgpt_no_updater_cleanup_update_manager_service"
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "stop \"\$service_name\""
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "disable \"\$service_name\""
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "daemon-reload"
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "chatgpt_no_updater_cleanup_user_enablement_links"
+    assert_contains "$pkg_root/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "default.target.wants"
+    assert_contains "$pkg_root/DEBIAN/postinst" "chatgpt_no_updater_cleanup_update_manager_service"
+    assert_contains "$pkg_root/DEBIAN/prerm" "chatgpt_no_updater_cleanup_update_manager_service"
     assert_not_contains "$pkg_root/DEBIAN/postinst" "update-builder"
     assert_not_contains "$pkg_root/DEBIAN/prerm" "update-builder"
 }
@@ -1030,10 +1029,10 @@ test_no_updater_cleanup_helper_removes_inactive_user_enablement() {
     local bin_dir="$workspace/bin"
     local helper="$workspace/codex-no-updater-transition-cleanup.sh"
     local fake_home="$workspace/home/codexuser"
-    local service_link="$fake_home/.config/systemd/user/default.target.wants/codex-app-updater.service"
+    local service_link="$fake_home/.config/systemd/user/default.target.wants/chatgpt-updater.service"
 
     mkdir -p "$bin_dir" "$(dirname "$service_link")"
-    ln -s /usr/lib/systemd/user/codex-app-updater.service "$service_link"
+    ln -s /usr/lib/systemd/user/chatgpt-updater.service "$service_link"
 
     render_no_updater_transition_cleanup_helper "$helper"
 
@@ -1060,7 +1059,7 @@ SCRIPT
     chmod +x "$bin_dir/getent" "$bin_dir/runuser" "$bin_dir/systemctl"
 
     PATH="$bin_dir:$PATH" FAKE_HOME="$fake_home" sh -c \
-        '. "$1"; codex_no_updater_cleanup_update_manager_service' \
+        '. "$1"; chatgpt_no_updater_cleanup_update_manager_service' \
         _ "$helper"
 
     assert_file_not_exists "$service_link"
@@ -1071,10 +1070,10 @@ test_update_manager_service_helper_respects_disabled_service() {
     local helper_log="$TMP_DIR/updater-service-helper.log"
     local helper_state=""
 
-    # shellcheck source=packaging/linux/codex-app-updater-user-service.sh
-    . "$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
+    # shellcheck source=packaging/linux/chatgpt-updater-user-service.sh
+    . "$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
 
-    codex_run_systemctl_user() {
+    chatgpt_run_systemctl_user() {
         local user_name="$1"
         local runtime_dir="$2"
         local bus="$3"
@@ -1106,19 +1105,19 @@ test_update_manager_service_helper_respects_disabled_service() {
 
     helper_state="disabled"
     : > "$helper_log"
-    codex_start_one_enabled_user_service codexuser /run/user/1000 /run/user/1000/bus
+    chatgpt_start_one_enabled_user_service codexuser /run/user/1000 /run/user/1000/bus
     assert_not_contains "$helper_log" "start $SERVICE_NAME"
     assert_not_contains "$helper_log" "enable --now $SERVICE_NAME"
 
     helper_state="enabled"
     : > "$helper_log"
-    codex_start_one_enabled_user_service codexuser /run/user/1000 /run/user/1000/bus
+    chatgpt_start_one_enabled_user_service codexuser /run/user/1000 /run/user/1000/bus
     assert_contains "$helper_log" "start $SERVICE_NAME"
     assert_not_contains "$helper_log" "enable --now $SERVICE_NAME"
 
     helper_state="disabled"
     : > "$helper_log"
-    codex_ensure_one_user_service_running codexuser /run/user/1000 /run/user/1000/bus
+    chatgpt_ensure_one_user_service_running codexuser /run/user/1000 /run/user/1000/bus
     assert_contains "$helper_log" "enable --now $SERVICE_NAME"
 }
 
@@ -1128,7 +1127,7 @@ test_rpm_builder_smoke() {
     local bin_dir="$workspace/bin"
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
-    local updater_bin="$workspace/codex-app-updater"
+    local updater_bin="$workspace/chatgpt-updater"
     local capture_dir="$workspace/capture"
 
     mkdir -p "$workspace" "$dist_dir" "$capture_dir"
@@ -1158,7 +1157,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$rpmdir" ] || exit 1
 if [ -n "${CAPTURE_DIR:-}" ]; then
-    cp "$spec_file" "$CAPTURE_DIR/codex-app.spec"
+    cp "$spec_file" "$CAPTURE_DIR/chatgpt.spec"
     printf '%s\n' "$binary_payload" > "$CAPTURE_DIR/rpm-binary-payload"
     staging_dir="$(sed -n 's|cp -a "\(.*\)/\." "%{buildroot}/"|\1|p' "$spec_file" | head -n 1)"
     if [ -n "$staging_dir" ] && [ -d "$staging_dir" ]; then
@@ -1166,7 +1165,7 @@ if [ -n "${CAPTURE_DIR:-}" ]; then
     fi
 fi
 mkdir -p "$rpmdir/x86_64"
-touch "$rpmdir/x86_64/codex-app-2026.03.24.120000-deadbeef.x86_64.rpm"
+touch "$rpmdir/x86_64/chatgpt-2026.03.24.120000-deadbeef.x86_64.rpm"
 SCRIPT
     cat > "$bin_dir/cargo" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -1183,7 +1182,7 @@ SCRIPT
     PACKAGE_VERSION="2026.03.24.120000+deadbeef" \
     bash "$REPO_DIR/scripts/build-rpm.sh"
 
-    assert_file_exists "$dist_dir/codex-app-2026.03.24.120000-deadbeef.x86_64.rpm"
+    assert_file_exists "$dist_dir/chatgpt-2026.03.24.120000-deadbeef.x86_64.rpm"
     [ "$(cat "$capture_dir/rpm-binary-payload")" = "" ] \
         || fail "Expected default RPM binary payload to use tool default"
 
@@ -1199,27 +1198,27 @@ SCRIPT
     MAX_BUILD_THREADS=8 \
     bash "$REPO_DIR/scripts/build-rpm.sh"
 
-    assert_file_exists "$dist_dir/codex-app-2026.03.24.120000-manual.x86_64.rpm"
-    assert_file_exists "$capture_dir/codex-app.spec"
-    assert_not_contains "$capture_dir/codex-app.spec" "__PORT_INTEGRATION_DEPENDENCIES__"
+    assert_file_exists "$dist_dir/chatgpt-2026.03.24.120000-manual.x86_64.rpm"
+    assert_file_exists "$capture_dir/chatgpt.spec"
+    assert_not_contains "$capture_dir/chatgpt.spec" "__PORT_INTEGRATION_DEPENDENCIES__"
     [ "$(cat "$capture_dir/rpm-binary-payload")" = "w19T8.zstdio" ] \
         || fail "Expected MAX_BUILD_THREADS to reach rpmbuild payload compression"
-    assert_file_exists "$capture_dir/staging/usr/lib/codex-app/no-updater-transition-cleanup.sh"
-    assert_file_not_exists "$capture_dir/staging/usr/bin/codex-app-updater"
-    assert_file_not_exists "$capture_dir/staging/usr/lib/systemd/user/codex-app-updater.service"
-    assert_file_not_exists "$capture_dir/staging/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
-    assert_file_not_exists "$capture_dir/staging/usr/lib/codex-app/update-builder"
-    assert_mode "$capture_dir/staging/opt/codex-app" "755"
-    assert_mode "$capture_dir/staging/opt/codex-app/content/webview" "755"
-    assert_mode "$capture_dir/staging/opt/codex-app/start.sh" "755"
-    assert_mode "$capture_dir/staging/opt/codex-app/content/webview/index.html" "644"
-    assert_contains "$capture_dir/codex-app.spec" "codex_elf_suffix ()(64bit)"
-    assert_contains "$capture_dir/codex-app.spec" "libatk-bridge-2.0.so.0"
-    assert_contains "$capture_dir/codex-app.spec" "libgbm.so.1"
-    assert_not_contains "$capture_dir/codex-app.spec" "at-spi2-atk"
-    assert_not_contains "$capture_dir/codex-app.spec" "mesa-libgbm"
-    assert_contains "$capture_dir/codex-app.spec" "codex_no_updater_cleanup_update_manager_service"
-    assert_contains "$capture_dir/staging/usr/lib/codex-app/no-updater-transition-cleanup.sh" "codex_no_updater_cleanup_user_enablement_links"
+    assert_file_exists "$capture_dir/staging/usr/lib/chatgpt/no-updater-transition-cleanup.sh"
+    assert_file_not_exists "$capture_dir/staging/usr/bin/chatgpt-updater"
+    assert_file_not_exists "$capture_dir/staging/usr/lib/systemd/user/chatgpt-updater.service"
+    assert_file_not_exists "$capture_dir/staging/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
+    assert_file_not_exists "$capture_dir/staging/usr/lib/chatgpt/update-builder"
+    assert_mode "$capture_dir/staging/opt/chatgpt" "755"
+    assert_mode "$capture_dir/staging/opt/chatgpt/content/webview" "755"
+    assert_mode "$capture_dir/staging/opt/chatgpt/start.sh" "755"
+    assert_mode "$capture_dir/staging/opt/chatgpt/content/webview/index.html" "644"
+    assert_contains "$capture_dir/chatgpt.spec" "chatgpt_elf_suffix ()(64bit)"
+    assert_contains "$capture_dir/chatgpt.spec" "libatk-bridge-2.0.so.0"
+    assert_contains "$capture_dir/chatgpt.spec" "libgbm.so.1"
+    assert_not_contains "$capture_dir/chatgpt.spec" "at-spi2-atk"
+    assert_not_contains "$capture_dir/chatgpt.spec" "mesa-libgbm"
+    assert_contains "$capture_dir/chatgpt.spec" "chatgpt_no_updater_cleanup_update_manager_service"
+    assert_contains "$capture_dir/staging/usr/lib/chatgpt/no-updater-transition-cleanup.sh" "chatgpt_no_updater_cleanup_user_enablement_links"
 
     rm -rf "$dist_dir" "$capture_dir"
     mkdir -p "$dist_dir" "$capture_dir"
@@ -1261,7 +1260,7 @@ test_pacman_builder_without_updater_transition_hook() {
         "$ampersand_tmpdir" \
         "$integrations_root/polkit-runtime"
     make_stub_bin_dir "$bin_dir"
-    CODEX_FIXTURE_PORT_INTEGRATIONS_JSON='["polkit-runtime"]' make_fake_app "$app_dir"
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["polkit-runtime"]' make_fake_app "$app_dir"
     printf 'MAKEFLAGS="-j12"\n' > "$base_makepkg_conf"
     printf '%s\n' '{"enabled":["polkit-runtime"]}' > "$integration_config"
     printf '%s\n' '# Polkit Runtime' > "$integrations_root/polkit-runtime/README.md"
@@ -1281,7 +1280,7 @@ JSON
 #!/usr/bin/env bash
 set -euo pipefail
 cp PKGBUILD "$CAPTURE_DIR/PKGBUILD"
-cp codex-app.install "$CAPTURE_DIR/codex-app.install"
+cp chatgpt.install "$CAPTURE_DIR/chatgpt.install"
 printf '%s\n' "${MAKEPKG_CONF:-}" > "$CAPTURE_DIR/makepkg-conf-path"
 if [ -n "${MAKEPKG_CONF:-}" ]; then
     cp "$MAKEPKG_CONF" "$CAPTURE_DIR/makepkg.conf"
@@ -1312,8 +1311,8 @@ SCRIPT
         CAPTURE_DIR="$capture_dir" \
         APP_DIR_OVERRIDE="$app_dir" \
         DIST_DIR_OVERRIDE="$dist_dir" \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
         MAKEPKG_CONF="$base_makepkg_conf" \
         PACKAGE_WITH_UPDATER=0 \
         MAX_BUILD_THREADS=5 \
@@ -1321,12 +1320,12 @@ SCRIPT
         bash "$REPO_DIR/scripts/build-pacman.sh"
     )"
 
-    assert_file_exists "$dist_dir/codex-app-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst"
-    [ "$package_path" = "$dist_dir/codex-app-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst" ] || fail "Expected build-pacman.sh to print built package path, got: $package_path"
-    assert_file_exists "$dist_dir/codex-app-latest.pkg.tar.zst"
-    [ "$(readlink "$dist_dir/codex-app-latest.pkg.tar.zst")" = "codex-app-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst" ] || fail "Expected latest pacman symlink to point at built package"
+    assert_file_exists "$dist_dir/chatgpt-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst"
+    [ "$package_path" = "$dist_dir/chatgpt-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst" ] || fail "Expected build-pacman.sh to print built package path, got: $package_path"
+    assert_file_exists "$dist_dir/chatgpt-latest.pkg.tar.zst"
+    [ "$(readlink "$dist_dir/chatgpt-latest.pkg.tar.zst")" = "chatgpt-2026.03.24.120000_manual-1-x86_64.pkg.tar.zst" ] || fail "Expected latest pacman symlink to point at built package"
     assert_file_exists "$capture_dir/PKGBUILD"
-    assert_file_exists "$capture_dir/codex-app.install"
+    assert_file_exists "$capture_dir/chatgpt.install"
     assert_file_exists "$capture_dir/makepkg.conf"
     assert_contains "$capture_dir/makepkg.conf" "MAKEFLAGS=\"\${MAKEFLAGS:+\$MAKEFLAGS }-j5\""
     [ "$(cat "$capture_dir/makepkg-evaluated-makeflags")" = "-j12 -j5" ] \
@@ -1337,7 +1336,7 @@ SCRIPT
     assert_contains "$capture_dir/PKGBUILD" "ampersand&tmp"
     assert_contains "$capture_dir/PKGBUILD" "cp -a --no-preserve=ownership"
     assert_not_contains "$capture_dir/PKGBUILD" "__STAGING_DIR__"
-    assert_contains "$capture_dir/PKGBUILD" "install=codex-app.install"
+    assert_contains "$capture_dir/PKGBUILD" "install=chatgpt.install"
     assert_contains "$capture_dir/PKGBUILD" "'python'"
     assert_occurrence_count "$capture_dir/PKGBUILD" "'polkit'" "1"
     assert_not_contains "$capture_dir/PKGBUILD" "'p7zip'"
@@ -1345,11 +1344,11 @@ SCRIPT
     assert_not_contains "$capture_dir/PKGBUILD" "'unzip'"
     assert_not_contains "$capture_dir/PKGBUILD" "'gcc'"
     assert_not_contains "$capture_dir/PKGBUILD" "'make'"
-    assert_contains "$capture_dir/codex-app.install" "codex_no_updater_cleanup_update_manager_service"
-    assert_contains "$capture_dir/codex-app.install" "post_upgrade"
-    assert_contains "$capture_dir/codex-app.install" "pre_remove"
-    assert_contains "$capture_dir/codex-app.install" "no-updater-transition-cleanup.sh"
-    assert_not_contains "$capture_dir/codex-app.install" "update-builder"
+    assert_contains "$capture_dir/chatgpt.install" "chatgpt_no_updater_cleanup_update_manager_service"
+    assert_contains "$capture_dir/chatgpt.install" "post_upgrade"
+    assert_contains "$capture_dir/chatgpt.install" "pre_remove"
+    assert_contains "$capture_dir/chatgpt.install" "no-updater-transition-cleanup.sh"
+    assert_not_contains "$capture_dir/chatgpt.install" "update-builder"
 }
 
 test_appimage_builder_smoke() {
@@ -1358,7 +1357,7 @@ test_appimage_builder_smoke() {
     local bin_dir="$workspace/bin"
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
-    local appdir="$workspace/codex-app.AppDir"
+    local appdir="$workspace/chatgpt.AppDir"
     local capture_dir="$workspace/capture"
     local cli_root="$workspace/cli/node_modules/@openai"
     local cli_source="$cli_root/codex"
@@ -1427,36 +1426,36 @@ SCRIPT
     PACKAGE_VERSION="2026.03.24.120000+appimage" \
     bash "$REPO_DIR/scripts/build-appimage.sh"
 
-    assert_file_exists "$dist_dir/codex-app-2026.03.24.120000+appimage-$arch.AppImage"
+    assert_file_exists "$dist_dir/chatgpt-2026.03.24.120000+appimage-$arch.AppImage"
     assert_file_exists "$capture_dir/AppDir/AppRun"
     [ -x "$capture_dir/AppDir/AppRun" ] || fail "Expected AppRun to be executable"
-    assert_file_exists "$capture_dir/AppDir/codex-app.desktop"
-    assert_file_exists "$capture_dir/AppDir/codex-app.png"
+    assert_file_exists "$capture_dir/AppDir/chatgpt.desktop"
+    assert_file_exists "$capture_dir/AppDir/chatgpt.png"
     assert_file_exists "$capture_dir/AppDir/.DirIcon"
-    assert_file_exists "$capture_dir/AppDir/usr/share/applications/codex-app.desktop"
-    assert_file_exists "$capture_dir/AppDir/usr/share/icons/hicolor/256x256/apps/codex-app.png"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/start.sh"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/.codex-linux/codex-app.png"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/.codex-linux/cli-launch-path.py"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/.codex-linux/codex-packaged-runtime.sh"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/resources/node-runtime/bin/node"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/resources/codex-cli/preserve.txt"
-    assert_mode "$capture_dir/AppDir/opt/codex-app" "755"
-    assert_mode "$capture_dir/AppDir/opt/codex-app/resources" "755"
-    assert_file_not_exists "$capture_dir/AppDir/opt/codex-app/resources/codex-cli/bin/codex"
-    assert_file_not_exists "$capture_dir/AppDir/usr/bin/codex-app-updater"
-    assert_file_not_exists "$capture_dir/AppDir/usr/lib/systemd/user/codex-app-updater.service"
-    assert_file_not_exists "$capture_dir/AppDir/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
-    assert_file_not_exists "$capture_dir/AppDir/usr/lib/codex-app/update-builder"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "Exec=AppRun %u"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "Icon=codex-app"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "Keywords=codex;openai;ai;coding;"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "X-AppImage-Version=2026.03.24.120000+appimage"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "Actions=new-window;"
-    assert_contains "$capture_dir/AppDir/codex-app.desktop" "[Desktop Action new-window]"
-    assert_not_contains "$capture_dir/AppDir/codex-app.desktop" "codex-app-updater"
-    assert_contains "$capture_dir/AppDir/opt/codex-app/.codex-linux/codex-packaged-runtime.sh" 'CHROME_DESKTOP="codex-app.desktop"'
-    assert_not_contains "$capture_dir/AppDir/opt/codex-app/.codex-linux/codex-packaged-runtime.sh" "/usr/share/applications"
+    assert_file_exists "$capture_dir/AppDir/usr/share/applications/chatgpt.desktop"
+    assert_file_exists "$capture_dir/AppDir/usr/share/icons/hicolor/256x256/apps/chatgpt.png"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/start.sh"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/chatgpt.png"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/cli-launch-path.py"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/chatgpt-packaged-runtime.sh"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/node-runtime/bin/node"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/preserve.txt"
+    assert_mode "$capture_dir/AppDir/opt/chatgpt" "755"
+    assert_mode "$capture_dir/AppDir/opt/chatgpt/resources" "755"
+    assert_file_not_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/bin/codex"
+    assert_file_not_exists "$capture_dir/AppDir/usr/bin/chatgpt-updater"
+    assert_file_not_exists "$capture_dir/AppDir/usr/lib/systemd/user/chatgpt-updater.service"
+    assert_file_not_exists "$capture_dir/AppDir/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
+    assert_file_not_exists "$capture_dir/AppDir/usr/lib/chatgpt/update-builder"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "Exec=AppRun %u"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "Icon=chatgpt"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "X-AppImage-Version=2026.03.24.120000+appimage"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "Actions=new-window;"
+    assert_contains "$capture_dir/AppDir/chatgpt.desktop" "[Desktop Action new-window]"
+    assert_not_contains "$capture_dir/AppDir/chatgpt.desktop" "chatgpt-updater"
+    assert_contains "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/chatgpt-packaged-runtime.sh" 'CHROME_DESKTOP="chatgpt.desktop"'
+    assert_not_contains "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/chatgpt-packaged-runtime.sh" "/usr/share/applications"
     [ "$(cat "$capture_dir/arch")" = "$arch" ] || fail "Expected appimagetool ARCH=$arch"
     [ "$(cat "$capture_dir/version")" = "2026.03.24.120000+appimage" ] || fail "Expected appimagetool VERSION override"
 
@@ -1491,21 +1490,21 @@ SCRIPT
     APP_DIR_OVERRIDE="$app_dir" \
     DIST_DIR_OVERRIDE="$dist_dir" \
     APPIMAGE_APPDIR_OVERRIDE="$appdir" \
-    CODEX_CLI_BUNDLE_SOURCE="$cli_source" \
+    CHATGPT_CLI_BUNDLE_SOURCE="$cli_source" \
     PACKAGE_VERSION="2026.03.24.120000+appimage-cli" \
     bash "$REPO_DIR/scripts/build-appimage.sh"
 
-    local bundled_cli="$capture_dir/AppDir/opt/codex-app/resources/codex-cli/bin/codex"
+    local bundled_cli="$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/bin/codex"
     assert_file_exists "$bundled_cli"
-    assert_file_not_exists "$capture_dir/AppDir/opt/codex-app/resources/codex-cli/preserve.txt"
+    assert_file_not_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/preserve.txt"
     [ -x "$bundled_cli" ] || fail "Expected bundled Codex CLI wrapper to be executable"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/resources/codex-cli/node_modules/@openai/codex/bin/codex.js"
-    assert_file_exists "$capture_dir/AppDir/opt/codex-app/resources/codex-cli/node_modules/@openai/$platform_package/vendor/$target_triple/bin/codex"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/node_modules/@openai/codex/bin/codex.js"
+    assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/node_modules/@openai/$platform_package/vendor/$target_triple/bin/codex"
     assert_contains "$capture_dir/AppDir/AppRun" "resources/codex-cli/bin/codex"
     assert_contains "$capture_dir/AppDir/AppRun" "export CODEX_CLI_PATH"
 
-    printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "${CODEX_CLI_PATH:-}"' > "$capture_dir/AppDir/opt/codex-app/start.sh"
-    chmod 0755 "$capture_dir/AppDir/opt/codex-app/start.sh"
+    printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "${CODEX_CLI_PATH:-}"' > "$capture_dir/AppDir/opt/chatgpt/start.sh"
+    chmod 0755 "$capture_dir/AppDir/opt/chatgpt/start.sh"
     local app_run_output
     local app_run_path
     app_run_path="$(dirname "$BASH_BIN")"
@@ -1523,7 +1522,7 @@ SCRIPT
         APP_DIR_OVERRIDE="$app_dir" \
         DIST_DIR_OVERRIDE="$dist_dir" \
         APPIMAGE_APPDIR_OVERRIDE="$appdir" \
-        CODEX_CLI_BUNDLE_SOURCE="$cli_source" \
+        CHATGPT_CLI_BUNDLE_SOURCE="$cli_source" \
         PACKAGE_VERSION="2026.03.24.120000+appimage-cli-missing" \
         bash "$REPO_DIR/scripts/build-appimage.sh" >"$missing_platform_log" 2>&1; then
         fail "AppImage build should reject a Codex CLI bundle without its Linux platform package"
@@ -1546,7 +1545,7 @@ SCRIPT
         APP_DIR_OVERRIDE="$app_dir" \
         DIST_DIR_OVERRIDE="$dist_dir" \
         APPIMAGE_APPDIR_OVERRIDE="$appdir" \
-        CODEX_CLI_BUNDLE_SOURCE="$cli_source" \
+        CHATGPT_CLI_BUNDLE_SOURCE="$cli_source" \
         PACKAGE_VERSION="2026.03.24.120000+appimage-cli-symlink" \
         bash "$REPO_DIR/scripts/build-appimage.sh" >"$symlink_log" 2>&1; then
         fail "AppImage build should reject symlinks inside a bundled Codex CLI package"
@@ -1561,7 +1560,7 @@ SCRIPT
         APP_DIR_OVERRIDE="$app_dir" \
         DIST_DIR_OVERRIDE="$dist_dir" \
         APPIMAGE_APPDIR_OVERRIDE="$appdir" \
-        CODEX_CLI_BUNDLE_SOURCE="$cli_source" \
+        CHATGPT_CLI_BUNDLE_SOURCE="$cli_source" \
         PACKAGE_VERSION="2026.03.24.120000+appimage-cli-fifo" \
         bash "$REPO_DIR/scripts/build-appimage.sh" >"$unsupported_entry_log" 2>&1; then
         fail "AppImage build should reject unsupported filesystem entries in a bundled Codex CLI package"
@@ -1580,7 +1579,7 @@ SCRIPT
         APP_DIR_OVERRIDE="$app_dir" \
         DIST_DIR_OVERRIDE="$dist_dir" \
         APPIMAGE_APPDIR_OVERRIDE="$appdir" \
-        CODEX_CLI_BUNDLE_SOURCE="$cli_source" \
+        CHATGPT_CLI_BUNDLE_SOURCE="$cli_source" \
         PACKAGE_VERSION="2026.03.24.120000+appimage-cli-version" \
         bash "$REPO_DIR/scripts/build-appimage.sh" >"$version_log" 2>&1; then
         fail "AppImage build should reject mismatched Codex CLI package versions"
@@ -1663,10 +1662,10 @@ test_make_run_app_reports_missing_launcher() {
     mkdir -p "$workspace"
 
     if make -f "$REPO_DIR/Makefile" -C "$workspace" run-app >"$output_log" 2>&1; then
-        fail "make run-app should fail when codex-app/start.sh is missing"
+        fail "make run-app should fail when chatgpt/start.sh is missing"
     fi
 
-    assert_contains "$output_log" "Missing launcher: $workspace/codex-app/start.sh. Run make build-app first."
+    assert_contains "$output_log" "Missing launcher: $workspace/chatgpt/start.sh. Run make build-app first."
     assert_not_contains "$output_log" "No such file or directory"
 }
 
@@ -1732,7 +1731,7 @@ test_make_build_dev_app_writes_host_portable_launcher_symlink() {
     info "Checking make build-dev-app writes a host-portable launcher symlink"
     local workspace="$TMP_DIR/make-build-dev-app"
     local install_log="$workspace/install-env.log"
-    local launcher="$workspace/bin/codex-cua-lab"
+    local launcher="$workspace/bin/chatgpt-cua-lab"
     local target
 
     mkdir -p "$workspace"
@@ -1740,12 +1739,12 @@ test_make_build_dev_app_writes_host_portable_launcher_symlink() {
     cat > "$workspace/install.sh" <<'SCRIPT'
 #!/usr/bin/env bash
 set -eu
-printf '%s\n' "$CODEX_APP_ID" > "$TEST_INSTALL_LOG"
-printf '%s\n' "$CODEX_APP_DISPLAY_NAME" >> "$TEST_INSTALL_LOG"
-printf '%s\n' "$CODEX_INSTALL_DIR" >> "$TEST_INSTALL_LOG"
-mkdir -p "$CODEX_INSTALL_DIR"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$CODEX_INSTALL_DIR/start.sh"
-chmod +x "$CODEX_INSTALL_DIR/start.sh"
+printf '%s\n' "$CHATGPT_APP_ID" > "$TEST_INSTALL_LOG"
+printf '%s\n' "$CHATGPT_APP_DISPLAY_NAME" >> "$TEST_INSTALL_LOG"
+printf '%s\n' "$CHATGPT_INSTALL_DIR" >> "$TEST_INSTALL_LOG"
+mkdir -p "$CHATGPT_INSTALL_DIR"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$CHATGPT_INSTALL_DIR/start.sh"
+chmod +x "$CHATGPT_INSTALL_DIR/start.sh"
 SCRIPT
     chmod +x "$workspace/install.sh"
 
@@ -1753,12 +1752,12 @@ SCRIPT
 
     assert_file_exists "$launcher"
     target="$(readlink "$launcher")"
-    [ "$target" = "../codex-cua-lab-app/start.sh" ] \
+    [ "$target" = "../chatgpt-cua-lab-app/start.sh" ] \
         || fail "Expected dev app launcher to use a relative symlink, got: $target"
     [ -x "$launcher" ] || fail "Expected dev app launcher symlink to resolve on the host"
-    assert_contains "$install_log" "codex-cua-lab"
-    assert_contains "$install_log" "Codex CUA Lab"
-    assert_contains "$install_log" "$workspace/codex-cua-lab-app"
+    assert_contains "$install_log" "chatgpt-cua-lab"
+    assert_contains "$install_log" "ChatGPT CUA Lab"
+    assert_contains "$install_log" "$workspace/chatgpt-cua-lab-app"
 }
 
 test_installer_refreshes_stale_cached_dmg_metadata() {
@@ -1907,7 +1906,7 @@ last_modified=Thu, 04 Jun 2026 00:00:00 GMT
 content_length=3
 EOF
     run_dmg_cache_case "$differing_pinned" "$differing_pinned/output.log" \
-        CODEX_DMG_REFRESH_MODE=pinned \
+        CHATGPT_DMG_REFRESH_MODE=pinned \
         TEST_ETAG=fresh-etag \
         TEST_LAST_MODIFIED="Thu, 04 Jun 2026 00:00:00 GMT" \
         TEST_CONTENT_LENGTH=3 \
@@ -1915,13 +1914,13 @@ EOF
     [ "$(cat "$differing_pinned/ChatGPT.dmg")" = "old" ] || fail "Expected pinned stale cache to keep old DMG"
     assert_not_contains "$differing_pinned/curl.log" "HEAD"
     assert_not_contains "$differing_pinned/curl.log" "GET"
-    assert_contains "$differing_pinned/output.log" "CODEX_DMG_REFRESH_MODE=pinned"
+    assert_contains "$differing_pinned/output.log" "CHATGPT_DMG_REFRESH_MODE=pinned"
 
     local no_metadata_pinned="$workspace/no-metadata-pinned"
     mkdir -p "$no_metadata_pinned"
     printf '%s' "old" >"$no_metadata_pinned/ChatGPT.dmg"
     run_dmg_cache_case "$no_metadata_pinned" "$no_metadata_pinned/output.log" \
-        CODEX_DMG_REFRESH_MODE=pinned \
+        CHATGPT_DMG_REFRESH_MODE=pinned \
         TEST_ETAG=fresh-etag \
         TEST_LAST_MODIFIED="Thu, 04 Jun 2026 00:00:00 GMT" \
         TEST_CONTENT_LENGTH=3 \
@@ -1933,7 +1932,7 @@ EOF
     local missing_pinned="$workspace/missing-pinned"
     mkdir -p "$missing_pinned"
     if run_dmg_cache_case "$missing_pinned" "$missing_pinned/output.log" \
-        CODEX_DMG_REFRESH_MODE=pinned
+        CHATGPT_DMG_REFRESH_MODE=pinned
     then
         fail "Expected pinned mode without cached DMG to fail"
     fi
@@ -1986,7 +1985,7 @@ last_modified=Thu, 04 Jun 2026 00:00:00 GMT
 content_length=3
 EOF
     if run_dmg_cache_case "$head_failure_mismatched_url" "$head_failure_mismatched_url/output.log" \
-        CODEX_UPSTREAM_DMG_URL="https://example.com/ChatGPT.dmg" \
+        CHATGPT_UPSTREAM_DMG_URL="https://example.com/ChatGPT.dmg" \
         TEST_HEAD_FAIL=1 \
         TEST_GET_FAIL=1
     then
@@ -2000,7 +1999,7 @@ EOF
     local secret_url="$workspace/secret-url"
     mkdir -p "$secret_url"
     run_dmg_cache_case "$secret_url" "$secret_url/output.log" \
-        CODEX_UPSTREAM_DMG_URL="https://user:secret@example.com/ChatGPT.dmg?token=topsecret#fragsecret" \
+        CHATGPT_UPSTREAM_DMG_URL="https://user:secret@example.com/ChatGPT.dmg?token=topsecret#fragsecret" \
         TEST_ETAG=opaque-etag \
         TEST_CONTENT_LENGTH=3 \
         TEST_DOWNLOAD_CONTENT=new
@@ -2075,7 +2074,7 @@ SCRIPT
     local invalid_url="$workspace/invalid-url"
     mkdir -p "$invalid_url"
     if run_dmg_cache_case "$invalid_url" "$invalid_url/output.log" \
-        CODEX_UPSTREAM_DMG_URL="file:///tmp/ChatGPT.dmg"
+        CHATGPT_UPSTREAM_DMG_URL="file:///tmp/ChatGPT.dmg"
     then
         fail "Expected non-HTTPS upstream DMG URL to fail"
     fi
@@ -2230,7 +2229,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$TEST_SOURCE_DIR"
 WORK_DIR="$(mktemp -d)"
-INSTALL_DIR="$TEST_SOURCE_DIR/codex-app"
+INSTALL_DIR="$TEST_SOURCE_DIR/chatgpt"
 # shellcheck disable=SC1091
 source "$REPO_DIR/scripts/lib/install-helpers.sh"
 
@@ -2257,8 +2256,8 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$TEST_SOURCE_DIR"
 WORK_DIR="$(mktemp -d)"
-INSTALL_DIR="$TEST_SOURCE_DIR/codex-app"
-CODEX_DMG_REFRESH_MODE=pinned
+INSTALL_DIR="$TEST_SOURCE_DIR/chatgpt"
+CHATGPT_DMG_REFRESH_MODE=pinned
 # shellcheck disable=SC1091
 source "$REPO_DIR/scripts/lib/install-helpers.sh"
 
@@ -2337,7 +2336,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$TEST_SOURCE_DIR"
 WORK_DIR="$(mktemp -d)"
-INSTALL_DIR="$TEST_SOURCE_DIR/codex-app"
+INSTALL_DIR="$TEST_SOURCE_DIR/chatgpt"
 # shellcheck disable=SC1091
 source "$REPO_DIR/scripts/lib/install-helpers.sh"
 # shellcheck disable=SC1091
@@ -2388,14 +2387,14 @@ SCRIPT
     chmod +x "$repo/install.sh"
 
     TEST_REBUILD_LOG="$workspace/default.log" \
-    CODEX_NEXT_APP_DIR="$workspace/next" \
+    CHATGPT_NEXT_APP_DIR="$workspace/next" \
     REBUILD_REPORT_DIR="$workspace/report" \
         bash "$repo/scripts/rebuild-candidate.sh" >"$workspace/default.out" 2>&1
     first_line="$(sed -n '1p' "$workspace/default.log")"
     [ "$first_line" = "CALL:" ] || fail "Default rebuild should let the transactional installer validate its cache: $first_line"
 
     TEST_REBUILD_LOG="$workspace/explicit.log" \
-    CODEX_NEXT_APP_DIR="$workspace/next-explicit" \
+    CHATGPT_NEXT_APP_DIR="$workspace/next-explicit" \
     REBUILD_REPORT_DIR="$workspace/report-explicit" \
         bash "$repo/scripts/rebuild-candidate.sh" "$explicit_dmg" >"$workspace/explicit.out" 2>&1
     first_line="$(sed -n '1p' "$workspace/explicit.log")"
@@ -2472,7 +2471,7 @@ test_candidate_install_is_transactional() {
         INSTALL_DIR="$workspace/final"
         # shellcheck source=scripts/lib/candidate-install.sh
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
-        if CODEX_PROMOTION_TEST_FAIL_BACKUP_MOVE=1 \
+        if CHATGPT_PROMOTION_TEST_FAIL_BACKUP_MOVE=1 \
             promote_candidate_install "$workspace/candidate" "$workspace/final"; then
             fail "Expected simulated backup move failure"
         fi
@@ -2492,7 +2491,7 @@ test_candidate_install_is_transactional() {
         assert_install_target_not_running() { :; }
         # shellcheck source=scripts/lib/candidate-install.sh
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
-        if CODEX_PROMOTION_TEST_FAIL_EXCHANGE=1 \
+        if CHATGPT_PROMOTION_TEST_FAIL_EXCHANGE=1 \
             promote_candidate_install "$workspace/candidate" "$workspace/final"; then
             fail "Expected simulated unsupported atomic exchange"
         fi
@@ -2529,7 +2528,7 @@ test_candidate_promotion_stops_when_journal_prepare_fails() {
 import os
 import sys
 
-with open(os.environ["CODEX_PROMOTION_TEST_HELPER_LOG"], "a", encoding="utf-8") as handle:
+with open(os.environ["CHATGPT_PROMOTION_TEST_HELPER_LOG"], "a", encoding="utf-8") as handle:
     handle.write(f"{sys.argv[1]}\n")
 if sys.argv[1] == "prepare":
     raise SystemExit(1)
@@ -2541,8 +2540,8 @@ PY
         warn() { :; }
         error() { echo "$*" >&2; return 1; }
         assert_install_target_not_running() { :; }
-        export CODEX_CANDIDATE_PROMOTION_HELPER="$helper"
-        export CODEX_PROMOTION_TEST_HELPER_LOG="$helper_log"
+        export CHATGPT_CANDIDATE_PROMOTION_HELPER="$helper"
+        export CHATGPT_PROMOTION_TEST_HELPER_LOG="$helper_log"
         # shellcheck source=scripts/lib/candidate-install.sh
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
         if promote_candidate_install "$workspace/candidate" "$workspace/final"; then
@@ -2570,7 +2569,7 @@ test_candidate_prepare_failure_cleans_transaction_metadata() {
         assert_install_target_not_running() { :; }
         # shellcheck source=scripts/lib/candidate-install.sh
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
-        if CODEX_PROMOTION_TEST_FAIL_PREPARE_AFTER_JOURNAL=1 \
+        if CHATGPT_PROMOTION_TEST_FAIL_PREPARE_AFTER_JOURNAL=1 \
             promote_candidate_install "$workspace/candidate" "$workspace/final"; then
             fail "Expected simulated post-journal preparation failure"
         fi
@@ -2629,7 +2628,7 @@ test_candidate_promotion_refuses_a_running_final_app() {
         info() { :; }
         warn() { :; }
         error() { echo "$*" >&2; return 1; }
-        CODEX_APP_ID="codex-app-test"
+        CHATGPT_APP_ID="chatgpt-test"
         INSTALL_DIR="$workspace/final"
         # shellcheck source=scripts/lib/process-detection.sh
         . "$REPO_DIR/scripts/lib/process-detection.sh"
@@ -2649,7 +2648,7 @@ test_candidate_promotion_refuses_a_running_final_app() {
         info() { :; }
         warn() { :; }
         error() { echo "$*" >&2; exit 1; }
-        CODEX_APP_ID="codex-app-test"
+        CHATGPT_APP_ID="chatgpt-test"
         INSTALL_DIR="$workspace/final"
         . "$REPO_DIR/scripts/lib/process-detection.sh"
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
@@ -2728,7 +2727,7 @@ test_candidate_promotion_recovers_after_sigkill() {
         assert_install_target_not_running() { :; }
         # shellcheck source=scripts/lib/candidate-install.sh
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
-        CODEX_PROMOTION_TEST_PAUSE_FILE="$pause_file" \
+        CHATGPT_PROMOTION_TEST_PAUSE_FILE="$pause_file" \
             promote_candidate_install "$workspace/candidate" "$workspace/final"
     ) &
     promotion_pid=$!
@@ -2774,7 +2773,7 @@ test_candidate_backup_cleanup_retries_after_failure() {
         error() { echo "$*" >&2; exit 1; }
         assert_install_target_not_running() { :; }
         . "$REPO_DIR/scripts/lib/candidate-install.sh"
-        CODEX_PROMOTION_TEST_FAIL_BACKUP_CLEANUP=1 \
+        CHATGPT_PROMOTION_TEST_FAIL_BACKUP_CLEANUP=1 \
             promote_candidate_install "$workspace/candidate" "$workspace/final"
     )
     [ "$(cat "$workspace/final/version")" = "v2" ] || fail "Cleanup failure rolled back the accepted app"
@@ -2794,10 +2793,10 @@ test_candidate_backup_cleanup_retries_after_failure() {
 
 test_user_local_updates_preserve_the_running_app_gate() {
     info "Checking automated user-local updates cannot inherit the running-app override"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/codex-app-update" "CODEX_INSTALL_ALLOW_RUNNING=0"
-    assert_not_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/codex-app-update" "CODEX_INSTALL_ALLOW_RUNNING=1"
-    assert_contains "$REPO_DIR/updater/src/wrapper_apply.rs" '.env("CODEX_INSTALL_ALLOW_RUNNING", "0")'
-    assert_not_contains "$REPO_DIR/updater/src/wrapper_apply.rs" '.env("CODEX_INSTALL_ALLOW_RUNNING", "1")'
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/chatgpt-update" "CHATGPT_INSTALL_ALLOW_RUNNING=0"
+    assert_not_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/chatgpt-update" "CHATGPT_INSTALL_ALLOW_RUNNING=1"
+    assert_contains "$REPO_DIR/updater/src/wrapper_apply.rs" '.env("CHATGPT_INSTALL_ALLOW_RUNNING", "0")'
+    assert_not_contains "$REPO_DIR/updater/src/wrapper_apply.rs" '.env("CHATGPT_INSTALL_ALLOW_RUNNING", "1")'
 }
 
 test_candidate_promotion_is_serialized() {
@@ -2845,9 +2844,9 @@ test_transactional_install_reenters_with_current_bash() {
 
 test_transactional_install_uses_managed_node_and_isolated_reports() {
     info "Checking transactional acceptance uses managed Node and isolated reports"
-    assert_contains "$REPO_DIR/install.sh" 'CODEX_ACCEPTANCE_NODE="\$CODEX_MANAGED_NODE_RUNTIME_DIR/bin/node"'
+    assert_contains "$REPO_DIR/install.sh" 'CHATGPT_ACCEPTANCE_NODE="\$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"'
     assert_contains "$REPO_DIR/install.sh" 'report_dir="\$report_base/transactions/\$transaction_id"'
-    assert_contains "$REPO_DIR/install.sh" '"\$CODEX_ACCEPTANCE_NODE" "\$SCRIPT_DIR/scripts/validate-upstream-dmg.js"'
+    assert_contains "$REPO_DIR/install.sh" '"\$CHATGPT_ACCEPTANCE_NODE" "\$SCRIPT_DIR/scripts/validate-upstream-dmg.js"'
     assert_contains "$REPO_DIR/install.sh" "harden_bundled_plugin_source_tree"
 }
 
@@ -2934,14 +2933,14 @@ EOF
     assert_not_contains "$log_file" 'alert:'
 
     : > "$log_file"
-    CODEX_SUDO_ALERT=1 PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
+    CHATGPT_SUDO_ALERT=1 PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
         "$wrapper" true
     assert_contains "$log_file" 'sudo:-n -v'
     assert_not_contains "$log_file" 'alert:'
     assert_contains "$log_file" 'sudo:true'
 
     : > "$log_file"
-    CODEX_SUDO_ALERT=1 CODEX_SUDO_ALERT_SOUND_FILE="$sound_file" SUDO_ALERT_TEST_CACHE_STATUS=1 \
+    CHATGPT_SUDO_ALERT=1 CHATGPT_SUDO_ALERT_SOUND_FILE="$sound_file" SUDO_ALERT_TEST_CACHE_STATUS=1 \
         PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
         "$wrapper" true
     [ "$(sed -n '1p' "$log_file")" = 'sudo:-n -v' ] || fail "Expected cached sudo check first"
@@ -2951,7 +2950,7 @@ EOF
     [ "$(sed -n '4p' "$log_file")" = 'sudo:true' ] || fail "Expected command after authentication"
 
     : > "$log_file"
-    CODEX_SUDO_ALERT=1 CODEX_SUDO_ALERT_SOUND_FILE="$sound_file" SUDO_ALERT_TEST_CACHE_STATUS=1 SUDO_ALERT_TEST_SOUND_STATUS=1 \
+    CHATGPT_SUDO_ALERT=1 CHATGPT_SUDO_ALERT_SOUND_FILE="$sound_file" SUDO_ALERT_TEST_CACHE_STATUS=1 SUDO_ALERT_TEST_SOUND_STATUS=1 \
         PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
         "$wrapper" true 2>/dev/null
     assert_contains "$log_file" 'sudo:-v'
@@ -2959,7 +2958,7 @@ EOF
 
     : > "$log_file"
     local status=0
-    CODEX_SUDO_ALERT=1 SUDO_ALERT_TEST_CACHE_STATUS=1 SUDO_ALERT_TEST_AUTH_STATUS=23 \
+    CHATGPT_SUDO_ALERT=1 SUDO_ALERT_TEST_CACHE_STATUS=1 SUDO_ALERT_TEST_AUTH_STATUS=23 \
         PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
         "$wrapper" true 2>/dev/null || status=$?
     [ "$status" -eq 23 ] || fail "Expected sudo authentication failure status, got $status"
@@ -2967,7 +2966,7 @@ EOF
 
     : > "$log_file"
     status=0
-    CODEX_SUDO_ALERT=1 SUDO_ALERT_TEST_COMMAND_STATUS=17 \
+    CHATGPT_SUDO_ALERT=1 SUDO_ALERT_TEST_COMMAND_STATUS=17 \
         PATH="$bin_dir:$HOST_TOOL_PATH" SUDO_ALERT_TEST_LOG="$log_file" \
         "$wrapper" true || status=$?
     [ "$status" -eq 17 ] || fail "Expected privileged command status, got $status"
@@ -2979,19 +2978,19 @@ test_native_sudo_alert_wiring() {
     local bootstrap_log="$TMP_DIR/make-bootstrap-sudo-alert.log"
     local update_log="$TMP_DIR/make-update-sudo-alert.log"
 
-    CODEX_SUDO_ALERT=1 make -n -C "$REPO_DIR" install >"$install_log"
+    CHATGPT_SUDO_ALERT=1 make -n -C "$REPO_DIR" install >"$install_log"
     assert_occurrence_count "$install_log" 'scripts/sudo-with-alert.sh' 9
 
-    CODEX_SUDO_ALERT=1 make -n -C "$REPO_DIR" bootstrap-native >"$bootstrap_log"
+    CHATGPT_SUDO_ALERT=1 make -n -C "$REPO_DIR" bootstrap-native >"$bootstrap_log"
     assert_contains "$bootstrap_log" 'bash scripts/install-deps.sh'
     assert_contains "$bootstrap_log" 'install-native'
 
-    CODEX_SUDO_ALERT=1 make -n -C "$REPO_DIR" update-native >"$update_log"
+    CHATGPT_SUDO_ALERT=1 make -n -C "$REPO_DIR" update-native >"$update_log"
     assert_contains "$update_log" 'git pull --ff-only'
     assert_contains "$update_log" 'install-native'
 
     assert_contains "$REPO_DIR/scripts/install-deps.sh" 'sudo-with-alert.sh'
-    assert_contains "$REPO_DIR/Makefile" 'CODEX_SUDO_ALERT=1'
+    assert_contains "$REPO_DIR/Makefile" 'CHATGPT_SUDO_ALERT=1'
 }
 
 test_fedora_dependency_bootstrap_installs_rpmbuild() {
@@ -3092,16 +3091,16 @@ SCRIPT
     PATH="$fake_bin:$PATH" \
     OS_RELEASE_FILE="$os_release" \
     OSTREE_BOOTED_FILE="$ostree_booted" \
-    CODEX_BOOTSTRAP_DRY_RUN=1 \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$REPO_DIR/port-integrations" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$workspace/integrations.json" \
+    CHATGPT_BOOTSTRAP_DRY_RUN=1 \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/port-integrations" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$workspace/integrations.json" \
         "$BASH_BIN" "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$wizard_log"
     assert_contains "$wizard_log" "Package manager: rpm-ostree"
     assert_contains "$wizard_log" "Native package format: rpm"
     assert_contains "$wizard_log" "Atomic host: yes"
 
-    CODEX_LINUX_TARGET_ATOMIC=maybe \
+    CHATGPT_LINUX_TARGET_ATOMIC=maybe \
     PATH="$fake_bin" \
     OS_RELEASE_FILE="$os_release" \
     OSTREE_BOOTED_FILE="$ostree_booted" \
@@ -3118,7 +3117,7 @@ SCRIPT
     assert_contains "$helper_output" "manager=rpm-ostree"
     assert_contains "$helper_output" "atomic=yes"
 
-    CODEX_LINUX_TARGET_ATOMIC=0 \
+    CHATGPT_LINUX_TARGET_ATOMIC=0 \
     PATH="$fake_bin" \
     OS_RELEASE_FILE="$os_release" \
     OSTREE_BOOTED_FILE="$ostree_booted" \
@@ -3182,11 +3181,11 @@ test_setup_native_wizard_noninteractive_integration_writer() {
 }
 JSON
 
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-    CODEX_PORT_INTEGRATIONS="remote-mobile-control,read-aloud" \
-    CODEX_LINUX_DISABLE_FEATURES="conversation-mode" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_PORT_INTEGRATIONS="remote-mobile-control,read-aloud" \
+    CHATGPT_LINUX_DISABLE_FEATURES="conversation-mode" \
     PACKAGE_WITH_UPDATER=0 \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
@@ -3202,7 +3201,7 @@ NODE
     assert_contains "$output_log" "read-aloud"
     assert_contains "$output_log" "Manual-update native package mode selected"
     assert_contains "$output_log" "PACKAGE_WITH_UPDATER=0 make install-native"
-    assert_contains "$output_log" "Integration changes apply after rebuilding and reinstalling Codex App Linux."
+    assert_contains "$output_log" "Integration changes apply after rebuilding and reinstalling ChatGPT for Linux."
 }
 
 test_setup_native_wizard_rejects_invalid_integration_ids() {
@@ -3215,10 +3214,10 @@ test_setup_native_wizard_rejects_invalid_integration_ids() {
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    if CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-        CODEX_PORT_INTEGRATIONS="missing-integration" \
+    if CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+        CHATGPT_PORT_INTEGRATIONS="missing-integration" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should reject unknown integration ids"
     fi
@@ -3238,10 +3237,10 @@ test_setup_native_wizard_rejects_integrations_without_readme() {
     rm -f "$integrations_root/read-aloud/README.md"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    if CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-        CODEX_PORT_INTEGRATIONS="read-aloud" \
+    if CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+        CHATGPT_PORT_INTEGRATIONS="read-aloud" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should reject port integrations without README.md"
     fi
@@ -3260,11 +3259,11 @@ test_setup_native_wizard_rejects_conflicting_integration_ids() {
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    if CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-        CODEX_PORT_INTEGRATIONS="read-aloud" \
-        CODEX_LINUX_DISABLE_FEATURES="read-aloud" \
+    if CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+        CHATGPT_PORT_INTEGRATIONS="read-aloud" \
+        CHATGPT_LINUX_DISABLE_FEATURES="read-aloud" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should reject conflicting integration ids"
     fi
@@ -3280,8 +3279,8 @@ test_setup_native_wizard_disable_is_non_destructive() {
     local config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
     local fake_home="$workspace/home"
-    local key_file="$fake_home/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
-    local model_file="$fake_home/.local/share/codex-app/read-aloud/kokoro-venv/bin/python"
+    local key_file="$fake_home/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
+    local model_file="$fake_home/.local/share/chatgpt/read-aloud/kokoro-venv/bin/python"
     local plugin_cache="$fake_home/.codex/plugins/cache/openai-bundled/read-aloud"
 
     make_wizard_integration_root "$integrations_root"
@@ -3296,10 +3295,10 @@ JSON
     HOME="$fake_home" \
     XDG_CONFIG_HOME="$fake_home/.config" \
     XDG_DATA_HOME="$fake_home/.local/share" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-    CODEX_LINUX_DISABLE_FEATURES="remote-mobile-control,read-aloud,read-aloud-mcp" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_LINUX_DISABLE_FEATURES="remote-mobile-control,read-aloud,read-aloud-mcp" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_json_enabled_equals "$config" '[]'
@@ -3308,7 +3307,7 @@ JSON
     assert_file_exists "$plugin_cache/marker"
     assert_contains "$output_log" "Not deleting $key_file"
     assert_contains "$output_log" "Not removing Read Aloud model files, Python runtimes, or plugin caches"
-    assert_contains "$output_log" "$fake_home/.local/share/codex-app/read-aloud"
+    assert_contains "$output_log" "$fake_home/.local/share/chatgpt/read-aloud"
     assert_contains "$output_log" "$plugin_cache"
 }
 
@@ -3331,8 +3330,8 @@ test_setup_native_wizard_accepts_numbered_integration_selection() {
     (
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$config"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
             printf '1,3-4\n'
             printf '5\n'
@@ -3340,7 +3339,7 @@ test_setup_native_wizard_accepts_numbered_integration_selection() {
             printf '\n'
             printf '\n'
             printf '\n'
-        } | script -qefc "CODEX_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
+        } | script -qefc "CHATGPT_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
     )
 
     assert_json_enabled_equals "$config" '["conversation-mode","read-aloud","read-aloud-mcp"]'
@@ -3360,10 +3359,10 @@ test_setup_native_wizard_rejects_out_of_range_integration_numbers() {
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    if CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-        CODEX_PORT_INTEGRATIONS="99" \
+    if CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+        CHATGPT_PORT_INTEGRATIONS="99" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should reject out-of-range feature numbers"
     fi
@@ -3385,14 +3384,14 @@ test_setup_native_wizard_summary_keeps_existing_config() {
 {"enabled":["remote-mobile-control"]}
 JSON
 
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_json_enabled_equals "$config" '["remote-mobile-control"]'
     assert_contains "$output_log" "Enabled port integrations: remote-mobile-control"
-    assert_contains "$output_log" "Default native package mode includes codex-app-updater"
+    assert_contains "$output_log" "Default native package mode includes chatgpt-updater"
     assert_contains "$output_log" "make install-native"
 }
 
@@ -3410,10 +3409,10 @@ test_setup_native_wizard_lists_local_integrations() {
     printf '%s\n' '# Local Tool' > "$integrations_root/local/local-tool/README.md"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
-    CODEX_PORT_INTEGRATIONS="local-tool" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_PORT_INTEGRATIONS="local-tool" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_json_enabled_equals "$config" '["local-tool"]'
@@ -3436,7 +3435,7 @@ test_setup_native_wizard_uses_package_name_for_installed_state() {
     cat > "$bin_dir/dpkg-query" <<SCRIPT
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$dpkg_args"
-if [[ "\$*" != *codex-cua-lab* ]]; then
+if [[ "\$*" != *chatgpt-cua-lab* ]]; then
     exit 1
 fi
 case "\$*" in
@@ -3453,17 +3452,19 @@ SCRIPT
     chmod +x "$bin_dir/dpkg-query"
 
     PATH="$bin_dir:$PATH" \
-    PACKAGE_NAME="codex-cua-lab" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    PACKAGE_NAME="chatgpt-cua-lab" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_contains "$output_log" "Installed package: deb 1.2.3"
     assert_contains "$output_log" "ydotoold.service(system)="
     assert_contains "$output_log" "ydotoold.service(user)="
-    assert_contains "$dpkg_args" "codex-cua-lab"
-    assert_not_contains "$dpkg_args" "codex-app"
+    assert_contains "$dpkg_args" "chatgpt-cua-lab"
+    if grep -Eq '(^|[[:space:]])chatgpt([[:space:]]|$)' "$dpkg_args"; then
+        fail "Did not expect a standalone chatgpt package query in $dpkg_args"
+    fi
 }
 
 test_setup_native_wizard_portal_summary_survives_busctl_sigpipe() {
@@ -3492,9 +3493,9 @@ SCRIPT
     chmod +x "$bin_dir/pgrep" "$bin_dir/busctl"
 
     PATH="$bin_dir:$PATH" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1
 
     assert_contains "$output_log" "portal=available on session bus"
@@ -3510,9 +3511,9 @@ test_setup_native_wizard_warns_when_conversation_mode_lacks_read_aloud() {
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["conversation-mode"]}' > "$config"
 
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1
 
     assert_contains "$output_log" "conversation-mode is enabled without read-aloud"
@@ -3528,12 +3529,12 @@ test_setup_native_wizard_dry_runs_deps_and_install_native() {
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":[]}' > "$config"
 
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_BOOTSTRAP_DRY_RUN=1 \
-    CODEX_BOOTSTRAP_INSTALL_DEPS=1 \
-    CODEX_BOOTSTRAP_INSTALL_NATIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_BOOTSTRAP_DRY_RUN=1 \
+    CHATGPT_BOOTSTRAP_INSTALL_DEPS=1 \
+    CHATGPT_BOOTSTRAP_INSTALL_NATIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
     PACKAGE_WITH_UPDATER=0 \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
@@ -3552,7 +3553,7 @@ test_setup_native_wizard_prints_deep_readiness_guidance() {
 
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["read-aloud","read-aloud-mcp"]}' > "$config"
-    mkdir -p "$fake_home/.config/codex-app" "$fake_home/.local/share/codex-app/read-aloud"
+    mkdir -p "$fake_home/.config/chatgpt" "$fake_home/.local/share/chatgpt/read-aloud"
 
     HOME="$fake_home" \
     XDG_CONFIG_HOME="$fake_home/.config" \
@@ -3561,10 +3562,10 @@ test_setup_native_wizard_prints_deep_readiness_guidance() {
     DESKTOP_SESSION=plasma \
     XDG_SESSION_DESKTOP=plasma \
     XDG_SESSION_TYPE=wayland \
-    CODEX_LINUX_SETTINGS_FILE="$fake_home/.config/codex-app/settings.json" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_LINUX_SETTINGS_FILE="$fake_home/.config/chatgpt/settings.json" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_contains "$output_log" "Computer Use details:"
@@ -3599,10 +3600,10 @@ SCRIPT
     chmod +x "$bin_dir/stat"
 
     PATH="$bin_dir:$PATH" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_BOOTSTRAP_UINPUT_PATH="$fake_uinput" \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_BOOTSTRAP_UINPUT_PATH="$fake_uinput" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         timeout 3 bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_contains "$output_log" "uinput=read/write access"
@@ -3619,27 +3620,27 @@ test_setup_native_wizard_read_aloud_paths_match_runtime_defaults() {
 
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["read-aloud"]}' > "$config"
-    mkdir -p "$fake_home/.config/codex-cua-lab" "$fake_home/.local/share/kokoro"
-    printf '%s\n' '{"codex-linux-read-aloud-kokoro-python":"/custom/python"}' > "$fake_home/.config/codex-cua-lab/settings.json"
+    mkdir -p "$fake_home/.config/chatgpt-cua-lab" "$fake_home/.local/share/kokoro"
+    printf '%s\n' '{"chatgpt-linux-read-aloud-kokoro-python":"/custom/python"}' > "$fake_home/.config/chatgpt-cua-lab/settings.json"
     printf '%s\n' 'model marker' > "$fake_home/.local/share/kokoro/kokoro-v1.0.onnx"
     printf '%s\n' 'voices marker' > "$fake_home/.local/share/kokoro/voices-v1.0.bin"
 
     HOME="$fake_home" \
     XDG_CONFIG_HOME="$fake_home/.config" \
     XDG_DATA_HOME="$fake_home/.local/share" \
-    CODEX_LINUX_APP_ID="codex-cua-lab" \
-    CODEX_APP_ID="codex-app" \
-    CODEX_LINUX_SETTINGS_FILE="$fake_home/.config/codex-cua-lab/settings.json" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_LINUX_APP_ID="chatgpt-cua-lab" \
+    CHATGPT_APP_ID="chatgpt" \
+    CHATGPT_LINUX_SETTINGS_FILE="$fake_home/.config/chatgpt-cua-lab/settings.json" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
-    assert_contains "$output_log" "Settings file: $fake_home/.config/codex-cua-lab/settings.json (file)"
+    assert_contains "$output_log" "Settings file: $fake_home/.config/chatgpt-cua-lab/settings.json (file)"
     assert_contains "$output_log" "Kokoro python: /custom/python (missing)"
     assert_contains "$output_log" "Kokoro model: $fake_home/.local/share/kokoro/kokoro-v1.0.onnx (file)"
     assert_contains "$output_log" "Kokoro voices: $fake_home/.local/share/kokoro/voices-v1.0.bin (file)"
-    assert_not_contains "$output_log" "$fake_home/.local/share/codex-app/read-aloud/kokoro/kokoro-v1.0.onnx"
+    assert_not_contains "$output_log" "$fake_home/.local/share/chatgpt/read-aloud/kokoro/kokoro-v1.0.onnx"
 }
 
 test_setup_native_wizard_sway_hint_is_conservative() {
@@ -3655,9 +3656,9 @@ test_setup_native_wizard_sway_hint_is_conservative() {
     XDG_CURRENT_DESKTOP=sway \
     DESKTOP_SESSION=sway \
     XDG_SESSION_DESKTOP=sway \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_contains "$output_log" "Sway -> not explicitly supported by the current i3 backend"
@@ -3671,7 +3672,7 @@ test_setup_native_wizard_cleanup_requires_interactive_confirmation() {
     local config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
     local fake_home="$workspace/home"
-    local key_file="$fake_home/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
+    local key_file="$fake_home/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
 
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["remote-mobile-control"]}' > "$config"
@@ -3680,10 +3681,10 @@ test_setup_native_wizard_cleanup_requires_interactive_confirmation() {
 
     if HOME="$fake_home" \
         XDG_CONFIG_HOME="$fake_home/.config" \
-        CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-        CODEX_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
-        CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-        CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+        CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+        CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should refuse non-interactive cleanup"
     fi
@@ -3699,7 +3700,7 @@ test_setup_native_wizard_dry_run_cleanup_allows_noninteractive_preview() {
     local config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
     local fake_home="$workspace/home"
-    local key_file="$fake_home/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
+    local key_file="$fake_home/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
 
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["remote-mobile-control"]}' > "$config"
@@ -3708,11 +3709,11 @@ test_setup_native_wizard_dry_run_cleanup_allows_noninteractive_preview() {
 
     HOME="$fake_home" \
     XDG_CONFIG_HOME="$fake_home/.config" \
-    CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-    CODEX_BOOTSTRAP_DRY_RUN=1 \
-    CODEX_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
-    CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$config" \
+    CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+    CHATGPT_BOOTSTRAP_DRY_RUN=1 \
+    CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_file_exists "$key_file"
@@ -3739,8 +3740,8 @@ test_setup_native_wizard_blank_interactive_cleanup_ids_skip_cleanup() {
     (
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$config"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
             printf '\n'
             printf '\n'
@@ -3749,12 +3750,12 @@ test_setup_native_wizard_blank_interactive_cleanup_ids_skip_cleanup() {
             printf '\n'
             printf '\n'
             printf '\n'
-        } | script -qefc "CODEX_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
+        } | script -qefc "CHATGPT_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
     )
 
     assert_json_enabled_equals "$config" '["remote-mobile-control"]'
     assert_contains "$output_log" "No cleanup integration ids provided; skipping feature cleanup."
-    assert_contains "$output_log" "Default native package mode includes codex-app-updater"
+    assert_contains "$output_log" "Default native package mode includes chatgpt-updater"
 }
 
 test_setup_native_wizard_dry_run_cleanup_does_not_delete_confirmed_paths() {
@@ -3764,7 +3765,7 @@ test_setup_native_wizard_dry_run_cleanup_does_not_delete_confirmed_paths() {
     local config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
     local fake_home="$workspace/home"
-    local key_file="$fake_home/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
+    local key_file="$fake_home/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
 
     make_wizard_integration_root "$integrations_root"
     printf '%s\n' '{"enabled":["remote-mobile-control"]}' > "$config"
@@ -3779,16 +3780,16 @@ test_setup_native_wizard_dry_run_cleanup_does_not_delete_confirmed_paths() {
     (
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
-        export CODEX_BOOTSTRAP_DRY_RUN=1
-        export CODEX_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$config"
+        export CHATGPT_BOOTSTRAP_DRY_RUN=1
+        export CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
             printf '\n'
             printf '\n'
             printf '\n'
             printf 'DELETE %s\n' "$key_file"
-        } | script -qefc "CODEX_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
+        } | script -qefc "CHATGPT_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
     )
 
     assert_file_exists "$key_file"
@@ -3803,8 +3804,8 @@ test_setup_native_wizard_cleanup_deletes_only_confirmed_paths() {
     local config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
     local fake_home="$workspace/home"
-    local key_file="$fake_home/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json"
-    local read_aloud_data="$fake_home/.local/share/codex-app/read-aloud"
+    local key_file="$fake_home/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
+    local read_aloud_data="$fake_home/.local/share/chatgpt/read-aloud"
     local plugin_cache="$fake_home/.codex/plugins/cache/openai-bundled/read-aloud"
 
     make_wizard_integration_root "$integrations_root"
@@ -3823,9 +3824,9 @@ test_setup_native_wizard_cleanup_deletes_only_confirmed_paths() {
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
         export XDG_DATA_HOME="$fake_home/.local/share"
-        export CODEX_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control,read-aloud"
-        export CODEX_PORT_INTEGRATIONS_ROOT="$integrations_root"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$config"
+        export CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control,read-aloud"
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
             printf '\n'
             printf '\n'
@@ -3835,7 +3836,7 @@ test_setup_native_wizard_cleanup_deletes_only_confirmed_paths() {
             printf '\n'
             printf '\n'
             printf '\n'
-        } | script -qefc "CODEX_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
+        } | script -qefc "CHATGPT_BOOTSTRAP_NO_GUI=1 bash $REPO_DIR/scripts/bootstrap-wizard.sh" /dev/null >"$output_log"
     )
 
     assert_file_not_exists "$key_file"
@@ -3856,10 +3857,10 @@ make_update_nix_hash_fixture() {
 
     cat > "$fixture/flake.nix" <<EOF
 {
-  codexVersion = "26.623.81905";
+  chatgptVersion = "26.623.81905";
   electronVersion = "42.1.0";
 
-  codexDmg = pkgs.fetchurl {
+  chatgptDmg = pkgs.fetchurl {
     url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg";
     hash = "$hash_a";
   };
@@ -3894,7 +3895,7 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text()
-text = re.sub(r'(codexVersion\s*=\s*")[^"]+(";)', r'\g<1>99.0.0\2', text, count=1)
+text = re.sub(r'(chatgptVersion\s*=\s*")[^"]+(";)', r'\g<1>99.0.0\2', text, count=1)
 path.write_text(text)
 PY
 fi
@@ -4034,7 +4035,7 @@ test_update_nix_hashes_supports_focused_verification_output() {
         run_update_nix_hash_fixture "$(basename "$fixture")" 0 "$hash_b"
 
     assert_contains "$fixture/calls.log" "nix build .#checks.x86_64-linux.nix-port-integrations-multi-feature"
-    assert_not_contains "$fixture/calls.log" ".#codex-app-computer-use-ui"
+    assert_not_contains "$fixture/calls.log" ".#chatgpt-computer-use-ui"
 }
 
 test_update_nix_hashes_skips_output_build_when_refresh_ref_already_matches() {
@@ -4054,7 +4055,7 @@ import sys
 path = Path(sys.argv[1])
 text = path.read_text()
 text = re.sub(
-    r'(codexDmg = pkgs\.fetchurl \{.*?hash = ")[^"]+(";)',
+    r'(chatgptDmg = pkgs\.fetchurl \{.*?hash = ")[^"]+(";)',
     rf'\g<1>{sys.argv[2]}\2',
     text,
     count=1,
@@ -4107,7 +4108,7 @@ test_installer_detects_electron_version_from_plist() {
 </plist>
 PLIST
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 bash -c \
         'source "$1"; detect_electron_version "$2"; printf "%s\n" "$ELECTRON_VERSION"' \
         _ "$REPO_DIR/install.sh" "$app_dir" >"$output_log" 2>&1
 
@@ -4134,7 +4135,7 @@ test_installer_keeps_electron_fallback_for_bad_metadata() {
 </plist>
 PLIST
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 bash -c \
         'source "$1"; detect_electron_version "$2"; printf "%s\n" "$ELECTRON_VERSION"' \
         _ "$REPO_DIR/install.sh" "$app_dir" >"$output_log" 2>&1
 
@@ -4157,50 +4158,55 @@ test_port_validation_rejects_oversized_numeric_values() {
     local huge_port="999999999999999999999999"
     local rc
 
-    mkdir -p "$workspace"
+    mkdir -p "$workspace/.chatgpt-linux"
+    printf '%s\n' \
+        "#!$BASH_BIN" \
+        'exit 0' \
+        > "$workspace/.chatgpt-linux/state-migration.py"
+    chmod +x "$workspace/.chatgpt-linux/state-migration.py"
 
     set +e
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_WEBVIEW_PORT="$huge_port" bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_WEBVIEW_PORT="$huge_port" bash -c \
         'source "$1"; validate_app_identity' \
         _ "$REPO_DIR/install.sh" >"$install_stdout" 2>"$install_stderr"
     rc=$?
     set -e
-    [ "$rc" -ne 0 ] || fail "Expected installer validation to reject oversized CODEX_WEBVIEW_PORT"
-    assert_contains "$install_stderr" "CODEX_WEBVIEW_PORT must be between 1 and 65535"
+    [ "$rc" -ne 0 ] || fail "Expected installer validation to reject oversized CHATGPT_WEBVIEW_PORT"
+    assert_contains "$install_stderr" "CHATGPT_WEBVIEW_PORT must be between 1 and 65535"
     assert_not_contains "$install_stderr" "integer expected"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_WEBVIEW_PORT=00080 bash -c \
-        'source "$1"; validate_app_identity; printf "%s\n" "$CODEX_WEBVIEW_PORT"' \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_WEBVIEW_PORT=00080 bash -c \
+        'source "$1"; validate_app_identity; printf "%s\n" "$CHATGPT_WEBVIEW_PORT"' \
         _ "$REPO_DIR/install.sh" >"$canonical_stdout" 2>"$canonical_stderr"
-    [ "$(cat "$canonical_stdout")" = "80" ] || fail "Expected installer validation to canonicalize leading-zero CODEX_WEBVIEW_PORT"
+    [ "$(cat "$canonical_stdout")" = "80" ] || fail "Expected installer validation to canonicalize leading-zero CHATGPT_WEBVIEW_PORT"
     [ ! -s "$canonical_stderr" ] || fail "Expected installer leading-zero canonicalization to be quiet, got: $(cat "$canonical_stderr")"
 
     printf '%s\n' \
         "#!$BASH_BIN" \
         'set -euo pipefail' \
-        'CODEX_LINUX_APP_ID=codex-app' \
-        'CODEX_LINUX_APP_DISPLAY_NAME=Codex' \
-        'CODEX_LINUX_WEBVIEW_PORT=${CODEX_WEBVIEW_PORT:-5175}' \
+        'CHATGPT_LINUX_APP_ID=chatgpt' \
+        'CHATGPT_LINUX_APP_DISPLAY_NAME=ChatGPT' \
+        'CHATGPT_LINUX_WEBVIEW_PORT=${CHATGPT_WEBVIEW_PORT:-5175}' \
         > "$start_script"
     cat "$REPO_DIR/launcher/start.sh.template" >> "$start_script"
     chmod +x "$start_script"
 
     set +e
-    CODEX_WEBVIEW_PORT="$huge_port" bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
+    CHATGPT_WEBVIEW_PORT="$huge_port" bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
     rc=$?
     set -e
-    [ "$rc" -ne 0 ] || fail "Expected launcher validation to reject oversized CODEX_WEBVIEW_PORT"
-    assert_contains "$launcher_stderr" "CODEX_LINUX_WEBVIEW_PORT must be between 1 and 65535"
+    [ "$rc" -ne 0 ] || fail "Expected launcher validation to reject oversized CHATGPT_WEBVIEW_PORT"
+    assert_contains "$launcher_stderr" "CHATGPT_LINUX_WEBVIEW_PORT must be between 1 and 65535"
     assert_not_contains "$launcher_stderr" "integer expected"
 
     XDG_CONFIG_HOME="$workspace/help-config" bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
     assert_contains "$launcher_stdout" "electron-flags.conf"
-    assert_file_not_exists "$workspace/help-config/codex-app/electron-flags.conf"
+    assert_file_not_exists "$workspace/help-config/chatgpt/electron-flags.conf"
 
     printf '%s\n' \
         "#!$BASH_BIN" \
         'set -euo pipefail' \
-        'CODEX_LINUX_WEBVIEW_PORT=${CODEX_WEBVIEW_PORT:-5175}' \
+        'CHATGPT_LINUX_WEBVIEW_PORT=${CHATGPT_WEBVIEW_PORT:-5175}' \
         > "$launcher_probe_script"
     awk '
         /^normalize_tcp_port\(\) \{/ { emit = 1 }
@@ -4208,11 +4214,11 @@ test_port_validation_rejects_oversized_numeric_values() {
         emit { print }
     ' "$REPO_DIR/launcher/start.sh.template" >> "$launcher_probe_script"
     cat >> "$launcher_probe_script" <<'SCRIPT'
-printf '%s\n' "$CODEX_LINUX_WEBVIEW_PORT"
+printf '%s\n' "$CHATGPT_LINUX_WEBVIEW_PORT"
 SCRIPT
     chmod +x "$launcher_probe_script"
-    CODEX_WEBVIEW_PORT=00080 bash "$launcher_probe_script" >"$launcher_stdout" 2>"$launcher_stderr"
-    [ "$(tail -n 1 "$launcher_stdout")" = "80" ] || fail "Expected launcher validation to canonicalize leading-zero CODEX_WEBVIEW_PORT"
+    CHATGPT_WEBVIEW_PORT=00080 bash "$launcher_probe_script" >"$launcher_stdout" 2>"$launcher_stderr"
+    [ "$(tail -n 1 "$launcher_stdout")" = "80" ] || fail "Expected launcher validation to canonicalize leading-zero CHATGPT_WEBVIEW_PORT"
     [ ! -s "$launcher_stderr" ] || fail "Expected launcher leading-zero canonicalization to be quiet, got: $(cat "$launcher_stderr")"
 }
 
@@ -4222,14 +4228,14 @@ test_launcher_uses_private_default_tmpdir() {
     local probe="$workspace/probe.sh"
     local output="$workspace/output.log"
     local runtime_dir="$workspace/runtime"
-    local state_dir="$workspace/state/codex-app"
+    local state_dir="$workspace/state/chatgpt"
     local custom_tmp="$workspace/custom-tmp"
 
     mkdir -p "$runtime_dir" "$state_dir" "$custom_tmp"
     cat > "$probe" <<SCRIPT
 #!/bin/bash
 set -euo pipefail
-CODEX_LINUX_APP_ID=codex-app
+CHATGPT_LINUX_APP_ID=chatgpt
 APP_STATE_DIR=$(printf '%q' "$state_dir")
 SCRIPT
     awk '
@@ -4248,7 +4254,7 @@ SCRIPT
         || fail "Expected state-scoped default TMPDIR, got: $(cat "$output")"
     [ "$(stat -c '%a' "$state_dir/tmp")" = "700" ] \
         || fail "Expected state-scoped TMPDIR mode 700"
-    [ ! -e "$runtime_dir/codex-app/tmp" ] \
+    [ ! -e "$runtime_dir/chatgpt/tmp" ] \
         || fail "Default TMPDIR must not consume XDG_RUNTIME_DIR tmpfs"
 
     env -u TMPDIR -u XDG_RUNTIME_DIR bash "$probe" > "$output"
@@ -4288,7 +4294,7 @@ SCRIPT
         SCRIPT_DIR="$REPO_DIR"
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
-        CODEX_MANAGED_NODE_SOURCE="$source_dir"
+        CHATGPT_MANAGED_NODE_SOURCE="$source_dir"
         mkdir -p "$WORK_DIR"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
@@ -4344,7 +4350,7 @@ SCRIPT
         SCRIPT_DIR="$REPO_DIR"
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
-        CODEX_MANAGED_NODE_SOURCE="$source_dir"
+        CHATGPT_MANAGED_NODE_SOURCE="$source_dir"
         mkdir -p "$WORK_DIR"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
@@ -4658,7 +4664,7 @@ EOF
         ARCH="$(uname -m)"
         ELECTRON_VERSION="42.0.1"
         MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_42="12.9.0"
-        CODEX_NATIVE_MODULES_SOURCE="$source_dir"
+        CHATGPT_NATIVE_MODULES_SOURCE="$source_dir"
         mkdir -p "$WORK_DIR"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
@@ -4679,9 +4685,9 @@ EOF
 test_bundled_plugin_builders_accept_prebuilt_binaries() {
     info "Checking bundled plugin builders accept prebuilt binaries"
     local workspace="$TMP_DIR/bundled-plugin-prebuilt-binaries"
-    local backend="$workspace/codex-computer-use-linux"
-    local cosmic="$workspace/codex-computer-use-cosmic"
-    local host="$workspace/codex-chrome-extension-host"
+    local backend="$workspace/chatgpt-computer-use-linux"
+    local cosmic="$workspace/chatgpt-computer-use-cosmic"
+    local host="$workspace/chatgpt-chrome-extension-host"
     local chatgpt_icon="$workspace/chatgpt.png"
     local staged_plugins="$workspace/plugins"
     local output_log="$workspace/output.log"
@@ -4695,11 +4701,11 @@ test_bundled_plugin_builders_accept_prebuilt_binaries() {
 
     (
         SCRIPT_DIR="$REPO_DIR"
-        CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE="$backend"
-        CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE="$cosmic"
-        CODEX_CHROME_EXTENSION_HOST_SOURCE="$host"
+        CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="$backend"
+        CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="$cosmic"
+        CHATGPT_CHROME_EXTENSION_HOST_SOURCE="$host"
         LINUX_ICON_SOURCE="$chatgpt_icon"
-        ICON_SOURCE="$REPO_DIR/assets/codex.png"
+        ICON_SOURCE="$REPO_DIR/assets/chatgpt.png"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
         error() { echo "[ERROR] $*" >&2; exit 1; }
@@ -4743,15 +4749,15 @@ test_bundled_plugin_system_computer_use_preserves_cosmic_helper_name() {
     (
         SCRIPT_DIR="$REPO_DIR"
         HOME="$fake_home"
-        CODEX_LINUX_COMPUTER_USE_SYSTEM_INSTALL=1
-        ICON_SOURCE="$REPO_DIR/assets/codex.png"
+        CHATGPT_LINUX_COMPUTER_USE_SYSTEM_INSTALL=1
+        ICON_SOURCE="$REPO_DIR/assets/chatgpt.png"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
         error() { echo "[ERROR] $*" >&2; exit 1; }
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/bundled-plugins.sh"
         stage_linux_computer_use_plugin "$staged_plugins"
-        "$staged_plugins/computer-use/bin/codex-computer-use-linux"
+        "$staged_plugins/computer-use/bin/chatgpt-computer-use-linux"
     ) > "$output_log" 2>&1
 
     assert_contains "$output_log" "Using system computer-use-linux MCP binaries"
@@ -4787,28 +4793,28 @@ EOF
         capture && /^}/ { exit }
     ' "$REPO_DIR/launcher/start.sh.template" >> "$probe"
     cat >> "$probe" <<'EOF'
-unset CODEX_LINUX_USER_PATH
+unset CHATGPT_LINUX_USER_PATH
 unset PATH
 prepend_managed_node_runtime_to_path
 [ "$PATH" = "$MANAGED_NODE_BIN_DIR" ] || exit 2
-[ "${CODEX_LINUX_USER_PATH+x}" = x ] || exit 3
-[ -z "$CODEX_LINUX_USER_PATH" ] || exit 4
-[ "$CODEX_MANAGED_NODE_RUNTIME_DIR" = "$SCRIPT_DIR/resources/node-runtime" ] || exit 5
+[ "${CHATGPT_LINUX_USER_PATH+x}" = x ] || exit 3
+[ -z "$CHATGPT_LINUX_USER_PATH" ] || exit 4
+[ "$CHATGPT_MANAGED_NODE_RUNTIME_DIR" = "$SCRIPT_DIR/resources/node-runtime" ] || exit 5
 
 PATH="/tmp/untrusted:$MANAGED_NODE_BIN_DIR:/usr/bin"
-unset CODEX_LINUX_USER_PATH
+unset CHATGPT_LINUX_USER_PATH
 prepend_managed_node_runtime_to_path
 case "$PATH" in
     "$MANAGED_NODE_BIN_DIR":*) ;;
     *) exit 6 ;;
 esac
-[ "$CODEX_LINUX_USER_PATH" = "/tmp/untrusted:/usr/bin" ] || exit 7
+[ "$CHATGPT_LINUX_USER_PATH" = "/tmp/untrusted:/usr/bin" ] || exit 7
 
 PATH="$MANAGED_NODE_BIN_DIR:/usr/bin"
-CODEX_LINUX_USER_PATH=":/tmp/tools::$MANAGED_NODE_BIN_DIR:/usr/bin:"
+CHATGPT_LINUX_USER_PATH=":/tmp/tools::$MANAGED_NODE_BIN_DIR:/usr/bin:"
 prepend_managed_node_runtime_to_path
-[ "$CODEX_LINUX_USER_PATH" = ":/tmp/tools::/usr/bin:" ] || exit 8
-"$BASH_BIN" -c '[ "$CODEX_LINUX_USER_PATH" = ":/tmp/tools::/usr/bin:" ]' || exit 9
+[ "$CHATGPT_LINUX_USER_PATH" = ":/tmp/tools::/usr/bin:" ] || exit 8
+"$BASH_BIN" -c '[ "$CHATGPT_LINUX_USER_PATH" = ":/tmp/tools::/usr/bin:" ]' || exit 9
 EOF
 
     "$BASH_BIN" "$probe" || fail "Expected managed Node PATH setup to tolerate an unset PATH"
@@ -4819,40 +4825,40 @@ test_launcher_captures_original_ld_library_path_state() {
     local probe="$TMP_DIR/launcher-ld-library-path-probe.sh"
 
     awk '
-        /^codex_capture_original_ld_library_path\(\) \{/ { capture = 1 }
+        /^chatgpt_capture_original_ld_library_path\(\) \{/ { capture = 1 }
         capture { print }
         capture && /^# Capture before package-specific launcher patches/ { exit }
     ' "$REPO_DIR/launcher/start.sh.template" > "$probe"
     cat >> "$probe" <<'EOF'
-CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE=value
-CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE=/stale/host/lib
+CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE=value
+CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE=/stale/host/lib
 unset LD_LIBRARY_PATH
-codex_capture_original_ld_library_path
-[ "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = unset ] || exit 2
-[ -z "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" ] || exit 3
-[ "${CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE+x}" != x ] || exit 8
-[ "${CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE+x}" != x ] || exit 9
+chatgpt_capture_original_ld_library_path
+[ "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = unset ] || exit 2
+[ -z "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" ] || exit 3
+[ "${CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE+x}" != x ] || exit 8
+[ "${CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE+x}" != x ] || exit 9
 LD_LIBRARY_PATH=/nix/app
 export LD_LIBRARY_PATH
-codex_run_host_command "$BASH" -c '
+chatgpt_run_host_command "$BASH" -c '
     [ "${LD_LIBRARY_PATH+x}" != x ] &&
-    [ "${CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE+x}" != x ] &&
-    [ "${CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE+x}" != x ]
+    [ "${CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE+x}" != x ] &&
+    [ "${CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE+x}" != x ]
 ' || exit 10
 
 LD_LIBRARY_PATH=""
-codex_capture_original_ld_library_path
-[ "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = empty ] || exit 4
-[ -z "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" ] || exit 5
+chatgpt_capture_original_ld_library_path
+[ "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = empty ] || exit 4
+[ -z "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" ] || exit 5
 LD_LIBRARY_PATH=/nix/app
-codex_run_host_command "$BASH" -c '[ "${LD_LIBRARY_PATH+x}" = x ] && [ -z "$LD_LIBRARY_PATH" ]' || exit 11
+chatgpt_run_host_command "$BASH" -c '[ "${LD_LIBRARY_PATH+x}" = x ] && [ -z "$LD_LIBRARY_PATH" ]' || exit 11
 
 LD_LIBRARY_PATH="/home/user/lib:/opt/vendor/lib"
-codex_capture_original_ld_library_path
-[ "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = value ] || exit 6
-[ "$CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" = "/home/user/lib:/opt/vendor/lib" ] || exit 7
+chatgpt_capture_original_ld_library_path
+[ "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE" = value ] || exit 6
+[ "$CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE" = "/home/user/lib:/opt/vendor/lib" ] || exit 7
 LD_LIBRARY_PATH=/nix/app
-codex_run_host_command "$BASH" -c '[ "$LD_LIBRARY_PATH" = "/home/user/lib:/opt/vendor/lib" ]' || exit 12
+chatgpt_run_host_command "$BASH" -c '[ "$LD_LIBRARY_PATH" = "/home/user/lib:/opt/vendor/lib" ]' || exit 12
 EOF
 
     "$BASH_BIN" "$probe" || fail "Expected launcher to preserve all LD_LIBRARY_PATH states"
@@ -4865,7 +4871,7 @@ test_packaged_runtime_keeps_managed_node_out_of_user_service_path() {
     local runtime_dir="$workspace/runtime"
     local capture_log="$workspace/path-captures"
     local managed_node_bin="$workspace/managed-node/bin"
-    local rendered_runtime="$workspace/codex-packaged-runtime.sh"
+    local rendered_runtime="$workspace/chatgpt-packaged-runtime.sh"
     local user_path="$fake_bin:/usr/bin"
     local fallback_path="$fake_bin:/fallback/bin"
     local homebrew_prefix="$workspace/homebrew"
@@ -4873,14 +4879,14 @@ test_packaged_runtime_keeps_managed_node_out_of_user_service_path() {
     local -a captures
 
     mkdir -p "$fake_bin" "$runtime_dir" "$managed_node_bin"
-    sed 's/__CODEX_PACKAGE_ENABLE_UPDATER__/1/g' \
-        "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" > "$rendered_runtime"
+    sed 's/__CHATGPT_PACKAGE_ENABLE_UPDATER__/1/g' \
+        "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" > "$rendered_runtime"
     printf '%s\n' "#!$BASH_BIN" > "$fake_bin/systemctl"
     cat >> "$fake_bin/systemctl" <<'EOF'
 case "$*" in
     "--user show-environment") exit 0 ;;
     "--user import-environment "*) printf 'systemctl|%s|%s|%s\n' "${PATH-}" "${HOMEBREW_PREFIX-}" "$*" >> "$CAPTURE_LOG"; exit 0 ;;
-    "--user is-enabled codex-app-updater.service") exit 1 ;;
+    "--user is-enabled chatgpt-updater.service") exit 1 ;;
     *) exit 0 ;;
 esac
 EOF
@@ -4893,13 +4899,13 @@ EOF
     (
         export CAPTURE_LOG="$capture_log"
         export XDG_RUNTIME_DIR="$runtime_dir"
-        export CODEX_LINUX_USER_PATH="$user_path"
+        export CHATGPT_LINUX_USER_PATH="$user_path"
         export HOMEBREW_PREFIX="$homebrew_prefix"
         export PATH="$managed_node_bin:$user_path"
         # shellcheck disable=SC1091
         source "$rendered_runtime"
 
-        codex_packaged_runtime_prelaunch_background
+        chatgpt_packaged_runtime_prelaunch_background
         [ "$PATH" = "$managed_node_bin:$user_path" ] \
             || fail "Expected the packaged runtime to preserve the app PATH"
         mapfile -t captures < "$capture_log"
@@ -4911,10 +4917,10 @@ EOF
             || fail "Expected only display/session environment imports"
 
         : > "$capture_log"
-        unset CODEX_LINUX_USER_PATH
+        unset CHATGPT_LINUX_USER_PATH
         unset HOMEBREW_PREFIX
         export PATH="$fallback_path"
-        codex_packaged_runtime_prelaunch_background
+        chatgpt_packaged_runtime_prelaunch_background
         [ "$PATH" = "$fallback_path" ] \
             || fail "Expected the packaged runtime to preserve the fallback PATH"
         mapfile -t captures < "$capture_log"
@@ -4934,16 +4940,16 @@ test_launcher_rejects_missing_webview_entrypoint() {
     local home_dir="$workspace/home"
     local runtime_dir="$workspace/runtime"
     local electron_marker="$workspace/electron-called"
-    local launcher_log="$home_dir/.cache/codex-renderer-url-test/launcher.log"
+    local launcher_log="$home_dir/.cache/chatgpt-renderer-url-test/launcher.log"
 
     mkdir -p \
-        "$app_dir/.codex-linux/cold-start.d" \
-        "$app_dir/.codex-linux/env.d" \
-        "$app_dir/.codex-linux/port-integrations" \
-        "$app_dir/.codex-linux/prelaunch.d" \
-        "$app_dir/.codex-linux/electron-args.d" \
-        "$app_dir/.codex-linux/launcher.d" \
-        "$app_dir/.codex-linux/after-exit.d" \
+        "$app_dir/.chatgpt-linux/cold-start.d" \
+        "$app_dir/.chatgpt-linux/env.d" \
+        "$app_dir/.chatgpt-linux/port-integrations" \
+        "$app_dir/.chatgpt-linux/prelaunch.d" \
+        "$app_dir/.chatgpt-linux/electron-args.d" \
+        "$app_dir/.chatgpt-linux/launcher.d" \
+        "$app_dir/.chatgpt-linux/after-exit.d" \
         "$app_dir/content/webview" \
         "$app_dir/resources/node-runtime/bin" \
         "$app_dir/resources/plugins/openai-bundled/.agents/plugins" \
@@ -4955,14 +4961,16 @@ test_launcher_rejects_missing_webview_entrypoint() {
         printf '%s\n' \
             '#!/usr/bin/env bash' \
             'set -Eeuo pipefail' \
-            'CODEX_LINUX_APP_ID=codex-renderer-url-test' \
-            'CODEX_LINUX_APP_DISPLAY_NAME="Codex Desktop"' \
-            'CODEX_LINUX_WEBVIEW_PORT="${CODEX_WEBVIEW_PORT:-5175}"'
+            'CHATGPT_LINUX_APP_ID=chatgpt-renderer-url-test' \
+            'CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"' \
+            'CHATGPT_LINUX_WEBVIEW_PORT="${CHATGPT_WEBVIEW_PORT:-5175}"'
         cat "$REPO_DIR/launcher/start.sh.template"
     } > "$app_dir/start.sh"
     chmod +x "$app_dir/start.sh"
-    cp "$REPO_DIR/launcher/webview-server.py" "$app_dir/.codex-linux/webview-server.py"
-    cp "$REPO_DIR/launcher/cli-launch-path.py" "$app_dir/.codex-linux/cli-launch-path.py"
+    cp "$REPO_DIR/launcher/webview-server.py" "$app_dir/.chatgpt-linux/webview-server.py"
+    cp "$REPO_DIR/launcher/cli-launch-path.py" "$app_dir/.chatgpt-linux/cli-launch-path.py"
+    cp "$REPO_DIR/launcher/state-migration.py" "$app_dir/.chatgpt-linux/state-migration.py"
+    chmod +x "$app_dir/.chatgpt-linux/state-migration.py"
     ln -s "$(command -v node)" "$app_dir/resources/node-runtime/bin/node"
 
     cat > "$app_dir/electron" <<'SCRIPT'
@@ -4978,7 +4986,7 @@ SCRIPT
         HOME="$home_dir" \
         XDG_RUNTIME_DIR="$runtime_dir" \
         CODEX_CLI_PATH="$TRUE_BIN" \
-        CODEX_WEBVIEW_PORT=45675 \
+        CHATGPT_WEBVIEW_PORT=45675 \
         ELECTRON_RENDERER_URL="http://127.0.0.1:9999/" \
         ELECTRON_MARKER="$electron_marker" \
         "$app_dir/start.sh" >/dev/null 2>&1
@@ -4997,8 +5005,8 @@ SCRIPT
         HOME="$home_dir" \
         XDG_RUNTIME_DIR="$runtime_dir" \
         CODEX_CLI_PATH="$TRUE_BIN" \
-        CODEX_WEBVIEW_PORT=45675 \
-        CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1 \
+        CHATGPT_WEBVIEW_PORT=45675 \
+        CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1 \
         ELECTRON_RENDERER_URL="http://127.0.0.1:9999/" \
         ELECTRON_MARKER="$electron_marker" \
         "$app_dir/start.sh" >/dev/null 2>&1
@@ -5016,14 +5024,14 @@ SCRIPT
         local test_path="${1:-$HOST_TOOL_PATH}"
         local -a renderer_override_env=()
         if [ -n "${2:-}" ]; then
-            renderer_override_env+=(CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE="$2")
+            renderer_override_env+=(CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE="$2")
         fi
         timeout 20 env -i \
             PATH="$test_path" \
             HOME="$home_dir" \
             XDG_RUNTIME_DIR="$runtime_dir" \
             CODEX_CLI_PATH="$TRUE_BIN" \
-            CODEX_WEBVIEW_PORT=45675 \
+            CHATGPT_WEBVIEW_PORT=45675 \
             "${renderer_override_env[@]}" \
             ELECTRON_RENDERER_URL="http://127.0.0.1:9999/" \
             ELECTRON_MARKER="$electron_marker" \
@@ -5034,7 +5042,7 @@ SCRIPT
         > "$app_dir/content/webview/index.html"
     (
         cd "$app_dir/content/webview"
-        sha256sum index.html > "$app_dir/.codex-linux/webview-integrity.sha256"
+        sha256sum index.html > "$app_dir/.chatgpt-linux/webview-integrity.sha256"
     )
     rm -f "$electron_marker"
     run_packaged_launcher >/dev/null 2>&1
@@ -5054,7 +5062,7 @@ SCRIPT
         > "$app_dir/content/webview/index.html"
     (
         cd "$app_dir/content/webview"
-        sha256sum index.html > "$app_dir/.codex-linux/webview-integrity.sha256"
+        sha256sum index.html > "$app_dir/.chatgpt-linux/webview-integrity.sha256"
     )
     rm -f "$electron_marker"
     run_packaged_launcher >/dev/null 2>&1
@@ -5091,9 +5099,9 @@ SCRIPT
     [ "$(cat "$electron_marker")" = "http://127.0.0.1:9999/" ] \
         || fail "Fingerprint failure should not replace an explicit renderer URL override"
 
-    local feature_renderer_env="$app_dir/.codex-linux/env.d/renderer-url.env"
+    local feature_renderer_env="$app_dir/.chatgpt-linux/env.d/renderer-url.env"
     printf '%s\n' \
-        'CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1' \
+        'CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1' \
         'ELECTRON_RENDERER_URL=http://127.0.0.1:9998/' \
         > "$feature_renderer_env"
     rm -f "$electron_marker"
@@ -5122,7 +5130,9 @@ test_launcher_extra_bundled_plugin_cache_rollback() {
     local visualize_source="$app_dir/resources/plugins/openai-bundled/plugins/visualize"
     local visualize_cache="$fake_home/.codex/plugins/cache/openai-bundled/visualize/2.0.0"
 
-    mkdir -p "$source_plugin/.codex-plugin" "$fake_home"
+    mkdir -p "$source_plugin/.codex-plugin" "$fake_home" "$workspace/.chatgpt-linux"
+    printf '%s\n' "#!$BASH_BIN" 'exit 0' > "$workspace/.chatgpt-linux/state-migration.py"
+    chmod +x "$workspace/.chatgpt-linux/state-migration.py"
     printf '%s\n' '{"name":"sites","version":"1.2.3"}' > "$source_plugin/.codex-plugin/plugin.json"
     printf '%s\n' "initial" > "$source_plugin/content.txt"
     sed '/^hydrate_graphical_session_env$/,$d' "$REPO_DIR/launcher/start.sh.template" > "$launcher_defs"
@@ -5130,9 +5140,9 @@ test_launcher_extra_bundled_plugin_cache_rollback() {
     (
         export HOME="$fake_home"
         export CODEX_HOME="$fake_home/.codex"
-        export CODEX_LINUX_APP_ID="codex-app"
-        export CODEX_LINUX_APP_DISPLAY_NAME="Codex Desktop"
-        export CODEX_LINUX_WEBVIEW_PORT="5175"
+        export CHATGPT_LINUX_APP_ID="chatgpt"
+        export CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"
+        export CHATGPT_LINUX_WEBVIEW_PORT="5175"
         exec 7>&1 8>&2
         # shellcheck disable=SC1090
         source "$launcher_defs"
@@ -5192,7 +5202,9 @@ test_launcher_extra_bundled_plugin_cache_concurrent_destination() {
     local race_log="$workspace/race.log"
     local backup_plugin=""
 
-    mkdir -p "$source_plugin/.codex-plugin" "$fake_home"
+    mkdir -p "$source_plugin/.codex-plugin" "$fake_home" "$workspace/.chatgpt-linux"
+    printf '%s\n' "#!$BASH_BIN" 'exit 0' > "$workspace/.chatgpt-linux/state-migration.py"
+    chmod +x "$workspace/.chatgpt-linux/state-migration.py"
     printf '%s\n' '{"name":"sites","version":"1.2.3"}' > "$source_plugin/.codex-plugin/plugin.json"
     printf '%s\n' "initial" > "$source_plugin/content.txt"
     sed '/^hydrate_graphical_session_env$/,$d' "$REPO_DIR/launcher/start.sh.template" > "$launcher_defs"
@@ -5200,9 +5212,9 @@ test_launcher_extra_bundled_plugin_cache_concurrent_destination() {
     (
         export HOME="$fake_home"
         export CODEX_HOME="$fake_home/.codex"
-        export CODEX_LINUX_APP_ID="codex-app"
-        export CODEX_LINUX_APP_DISPLAY_NAME="ChatGPT Desktop"
-        export CODEX_LINUX_WEBVIEW_PORT="5175"
+        export CHATGPT_LINUX_APP_ID="chatgpt"
+        export CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"
+        export CHATGPT_LINUX_WEBVIEW_PORT="5175"
         exec 7>&1 8>&2
         # shellcheck disable=SC1090
         source "$launcher_defs"
@@ -5350,14 +5362,16 @@ test_launcher_marketplace_metadata_atomic_staging() (
 
 test_launcher_template_sanity() {
     info "Checking launcher template markers"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "codex_capture_original_ld_library_path"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "chatgpt_capture_original_ld_library_path"
     assert_contains "$REPO_DIR/flake.nix" 'export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}'
-    assert_contains "$REPO_DIR/flake.nix" 'export CODEX_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"'
-    assert_contains "$REPO_DIR/install.sh" 'DEFAULT_CODEX_WEBVIEW_PORT=5175'
+    assert_contains "$REPO_DIR/flake.nix" 'export CHATGPT_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"'
+    assert_contains "$REPO_DIR/scripts/release-gate.sh" '/ChatGPT\\.dmg/ { found_dmg = 1 }'
+    assert_contains "$REPO_DIR/scripts/verify-apple-dmg.sh" '/ChatGPT\\.dmg/ { found_dmg = 1 }'
+    assert_contains "$REPO_DIR/install.sh" 'DEFAULT_CHATGPT_WEBVIEW_PORT=5175'
     assert_contains "$REPO_DIR/install.sh" "inspect_rebuild_candidate"
     assert_contains "$REPO_DIR/scripts/lib/install-helpers.sh" "--inspect"
     assert_contains "$REPO_DIR/scripts/lib/install-helpers.sh" "--report-dir"
-    assert_contains "$REPO_DIR/scripts/lib/asar-patch.sh" "CODEX_PATCH_REPORT_JSON"
+    assert_contains "$REPO_DIR/scripts/lib/asar-patch.sh" "CHATGPT_PATCH_REPORT_JSON"
     assert_contains "$REPO_DIR/scripts/lib/rebuild-report.sh" "write_rebuild_report_json"
     assert_contains "$REPO_DIR/install.sh" "MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_41=\"12.9.0\""
     assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" "better_sqlite3_build_version"
@@ -5369,7 +5383,7 @@ test_launcher_template_sanity() {
     assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" "prune_native_module_build_artifacts"
     assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" 'find "$build_dir" -type f ! -name'
     assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" 'find "$module_dir" -type f -name'
-    assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" "CODEX_ELECTRON_CACHE_DIR"
+    assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" "CHATGPT_ELECTRON_CACHE_DIR"
     assert_contains "$REPO_DIR/scripts/lib/native-modules.sh" "--continue-at -"
     assert_file_exists "$REPO_DIR/launcher/webview-server.py"
     assert_file_exists "$REPO_DIR/launcher/cli-launch-path.py"
@@ -5377,7 +5391,7 @@ test_launcher_template_sanity() {
     assert_contains "$REPO_DIR/launcher/webview-server.py" "If-Modified-Since"
     assert_contains "$REPO_DIR/install.sh" "webview-server.py"
     assert_contains "$REPO_DIR/install.sh" "cli-launch-path.py"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" 'python3 "$SCRIPT_DIR/.codex-linux/webview-server.py" "$CODEX_LINUX_WEBVIEW_PORT" --bind 127.0.0.1'
+    assert_contains "$REPO_DIR/launcher/start.sh.template" 'python3 "$SCRIPT_DIR/.chatgpt-linux/webview-server.py" "$CHATGPT_LINUX_WEBVIEW_PORT" --bind 127.0.0.1'
     assert_contains "$REPO_DIR/launcher/start.sh.template" "WEBVIEW_PID_FILE"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "owned_webview_server_pid"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "discover_webview_server_pid"
@@ -5385,20 +5399,20 @@ test_launcher_template_sanity() {
     assert_contains "$REPO_DIR/launcher/start.sh.template" "reconcile_runtime_state"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "detect_warm_start"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "send_warm_start_launch_action"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_DESKTOP_LAUNCH_ACTION_SOCKET"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_APP_LAUNCH_ACTION_SOCKET"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "APP_SETTINGS_FILE"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "linux_setting_enabled"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "register_url_scheme_handlers"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "xdg-mime default"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "x-scheme-handler/"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "codex-browser-sidebar"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "codex-linux-warm-start-enabled"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "chatgpt-linux-warm-start-enabled"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "--new-instance"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_MULTI_LAUNCH"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_MULTI_LAUNCH_PORT_RANGE"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_MULTI_LAUNCH"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_MULTI_LAUNCH_PORT_RANGE"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "choose_multi_launch_port"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "configure_multi_launch_instance"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" 'launcher-$CODEX_LINUX_INSTANCE_ID.log'
+    assert_contains "$REPO_DIR/launcher/start.sh.template" 'launcher-$CHATGPT_LINUX_INSTANCE_ID.log'
     assert_contains "$REPO_DIR/launcher/start.sh.template" "ADOPTED_WEBVIEW_PID"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "Reusing webview server pid="
     assert_contains "$REPO_DIR/launcher/start.sh.template" "run_cold_start_hooks"
@@ -5410,16 +5424,16 @@ test_launcher_template_sanity() {
     assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/stage.sh" "cold-start-hook.sh"
     assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "remote-control start"
     assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "/run/current-system/sw/bin"
-    assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "codex-remote-control.service"
+    assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "chatgpt-remote-control.service"
     assert_contains "$REPO_DIR/port-integrations/remote-mobile-control/cold-start-hook.sh" "continuing best-effort in the background"
     assert_contains "$REPO_DIR/flake.nix" "homeManagerModules"
     assert_contains "$REPO_DIR/flake.nix" "nixosModules"
-    assert_contains "$REPO_DIR/nix/home-manager-module.nix" "codex-remote-control"
+    assert_contains "$REPO_DIR/nix/home-manager-module.nix" "chatgpt-remote-control"
     assert_contains "$REPO_DIR/nix/home-manager-module.nix" "--remote-control"
-    assert_contains "$REPO_DIR/nix/home-manager-module.nix" "CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
-    assert_contains "$REPO_DIR/nix/nixos-module.nix" "codex-remote-control"
+    assert_contains "$REPO_DIR/nix/home-manager-module.nix" "CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
+    assert_contains "$REPO_DIR/nix/nixos-module.nix" "chatgpt-remote-control"
     assert_contains "$REPO_DIR/nix/nixos-module.nix" "--remote-control"
-    assert_contains "$REPO_DIR/nix/nixos-module.nix" "CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
+    assert_contains "$REPO_DIR/nix/nixos-module.nix" "CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
     python3 - "$REPO_DIR/launcher/start.sh.template" <<'PY'
 import re
 import sys
@@ -5441,7 +5455,7 @@ notify_body = source.split("notify_error() {", 1)[1].split("canonical_path() {",
 app_updater_body = source.split("run_app_updater() {", 1)[1].split("pid_is_current_user() {", 1)[0]
 stop_body = source.split("stop_owned_webview_server() {", 1)[1].split("owned_webview_server_pid() {", 1)[0]
 stale_body = source.split("pid_is_stale_webview_server() {", 1)[1].split("stop_owned_webview_server() {", 1)[0]
-multi_body = source.split("configure_multi_launch_instance() {", 1)[1].split('WEBVIEW_ORIGIN="http://127.0.0.1:$CODEX_LINUX_WEBVIEW_PORT"', 1)[0]
+multi_body = source.split("configure_multi_launch_instance() {", 1)[1].split('WEBVIEW_ORIGIN="http://127.0.0.1:$CHATGPT_LINUX_WEBVIEW_PORT"', 1)[0]
 adopt_body = source.split("adopt_existing_webview_server() {", 1)[1].split("start_webview_server() {", 1)[0]
 ensure_body = source.split("start_webview_server() {", 1)[1].split("wait_for_webview_server", 1)[0]
 reconcile_body = source.split("reconcile_runtime_state() {", 1)[1].split("set_electron_defaults() {", 1)[0]
@@ -5454,27 +5468,27 @@ warm_recovery_body = source.split("recover_unhealthy_running_app() {", 1)[1].spl
 terminate_body = source.split("terminate_stale_electron_with_pidfd() {", 1)[1].split("recover_unhealthy_running_app() {", 1)[0]
 if 'LAUNCHER_ARGS=()' not in source:
     raise SystemExit("launcher must keep a sanitized argv for launcher-only flags")
-if 'CODEX_PORT_INTEGRATIONS_DIR="$SCRIPT_DIR/.codex-linux/port-integrations"' not in source:
+if 'CHATGPT_PORT_INTEGRATIONS_DIR="$SCRIPT_DIR/.chatgpt-linux/port-integrations"' not in source:
     raise SystemExit("launcher must expose the app-local port integration resource directory")
-if 'export CODEX_HOME CODEX_LINUX_APP_ID CODEX_LINUX_APP_DISPLAY_NAME CODEX_LINUX_WEBVIEW_PORT CODEX_LINUX_SETTINGS_FILE CODEX_PORT_INTEGRATIONS_DIR' not in source:
+if 'export CODEX_HOME CHATGPT_LINUX_APP_ID CHATGPT_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_WEBVIEW_PORT CHATGPT_LINUX_SETTINGS_FILE CHATGPT_PORT_INTEGRATIONS_DIR' not in source:
     raise SystemExit("launcher must export CODEX_HOME and port integration resource directory")
 if '\nconfigure_multi_launch_instance\n' not in source:
     raise SystemExit("launcher must configure multi-launch before deriving WEBVIEW_ORIGIN")
-if 'unset CODEX_LINUX_MULTI_LAUNCH' not in source.split('parse_launcher_args() {', 1)[0]:
+if 'unset CHATGPT_LINUX_MULTI_LAUNCH' not in source.split('parse_launcher_args() {', 1)[0]:
     raise SystemExit("launcher must clear inherited internal multi-launch markers before parsing args")
 multi_launch_prefix = source.split('parse_launcher_args() {', 1)[0]
-multi_launch_capture = 'CODEX_MULTI_LAUNCH_REQUEST="${CODEX_MULTI_LAUNCH:-}"'
+multi_launch_capture = 'CHATGPT_MULTI_LAUNCH_REQUEST="${CHATGPT_MULTI_LAUNCH:-}"'
 if multi_launch_capture not in multi_launch_prefix:
     raise SystemExit("launcher must capture the public multi-launch request for the current invocation")
-if multi_launch_prefix.index(multi_launch_capture) > multi_launch_prefix.index("unset CODEX_MULTI_LAUNCH"):
+if multi_launch_prefix.index(multi_launch_capture) > multi_launch_prefix.index("unset CHATGPT_MULTI_LAUNCH"):
     raise SystemExit("launcher must capture the public multi-launch request before clearing it")
-if 'early_truthy_env_value "$CODEX_MULTI_LAUNCH_REQUEST"' not in source.split("parse_launcher_args() {", 1)[1].split("configure_multi_launch_instance() {", 1)[0]:
+if 'early_truthy_env_value "$CHATGPT_MULTI_LAUNCH_REQUEST"' not in source.split("parse_launcher_args() {", 1)[1].split("configure_multi_launch_instance() {", 1)[0]:
     raise SystemExit("launcher must parse multi-launch from the one-shot request snapshot")
-if "unset CODEX_MULTI_LAUNCH" not in multi_launch_prefix:
+if "unset CHATGPT_MULTI_LAUNCH" not in multi_launch_prefix:
     raise SystemExit("launcher must not leak the public multi-launch request into Electron descendants")
-if '$((CODEX_LINUX_WEBVIEW_PORT + 4))' not in source:
+if '$((CHATGPT_LINUX_WEBVIEW_PORT + 4))' not in source:
     raise SystemExit("multi-launch default range must cap the default at five ports")
-if '( trap - EXIT\n      exec 3<>/dev/tcp/127.0.0.1/"$CODEX_LINUX_WEBVIEW_PORT" || exit 1\n      exec 3>&- 3<&-\n      exit 0 )' not in webview_probe_body:
+if '( trap - EXIT\n      exec 3<>/dev/tcp/127.0.0.1/"$CHATGPT_LINUX_WEBVIEW_PORT" || exit 1\n      exec 3>&- 3<&-\n      exit 0 )' not in webview_probe_body:
     raise SystemExit("webview port probe must not inherit the launcher EXIT cleanup trap")
 if '( trap - EXIT\n      sleep 0.2' not in webview_probe_body:
     raise SystemExit("webview port probe watchdog must not inherit the launcher EXIT cleanup trap")
@@ -5482,17 +5496,17 @@ if "webview_origin_is_reachable_fast" not in wait_body or "webview_port_is_open"
     raise SystemExit("wait_for_webview_server must use the HTTP origin as the readiness signal")
 if "if webview_origin_is_reachable;" not in wait_body:
     raise SystemExit("wait_for_webview_server must fall back to full origin verification before failing")
-if 'CODEX_LINUX_INSTANCE_ID="port-$CODEX_LINUX_WEBVIEW_PORT"' not in multi_body:
+if 'CHATGPT_LINUX_INSTANCE_ID="port-$CHATGPT_LINUX_WEBVIEW_PORT"' not in multi_body:
     raise SystemExit("multi-launch must derive a stable instance id from the allocated port")
-if 'CODEX_LINUX_MULTI_LAUNCH=1' not in multi_body:
+if 'CHATGPT_LINUX_MULTI_LAUNCH=1' not in multi_body:
     raise SystemExit("multi-launch must export an app-visible multi-launch marker")
-if 'export CODEX_ELECTRON_USER_DATA_DIR CODEX_LINUX_INSTANCE_ID CODEX_LINUX_MULTI_LAUNCH CODEX_LINUX_WEBVIEW_PORT' not in multi_body:
+if 'export CHATGPT_ELECTRON_USER_DATA_DIR CHATGPT_LINUX_INSTANCE_ID CHATGPT_LINUX_MULTI_LAUNCH CHATGPT_LINUX_WEBVIEW_PORT' not in multi_body:
     raise SystemExit("multi-launch must export instance identity for Electron")
-if 'APP_STATE_DIR="$base_state_dir/instances/$CODEX_LINUX_INSTANCE_ID"' not in multi_body:
+if 'APP_STATE_DIR="$base_state_dir/instances/$CHATGPT_LINUX_INSTANCE_ID"' not in multi_body:
     raise SystemExit("multi-launch must isolate app pid/webview state per allocated port")
-if 'LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CODEX_LINUX_APP_ID/instances/$CODEX_LINUX_INSTANCE_ID"' not in multi_body:
+if 'LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID/instances/$CHATGPT_LINUX_INSTANCE_ID"' not in multi_body:
     raise SystemExit("multi-launch must isolate warm-start sockets per allocated port")
-if 'CODEX_ELECTRON_USER_DATA_DIR="$APP_STATE_DIR/electron-user-data"' not in multi_body:
+if 'CHATGPT_ELECTRON_USER_DATA_DIR="$APP_STATE_DIR/electron-user-data"' not in multi_body:
     raise SystemExit("multi-launch must force a per-instance Electron user-data dir")
 if 'send_warm_start_launch_action "${LAUNCHER_ARGS[@]}"' not in source:
     raise SystemExit("warm-start handoff must not receive launcher-only multi-launch flags")
@@ -5506,11 +5520,11 @@ if (
     raise SystemExit("warm-start IPC client must require an ok\\n acknowledgement before succeeding")
 if 'launch_electron "${LAUNCHER_ARGS[@]}"' not in source:
     raise SystemExit("Electron launch must receive sanitized launcher args")
-if 'FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.codex-linux/launcher.d"' not in source:
+if 'FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"' not in source:
     raise SystemExit("launcher must expose a generic port integration launcher hook directory")
 if launch_body.index("run_feature_launcher_hooks") > launch_body.index("build_electron_launch_args"):
     raise SystemExit("port integration launcher hooks must run before final Electron launch args are built")
-if "configure_electron_proxy_from_env" in source or "CODEX_LINUX_PROXY_SERVER=URL" in source:
+if "configure_electron_proxy_from_env" in source or "CHATGPT_LINUX_PROXY_SERVER=URL" in source:
     raise SystemExit("authenticated proxy setup must live in an opt-in port integration, not the core launcher")
 if 'Adopted concurrently-started verified webview server' not in source:
     raise SystemExit("launcher must tolerate a concurrent verified webview server winning the bind race")
@@ -5520,7 +5534,7 @@ if 'runtime_recovery_scan_needed && pid="$(discover_running_app_pid)"' not in de
     raise SystemExit("detect_warm_start must limit the running-app scan to recovery cases")
 if '[ -S "$LAUNCH_ACTION_SOCKET" ]' in detect_body:
     raise SystemExit("detect_warm_start must not gate the running-app scan on launch socket existence; hidden instances can lose the socket")
-if not re.search(r'if ! linux_setting_enabled "codex-linux-warm-start-enabled" 1; then.*?return 0', source, re.S):
+if not re.search(r'if ! linux_setting_enabled "chatgpt-linux-warm-start-enabled" 1; then.*?return 0', source, re.S):
     raise SystemExit("detect_warm_start must not fail when warm start is disabled")
 if "preserving liveness marker for second-instance handoff" not in source:
     raise SystemExit("detect_warm_start must preserve the live app liveness marker")
@@ -5563,6 +5577,8 @@ if "command -v timeout" in source or re.search(r'(^|[ \t])timeout[ \t]+"?\\$', s
     raise SystemExit("launcher hot path must not require external timeout")
 if match_executable_body.index('actual="$(pid_cmdline_arg0_path "$pid")"') > match_executable_body.index('pid_is_current_user "$pid"'):
     raise SystemExit("launcher process discovery must check cmdline arg0 before reading /proc status for UID")
+if '--app-id=$CHATGPT_LINUX_APP_ID' not in match_executable_body:
+    raise SystemExit("launcher must fall back to the stable app-id argument when Chromium scrubs its environment")
 if 'basename "$actual"' in foreign_body:
     raise SystemExit("foreign Electron detection must not fork basename for every /proc candidate")
 if 'readlink "/proc/$pid/cwd"' in summary_body:
@@ -5643,27 +5659,27 @@ if 'run_cold_start_hooks' not in runtime_body:
 for name, body in (("prelaunch", prelaunch_hooks_body), ("cold-start", cold_start_hooks_body), ("launcher", launcher_hooks_body)):
     if 'CODEX_HOME="$CODEX_HOME"' not in body:
         raise SystemExit(f"launcher {name} hooks must receive resolved CODEX_HOME")
-    if 'CODEX_PORT_INTEGRATIONS_DIR="$CODEX_PORT_INTEGRATIONS_DIR"' not in body:
+    if 'CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR"' not in body:
         raise SystemExit(f"launcher {name} hooks must receive the app-local port integration resource directory")
-    if 'codex_run_host_command "$hook"' not in body:
+    if 'chatgpt_run_host_command "$hook"' not in body:
         raise SystemExit(f"launcher {name} hooks must not inherit packaged LD_LIBRARY_PATH")
-if 'codex_run_host_command "$hook"' not in after_exit_hooks_body:
+if 'chatgpt_run_host_command "$hook"' not in after_exit_hooks_body:
     raise SystemExit("launcher after-exit hooks must not inherit packaged LD_LIBRARY_PATH")
-if 'codex_exec_host_command "$@"' not in cli_probe_body:
+if 'chatgpt_exec_host_command "$@"' not in cli_probe_body:
     raise SystemExit("launcher CLI version probes must not inherit packaged LD_LIBRARY_PATH")
-if "CODEX_CLI_PROBE_STDERR_FILE" in source:
+if "CHATGPT_CLI_PROBE_STDERR_FILE" in source:
     raise SystemExit("launcher CLI probes must not expose stderr redirection through inherited environment")
 if 'local require_success="${2:-0}"' not in cli_preflight_body:
     raise SystemExit("CLI preflight must support a required-success repair mode")
-if not re.search(r'cli_repair_required=0\s+if codex_cli_missing_optional_dependency "\$CODEX_CLI_PATH"; then\s+cli_repair_required=1\s+fi\s+if \[ "\$\{CODEX_SYNC_CLI_PREFLIGHT:-0\}" = "1" \]; then\s+if ! run_cli_preflight 0 "\$cli_repair_required"; then.*?exit 1.*?cli_preflight_repair_sync', runtime_body, re.S):
+if not re.search(r'cli_repair_required=0\s+if codex_cli_missing_optional_dependency "\$CODEX_CLI_PATH"; then\s+cli_repair_required=1\s+fi\s+if \[ "\$\{CHATGPT_SYNC_CLI_PREFLIGHT:-0\}" = "1" \]; then\s+if ! run_cli_preflight 0 "\$cli_repair_required"; then.*?exit 1.*?cli_preflight_repair_sync', runtime_body, re.S):
     raise SystemExit("sync CLI preflight must detect a required repair first and preserve fail-closed semantics")
 if not re.search(r'elif \[ "\$cli_repair_required" = "1" \]; then\s+if ! run_cli_preflight 0 1; then.*?exit 1.*?cli_preflight_repair_sync', runtime_body, re.S):
     raise SystemExit("a known broken Linux CLI must be repaired synchronously or abort before Electron launch")
-if 'codex_run_host_command notify-send' not in notify_body:
+if 'chatgpt_run_host_command notify-send' not in notify_body:
     raise SystemExit("desktop notifications must not inherit packaged LD_LIBRARY_PATH")
-if 'codex_run_host_command "$CODEX_APP_UPDATER_PATH" "$@"' not in app_updater_body:
+if 'chatgpt_run_host_command "$CHATGPT_UPDATER_PATH" "$@"' not in app_updater_body:
     raise SystemExit("app updater and its host children must not inherit packaged LD_LIBRARY_PATH")
-if 'CODEX_LINUX_FEATURE_HOOK_PHASE=launcher' not in launcher_hooks_body:
+if 'CHATGPT_LINUX_FEATURE_HOOK_PHASE=launcher' not in launcher_hooks_body:
     raise SystemExit("launcher hooks must receive their hook phase")
 if '"$hook" "${ELECTRON_ARGS[@]}"' not in launcher_hooks_body:
     raise SystemExit("launcher hooks must receive current Electron args as argv")
@@ -5693,7 +5709,7 @@ if "if adopt_existing_webview_server; then" not in ensure_body:
     raise SystemExit("start_webview_server must split adoption from origin verification")
 if "stop_stale_webview_server" not in ensure_body:
     raise SystemExit("start_webview_server must clear stale deleted webview servers before treating the port as foreign")
-if ensure_body.find("stop_stale_webview_server") > ensure_body.find("is already serving Codex content"):
+if ensure_body.find("stop_stale_webview_server") > ensure_body.find("is already serving ChatGPT content"):
     raise SystemExit("start_webview_server must try stale-server cleanup before foreign reachable-port failure")
 if "Keeping the live app untouched" not in ensure_body:
     raise SystemExit("start_webview_server must not stop a live app server when validation fails")
@@ -5734,7 +5750,7 @@ discover_body = source.split("discover_running_app_pid() {", 1)[1].split("runnin
 if 'pid_in_same_launch_instance "$pid"' not in discover_body:
     raise SystemExit("discover_running_app_pid must filter by launch instance so default and side-by-side apps never adopt each other")
 instance_match_body = source.split("pid_in_same_launch_instance() {", 1)[1].split("discover_running_app_pid() {", 1)[0]
-if 'CODEX_LINUX_INSTANCE_ID=$CODEX_LINUX_INSTANCE_ID' not in instance_match_body or 'CODEX_LINUX_MULTI_LAUNCH=1' not in instance_match_body:
+if 'CHATGPT_LINUX_INSTANCE_ID=$CHATGPT_LINUX_INSTANCE_ID' not in instance_match_body or 'CHATGPT_LINUX_MULTI_LAUNCH=1' not in instance_match_body:
     raise SystemExit("pid_in_same_launch_instance must match instance identity from the process environment")
 if not re.search(r'trap cleanup_launcher EXIT.*?log_phase "initial_launch_state_refresh_start"\s+refresh_launch_state\s+log_phase "initial_launch_state_refreshed"', source, re.S):
     raise SystemExit("launcher must do an initial runtime-state refresh before warm-start IPC")
@@ -5747,7 +5763,7 @@ if not re.search(r'prepare_launch_state_under_lock.*?elif needs_cold_start; then
     raise SystemExit("launcher must acquire the cold-start lock before spawning the packaged webview")
 if "No new app process was started" not in prepare_body:
     raise SystemExit("launcher lock timeout must fail closed instead of continuing a duplicate cold start")
-if 'CODEX_LAUNCHER_LOCK_WAIT_SECONDS:-5' not in source:
+if 'CHATGPT_LAUNCHER_LOCK_WAIT_SECONDS:-5' not in source:
     raise SystemExit("launcher lock wait must default to 5 seconds so duplicate launches do not look hung")
 if "fcntl.flock" not in source or "PR_SET_PDEATHSIG" not in source:
     raise SystemExit("launcher lock must be held by a parent-death-bound helper instead of an inherited fd")
@@ -5772,7 +5788,7 @@ if "launcher_lock_helper_is_active" not in source or "require_active_launcher_lo
     raise SystemExit("launcher must fail closed if the identity-bound lock helper exits before Electron")
 if "LAUNCHER_LOCK_CONTROL_PATH" in source or "mkfifo" in source:
     raise SystemExit("launcher lock release must not expose an inherited FIFO capability")
-if "CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1" not in launch_body:
+if "CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1" not in launch_body:
     raise SystemExit("launcher must log the GPU compositing workaround hint for side-panel flicker")
 if launch_body.count("release_launcher_lock") != 2:
     raise SystemExit("launch_electron must release the launcher lock on both the warm-start and cold-start paths")
@@ -5788,7 +5804,7 @@ import sys
 source_path, output_path = sys.argv[1:3]
 source = open(source_path, encoding="utf-8").read()
 host_command_helpers = source[
-    source.index("codex_restore_original_ld_library_path() {"):
+    source.index("chatgpt_restore_original_ld_library_path() {"):
     source.index("# Capture before package-specific launcher patches")
 ]
 start = source.index("is_wsl_environment() {")
@@ -5802,19 +5818,19 @@ probe = "#!/usr/bin/env bash\n" + host_command_helpers + helpers + r'''
 set -Eeuo pipefail
 
 is_wsl_environment() {
-    [ "${CODEX_TEST_ASSUME_NON_WSL:-0}" != "1" ] || return 1
+    [ "${CHATGPT_TEST_ASSUME_NON_WSL:-0}" != "1" ] || return 1
     launcher_is_wsl_environment
 }
 
-CODEX_LINUX_APP_ID="${CODEX_LINUX_APP_ID:-codex-app}"
+CHATGPT_LINUX_APP_ID="${CHATGPT_LINUX_APP_ID:-chatgpt}"
 SCRIPT_DIR="${SCRIPT_DIR:-/tmp/codex-launcher-probe-app}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/codex-launcher-probe-state}"
 APP_CONFIG_DIR="${APP_CONFIG_DIR:-/tmp/codex-launcher-probe-config.$$}"
 USER_ELECTRON_FLAGS_FILE="${USER_ELECTRON_FLAGS_FILE:-$APP_CONFIG_DIR/electron-flags.conf}"
 LOG_FILE="${LOG_FILE:-/tmp/codex-launcher-probe.log}"
-CODEX_PORT_INTEGRATIONS_DIR="${CODEX_PORT_INTEGRATIONS_DIR:-$SCRIPT_DIR/.codex-linux/port-integrations}"
-CODEX_LINUX_FEATURES_DIR="${CODEX_LINUX_FEATURES_DIR:-${CODEX_PORT_INTEGRATIONS_DIR}}"
+CHATGPT_PORT_INTEGRATIONS_DIR="${CHATGPT_PORT_INTEGRATIONS_DIR:-$SCRIPT_DIR/.chatgpt-linux/port-integrations}"
+CHATGPT_LINUX_FEATURES_DIR="${CHATGPT_LINUX_FEATURES_DIR:-${CHATGPT_PORT_INTEGRATIONS_DIR}}"
 FEATURE_ELECTRON_ARGS_DIR="${FEATURE_ELECTRON_ARGS_DIR:-}"
 FEATURE_LAUNCHER_HOOK_DIR="${FEATURE_LAUNCHER_HOOK_DIR:-}"
 
@@ -5829,8 +5845,8 @@ print_state() {
         "$ELECTRON_GPU_COMPOSITING_DISABLED" \
         "$ELECTRON_GL_SWITCH_ADDED" \
         "$ELECTRON_RENDERER_ACCESSIBILITY_FORCED" \
-        "${CODEX_TEST_LAUNCHER_HOOK_VALUE:-}" \
-        "${CODEX_TEST_LAUNCHER_HOOK_SAW_ARG:-}"
+        "${CHATGPT_TEST_LAUNCHER_HOOK_VALUE:-}" \
+        "${CHATGPT_TEST_LAUNCHER_HOOK_SAW_ARG:-}"
     for arg in "${ELECTRON_LAUNCH_ARGS[@]}"; do
         printf '<%s>' "$arg"
     done
@@ -5889,9 +5905,9 @@ EOF
     # Hung session bus: gsettings blocks far past the launch-path budget.
     cat > "$at_stub_dir/slowbus/gsettings" <<'EOF'
 #!/usr/bin/env bash
-: "${CODEX_TEST_SLOWBUS_PID_FILE:=}"
-if [ -n "$CODEX_TEST_SLOWBUS_PID_FILE" ]; then
-    printf '%s\n' "$$" > "$CODEX_TEST_SLOWBUS_PID_FILE"
+: "${CHATGPT_TEST_SLOWBUS_PID_FILE:=}"
+if [ -n "$CHATGPT_TEST_SLOWBUS_PID_FILE" ]; then
+    printf '%s\n' "$$" > "$CHATGPT_TEST_SLOWBUS_PID_FILE"
 fi
 sleep 5
 printf 'true\n'
@@ -5903,28 +5919,28 @@ EOF
     done
     chmod +x "$at_stub_dir"/*/pgrep "$at_stub_dir"/*/gsettings "$at_stub_dir"/*/busctl
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe --x11 -- --use-gl=angle)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe --x11 -- --use-gl=angle)"
     [[ "$output" == *"electron=<--use-gl=angle>"* ]] || fail "launcher must pass Electron args after -- without the separator: $output"
     [[ "$output" != *"electron=<--><--use-gl=angle>"* ]] || fail "launcher must not pass the -- separator to Electron: $output"
     [[ "$output" == *"<--ozone-platform=x11>"* ]] || fail "launcher --x11 must still set the Electron ozone platform: $output"
     [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "default Linux profile must keep GPU compositing enabled: $output"
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "default Linux profile must not force renderer accessibility without assistive technology: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" XDG_SESSION_TYPE=wayland CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" XDG_SESSION_TYPE=wayland CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"comp=1"* && "$output" == *"<--disable-gpu-compositing>"* ]] || fail "Wayland default profile must disable GPU compositing for side-panel stability: $output"
 
     local drm_stub_dir="$TMP_DIR/drm-stubs/two"
     mkdir -p "$drm_stub_dir/card0-DP-2" "$drm_stub_dir/card0-HDMI-3"
     printf '%s\n' connected > "$drm_stub_dir/card0-DP-2/status"
     printf '%s\n' connected > "$drm_stub_dir/card0-HDMI-3/status"
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_TEST_ASSUME_NON_WSL=1 CODEX_DRM_CLASS_ROOT="$drm_stub_dir" DISPLAY=:0 XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=ubuntu:GNOME "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_TEST_ASSUME_NON_WSL=1 CHATGPT_DRM_CLASS_ROOT="$drm_stub_dir" DISPLAY=:0 XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=ubuntu:GNOME "$launcher_probe" probe)"
     [[ "$output" == *"mode=gnome-wayland-multi-monitor"* && "$output" == *"<--ozone-platform=x11>"* ]] || fail "GNOME Wayland multi-monitor auto profile must force X11 for stable maximize/scale behavior: $output"
     [[ "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "GNOME Wayland multi-monitor auto profile must not leave backend selection to Electron: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" XDG_SESSION_TYPE=wayland CODEX_LINUX_RENDERING_MODE=default CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0 "$launcher_probe" probe)"
-    [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0 must suppress the Wayland compositor workaround: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" XDG_SESSION_TYPE=wayland CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0 "$launcher_probe" probe)"
+    [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0 must suppress the Wayland compositor workaround: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --ozone-platform=x11)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --ozone-platform=x11)"
     [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "pass-through ozone platform must reach Electron: $output"
     [[ "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "launcher must not add ozone hint when pass-through supplies an ozone platform: $output"
 
@@ -5932,17 +5948,17 @@ EOF
     mkdir -p "$feature_launcher_hook_dir"
     cat > "$feature_launcher_hook_dir/generic-hook" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' 'env CODEX_TEST_LAUNCHER_HOOK_VALUE=from-hook'
+printf '%s\n' 'env CHATGPT_TEST_LAUNCHER_HOOK_VALUE=from-hook'
 printf '%s\n' 'electron-arg --test-feature-launcher-hook=1'
 printf '%s\n' 'electron-arg --enable-features=TestHookFeature'
 for arg in "$@"; do
     if [ "$arg" = "--existing-electron-arg" ]; then
-        printf '%s\n' 'env CODEX_TEST_LAUNCHER_HOOK_SAW_ARG=1'
+        printf '%s\n' 'env CHATGPT_TEST_LAUNCHER_HOOK_SAW_ARG=1'
     fi
 done
 EOF
     chmod +x "$feature_launcher_hook_dir/generic-hook"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_LAUNCHER_HOOK_DIR="$feature_launcher_hook_dir" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --existing-electron-arg)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_LAUNCHER_HOOK_DIR="$feature_launcher_hook_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --existing-electron-arg)"
     [[ "$output" == *"hook_value=from-hook hook_saw_arg=1"* ]] || fail "launcher hook must contribute environment variables and receive current Electron args: $output"
     [[ "$output" == *"electron=<--existing-electron-arg><--test-feature-launcher-hook=1>"* ]] || fail "launcher hook must append Electron args after existing args: $output"
     [[ "$output" == *"<--enable-features=TestHookFeature>"* ]] || fail "launcher hook enable-features output must merge into launch args: $output"
@@ -5957,19 +5973,19 @@ EOF
         '--enable-wayland-ime' \
         '--use-gl=angle' > "$user_flags_file"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=x11>"* ]] || fail "persistent flags file must set the Electron ozone platform: $output"
     [[ "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "persistent ozone platform must suppress the default ozone hint: $output"
     [[ "$output" == *"electron=<--enable-wayland-ime><--use-gl=angle>"* ]] || fail "persistent flags file must pass non-launcher Electron args in order: $output"
     [[ "$output" != *"<--disable-gpu>"* ]] || fail "commented persistent flags must be ignored: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --use-gl=desktop)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --use-gl=desktop)"
     [[ "$output" == *"electron=<--enable-wayland-ime><--use-gl=angle><--use-gl=desktop>"* ]] || fail "explicit CLI Electron args must follow persistent file args: $output"
 
     local feature_args_dir="$TMP_DIR/feature-electron-args"
     mkdir -p "$feature_args_dir"
     printf '%s\n' '--ozone-platform=wayland' '--use-angle=gl' > "$feature_args_dir/feature"
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" FEATURE_ELECTRON_ARGS_DIR="$feature_args_dir" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" FEATURE_ELECTRON_ARGS_DIR="$feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=x11>"* ]] || fail "persistent flags file must override feature Electron platform args: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "feature Electron platform args must not survive after user override: $output"
     [[ "$output" == *"electron=<--use-angle=gl><--enable-wayland-ime><--use-gl=angle>"* ]] || fail "feature, user, and CLI-independent Electron args must keep precedence order: $output"
@@ -5984,7 +6000,7 @@ EOF
     env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$template_dir" USER_ELECTRON_FLAGS_FILE="$template_file" "$launcher_probe" ensure-template >/dev/null
     [ "$(cat "$template_file")" = "--wayland" ] || fail "persistent flags template must not overwrite an existing file"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
     [[ "$output" == *"mode=wayland-gpu"* && "$output" == *"ozone_platform=wayland"* && "$output" == *"gpu=1"* ]] || fail "wayland-gpu profile must force native Wayland with GPU enabled: $output"
     [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "wayland-gpu profile must keep GPU compositing enabled: $output"
     [[ "$output" == *"<--ozone-platform=wayland>"* && "$output" == *"<--enable-features=WaylandWindowDecorations>"* ]] || fail "wayland-gpu profile must add Wayland launch args: $output"
@@ -5993,66 +6009,66 @@ EOF
     local portal_feature_args_dir="$TMP_DIR/portal-feature-electron-args"
     mkdir -p "$portal_feature_args_dir"
     printf '%s\n' '--enable-features=GlobalShortcutsPortal' '--enable-features=GlobalShortcutsPortal' > "$portal_feature_args_dir/appshots"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$portal_feature_args_dir" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$portal_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
     [[ "$output" == *"<--enable-features=GlobalShortcutsPortal,WaylandWindowDecorations>"* ]] || fail "feature and Wayland Electron feature flags must be merged: $output"
     [[ "$output" != *"electron=<--enable-features=GlobalShortcutsPortal>"* ]] || fail "merged Electron feature flags must not remain in pass-through args: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu CODEX_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
-    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CODEX_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility under wayland-gpu: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
+    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility under wayland-gpu: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --x11)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --x11)"
     [[ "$output" == *"mode=wayland-gpu"* && "$output" == *"ozone_platform=x11"* ]] || fail "explicit --x11 must override the wayland-gpu platform: $output"
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "wayland-gpu with explicit --x11 must fall back to assistive-technology detection: $output"
 
-    output="$(env -i PATH="$at_stub_dir/orca:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --x11)"
+    output="$(env -i PATH="$at_stub_dir/orca:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --x11)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "wayland-gpu with explicit --x11 must force renderer accessibility when a screen reader runs: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --safe-mode)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe --safe-mode)"
     [[ "$output" == *"mode=wayland-gpu"* && "$output" == *"ozone_platform=x11"* && "$output" == *"gpu=0"* ]] || fail "safe-mode must override wayland-gpu to X11 software rendering: $output"
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "wayland-gpu with safe-mode must fall back to assistive-technology detection: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe -- --ozone-platform=x11)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe -- --ozone-platform=x11)"
     [[ "$output" == *"electron=<--ozone-platform=x11>"* && "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "pass-through X11 platform must override wayland-gpu hinting: $output"
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "wayland-gpu with pass-through X11 platform must fall back to assistive-technology detection: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe)"
     [[ "$output" == *"mode=wslg"* && "$output" == *"comp=0"* && "$output" == *"gl_added=1"* ]] || fail "forced WSLg profile must keep GPU compositing enabled and add ANGLE: $output"
     [[ "$output" == *"<--ozone-platform=x11>"* && "$output" == *"electron=<--use-gl=angle>"* ]] || fail "forced WSLg profile must use X11 and ANGLE by default: $output"
     [[ "$output" != *"<--disable-gpu-compositing>"* ]] || fail "forced WSLg profile must not add disable-gpu-compositing by default: $output"
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "forced WSLg profile must skip renderer accessibility by default: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg CODEX_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
-    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CODEX_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility under WSLg: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
+    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility under WSLg: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_RENDERER_ACCESSIBILITY=0 "$launcher_probe" probe)"
-    [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "CODEX_FORCE_RENDERER_ACCESSIBILITY=0 must disable renderer accessibility under default Linux: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_RENDERER_ACCESSIBILITY=0 "$launcher_probe" probe)"
+    [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "CHATGPT_FORCE_RENDERER_ACCESSIBILITY=0 must disable renderer accessibility under default Linux: $output"
 
-    output="$(env -i PATH="$at_stub_dir/orca:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/orca:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "a running screen reader must force renderer accessibility under default Linux: $output"
 
-    output="$(env -i PATH="$at_stub_dir/screenreader:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/screenreader:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "the GNOME screen-reader setting must force renderer accessibility under default Linux: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" GNOME_ACCESSIBILITY=1 CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" GNOME_ACCESSIBILITY=1 CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "GNOME_ACCESSIBILITY=1 must force renderer accessibility under default Linux: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 must force renderer accessibility under default Linux: $output"
 
-    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
-    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CODEX_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility without detected assistive technology: $output"
+    output="$(env -i PATH="$at_stub_dir/none:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 "$launcher_probe" probe)"
+    [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1 must force renderer accessibility without detected assistive technology: $output"
 
-    output="$(env -i PATH="$at_stub_dir/toolkit:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/toolkit:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "toolkit-accessibility=true (Computer Use gsettings fallback) must force renderer accessibility: $output"
 
-    output="$(env -i PATH="$at_stub_dir/atspibus:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/atspibus:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"renderer_accessibility=1"* && "$output" == *"<--force-renderer-accessibility>"* ]] || fail "org.a11y.Status IsEnabled (Computer Use setup) must force renderer accessibility: $output"
 
     local at_probe_start_ns at_probe_end_ns at_probe_elapsed_ms slowbus_pid slowbus_pid_file
     slowbus_pid_file="$TMP_DIR/slowbus-gsettings.pid"
     rm -f "$slowbus_pid_file"
     at_probe_start_ns="$(date +%s%N)"
-    output="$(env -i PATH="$at_stub_dir/slowbus:$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_TEST_SLOWBUS_PID_FILE="$slowbus_pid_file" "$launcher_probe" probe)"
+    output="$(env -i PATH="$at_stub_dir/slowbus:$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_TEST_SLOWBUS_PID_FILE="$slowbus_pid_file" "$launcher_probe" probe)"
     at_probe_end_ns="$(date +%s%N)"
     at_probe_elapsed_ms=$(( (10#$at_probe_end_ns - 10#$at_probe_start_ns) / 1000000 ))
     [[ "$output" == *"renderer_accessibility=0"* && "$output" != *"<--force-renderer-accessibility>"* ]] || fail "a hung session bus must not force renderer accessibility: $output"
@@ -6064,22 +6080,22 @@ EOF
         fail "session-bus assistive-tech watchdog leaked hung gsettings pid $slowbus_pid"
     fi
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe --wayland --use-gl=desktop)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe --wayland --use-gl=desktop)"
     [[ "$output" == *"<--ozone-platform=wayland>"* && "$output" == *"electron=<--use-gl=desktop>"* ]] || fail "explicit rendering args must override WSLg defaults: $output"
     [[ "$output" == *"gl_added=0"* && "$output" != *"<--use-gl=angle>"* ]] || fail "WSLg profile must not add ANGLE when a GL switch was supplied: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe -- --disable-gpu)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg "$launcher_probe" probe -- --disable-gpu)"
     [[ "$output" == *"gpu=1"* && "$output" == *"gpu_arg=1"* && "$output" == *"gl_added=0"* ]] || fail "pass-through --disable-gpu must suppress WSLg ANGLE without becoming a launcher GPU toggle: $output"
     [[ "$output" == *"electron=<--disable-gpu>"* && "$output" != *"<--disable-features=Vulkan>"* ]] || fail "pass-through --disable-gpu must not add launcher-only Vulkan flags: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1 "$launcher_probe" probe)"
-    [[ "$output" == *"comp=1"* && "$output" == *"<--disable-gpu-compositing>"* ]] || fail "CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1 must force the compositor flag: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1 "$launcher_probe" probe)"
+    [[ "$output" == *"comp=1"* && "$output" == *"<--disable-gpu-compositing>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1 must force the compositor flag: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1 "$launcher_probe" probe)"
-    [[ "$output" == *"comp=1"* && "$output" == *"<--disable-gpu-compositing>"* ]] || fail "CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1 must force the compositor flag under default Linux: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1 "$launcher_probe" probe)"
+    [[ "$output" == *"comp=1"* && "$output" == *"<--disable-gpu-compositing>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1 must force the compositor flag under default Linux: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0 "$launcher_probe" probe)"
-    [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0 must suppress the compositor flag: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0 "$launcher_probe" probe)"
+    [[ "$output" == *"comp=0"* && "$output" != *"<--disable-gpu-compositing>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0 must suppress the compositor flag: $output"
 
     output="$(env -i PATH="$PATH" HOME="$HOME" WSL_INTEROP=/tmp/codex-wsl WAYLAND_DISPLAY=wayland-0 "$launcher_probe" probe)"
     [[ "$output" == *"mode=wslg"* && "$output" == *"wslg=1"* ]] || fail "auto rendering mode must detect WSLg from WSL and GUI markers: $output"
@@ -6111,49 +6127,49 @@ EOF
     output="$(env -i PATH="$dev_shm_stub_dir/broken:$PATH" HOME="$HOME" "$launcher_probe" probe)"
     [[ "$output" == *"<--disable-dev-shm-usage>"* ]] || fail "unreadable /dev/shm capacity must keep --disable-dev-shm-usage: $output"
 
-    output="$(env -i PATH="$dev_shm_stub_dir/large:$PATH" HOME="$HOME" CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=1 "$launcher_probe" probe)"
-    [[ "$output" == *"<--disable-dev-shm-usage>"* ]] || fail "CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=1 must force --disable-dev-shm-usage: $output"
+    output="$(env -i PATH="$dev_shm_stub_dir/large:$PATH" HOME="$HOME" CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=1 "$launcher_probe" probe)"
+    [[ "$output" == *"<--disable-dev-shm-usage>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=1 must force --disable-dev-shm-usage: $output"
 
-    output="$(env -i PATH="$dev_shm_stub_dir/small:$PATH" HOME="$HOME" CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=0 "$launcher_probe" probe)"
-    [[ "$output" != *"<--disable-dev-shm-usage>"* ]] || fail "CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=0 must suppress --disable-dev-shm-usage: $output"
+    output="$(env -i PATH="$dev_shm_stub_dir/small:$PATH" HOME="$HOME" CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=0 "$launcher_probe" probe)"
+    [[ "$output" != *"<--disable-dev-shm-usage>"* ]] || fail "CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=0 must suppress --disable-dev-shm-usage: $output"
 
-    output="$(env -i PATH="$dev_shm_stub_dir/small:$PATH" HOME="$HOME" CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=bogus "$launcher_probe" probe 2>/dev/null)"
-    [[ "$output" == *"<--disable-dev-shm-usage>"* ]] || fail "invalid CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE must fall back to /dev/shm detection: $output"
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_OZONE_PLATFORM=x11 "$launcher_probe" probe)"
-    [[ "$output" == *"<--ozone-platform=x11>"* && "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "CODEX_OZONE_PLATFORM=x11 must select the X11 Ozone backend: $output"
+    output="$(env -i PATH="$dev_shm_stub_dir/small:$PATH" HOME="$HOME" CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=bogus "$launcher_probe" probe 2>/dev/null)"
+    [[ "$output" == *"<--disable-dev-shm-usage>"* ]] || fail "invalid CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE must fall back to /dev/shm detection: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_OZONE_PLATFORM=x11 "$launcher_probe" probe)"
+    [[ "$output" == *"<--ozone-platform=x11>"* && "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "CHATGPT_OZONE_PLATFORM=x11 must select the X11 Ozone backend: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
-    [[ "$output" == *"<--ozone-platform=wayland>"* && "$output" == *"WaylandWindowDecorations"* ]] || fail "CODEX_OZONE_PLATFORM=wayland must select native Wayland with decorations: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
+    [[ "$output" == *"<--ozone-platform=wayland>"* && "$output" == *"WaylandWindowDecorations"* ]] || fail "CHATGPT_OZONE_PLATFORM=wayland must select native Wayland with decorations: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_OZONE_PLATFORM=auto SOMMELIER_VERSION=1 "$launcher_probe" probe)"
-    [[ "$output" == *"<--ozone-platform-hint=auto>"* && "$output" != *"<--ozone-platform=x11>"* ]] || fail "CODEX_OZONE_PLATFORM=auto must override the Sommelier X11 fallback: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_OZONE_PLATFORM=auto SOMMELIER_VERSION=1 "$launcher_probe" probe)"
+    [[ "$output" == *"<--ozone-platform-hint=auto>"* && "$output" != *"<--ozone-platform=x11>"* ]] || fail "CHATGPT_OZONE_PLATFORM=auto must override the Sommelier X11 fallback: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_OZONE_PLATFORM=wayland "$launcher_probe" probe --x11)"
-    [[ "$output" == *"<--ozone-platform=x11>"* && "$output" != *"<--ozone-platform=wayland>"* ]] || fail "explicit --x11 must win over CODEX_OZONE_PLATFORM: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_OZONE_PLATFORM=wayland "$launcher_probe" probe --x11)"
+    [[ "$output" == *"<--ozone-platform=x11>"* && "$output" != *"<--ozone-platform=wayland>"* ]] || fail "explicit --x11 must win over CHATGPT_OZONE_PLATFORM: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_OZONE_PLATFORM=bogus "$launcher_probe" probe 2>/dev/null)"
-    [[ "$output" == *"<--ozone-platform-hint=auto>"* ]] || fail "invalid CODEX_OZONE_PLATFORM must fall back to the default ozone hint: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_OZONE_PLATFORM=bogus "$launcher_probe" probe 2>/dev/null)"
+    [[ "$output" == *"<--ozone-platform-hint=auto>"* ]] || fail "invalid CHATGPT_OZONE_PLATFORM must fall back to the default ozone hint: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
-    [[ "$output" == *"<--force-device-scale-factor=1>"* ]] || fail "CODEX_FORCE_DEVICE_SCALE_FACTOR=1 must pass the scale flag to Electron: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
+    [[ "$output" == *"<--force-device-scale-factor=1>"* ]] || fail "CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 must pass the scale flag to Electron: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_DEVICE_SCALE_FACTOR=1.25 "$launcher_probe" probe)"
-    [[ "$output" == *"<--force-device-scale-factor=1.25>"* ]] || fail "fractional CODEX_FORCE_DEVICE_SCALE_FACTOR must pass through: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1.25 "$launcher_probe" probe)"
+    [[ "$output" == *"<--force-device-scale-factor=1.25>"* ]] || fail "fractional CHATGPT_FORCE_DEVICE_SCALE_FACTOR must pass through: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_DEVICE_SCALE_FACTOR=abc "$launcher_probe" probe 2>/dev/null)"
-    [[ "$output" != *"--force-device-scale-factor"* ]] || fail "invalid CODEX_FORCE_DEVICE_SCALE_FACTOR must be ignored: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_DEVICE_SCALE_FACTOR=abc "$launcher_probe" probe 2>/dev/null)"
+    [[ "$output" != *"--force-device-scale-factor"* ]] || fail "invalid CHATGPT_FORCE_DEVICE_SCALE_FACTOR must be ignored: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_DEVICE_SCALE_FACTOR=0 "$launcher_probe" probe 2>/dev/null)"
-    [[ "$output" != *"--force-device-scale-factor"* ]] || fail "zero CODEX_FORCE_DEVICE_SCALE_FACTOR must be ignored: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_DEVICE_SCALE_FACTOR=0 "$launcher_probe" probe 2>/dev/null)"
+    [[ "$output" != *"--force-device-scale-factor"* ]] || fail "zero CHATGPT_FORCE_DEVICE_SCALE_FACTOR must be ignored: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default CODEX_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe -- --force-device-scale-factor=2)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe -- --force-device-scale-factor=2)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* && "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "explicit --force-device-scale-factor must win over the env override: $output"
 
     # Feature launcher hooks run after set_electron_defaults() has already chosen
     # the Ozone platform, so a hook-supplied explicit --ozone-platform must drop
     # the launcher-computed value instead of leaving both in the final argv. This
-    # must hold no matter how the launcher picked the platform: CODEX_OZONE_PLATFORM,
-    # the CODEX_LINUX_RENDERING_MODE profile (wayland-gpu / wslg), or the Sommelier
+    # must hold no matter how the launcher picked the platform: CHATGPT_OZONE_PLATFORM,
+    # the CHATGPT_LINUX_RENDERING_MODE profile (wayland-gpu / wslg), or the Sommelier
     # fallback.
     local hook_force_x11_dir="$TMP_DIR/hook-force-x11"
     mkdir -p "$hook_force_x11_dir"
@@ -6164,21 +6180,21 @@ EOF
     printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' 'electron-arg --ozone-platform=wayland'" > "$hook_force_wayland_dir/force-wayland"
     chmod +x "$hook_force_wayland_dir/force-wayland"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" CODEX_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
-    [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "launcher hook --ozone-platform must reach Electron over CODEX_OZONE_PLATFORM: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" CHATGPT_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
+    [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "launcher hook --ozone-platform must reach Electron over CHATGPT_OZONE_PLATFORM: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "env-derived --ozone-platform must be dropped when a launcher hook overrides it: $output"
     [[ "$output" != *"WaylandWindowDecorations"* ]] || fail "cleared env Wayland platform must not still add Wayland decorations: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wayland-gpu FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "launcher hook --ozone-platform must reach Electron under wayland-gpu: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "wayland-gpu launcher platform must be dropped when a hook overrides it: $output"
     [[ "$output" != *"WaylandWindowDecorations"* ]] || fail "dropped wayland-gpu platform must not still add Wayland decorations: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=wslg FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must reach Electron under wslg: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "wslg launcher platform must be dropped when a hook overrides it: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default SOMMELIER_VERSION=1 FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default SOMMELIER_VERSION=1 FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must reach Electron over the Sommelier fallback: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "Sommelier X11 fallback must be dropped when a hook overrides it: $output"
 
@@ -6186,22 +6202,22 @@ EOF
     mkdir -p "$hook_scale_dir"
     printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' 'electron-arg --force-device-scale-factor=2'" > "$hook_scale_dir/force-scale2"
     chmod +x "$hook_scale_dir/force-scale2"
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" CODEX_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
-    [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook --force-device-scale-factor must reach Electron over CODEX_FORCE_DEVICE_SCALE_FACTOR: $output"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
+    [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook --force-device-scale-factor must reach Electron over CHATGPT_FORCE_DEVICE_SCALE_FACTOR: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "env-derived --force-device-scale-factor must be dropped when a launcher hook overrides it: $output"
 
     # A hook-emitted arg must also replace a conflicting arg already collected in
     # ELECTRON_ARGS (pass-through CLI, persistent flags file, or feature
     # electron-args) instead of appending a duplicate switch to the final argv.
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform=x11)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform=x11)"
     [[ "$output" == *"electron=<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must replace a pass-through ozone arg: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "pass-through --ozone-platform must be dropped when a launcher hook supersedes it: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform-hint=auto)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform-hint=auto)"
     [[ "$output" == *"electron=<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must replace a pass-through ozone hint: $output"
     [[ "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "pass-through --ozone-platform-hint must be dropped when a hook supplies an explicit platform: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe -- --force-device-scale-factor=1)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe -- --force-device-scale-factor=1)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a pass-through scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "pass-through --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
@@ -6209,14 +6225,14 @@ EOF
     local hook_scale_flags_file="$hook_scale_flags_dir/electron-flags.conf"
     mkdir -p "$hook_scale_flags_dir"
     printf '%s\n' '--force-device-scale-factor=1' > "$hook_scale_flags_file"
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$hook_scale_flags_dir" USER_ELECTRON_FLAGS_FILE="$hook_scale_flags_file" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$hook_scale_flags_dir" USER_ELECTRON_FLAGS_FILE="$hook_scale_flags_file" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a persistent-flags scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "persistent-flags --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
     local hook_scale_feature_args_dir="$TMP_DIR/hook-scale-feature-args"
     mkdir -p "$hook_scale_feature_args_dir"
     printf '%s\n' '--force-device-scale-factor=1' > "$hook_scale_feature_args_dir/feature"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$hook_scale_feature_args_dir" CODEX_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$hook_scale_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a feature electron-args scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "feature electron-args --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
@@ -6224,12 +6240,12 @@ EOF
     assert_contains "$REPO_DIR/launcher/start.sh.template" "launcher_phase"
     assert_contains "$REPO_DIR/launcher/start.sh.template" 'date +%s%N'
     assert_contains "$REPO_DIR/launcher/start.sh.template" '10#$nanos / 1000000'
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_SYNC_CLI_PREFLIGHT"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_SYNC_CLI_PREFLIGHT"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "wait_for_webview_server"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "verify_webview_origin"
     # Probe-shape invariants: shell-native bash /dev/tcp + curl, with the
     # bounded-execution defenses preserved (0.2 s watchdog + 2 s curl cap).
-    assert_contains "$REPO_DIR/launcher/start.sh.template" '/dev/tcp/127.0.0.1/"$CODEX_LINUX_WEBVIEW_PORT"'
+    assert_contains "$REPO_DIR/launcher/start.sh.template" '/dev/tcp/127.0.0.1/"$CHATGPT_LINUX_WEBVIEW_PORT"'
     assert_contains "$REPO_DIR/launcher/start.sh.template" "kill -9 \"\$probe_pid\""
     assert_contains "$REPO_DIR/launcher/start.sh.template" 'curl --disable --noproxy 127.0.0.1,localhost --silent --show-error --fail --max-time 2'
     assert_contains "$REPO_DIR/launcher/start.sh.template" "webview_origin_is_reachable_fast"
@@ -6238,35 +6254,35 @@ EOF
     assert_contains "$REPO_DIR/launcher/start.sh.template" "Webview origin verified."
     assert_contains "$REPO_DIR/launcher/start.sh.template" "hydrate_graphical_session_env"
     assert_not_contains "$REPO_DIR/install.sh" "pkill -f \"http.server 5175\""
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE"
     assert_contains "$REPO_DIR/launcher/start.sh.template" 'export ELECTRON_RENDERER_URL="$WEBVIEW_RENDERER_URL"'
-    assert_contains "$REPO_DIR/launcher/start.sh.template" '--app-id="$CODEX_LINUX_APP_ID"'
-    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "CODEX_APP_ID"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" '--app-id="$CHATGPT_LINUX_APP_ID"'
+    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "CHATGPT_APP_ID"
     assert_contains "$REPO_DIR/launcher/start.sh.template" 'ELECTRON_OZONE_HINT="auto"'
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_LINUX_RENDERING_MODE=auto|default|wslg|wayland-gpu"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_LINUX_RENDERING_MODE=auto|default|wslg|wayland-gpu"
     assert_contains "$REPO_DIR/launcher/start.sh.template" '--ozone-platform-hint="$ELECTRON_OZONE_HINT"'
     assert_contains "$REPO_DIR/launcher/start.sh.template" "--disable-gpu-sandbox"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_ELECTRON_DISABLE_DEV_SHM_USAGE=auto|0|1"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "dev_shm_usage_disabled="
     assert_contains "$REPO_DIR/launcher/start.sh.template" "--force-renderer-accessibility"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_FORCE_RENDERER_ACCESSIBILITY=auto|0|1"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_FORCE_RENDERER_ACCESSIBILITY=auto|0|1"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "assistive_technology_detected"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "session_bus_probe_command"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_OZONE_PLATFORM=x11|wayland|auto"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_FORCE_DEVICE_SCALE_FACTOR=N"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_OZONE_PLATFORM=x11|wayland|auto"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_FORCE_DEVICE_SCALE_FACTOR=N"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "print_scaling_diagnostics"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "--diagnose-scaling"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "PACKAGED_RUNTIME_HELPER"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "--allow-install-missing"
-    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "CODEX_INSTALL_ALLOW_RUNNING"
+    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "CHATGPT_INSTALL_ALLOW_RUNNING"
     assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "assert_install_target_not_running"
     assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "find_running_install_target_pid"
-    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "Codex App is currently running from"
+    assert_contains "$REPO_DIR/scripts/lib/process-detection.sh" "ChatGPT is currently running from"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "prompt_install_missing_cli"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "prompt-install-cli"
     assert_contains "$REPO_DIR/launcher/start.sh.template" '.npm-global/bin/codex'
     assert_contains "$REPO_DIR/launcher/start.sh.template" '.config}/nvm/versions/node'
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_APP_UPDATER_PATH"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_UPDATER_PATH"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "resolve_app_updater_path"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "run_app_updater"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "sync_browser_use_bundled_plugin_cache"
@@ -6288,7 +6304,7 @@ EOF
     assert_contains "$REPO_DIR/launcher/start.sh.template" ".agents/plugins/marketplace.json"
     assert_contains "$REPO_DIR/scripts/lib/bundled-plugins.sh" "stage_chrome_plugin_from_official_app"
     assert_contains "$REPO_DIR/scripts/lib/patch-chrome-plugin.js" "Linux native host manifest location"
-    assert_contains "$REPO_DIR/computer-use-linux/src/bin/codex-chrome-extension-host.rs" "CODEX_BROWSER_USE_SOCKET_DIR"
+    assert_contains "$REPO_DIR/computer-use-linux/src/bin/chatgpt-chrome-extension-host.rs" "CODEX_BROWSER_USE_SOCKET_DIR"
     assert_contains "$REPO_DIR/flake.nix" "Browser Use bundled marketplace metadata"
     assert_contains "$REPO_DIR/flake.nix" ".tmp/bundled-marketplaces/openai-bundled"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "Install it now? \\[Y/n\\]"
@@ -6297,17 +6313,17 @@ EOF
     assert_contains "$REPO_DIR/launcher/start.sh.template" 'detail=$(cat "$err" 2>/dev/null || true)'
     assert_contains "$REPO_DIR/updater/src/app.rs" "kdialog"
     assert_contains "$REPO_DIR/updater/src/app.rs" "zenity"
-    assert_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "CHROME_DESKTOP"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "CODEX_LINUX_USER_PATH"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "HOMEBREW_PREFIX"
-    assert_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "disable --now codex-update-manager.service"
-    assert_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "is-enabled codex-app-updater.service"
-    assert_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "codex-app-updater-launch-check"
-    assert_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "codex-app-updater check-now --if-stale"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "enable --now codex-app-updater.service"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "restart codex-app-updater.service"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh" "codex_start_enabled_user_service"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app-updater.postinst" "codex_start_enabled_user_service"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "CHROME_DESKTOP"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "CHATGPT_LINUX_USER_PATH"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "HOMEBREW_PREFIX"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "disable --now codex-update-manager.service"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "is-enabled chatgpt-updater.service"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "chatgpt-updater-launch-check"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "chatgpt-updater check-now --if-stale"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "enable --now chatgpt-updater.service"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "restart chatgpt-updater.service"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh" "chatgpt_start_enabled_user_service"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt-updater.postinst" "chatgpt_start_enabled_user_service"
     assert_contains "$REPO_DIR/scripts/install-deps.sh" 'NODEJS_MAJOR="${NODEJS_MAJOR:-22}"'
     assert_contains "$REPO_DIR/scripts/install-deps.sh" "apt_nodejs_candidate_major"
     assert_contains "$REPO_DIR/scripts/install-deps.sh" "Installing distro Node.js/npm candidate"
@@ -6316,14 +6332,14 @@ EOF
     assert_contains "$REPO_DIR/scripts/install-deps.sh" "https://deb.nodesource.com/node_"
     assert_not_contains "$REPO_DIR/packaging/linux/control" "Depends:.*nodejs"
     assert_not_contains "$REPO_DIR/packaging/linux/control" "Depends:.*npm"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-app.spec" "Requires:.*nodejs"
-    assert_not_contains "$REPO_DIR/packaging/linux/codex-app.spec" "Requires:.*npm"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt.spec" "Requires:.*nodejs"
+    assert_not_contains "$REPO_DIR/packaging/linux/chatgpt.spec" "Requires:.*npm"
     assert_not_contains "$REPO_DIR/packaging/linux/PKGBUILD.template" "'nodejs>=20'"
     assert_contains "$REPO_DIR/packaging/linux/PKGBUILD.template" "optional override for the bundled managed Node.js runtime"
     assert_contains "$REPO_DIR/scripts/lib/node-runtime.sh" "MANAGED_NODE_VERSION"
     assert_contains "$REPO_DIR/scripts/lib/package-common.sh" "node-runtime"
     assert_contains "$REPO_DIR/tests/fixtures/create-packaged-app-fixture.sh" "resources/node-runtime/bin"
-    assert_contains "$REPO_DIR/.github/workflows/ci.yml" "tests/fixtures/create-packaged-app-fixture.sh codex-app"
+    assert_contains "$REPO_DIR/.github/workflows/ci.yml" "tests/fixtures/create-packaged-app-fixture.sh chatgpt"
     assert_contains "$REPO_DIR/.github/workflows/ci.yml" "bash scripts/ci/run-node-checks.sh"
     assert_contains "$REPO_DIR/scripts/ci/container-entrypoint.sh" "bash scripts/ci/run-node-checks.sh"
     assert_contains "$REPO_DIR/scripts/ci/run-node-checks.sh" "git ls-files '\\*.js'"
@@ -6332,34 +6348,34 @@ EOF
     assert_contains "$REPO_DIR/flake.nix" "https://static.crates.io/crates/"
     assert_contains "$REPO_DIR/flake.nix" "api/v1/crates/"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "MANAGED_NODE_BIN_DIR"
-    assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_LINUX_USER_PATH"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_LINUX_USER_PATH"
     assert_contains "$REPO_DIR/updater/src/builder.rs" "managed_node_bin_dirs"
     assert_contains "$REPO_DIR/scripts/build-rpm.sh" "stage_common_package_files"
     assert_contains "$REPO_DIR/scripts/build-rpm.sh" "PACKAGED_RUNTIME_SOURCE"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "BAMF_DESKTOP_FILE_HINT"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "/usr/bin/codex-app %u"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "Keywords=codex;openai;ai;coding;"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "StartupWMClass=codex-app"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "X-GNOME-WMClass=codex-app"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "Actions=new-window;CheckForUpdates;InstallReadyUpdate;"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "[Desktop Action new-window]"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "CODEX_MULTI_LAUNCH=1 /usr/bin/codex-app --new-instance"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "codex-app-updater check-now"
-    assert_contains "$REPO_DIR/packaging/linux/codex-app.desktop" "codex-app-updater install-ready"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop" "@USER_BIN_DIR@/codex-app %U"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop" "Keywords=codex;openai;ai;coding;"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop" "Actions=new-window;"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop" "@USER_BIN_DIR@/codex-app --new-instance"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/codex-app" "CODEX_USER_LOCAL_OZONE_PLATFORM"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/codex-app" 'exec "${APP_DIR}/start.sh" --x11 "$@"'
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/codex-app" 'exec "${APP_DIR}/start.sh" --wayland "$@"'
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "BAMF_DESKTOP_FILE_HINT"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "/usr/bin/chatgpt %u"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "StartupWMClass=chatgpt"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "X-GNOME-WMClass=chatgpt"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "Actions=new-window;CheckForUpdates;InstallReadyUpdate;"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "[Desktop Action new-window]"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "CHATGPT_MULTI_LAUNCH=1 /usr/bin/chatgpt --new-instance"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "chatgpt-updater check-now"
+    assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "chatgpt-updater install-ready"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop" "@USER_BIN_DIR@/chatgpt %U"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop" "MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop" "Actions=new-window;"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop" "@USER_BIN_DIR@/chatgpt --new-instance"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/chatgpt" "CHATGPT_USER_LOCAL_OZONE_PLATFORM"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/chatgpt" 'exec "${APP_DIR}/start.sh" --x11 "$@"'
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/.local/bin/chatgpt" 'exec "${APP_DIR}/start.sh" --wayland "$@"'
     assert_contains "$REPO_DIR/contrib/user-local-install/install-user-local.sh" "--force-x11"
     assert_contains "$REPO_DIR/contrib/user-local-install/install-user-local.sh" "user-local.env"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" '$APP_DIR/.codex-linux/codex-app.png'
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" "assets/codex-linux.png"
-    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" "CODEX_USER_LOCAL_RECORD_DMG_FINGERPRINT"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" '$APP_DIR/.chatgpt-linux/chatgpt.png'
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" "assets/chatgpt-linux.png"
+    assert_contains "$REPO_DIR/contrib/user-local-install/files/share/common.sh" "CHATGPT_USER_LOCAL_RECORD_DMG_FINGERPRINT"
     assert_contains "$REPO_DIR/contrib/user-local-install/README.md" "--force-x11"
 
     node - "$REPO_DIR/launcher/start.sh.template" <<'NODE' || fail "Bundled backend plugin cache syncs must expose marketplace plugin links"
@@ -6790,7 +6806,7 @@ import sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 helper_path = pathlib.Path(sys.argv[1]).with_name("cli-launch-path.py")
 functions = [source[
-    source.index("codex_restore_original_ld_library_path() {"):
+    source.index("chatgpt_restore_original_ld_library_path() {"):
     source.index("# Capture before package-specific launcher patches")
 ]]
 for name in ("cached_codex_cli_path", "find_fnm_codex_cli", "find_codex_cli", "verify_cli_launch_path", "pid_parent_matches", "codex_cli_version_probe", "codex_cli_version", "codex_cli_missing_optional_dependency", "log_codex_cli_path"):
@@ -6831,7 +6847,7 @@ case "${1:?}" in
         export CODEX_CLI_PATH
         verify_cli_launch_path
         printf 'path=%s\n' "$CODEX_CLI_PATH"
-        printf 'source=%s\n' "$CODEX_CLI_SOURCE_PATH"
+        printf 'source=%s\n' "$CHATGPT_CLI_SOURCE_PATH"
         ;;
     *)
         exit 64
@@ -6980,7 +6996,7 @@ PY
     [ "$version_output" = "0.151.0" ] || fail "CLI version probe must fall back to version output, got $version_output"
 
     local inherited_stderr_target="$workspace/inherited-stderr-target"
-    version_output="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" CODEX_CLI_PROBE_STDERR_FILE="$inherited_stderr_target" "$launcher_probe" version "$dash_version_cli")"
+    version_output="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" CHATGPT_CLI_PROBE_STDERR_FILE="$inherited_stderr_target" "$launcher_probe" version "$dash_version_cli")"
     [ "$version_output" = "0.150.0" ] || fail "inherited probe environment must not affect version output"
     [ ! -e "$inherited_stderr_target" ] || fail "inherited environment must not control CLI probe stderr files"
 
@@ -7120,7 +7136,7 @@ PY
     : > "$routing_log"
     if env -i PATH="$HOST_TOOL_PATH" ROUTING_LOG="$routing_log" \
         ROUTING_CLI_PATH="$routing_cli" \
-        CODEX_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=1 UPDATE_MANAGER_AVAILABLE=0 \
+        CHATGPT_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=1 UPDATE_MANAGER_AVAILABLE=0 \
         "$routing_probe"; then
         fail "sync preflight must abort when a known-broken CLI cannot be repaired"
     fi
@@ -7130,7 +7146,7 @@ PY
     : > "$routing_log"
     env -i PATH="$HOST_TOOL_PATH" ROUTING_LOG="$routing_log" \
         ROUTING_CLI_PATH="$routing_cli" \
-        CODEX_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=1 UPDATE_MANAGER_AVAILABLE=1 \
+        CHATGPT_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=1 UPDATE_MANAGER_AVAILABLE=1 \
         UPDATE_MANAGER_RESULT=success "$routing_probe"
     grep -qx 'phase=cli_preflight_repair_sync' "$routing_log" || \
         fail "sync preflight must record a successful required repair"
@@ -7138,7 +7154,7 @@ PY
     : > "$routing_log"
     env -i PATH="$HOST_TOOL_PATH" ROUTING_LOG="$routing_log" \
         ROUTING_CLI_PATH="$routing_cli" \
-        CODEX_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=0 UPDATE_MANAGER_AVAILABLE=0 \
+        CHATGPT_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=0 UPDATE_MANAGER_AVAILABLE=0 \
         "$routing_probe"
     grep -qx 'phase=cli_preflight_sync' "$routing_log" || \
         fail "sync preflight must remain fail-soft for a CLI that is not known broken"
@@ -7146,7 +7162,7 @@ PY
     : > "$routing_log"
     env -i PATH="$HOST_TOOL_PATH" ROUTING_LOG="$routing_log" \
         ROUTING_CLI_PATH="$routing_cli" \
-        CODEX_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=0 UPDATE_MANAGER_AVAILABLE=1 \
+        CHATGPT_SYNC_CLI_PREFLIGHT=1 BROKEN_CLI=0 UPDATE_MANAGER_AVAILABLE=1 \
         UPDATE_MANAGER_RESULT=success "$routing_probe"
     grep -qx "preflight_args=cli-preflight --print-path --cli-path $routing_cli" "$routing_log" || \
         fail "updater preflight must receive the visible CLI source path for channel classification"
@@ -7365,9 +7381,9 @@ test_process_detection_helper_cmdline_shapes() {
     local space_cmdline="$TMP_DIR/electron-helper-space.cmdline"
     local main_cmdline="$TMP_DIR/electron-main.cmdline"
 
-    printf '/opt/codex-app/electron\0--type=gpu-process\0--no-sandbox\0' > "$nul_cmdline"
-    printf '/opt/codex-app/electron --type=utility --no-sandbox' > "$space_cmdline"
-    printf '/opt/codex-app/electron --no-sandbox' > "$main_cmdline"
+    printf '/opt/chatgpt/electron\0--type=gpu-process\0--no-sandbox\0' > "$nul_cmdline"
+    printf '/opt/chatgpt/electron --type=utility --no-sandbox' > "$space_cmdline"
+    printf '/opt/chatgpt/electron --no-sandbox' > "$main_cmdline"
 
     (
         # shellcheck disable=SC1091
@@ -7381,51 +7397,63 @@ test_process_detection_helper_cmdline_shapes() {
 test_side_by_side_launcher_identity() {
     info "Checking side-by-side launcher identity"
     local workspace="$TMP_DIR/side-by-side-launcher"
-    local app_dir="$workspace/codex-cua-lab-app"
+    local app_dir="$workspace/chatgpt-cua-lab-app"
     local bin_dir="$workspace/bin"
     local help_log="$workspace/help.log"
     local symlink_help_log="$workspace/symlink-help.log"
-    local linux_icon_source="$workspace/codex-linux.png"
+    local linux_icon_source="$workspace/chatgpt-linux.png"
 
     mkdir -p "$app_dir" "$bin_dir"
     printf '%s\n' 'linux-icon' > "$linux_icon_source"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 \
-    CODEX_APP_ID="codex-cua-lab" \
-    CODEX_APP_DISPLAY_NAME="Codex CUA Lab" \
-    CODEX_INSTALL_DIR="$app_dir" \
-    CODEX_LINUX_ICON_SOURCE="$linux_icon_source" \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 \
+    CHATGPT_APP_ID="chatgpt-cua-lab" \
+    CHATGPT_APP_DISPLAY_NAME="ChatGPT CUA Lab" \
+    CHATGPT_INSTALL_DIR="$app_dir" \
+    CHATGPT_LINUX_ICON_SOURCE="$linux_icon_source" \
     bash -c 'source "$1"; validate_app_identity; create_start_script' _ "$REPO_DIR/install.sh"
 
     assert_file_exists "$app_dir/start.sh"
-    assert_file_exists "$app_dir/.codex-linux/webview-server.py"
-    assert_file_exists "$app_dir/.codex-linux/cli-launch-path.py"
-    assert_file_exists "$app_dir/.codex-linux/codex-cua-lab.png"
-    cmp -s "$linux_icon_source" "$app_dir/.codex-linux/codex-cua-lab.png" \
-        || fail "Expected side-by-side launcher icon to use CODEX_LINUX_ICON_SOURCE"
-    assert_contains "$app_dir/start.sh" "CODEX_LINUX_APP_ID=codex-cua-lab"
-    assert_contains "$app_dir/start.sh" "CODEX_LINUX_APP_DISPLAY_NAME=Codex\\\\ CUA\\\\ Lab"
-    assert_contains "$app_dir/start.sh" 'CODEX_LINUX_WEBVIEW_PORT=${CODEX_WEBVIEW_PORT:-5176}'
-    assert_contains "$app_dir/start.sh" 'CODEX_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"'
-    assert_contains "$app_dir/start.sh" 'export CODEX_HOME CODEX_LINUX_APP_ID CODEX_LINUX_APP_DISPLAY_NAME CODEX_LINUX_WEBVIEW_PORT CODEX_LINUX_SETTINGS_FILE CODEX_PORT_INTEGRATIONS_DIR'
-    assert_contains "$app_dir/start.sh" 'WEBVIEW_ORIGIN="http://127.0.0.1:$CODEX_LINUX_WEBVIEW_PORT"'
-    assert_contains "$app_dir/start.sh" "CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE"
+    assert_file_exists "$app_dir/.chatgpt-linux/webview-server.py"
+    assert_file_exists "$app_dir/.chatgpt-linux/cli-launch-path.py"
+    assert_file_exists "$app_dir/.chatgpt-linux/chatgpt-cua-lab.png"
+    cmp -s "$linux_icon_source" "$app_dir/.chatgpt-linux/chatgpt-cua-lab.png" \
+        || fail "Expected side-by-side launcher icon to use CHATGPT_LINUX_ICON_SOURCE"
+    assert_contains "$app_dir/start.sh" "CHATGPT_LINUX_APP_ID=chatgpt-cua-lab"
+    assert_contains "$app_dir/start.sh" "CHATGPT_LINUX_APP_DISPLAY_NAME=ChatGPT\\\\ CUA\\\\ Lab"
+    assert_contains "$app_dir/start.sh" 'CHATGPT_LINUX_WEBVIEW_PORT=${CHATGPT_WEBVIEW_PORT:-5176}'
+    assert_contains "$app_dir/start.sh" 'CHATGPT_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"'
+    assert_contains "$app_dir/start.sh" 'export CODEX_HOME CHATGPT_LINUX_APP_ID CHATGPT_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_WEBVIEW_PORT CHATGPT_LINUX_SETTINGS_FILE CHATGPT_PORT_INTEGRATIONS_DIR'
+    assert_contains "$app_dir/start.sh" 'WEBVIEW_ORIGIN="http://127.0.0.1:$CHATGPT_LINUX_WEBVIEW_PORT"'
+    assert_contains "$app_dir/start.sh" "CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE"
     assert_contains "$app_dir/start.sh" 'export ELECTRON_RENDERER_URL="$WEBVIEW_RENDERER_URL"'
     assert_contains "$app_dir/start.sh" "resolve_script_dir"
     assert_contains "$app_dir/start.sh" "configure_side_by_side_app_env"
-    assert_contains "$app_dir/start.sh" 'XDG_CONFIG_HOME="${CODEX_XDG_CONFIG_HOME:-$APP_STATE_DIR/xdg-config}"'
-    assert_contains "$app_dir/start.sh" '--class="$CODEX_LINUX_APP_ID"'
-    assert_contains "$app_dir/start.sh" '--app-id="$CODEX_LINUX_APP_ID"'
-    assert_contains "$app_dir/start.sh" '--user-data-dir="${CODEX_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}"'
+    assert_contains "$app_dir/start.sh" 'XDG_CONFIG_HOME="${CHATGPT_XDG_CONFIG_HOME:-$APP_STATE_DIR/xdg-config}"'
+    assert_contains "$app_dir/start.sh" '--class="$CHATGPT_LINUX_APP_ID"'
+    assert_contains "$app_dir/start.sh" '--app-id="$CHATGPT_LINUX_APP_ID"'
+    assert_contains "$app_dir/start.sh" '--user-data-dir="${CHATGPT_ELECTRON_USER_DATA_DIR:-$APP_STATE_DIR/electron-user-data}"'
     assert_contains "$app_dir/start.sh" "--force-renderer-accessibility"
-    assert_contains "$app_dir/start.sh" 'LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CODEX_LINUX_APP_ID"'
-    XDG_CACHE_HOME="$workspace/cache" XDG_STATE_HOME="$workspace/state" XDG_RUNTIME_DIR="$workspace/runtime" bash "$app_dir/start.sh" --help >"$help_log"
-    assert_contains "$help_log" "Launches the Codex CUA Lab app."
-    assert_contains "$help_log" "codex-cua-lab/launcher"
+    assert_contains "$app_dir/start.sh" 'LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/$CHATGPT_LINUX_APP_ID"'
+    HOME="$workspace/home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/config" \
+        XDG_DATA_HOME="$workspace/data" \
+        XDG_STATE_HOME="$workspace/state" \
+        XDG_RUNTIME_DIR="$workspace/runtime" \
+        bash "$app_dir/start.sh" --help >"$help_log"
+    assert_contains "$help_log" "Launches the ChatGPT CUA Lab app."
+    assert_contains "$help_log" "chatgpt-cua-lab/launcher"
 
-    ln -s "$app_dir/start.sh" "$bin_dir/codex-cua-lab"
-    XDG_CACHE_HOME="$workspace/cache" XDG_STATE_HOME="$workspace/state" XDG_RUNTIME_DIR="$workspace/runtime" bash "$bin_dir/codex-cua-lab" --help >"$symlink_help_log"
-    assert_contains "$symlink_help_log" "Launches the Codex CUA Lab app."
+    ln -s "$app_dir/start.sh" "$bin_dir/chatgpt-cua-lab"
+    HOME="$workspace/home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/config" \
+        XDG_DATA_HOME="$workspace/data" \
+        XDG_STATE_HOME="$workspace/state" \
+        XDG_RUNTIME_DIR="$workspace/runtime" \
+        bash "$bin_dir/chatgpt-cua-lab" --help >"$symlink_help_log"
+    assert_contains "$symlink_help_log" "Launches the ChatGPT CUA Lab app."
 }
 
 test_browser_use_node_repl_fallback_runtime() {
@@ -7465,13 +7493,13 @@ test_browser_use_node_repl_fallback_runtime() {
         WORK_DIR="$workspace/work"
         ARCH="$(uname -m)"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         XDG_CACHE_HOME="$workspace/xdg-cache"
         CODEX_NODE_REPL_PATH=
-        CODEX_LINUX_NODE_REPL_SOURCE=
-        CODEX_BROWSER_USE_RUNTIME_CACHE_DIR="$workspace/cache"
-        CODEX_BROWSER_USE_NODE_REPL_RUNTIME_URL="file://$archive"
-        CODEX_BROWSER_USE_NODE_REPL_RUNTIME_SHA256="$archive_sha"
+        CHATGPT_LINUX_NODE_REPL_SOURCE=
+        CHATGPT_BROWSER_USE_RUNTIME_CACHE_DIR="$workspace/cache"
+        CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL="file://$archive"
+        CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256="$archive_sha"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -7479,7 +7507,7 @@ test_browser_use_node_repl_fallback_runtime() {
         source "$REPO_DIR/scripts/lib/bundled-plugins.sh"
         stage_linux_computer_use_plugin() { return 1; }
         build_chrome_extension_host() {
-            local fake_host="$workspace/codex-chrome-extension-host"
+            local fake_host="$workspace/chatgpt-chrome-extension-host"
             printf '#!/bin/sh\n' > "$fake_host"
             chmod +x "$fake_host"
             printf '%s\n' "$fake_host"
@@ -7492,8 +7520,8 @@ test_browser_use_node_repl_fallback_runtime() {
     cmp -s "$true_bin" "$install_dir/resources/node_repl" || fail "Expected fallback node_repl to come from the runtime archive"
     assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
     assert_not_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
-    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "codexLinuxSiteStatusAllowlistFallback"
-    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "codexLinuxFileUrlPolicy"
+    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
+    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxFileUrlPolicy"
     assert_contains "$output_log" "Browser Use node_repl runtime is not a Linux executable for x86_64; skipping"
     assert_not_contains "$output_log" "WARN.*Browser Use node_repl runtime is not a Linux executable"
     assert_contains "$output_log" "Downloading Browser Use node_repl fallback runtime"
@@ -7518,7 +7546,7 @@ JS
         patch_browser_use_file_url_policy "$client"
     ) >"$output_log" 2>&1
 
-    assert_contains "$client" "codexLinuxFileUrlPolicy"
+    assert_contains "$client" "chatgptLinuxFileUrlPolicy"
     assert_contains "$client" 'protocol==="file:"'
     assert_not_contains "$client" 'protocol==="data:"'
     assert_not_contains "$output_log" "Could not find Browser Use URL policy insertion point"
@@ -7592,7 +7620,7 @@ JS
     ) >"$output_log" 2>&1
 
     cmp -s "$first_patch" "$client" || fail "Expected Browser Use site_status fallback patch to be byte-identical on second application"
-    assert_occurrence_count "$client" "codexLinuxSiteStatusAllowlistFallback" 1
+    assert_occurrence_count "$client" "chatgptLinuxSiteStatusAllowlistFallback" 1
     assert_not_contains "$client" "console.warn"
     assert_not_contains "$output_log" "Could not find Browser Use site_status allowlist fallback insertion point"
 
@@ -7681,6 +7709,24 @@ const otherUrl = {
   process.exitCode = 1;
 });
 NODE
+
+    local native_client="$workspace/browser-client.native.mjs"
+    local native_first="$workspace/browser-client.native.first.mjs"
+    cat > "$native_client" <<'JS'
+var policy={async fetchBlocked(e){let r=await fetch(e.endpoint,{method:"GET"});if(!r.ok)throw new Error("HTTP");return(await r.json()).blocked}};function report(){return{outcome:"error_fail_open",reason:"site_status_unavailable",endpoint:"/aura/site_status"}}
+JS
+    (
+        warn() { echo "[WARN] $*" >&2; }
+        info() { echo "[INFO] $*" >&2; }
+        # shellcheck disable=SC1091
+        source "$REPO_DIR/scripts/lib/bundled-plugins.sh"
+        patch_browser_use_site_status_allowlist_fallback "$native_client"
+        cp "$native_client" "$native_first"
+        patch_browser_use_site_status_allowlist_fallback "$native_client"
+    ) >>"$output_log" 2>&1
+    cmp -s "$native_first" "$native_client" || fail "Expected native Browser Use site_status policy to remain byte-identical"
+    assert_not_contains "$native_client" "chatgptLinuxSiteStatusAllowlistFallback"
+    assert_not_contains "$output_log" "Could not find Browser Use site_status allowlist fallback insertion point"
 }
 
 test_browser_plugin_renamed_upstream_staging() {
@@ -7701,7 +7747,7 @@ test_browser_plugin_renamed_upstream_staging() {
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -7714,19 +7760,19 @@ test_browser_plugin_renamed_upstream_staging() {
 
     assert_file_exists "$browser_dir/scripts/browser-client.mjs"
     assert_contains "$browser_dir/.codex-plugin/plugin.json" '"name":"browser"'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseProcessEnv"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" '"node:process"'
     assert_contains "$browser_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseDefineNodeReplMethod"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseDefineNodeReplMethod"
     assert_contains "$browser_dir/scripts/browser-client.mjs" "addAfterSubmittedCodeHook"
     assert_contains "$browser_dir/scripts/browser-client.mjs" "nativePipe??import.meta.__codexNativePipe"
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" "let e=import.meta.__codexNativePipe;return"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxSiteStatusAllowlistFallback"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxFileUrlPolicy"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxIabSocketScope"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxPerUserBrowserSocketDir"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseUserInfo"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxFileUrlPolicy"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxIabSocketScope"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxPerUserBrowserSocketDir"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseUserInfo"
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" "process.env.CODEX_BROWSER_USE_SOCKET_DIR"
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" '"/tmp/codex-browser-use"'
     assert_contains "$browser_dir/scripts/browser-client.mjs" 'protocol==="file:"'
@@ -7761,7 +7807,7 @@ test_upstream_bundled_skills_staging() {
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -8046,7 +8092,7 @@ test_portable_bundled_plugins_staging() {
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -8110,7 +8156,7 @@ test_portable_bundled_plugins_reject_unsafe_content() {
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -8498,7 +8544,7 @@ test_chrome_plugin_staging() {
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         umask 0002
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
@@ -8507,7 +8553,7 @@ test_chrome_plugin_staging() {
         source "$REPO_DIR/scripts/lib/bundled-plugins.sh"
         stage_linux_computer_use_plugin() { return 1; }
         build_chrome_extension_host() {
-            local fake_host="$workspace/codex-chrome-extension-host"
+            local fake_host="$workspace/chatgpt-chrome-extension-host"
             printf '#!/bin/sh\n' > "$fake_host"
             chmod +x "$fake_host"
             printf '%s\n' "$fake_host"
@@ -8545,29 +8591,29 @@ test_chrome_plugin_staging() {
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "browserPreference"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "preferredWindowIdFor"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "getForUrl"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseProcessEnv"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"node:process"'
     assert_contains "$chrome_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseConfigShim"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "writeValue: codexLinuxBrowserUseIgnoreConfigWrite"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "batchWrite: codexLinuxBrowserUseIgnoreConfigWrite"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "writeValue: chatgptLinuxBrowserUseIgnoreConfigWrite"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "batchWrite: chatgptLinuxBrowserUseIgnoreConfigWrite"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "writeFile"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseStringifyToml"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseStringifyToml"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" 'Object.getPrototypeOf(repl)'
     assert_contains "$chrome_dir/scripts/browser-client.mjs" 'Object.defineProperty(prototype, "config"'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseDefineNodeReplMethod"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseDefineNodeReplMethod"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "addAfterSubmittedCodeHook"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseConfigShim();let e=globalThis.nodeRepl"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim();let e=globalThis.nodeRepl"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "nativePipe??import.meta.__codexNativePipe"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxNativePipeFallback"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxNativePipeFallback"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" 'await import("node:net")'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxSiteStatusAllowlistFallback"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxPerUserBrowserSocketDir"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxBrowserUseUserInfo"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxPerUserBrowserSocketDir"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseUserInfo"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "process.env.CODEX_BROWSER_USE_SOCKET_DIR"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"/tmp/codex-browser-use"'
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "codexLinuxIabSocketScope"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxIabSocketScope"
     assert_contains "$chrome_dir/skills/control-chrome/SKILL.md" "agent.browsers.list()"
     assert_contains "$chrome_dir/skills/control-chrome/SKILL.md" "browser.tabs.new()"
     assert_contains "$install_dir/resources/plugins/openai-bundled/.agents/plugins/marketplace.json" '"name": "chrome"'
@@ -8608,7 +8654,7 @@ JSON
         WORK_DIR="$workspace/work"
         ARCH="x86_64"
         ICON_SOURCE="$workspace/missing-icon.png"
-        CODEX_APP_ID="codex-app"
+        CHATGPT_APP_ID="chatgpt"
         mkdir -p "$WORK_DIR"
         warn() { echo "[WARN] $*" >&2; }
         info() { echo "[INFO] $*" >&2; }
@@ -8616,7 +8662,7 @@ JSON
         source "$REPO_DIR/scripts/lib/bundled-plugins.sh"
         stage_linux_computer_use_plugin() { return 1; }
         build_chrome_extension_host() {
-            local fake_host="$workspace/codex-chrome-extension-host"
+            local fake_host="$workspace/chatgpt-chrome-extension-host"
             printf '#!/bin/sh\n' > "$fake_host"
             chmod +x "$fake_host"
             printf '%s\n' "$fake_host"
@@ -8642,13 +8688,13 @@ test_chrome_native_host_manifest_writer() {
     local host_path="$workspace/extension-host"
     local manifest_path
 
-    mkdir -p "$plugin_dir/scripts" "$home_dir" "$app_dir/.codex-linux" "$(dirname "$host_path")"
+    mkdir -p "$plugin_dir/scripts" "$home_dir" "$app_dir/.chatgpt-linux" "$(dirname "$host_path")"
     printf '#!/bin/sh\n' > "$host_path"
     chmod +x "$host_path"
     cat > "$plugin_dir/scripts/extension-id.json" <<'JSON'
 {"extensionId":"abcdefghijklmnopabcdefghijklmnop","extensionHostName":"com.example.codextest"}
 JSON
-    printf '%s\n' ".config/example-browser/NativeMessagingHosts" > "$app_dir/.codex-linux/chrome-native-host-manifest-paths"
+    printf '%s\n' ".config/example-browser/NativeMessagingHosts" > "$app_dir/.chatgpt-linux/chrome-native-host-manifest-paths"
 
     python3 - "$REPO_DIR/launcher/start.sh.template" "$host_path" "$home_dir" "$plugin_dir" "$app_dir" <<'PY'
 import subprocess
@@ -8781,12 +8827,12 @@ JS
     make_fake_extracted_asar "$extracted" "$bundle_body"
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$extracted/.vite/build/main-test.js" '(process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&!(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress())'
-    assert_contains "$extracted/.vite/build/main-test.js" 'r=codexLinuxRegisterTray(new n.Tray(t.defaultIcon))'
+    assert_contains "$extracted/.vite/build/main-test.js" '(process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())'
+    assert_contains "$extracted/.vite/build/main-test.js" 'r=chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))'
     assert_contains "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0'
     assert_contains "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0'
-    assert_contains "$extracted/.vite/build/main-test.js" 'let __codexLinuxTrayFallbackIcon=n.nativeImage.createFromPath(process.resourcesPath+`/../content/webview/assets/app-test.png`)'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(!__codexLinuxTrayFallbackIcon.isEmpty())o=__codexLinuxTrayFallbackIcon'
+    assert_contains "$extracted/.vite/build/main-test.js" 'let __chatgptLinuxTrayFallbackIcon=n.nativeImage.createFromPath(process.resourcesPath+`/../content/webview/assets/app-test.png`)'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if(!__chatgptLinuxTrayFallbackIcon.isEmpty())o=__chatgptLinuxTrayFallbackIcon'
     assert_contains "$extracted/.vite/build/main-test.js" 'updatePersistentTrayMenu(){process.platform===`linux`'
     assert_contains "$extracted/.vite/build/main-test.js" '(E||process.platform===`linux`)&&oe();'
     assert_not_contains "$output_log" 'WARN: Could not find current Linux'
@@ -8811,7 +8857,7 @@ function registerCloseHandler({ quitInProgress = false, isAppQuitting = false, t
   };
   const factory = new Function(
     "process",
-    "codexLinuxIsQuitInProgress",
+    "chatgptLinuxIsQuitInProgress",
     "state",
     `return function(){const v=true;const f=\`local\`;const k={handlers:{},on(event,handler){this.handlers[event]=handler},hide(){state.hideCalls+=1}};${closeSnippet};return k.handlers.close;};`,
   );
@@ -8880,16 +8926,16 @@ if (!result.event.prevented || result.state.hideCalls !== 1) {
 NODE
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxRegisterTray(new n.Tray(t.defaultIcon))' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'let __codexLinuxTrayFallbackIcon=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'let __chatgptLinuxTrayFallbackIcon=' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" '!(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress())' '1'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxRegisterTray=e=>(codexLinuxTray=e,e)'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxDestroyTray=()=>{if(process.platform!==`linux`)return;'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxMarkQuitInProgress=()=>{codexLinuxQuitInProgress=!0,codexLinuxDestroyTray()}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'n.app.on(`before-quit`,()=>codexLinuxDestroyTray())'
-    assert_not_contains "$extracted/.vite/build/main-test.js" 'codexLinuxTrayQuitDelayMs'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" '!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())' '1'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray=e=>(chatgptLinuxTray=e,e)'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxDestroyTray=()=>{if(process.platform!==`linux`)return;'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxMarkQuitInProgress=()=>{chatgptLinuxQuitInProgress=!0,chatgptLinuxDestroyTray()}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'n.app.on(`before-quit`,()=>chatgptLinuxDestroyTray())'
+    assert_not_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxTrayQuitDelayMs'
 }
 
 test_linux_explicit_quit_patch_smoke() {
@@ -8911,24 +8957,24 @@ JS
     make_fake_extracted_asar "$extracted" "$bundle_body"
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxPrepareForExplicitQuit=()=>{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress()}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxShouldBypassQuitPrompt=()=>codexLinuxExplicitQuitApproved===!0'
-    assert_contains "$extracted/.vite/build/main-test.js" '{label:this.systemQuitMenuItemLabel,click:()=>{typeof codexLinuxPrepareForExplicitQuit===`function`?codexLinuxPrepareForExplicitQuit():typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),n.app.quit()}}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(o.type===`quit-app`){typeof codexLinuxPrepareForExplicitQuit===`function`?codexLinuxPrepareForExplicitQuit():typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),n.app.quit();return}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if((typeof codexLinuxShouldBypassQuitPrompt===`function`&&codexLinuxShouldBypassQuitPrompt())||e||i.canQuitWithoutPrompt()||r||!s&&!c){process.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),g=!0,a.markAppQuitting();return}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'process.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),i.markQuitApproved(),g=!0,a.markAppQuitting()'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxLogQuitDrainResults=e=>{'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxFinalizeQuit=()=>{'
-    assert_not_contains "$extracted/.vite/build/main-test.js" 'codexLinuxQuitFinalized'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0'
+    assert_contains "$extracted/.vite/build/main-test.js" '{label:this.systemQuitMenuItemLabel,click:()=>{typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),n.app.quit()}}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if(o.type===`quit-app`){typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),n.app.quit();return}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if((typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt())||e||i.canQuitWithoutPrompt()||r||!s&&!c){process.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),g=!0,a.markAppQuitting();return}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'process.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),i.markQuitApproved(),g=!0,a.markAppQuitting()'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxLogQuitDrainResults=e=>{'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxFinalizeQuit=()=>{'
+    assert_not_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxQuitFinalized'
     assert_contains "$extracted/.vite/build/main-test.js" 'WARN: Linux quit drain cleanup failed'
     assert_contains "$extracted/.vite/build/main-test.js" 'WARN: Linux quit context cleanup failed'
     assert_contains "$extracted/.vite/build/main-test.js" 'WARN: Linux quit disposables cleanup failed'
     assert_contains "$extracted/.vite/build/main-test.js" 'finally{l.app.exit(0)}'
     assert_not_contains "$extracted/.vite/build/main-test.js" 'finally{l.app.quit()}'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxRunQuitDrain(()=>{' '2'
-    assert_contains "$extracted/.vite/build/main-test.js" 'Promise.resolve().then(e).then(codexLinuxLogQuitDrainResults),new Promise'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxExplicitQuitDrainTimeoutMs'
-    assert_contains "$extracted/.vite/build/main-test.js" 'setTimeout(()=>e(Error(`Linux quit drain timed out`)),typeof codexLinuxExplicitQuitDrainTimeoutMs'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRunQuitDrain(()=>{' '2'
+    assert_contains "$extracted/.vite/build/main-test.js" 'Promise.resolve().then(e).then(chatgptLinuxLogQuitDrainResults),new Promise'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxExplicitQuitDrainTimeoutMs'
+    assert_contains "$extracted/.vite/build/main-test.js" 'setTimeout(()=>e(Error(`Linux quit drain timed out`)),typeof chatgptLinuxExplicitQuitDrainTimeoutMs'
     assert_not_contains "$extracted/.vite/build/main-test.js" '\`number\`'
     assert_not_contains "$output_log" 'WARN: Could not find tray quit menu handler'
     assert_not_contains "$output_log" 'WARN: Could not find quit-app IPC handler'
@@ -8939,12 +8985,12 @@ JS
 const fs = require("fs");
 
 const source = fs.readFileSync(process.argv[2], "utf8");
-const helperStart = source.indexOf("let codexLinuxTray=null");
-const helperEnd = source.indexOf(";n.app.on(`before-quit`,()=>codexLinuxDestroyTray())", helperStart) + 1;
+const helperStart = source.indexOf("let chatgptLinuxTray=null");
+const helperEnd = source.indexOf(";n.app.on(`before-quit`,()=>chatgptLinuxDestroyTray())", helperStart) + 1;
 const helperSnippet = helperStart === -1 || helperEnd === 0 ? null : source.slice(helperStart, helperEnd);
-const traySnippet = source.match(/\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}/)?.[0];
-const quitAppSnippet = source.match(/if\(o\.type===`quit-app`\)\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/)?.[0];
-const beforeQuitSnippet = source.match(/if\(\(typeof codexLinuxShouldBypassQuitPrompt===`function`&&codexLinuxShouldBypassQuitPrompt\(\)\)\|\|e\|\|i\.canQuitWithoutPrompt\(\)\|\|r\|\|!s&&!c\)\{process\.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),g=!0,a\.markAppQuitting\(\);return\}/)?.[0];
+const traySnippet = source.match(/\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}/)?.[0];
+const quitAppSnippet = source.match(/if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/)?.[0];
+const beforeQuitSnippet = source.match(/if\(\(typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt\(\)\)\|\|e\|\|i\.canQuitWithoutPrompt\(\)\|\|r\|\|!s&&!c\)\{process\.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),g=!0,a\.markAppQuitting\(\);return\}/)?.[0];
 if (!helperSnippet || !traySnippet || !quitAppSnippet || !beforeQuitSnippet) {
   throw new Error("Could not extract explicit quit snippets");
 }
@@ -8956,8 +9002,8 @@ function runTrayQuit({ withHelper = true } = {}) {
   const prepare = withHelper ? () => { state.prepareCalls += 1; mark(); } : undefined;
   const factory = new Function(
     "n",
-    "codexLinuxPrepareForExplicitQuit",
-    "codexLinuxMarkQuitInProgress",
+    "chatgptLinuxPrepareForExplicitQuit",
+    "chatgptLinuxMarkQuitInProgress",
     `return (${traySnippet}).click;`,
   );
   const click = factory({ app }, prepare, mark);
@@ -8972,8 +9018,8 @@ function runQuitApp({ withHelper = true } = {}) {
   const prepare = withHelper ? () => { state.prepareCalls += 1; mark(); } : undefined;
   const handler = new Function(
     "n",
-    "codexLinuxPrepareForExplicitQuit",
-    "codexLinuxMarkQuitInProgress",
+    "chatgptLinuxPrepareForExplicitQuit",
+    "chatgptLinuxMarkQuitInProgress",
     "o",
     `${quitAppSnippet};return null;`,
   );
@@ -8986,7 +9032,7 @@ function runBeforeQuitBypass() {
   const scope = new Function(
     "BI",
     "t",
-    `${helperSnippet}return {runBeforeQuitCheck(e,i,r,a){let s=BI(),c=t.sr().some(e=>e.status===\`ACTIVE\`);${beforeQuitSnippet}return \`prompt\`;},prepare:codexLinuxPrepareForExplicitQuit,bypass:codexLinuxShouldBypassQuitPrompt,marked:codexLinuxIsQuitInProgress};`,
+    `${helperSnippet}return {runBeforeQuitCheck(e,i,r,a){let s=BI(),c=t.sr().some(e=>e.status===\`ACTIVE\`);${beforeQuitSnippet}return \`prompt\`;},prepare:chatgptLinuxPrepareForExplicitQuit,bypass:chatgptLinuxShouldBypassQuitPrompt,marked:chatgptLinuxIsQuitInProgress};`,
   )(
     () => true,
     { sr: () => [{ status: "ACTIVE" }] },
@@ -9028,13 +9074,13 @@ if (!state.shouldBypass || state.bypassed !== undefined || state.state.markCalls
 NODE
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxPrepareForExplicitQuit=()=>{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress()}' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxShouldBypassQuitPrompt=()=>codexLinuxExplicitQuitApproved===!0' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'typeof codexLinuxPrepareForExplicitQuit===`function`?codexLinuxPrepareForExplicitQuit():typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress()' '2'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'typeof codexLinuxShouldBypassQuitPrompt===`function`&&codexLinuxShouldBypassQuitPrompt()' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxLogQuitDrainResults=e=>{' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxFinalizeQuit=()=>{' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxRunQuitDrain(()=>{' '2'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()}' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress()' '2'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt()' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxLogQuitDrainResults=e=>{' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxFinalizeQuit=()=>{' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRunQuitDrain(()=>{' '2'
 }
 
 test_keybinds_settings_tab_patch_smoke() {
@@ -9074,11 +9120,11 @@ JS
     assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "System tray"
     assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "Warm start"
     assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "Build information"
-    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "codex-linux-system-tray-enabled"
-    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "codex-linux-warm-start-enabled"
-    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "codex-linux-prompt-window-enabled"
+    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "chatgpt-linux-system-tray-enabled"
+    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "chatgpt-linux-warm-start-enabled"
+    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "chatgpt-linux-prompt-window-enabled"
     assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" 'import{t as Toggle}from"./linux-settings-toggle-linux.js?v='
-    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" 'import{codexLinuxReact as React,codexLinuxJsx as $}from"./app-initial-BTphDPeq.js"'
+    assert_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" 'import{chatgptLinuxReact as React,chatgptLinuxJsx as $}from"./app-initial-BTphDPeq.js"'
     assert_not_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "__reactFactory"
     assert_not_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "__jsxFactory"
     assert_not_contains "$extracted/webview/assets/linux-desktop-settings-linux.js" "function LinuxSwitch"
@@ -9092,10 +9138,10 @@ JS
     assert_contains "$extracted/webview/assets/settings-page-test.js" 'slugs:\[`general-settings`,`linux-desktop`,`import`'
     assert_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" "linux-desktop-settings-linux.js?v="
     assert_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" 'export{Z,'
-    assert_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" 'RouteReact as codexLinuxReact,RouteJsx as codexLinuxJsx'
+    assert_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" 'RouteReact as chatgptLinuxReact,RouteJsx as chatgptLinuxJsx'
     assert_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" '"linux-desktop":'
     assert_not_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" "keybinds-settings-linux.js"
-    assert_not_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" "codexLinuxKeybindOverridesRuntime"
+    assert_not_contains "$extracted/webview/assets/app-initial-BTphDPeq.js" "chatgptLinuxKeybindOverridesRuntime"
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_occurrence_count "$extracted/webview/assets/settings-sections-test.js" 'slug:`linux-desktop`' '1'
@@ -9153,7 +9199,7 @@ test_browser_annotation_screenshot_patch_smoke() {
     cat > "$extracted/.vite/build/comment-preload.js" <<'JS'
 let mt=Te;M?.kind===`comment`?mt=pt?[M.annotation]:Te:pt||P?mt=[]:ft!=null&&(mt=Te.filter(e=>e.id!==ft.id));
 let ht=mt.flatMap(e=>[e]),kt=null,At=`hover-box`,jt,Mt=0,I=[];
-if(P&&M?.annotation.anchor.kind===`element`){Mt=xt[0]??0;let e=bt==null?null:hs(bt),t=e?.rect??Ss(M.annotation.anchor);jt=e?.borderRadius,At=Vs(M.annotation.anchor,t,C.width,C.height),kt=Is(M.annotation.anchor,t,bt),I=bc(F,C,{clipToVisibleArea:!0})}
+if(P&&M?.annotation.anchor.kind===`element`){let e=bt==null?null:hs(bt),t=e?.rect??Ss(M.annotation.anchor);jt=e?.borderRadius,At=Vs(M.annotation.anchor,t,C.width,C.height),kt=Is(M.annotation.anchor,t,bt),I=bc(F,C,{clipToVisibleArea:!0})}
 JS
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
@@ -9185,19 +9231,19 @@ JS
     make_fake_extracted_asar "$extracted" "$bundle_body"
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$extracted/.vite/build/main-test.js" 'process.platform===`linux`&&process.env.CODEX_LINUX_MULTI_LAUNCH!==`1`&&!n.app.requestSingleInstanceLock()'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxHandleLaunchActionArgs'
+    assert_contains "$extracted/.vite/build/main-test.js" 'process.platform===`linux`&&process.env.CHATGPT_LINUX_MULTI_LAUNCH!==`1`&&!n.app.requestSingleInstanceLock()'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxHandleLaunchActionArgs'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.includes(`--new-chat`)'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.includes(`--quick-chat`)'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.includes(`--prompt-chat`)'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.includes(`--hotkey-window`)'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxHasDeepLink'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxShowHotkeyWindow'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxGetHotkeyWindowController'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxHasDeepLink'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxShowHotkeyWindow'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxGetHotkeyWindowController'
     assert_contains "$extracted/.vite/build/main-test.js" 'ensureHotkeyWindowController'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxPrewarmHotkeyWindow'
-    assert_contains "$extracted/.vite/build/main-test.js" 'codexLinuxStartLaunchActionSocket'
-    assert_contains "$extracted/.vite/build/main-test.js" 'CODEX_DESKTOP_LAUNCH_ACTION_SOCKET'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrewarmHotkeyWindow'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxStartLaunchActionSocket'
+    assert_contains "$extracted/.vite/build/main-test.js" 'CHATGPT_APP_LAUNCH_ACTION_SOCKET'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.openHome'
     assert_contains "$extracted/.vite/build/main-test.js" 'e.prewarm'
     assert_contains "$extracted/.vite/build/main-test.js" 'type:`new-quick-chat`'
@@ -9385,7 +9431,7 @@ async function flushAsyncHandlers() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "/tmp/codex-smoke.sock" }) {
+async function boot(settings = {}, env = { CHATGPT_APP_LAUNCH_ACTION_SOCKET: "/tmp/codex-smoke.sock" }) {
   state = makeState(settings);
   resetCalls();
   state.primary = makeWindow("primary");
@@ -9526,7 +9572,7 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--new-chat"]);
+  await runSecondInstance(["chatgpt", "--new-chat"]);
   assert(state.queueArgs.length === 0, "--new-chat without a deeplink should not be consumed by deeplink routing");
   assert(state.createFreshLocalWindowCalls.length === 0, "--new-chat should reuse the warm primary window");
   assert(state.focusCalls.length === 1 && state.focusCalls[0] === "primary", "--new-chat should focus the warm primary window");
@@ -9535,7 +9581,7 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--quick-chat"]);
+  await runSecondInstance(["chatgpt", "--quick-chat"]);
   assert(state.queueArgs.length === 0, "--quick-chat without a deeplink should not be consumed by deeplink routing");
   assert(state.createFreshLocalWindowCalls.length === 0, "--quick-chat should reuse the warm primary window");
   assert(state.focusCalls.length === 1 && state.focusCalls[0] === "primary", "--quick-chat should focus the warm primary window");
@@ -9544,7 +9590,7 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--prompt-chat"]);
+  await runSecondInstance(["chatgpt", "--prompt-chat"]);
   assert(state.queueArgs.length === 0, "--prompt-chat without a deeplink should not be consumed by deeplink routing");
   assert(state.openHomeCalls === 1, "--prompt-chat should open the compact hotkey prompt on the new-chat home surface");
   assert(state.ensureHotkeyWindowControllerCalls === 1, "--prompt-chat should use the real hotkey window controller");
@@ -9556,14 +9602,14 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--hotkey-window"]);
+  await runSecondInstance(["chatgpt", "--hotkey-window"]);
   assert(state.openHomeCalls === 1, "--hotkey-window should open the compact hotkey prompt on the new-chat home surface");
   assert(state.ensureHotkeyWindowControllerCalls === 1, "--hotkey-window should use the real hotkey window controller");
   assert(state.ensureHostWindowCalls.length === 0, "--hotkey-window should not open the main window when the compact prompt shows");
 
   resetCalls();
   state.primaryWindow = state.primary;
-  let socket = await runSocketArgs(["codex-app", "--prompt-chat"]);
+  let socket = await runSocketArgs(["chatgpt", "--prompt-chat"]);
   assert(socket.outputs[0] === "ok\n", "warm-start socket should acknowledge handled prompt args");
   assert(state.openHomeCalls === 1, "warm-start socket should open the compact prompt on the new-chat home surface");
   assert(state.ensureHotkeyWindowControllerCalls === 1, "warm-start socket prompt should use the real hotkey window controller");
@@ -9577,7 +9623,7 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
   assert(state.openHomeCalls === 0, "warm-start socket should not open the prompt when a deeplink is present");
 
   resetCalls();
-  socket = await runSocketArgs(["codex-app"]);
+  socket = await runSocketArgs(["chatgpt"]);
   assert(socket.outputs[0] === "ok\n", "warm-start socket should acknowledge fallback focus args");
   assert(state.ieCalls === 1, "warm-start socket should use the focus fallback for args without launch flags");
 
@@ -9606,33 +9652,33 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
   assert(state.ensureHostWindowCalls.length === 0, "deeplink+prompt flag should not fall back to the host window");
 
   resetCalls();
-  await runSecondInstance(["codex-app"]);
+  await runSecondInstance(["chatgpt"]);
   assert(state.queueArgs.length === 0, "no-flag args without a deeplink should not be consumed by deeplink routing");
   assert(state.ieCalls === 1, "no-flag args should use the focus fallback");
   assert(state.createFreshLocalWindowCalls.length === 1 && state.createFreshLocalWindowCalls[0] === "/", "fallback should create the default window");
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runInitialArgs(["codex-app", "--quick-chat"]);
+  await runInitialArgs(["chatgpt", "--quick-chat"]);
   assert(state.createFreshLocalWindowCalls.length === 0, "initial argv handler should reuse an existing primary window");
   assert(state.messages.length === 1 && state.messages[0].windowId === "primary" && state.messages[0].message.type === "new-quick-chat", "initial argv handler should open quick chat in the existing primary window");
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runInitialArgs(["codex-app", "--prompt-chat"]);
+  await runInitialArgs(["chatgpt", "--prompt-chat"]);
   assert(state.openHomeCalls === 1, "initial argv handler should open the compact prompt on the new-chat home surface");
   assert(state.ensureHotkeyWindowControllerCalls === 1, "initial argv handler should use the real hotkey window controller");
   assert(state.showCalls === 0, "initial argv handler should not reopen the last hotkey surface");
   assert(state.ensureHostWindowCalls.length === 0, "initial argv handler should not open the main window when the compact prompt shows");
 
   resetCalls();
-  await runInitialArgs(["codex-app", "--quick-chat"]);
+  await runInitialArgs(["chatgpt", "--quick-chat"]);
   assert(state.createFreshLocalWindowCalls.length === 1 && state.createFreshLocalWindowCalls[0] === "/", "initial argv handler should create a window when no primary exists");
   assert(state.messages.length === 1 && state.messages[0].windowId === "created" && state.messages[0].message.type === "new-quick-chat", "initial argv handler should open quick chat in the created window when no primary exists");
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runInitialArgs(["codex-app", "--new-chat"]);
+  await runInitialArgs(["chatgpt", "--new-chat"]);
   assert(state.createFreshLocalWindowCalls.length === 0, "initial --new-chat should reuse a warm primary window");
   assert(state.navigateCalls.length === 1 && state.navigateCalls[0].path === "/", "initial --new-chat should navigate an existing window to /");
   assert(state.focusCalls.length === 1 && state.focusCalls[0] === "primary", "initial --new-chat should focus the main window");
@@ -9647,7 +9693,7 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--prompt-chat"]);
+  await runSecondInstance(["chatgpt", "--prompt-chat"]);
   assert(state.queueArgs.length === 0, "disabled prompt-chat args without a deeplink should not be consumed by deeplink routing");
   assert(state.openHomeCalls === 0, "disabled prompt-chat gate should not open the compact prompt");
   assert(state.ensureHotkeyWindowControllerCalls === 0, "disabled prompt-chat gate should not create the hotkey window controller");
@@ -9656,12 +9702,12 @@ async function boot(settings = {}, env = { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "
 
   resetCalls();
   state.primaryWindow = state.primary;
-  await runSecondInstance(["codex-app", "--hotkey-window"]);
+  await runSecondInstance(["chatgpt", "--hotkey-window"]);
   assert(state.openHomeCalls === 0, "disabled prompt-chat gate should also block --hotkey-window prompt opening");
   assert(state.ensureHotkeyWindowControllerCalls === 0, "disabled prompt-chat gate should not create a controller for --hotkey-window");
   assert(state.ieCalls === 1, "disabled --hotkey-window should fall back to main-window focus");
 
-  await boot({ warmStartEnabled: false }, { CODEX_DESKTOP_LAUNCH_ACTION_SOCKET: "/tmp/codex-disabled.sock" });
+  await boot({ warmStartEnabled: false }, { CHATGPT_APP_LAUNCH_ACTION_SOCKET: "/tmp/codex-disabled.sock" });
   assert(state.createServerCalls === 0, "disabled warm-start gate should not create the launch-action socket server");
   assert(state.socketListenCalls.length === 0, "disabled warm-start gate should not listen on the launch-action socket");
   assert(state.socketConnectionHandler == null, "disabled warm-start gate should not register a socket connection handler");
@@ -9674,21 +9720,21 @@ NODE
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_occurrence_count "$extracted/.vite/build/main-test.js" '!n.app.requestSingleInstanceLock()' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxQuitInProgress=!1' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxIsQuitInProgress=()=>codexLinuxQuitInProgress===!0' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxHandleLaunchActionArgs=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxHandleLaunchActionArgs=async e=>(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress())?!0:' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxHandleLaunchActionArgsFallback=(e,t)=>{if(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress())return;' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxQuitInProgress=!1' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxIsQuitInProgress=()=>chatgptLinuxQuitInProgress===!0' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxHandleLaunchActionArgs=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxHandleLaunchActionArgs=async e=>(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())?!0:' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxHandleLaunchActionArgsFallback=(e,t)=>{if(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())return;' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'e.includes(`--new-chat`)' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'e.includes(`--quick-chat`)' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'e.includes(`--prompt-chat`)' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'e.includes(`--hotkey-window`)' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxShowHotkeyWindow=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxGetHotkeyWindowController=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxPrewarmHotkeyWindow=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxStartLaunchActionSocket=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxOpenQuickChat=' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'codexLinuxPrewarmHotkeyWindow()' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxShowHotkeyWindow=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxGetHotkeyWindowController=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrewarmHotkeyWindow=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxStartLaunchActionSocket=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxOpenQuickChat=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrewarmHotkeyWindow()' '1'
 }
 
 test_linux_computer_use_gate_patch_smoke() {
@@ -9730,7 +9776,7 @@ test_linux_computer_use_ui_opt_in_smoke() {
     local settings_body
     local app_initial_body
 
-    mkdir -p "$workspace" "$fake_home/.config/codex-app"
+    mkdir -p "$workspace" "$fake_home/.config/chatgpt"
 
     bundle_body="$(cat <<'JS'
 let n={app:{whenReady(){},quit(){},requestSingleInstanceLock(){},on(){},off(){}}};
@@ -9738,7 +9784,7 @@ let cp=require(`node:child_process`),fs=require(`node:fs`),p=require(`node:path`
 let Qt=`openai-bundled`,$t=`browser-use`,en=`chrome-internal`,tn=`computer-use`,nn=`latex-tectonic`;
 function cl(e){if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))return e.desktopFeatureAvailability.computerUseNodeRepl?`node-repl`:`legacy-mcp`}
 var $n=[{name:tn,isEnabled:cl,migrate:wn}];
-function me(e,{env:t=process.env,platform:n=process.platform}={}){return n!==`win32`||t.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}
+function me(e,{env:t=process.env,platform:n=process.platform}={}){return n!==`win32`||t.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}
 var h={handlers:{"native-desktop-apps":async()=>({apps:[]})}};
 JS
 )"
@@ -9756,7 +9802,7 @@ JS
     printf '%s\n' "$settings_body" > "$settings_asset"
     printf '%s\n' "$app_initial_body" > "$app_initial_asset"
 
-    env -u CODEX_LINUX_ENABLE_COMPUTER_USE_UI -u CODEX_LINUX_APP_ID -u CODEX_APP_ID -u CODEX_LINUX_SETTINGS_FILE \
+    env -u CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
         HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
         node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_contains "$main_bundle" 'if(!((e.platform!==`darwin`&&e.platform!==`linux`)||!e.marketplacePluginNames.includes(`computer-use`))'
@@ -9771,11 +9817,11 @@ JS
     printf '%s\n' "$settings_body" > "$settings_asset"
     printf '%s\n' "$app_initial_body" > "$app_initial_asset"
 
-    env -u CODEX_LINUX_APP_ID -u CODEX_APP_ID -u CODEX_LINUX_SETTINGS_FILE \
-        CODEX_LINUX_ENABLE_COMPUTER_USE_UI=1 HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
+    env -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
+        CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1 HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
         node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
-    assert_contains "$main_bundle" 'codexLinuxNativeDesktopApps'
+    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
     assert_contains "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1'
     assert_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
     assert_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`||K3r(o)'
@@ -9791,13 +9837,13 @@ JS
     printf '%s\n' "$bundle_body" > "$main_bundle"
     printf '%s\n' "$settings_body" > "$settings_asset"
     printf '%s\n' "$app_initial_body" > "$app_initial_asset"
-    printf '%s\n' '{"codex-linux-computer-use-ui-enabled": true}' > "$fake_home/.config/codex-app/settings.json"
+    printf '%s\n' '{"chatgpt-linux-computer-use-ui-enabled": true}' > "$fake_home/.config/chatgpt/settings.json"
 
-    env -u CODEX_LINUX_ENABLE_COMPUTER_USE_UI -u CODEX_LINUX_APP_ID -u CODEX_APP_ID -u CODEX_LINUX_SETTINGS_FILE \
+    env -u CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
         HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
         node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
-    assert_contains "$main_bundle" 'codexLinuxNativeDesktopApps'
+    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
     assert_contains "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1'
     assert_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
     assert_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`||K3r(o)'
@@ -9857,7 +9903,7 @@ test_user_local_prepare_build_repo_overlays_committed_local_changes() {
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
     local upstream_repo="$workspace/upstream"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -9934,7 +9980,7 @@ test_user_local_prepare_build_repo_detects_default_branch_without_recorded_branc
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
     local unmanaged_source="$workspace/source-without-git"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace" "$unmanaged_source"
@@ -9985,7 +10031,7 @@ test_user_local_prepare_build_repo_ignores_stale_recorded_default_branch() {
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
     local unmanaged_source="$workspace/source-without-git"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace" "$unmanaged_source"
@@ -10035,7 +10081,7 @@ test_user_local_prepare_build_repo_ignores_stale_source_origin_head() {
     local workspace="$TMP_DIR/user-local-stale-origin-head"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -10088,7 +10134,7 @@ test_user_local_prepare_build_repo_handles_relative_origin_url() {
     local source_repo="$workspace/source"
     local moved_source_repo="$workspace/source-moved"
     local updater_repo="$workspace/updater"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -10153,7 +10199,7 @@ test_desktop_entry_doctor_repairs_only_legacy_generated_entries() {
     info "Checking desktop-entry doctor only backs up legacy generated entries"
     local workspace="$TMP_DIR/desktop-entry-doctor"
     local desktop_dir="$workspace/applications"
-    local template="$REPO_DIR/contrib/user-local-install/files/.local/share/applications/codex-app.desktop"
+    local template="$REPO_DIR/contrib/user-local-install/files/.local/share/applications/chatgpt.desktop"
     local stale_entry="$desktop_dir/stale.desktop"
     local current_entry="$desktop_dir/current.desktop"
     local custom_entry="$desktop_dir/custom.desktop"
@@ -10163,16 +10209,17 @@ test_desktop_entry_doctor_repairs_only_legacy_generated_entries() {
     cat > "$stale_entry" <<'EOF'
 [Desktop Entry]
 Type=Application
+X-ChatGPT-Linux-Managed=true
 Name=Codex Desktop
-Exec=/home/tester/.local/bin/codex-app %U
-TryExec=/home/tester/.local/bin/codex-app
+Exec=/home/tester/.local/bin/chatgpt %U
+TryExec=/home/tester/.local/bin/chatgpt
 Terminal=false
-Icon=codex-app
+Icon=chatgpt
 Actions=NewInstance;
 
 [Desktop Action NewInstance]
 Name=Open New Instance
-Exec=env CODEX_MULTI_LAUNCH=1 /home/tester/.local/bin/codex-app --new-instance
+Exec=env CHATGPT_MULTI_LAUNCH=1 /home/tester/.local/bin/chatgpt --new-instance
 EOF
 
     cat > "$custom_entry" <<'EOF'
@@ -10185,16 +10232,16 @@ EOF
 
     (
         # shellcheck disable=SC1091
-        . "$REPO_DIR/packaging/linux/codex-app-desktop-entry-doctor.sh"
-        codex_app_write_user_local_entry "$template" "$current_entry" "/home/tester"
-        codex_app_repair_shadow_entry "$stale_entry"
-        if codex_app_repair_shadow_entry "$current_entry"; then
+        . "$REPO_DIR/packaging/linux/chatgpt-desktop-entry-doctor.sh"
+        chatgpt_write_user_local_entry "$template" "$current_entry" "/home/tester"
+        chatgpt_repair_shadow_entry "$stale_entry"
+        if chatgpt_repair_shadow_entry "$current_entry"; then
             exit 1
         fi
-        if codex_app_repair_shadow_entry "$custom_entry"; then
+        if chatgpt_repair_shadow_entry "$custom_entry"; then
             exit 1
         fi
-        if codex_app_repair_shadow_entry "$stale_entry"; then
+        if chatgpt_repair_shadow_entry "$stale_entry"; then
             exit 1
         fi
     )
@@ -10216,8 +10263,8 @@ test_user_local_install_from_update_defers_record_only_metadata() {
     local fake_bin="$workspace/bin"
     local home="$workspace/home"
     local marker="$workspace/record-only-attempted"
-    local metadata_file="$workspace/state/codex-app/metadata.env"
-    local app_dir="$workspace/data/codex-app/app"
+    local metadata_file="$workspace/state/chatgpt/metadata.env"
+    local app_dir="$workspace/data/chatgpt/app"
 
     mkdir -p "$fake_bin"
     cat > "$fake_bin/7z" <<'SCRIPT'
@@ -10239,7 +10286,7 @@ SCRIPT
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
         RECORD_ONLY_MARKER="$marker" \
-        CODEX_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
+        CHATGPT_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
         bash "$REPO_DIR/contrib/user-local-install/install-user-local.sh" --from-update >/dev/null
     assert_file_not_exists "$marker"
     assert_file_not_exists "$metadata_file"
@@ -10249,7 +10296,7 @@ SCRIPT
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
         RECORD_ONLY_MARKER="$marker" \
-        CODEX_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
+        CHATGPT_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
         bash "$REPO_DIR/contrib/user-local-install/install-user-local.sh" >/dev/null
     assert_file_not_exists "$marker"
     assert_file_exists "$metadata_file"
@@ -10262,7 +10309,7 @@ test_user_local_install_preserves_persisted_x11_preference_on_refresh() {
     local stub_bin="$workspace/bin"
     local home="$workspace/home"
     local config_home="$workspace/config"
-    local preference_file="$config_home/codex-app/user-local.env"
+    local preference_file="$config_home/chatgpt/user-local.env"
 
     mkdir -p "$stub_bin"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$stub_bin/7z"
@@ -10275,28 +10322,28 @@ test_user_local_install_preserves_persisted_x11_preference_on_refresh() {
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
-        CODEX_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
+        CHATGPT_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
         bash "$REPO_DIR/contrib/user-local-install/install-user-local.sh" --force-x11 >/dev/null
     assert_file_exists "$preference_file"
-    assert_contains "$preference_file" "CODEX_USER_LOCAL_OZONE_PLATFORM=x11"
+    assert_contains "$preference_file" "CHATGPT_USER_LOCAL_OZONE_PLATFORM=x11"
 
     PATH="$stub_bin:$PATH" \
         HOME="$home" \
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
-        CODEX_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
+        CHATGPT_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
         bash "$REPO_DIR/contrib/user-local-install/install-user-local.sh" --from-update >/dev/null
-    assert_contains "$preference_file" "CODEX_USER_LOCAL_OZONE_PLATFORM=x11"
+    assert_contains "$preference_file" "CHATGPT_USER_LOCAL_OZONE_PLATFORM=x11"
 
     PATH="$stub_bin:$PATH" \
         HOME="$home" \
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
-        CODEX_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
+        CHATGPT_USER_LOCAL_SOURCE_REPO_DIR="$REPO_DIR" \
         bash "$REPO_DIR/contrib/user-local-install/install-user-local.sh" --no-force-x11 >/dev/null
-    assert_contains "$preference_file" "CODEX_USER_LOCAL_OZONE_PLATFORM=auto"
+    assert_contains "$preference_file" "CHATGPT_USER_LOCAL_OZONE_PLATFORM=auto"
 }
 
 test_user_local_prepare_build_repo_copies_enabled_local_features() {
@@ -10304,7 +10351,7 @@ test_user_local_prepare_build_repo_copies_enabled_local_features() {
     local workspace="$TMP_DIR/user-local-local-integrations"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
     local integration_config="$workspace/port-integrations.json"
     local staged_local_feature="$managed_repo/port-integrations/local/local-tool"
@@ -10349,7 +10396,7 @@ JSON
         export HOME="$workspace/home"
         export XDG_DATA_HOME="$workspace/xdg-data"
         export XDG_STATE_HOME="$workspace/xdg-state"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config"
         mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 
         # shellcheck disable=SC1091
@@ -10385,7 +10432,7 @@ test_user_local_prepare_build_repo_updates_existing_single_branch_fetch_refspec(
     local origin_repo="$workspace/origin.git"
     local upstream_repo="$workspace/upstream"
     local unmanaged_source="$workspace/source-without-git"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace" "$unmanaged_source"
@@ -10466,7 +10513,7 @@ test_user_local_prepare_build_repo_handles_deleted_overlay_paths() {
     local workspace="$TMP_DIR/user-local-deleted-overlay"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -10519,7 +10566,7 @@ test_user_local_prepare_build_repo_removes_rename_source_paths() {
     local workspace="$TMP_DIR/user-local-rename-overlay"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app-linux/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt-linux/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -10569,11 +10616,11 @@ EOF
 test_launcher_warm_start_recovery() {
     info "Checking warm-start recovery after launcher SIGKILL"
     bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
-    CODEX_TEST_DISABLE_WARM_START=1 bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
-    CODEX_TEST_KILL_DURING_PRELAUNCH=1 bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
-    CODEX_TEST_DISABLE_PIDFD=1 CODEX_TEST_NORMAL_LOCK_ONLY=1 \
+    CHATGPT_TEST_DISABLE_WARM_START=1 bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
+    CHATGPT_TEST_KILL_DURING_PRELAUNCH=1 bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
+    CHATGPT_TEST_DISABLE_PIDFD=1 CHATGPT_TEST_NORMAL_LOCK_ONLY=1 \
         bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
-    CODEX_TEST_DISABLE_PIDFD=1 CODEX_TEST_KILL_DURING_PRELAUNCH=1 \
+    CHATGPT_TEST_DISABLE_PIDFD=1 CHATGPT_TEST_KILL_DURING_PRELAUNCH=1 \
         bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
 }
 
@@ -10613,7 +10660,7 @@ test_launcher_window_reopen_behavior() {
     cat "$nominal_log"
 
     set +e
-    CODEX_TEST_FORCE_RESIDENT_REPLACEMENT=1 \
+    CHATGPT_TEST_FORCE_RESIDENT_REPLACEMENT=1 \
         bash "$REPO_DIR/tests/launcher_window_reopen_behavior.sh" \
         > "$mutation_log" 2>&1
     status=$?
@@ -10628,8 +10675,8 @@ test_launcher_window_reopen_behavior() {
     fi
 
     set +e
-    CODEX_TEST_FORCE_RESIDENT_REPLACEMENT=1 \
-        CODEX_TEST_MUTATION_CONTROL_ONLY=1 \
+    CHATGPT_TEST_FORCE_RESIDENT_REPLACEMENT=1 \
+        CHATGPT_TEST_MUTATION_CONTROL_ONLY=1 \
         bash "$REPO_DIR/tests/launcher_window_reopen_behavior.sh" \
         > "$mutation_control_log" 2>&1
     status=$?
@@ -10646,7 +10693,7 @@ test_launcher_window_reopen_behavior() {
 
     rm -rf "$no_pidfd_tmp"
     set +e
-    CODEX_TEST_FORCE_NO_PIDFD=1 TMPDIR="$no_pidfd_tmp" \
+    CHATGPT_TEST_FORCE_NO_PIDFD=1 TMPDIR="$no_pidfd_tmp" \
         bash "$REPO_DIR/tests/launcher_window_reopen_behavior.sh" \
         > "$no_pidfd_log" 2>&1
     status=$?
@@ -10685,9 +10732,9 @@ test_launcher_window_reopen_behavior() {
 
 test_notification_actions_bridge_accepts_prebuilt_binary() {
     local workspace="$TMP_DIR/notification-actions-bridge"
-    local source_binary="$workspace/prebuilt/codex-notification-actions-linux"
-    local install_dir="$workspace/codex-app"
-    local target_binary="$install_dir/resources/native/codex-notification-actions-linux"
+    local source_binary="$workspace/prebuilt/chatgpt-notification-actions-linux"
+    local install_dir="$workspace/chatgpt"
+    local target_binary="$install_dir/resources/native/chatgpt-notification-actions-linux"
 
     mkdir -p "$(dirname "$source_binary")" "$install_dir/resources/native"
     cp "$TRUE_BIN" "$source_binary"
@@ -10696,7 +10743,7 @@ test_notification_actions_bridge_accepts_prebuilt_binary() {
     (
         export SCRIPT_DIR="$REPO_DIR"
         export INSTALL_DIR="$install_dir"
-        export CODEX_NOTIFICATION_ACTIONS_SOURCE="$source_binary"
+        export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="$source_binary"
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/notification-actions.sh"
         stage_linux_notification_actions_bridge
@@ -10718,33 +10765,33 @@ assert_not_matches() {
 test_desktop_renderer_preserves_non_updater_actions() {
     info "Checking no-updater desktop action filtering"
     local workspace="$TMP_DIR/desktop-actions"
-    local desktop_template="$workspace/codex-app.desktop"
+    local desktop_template="$workspace/chatgpt.desktop"
     local rendered_desktop="$workspace/rendered.desktop"
 
     mkdir -p "$workspace"
     cat > "$desktop_template" <<'DESKTOP'
 [Desktop Entry]
-Name=Codex App
-Comment=Run Codex App on Linux
-Exec=/usr/bin/codex-app %u
+Name=ChatGPT
+Comment=Run ChatGPT on Linux
+Exec=/usr/bin/chatgpt %u
 Actions=OpenDocs;CheckForUpdates;InstallReadyUpdate;
 
 [Desktop Action OpenDocs]
 Name=Open Docs
-Exec=/usr/bin/codex-app --docs
+Exec=/usr/bin/chatgpt --docs
 
 [Desktop Action CheckForUpdates]
 Name=Check for Updates
-Exec=/usr/bin/codex-app-updater check-now
+Exec=/usr/bin/chatgpt-updater check-now
 
 [Desktop Action InstallReadyUpdate]
 Name=Install Ready Update
-Exec=/usr/bin/codex-app-updater install-ready
+Exec=/usr/bin/chatgpt-updater install-ready
 DESKTOP
 
     # shellcheck disable=SC1091
     source "$REPO_DIR/scripts/lib/package-common.sh"
-    PACKAGE_NAME="codex-app" \
+    PACKAGE_NAME="chatgpt" \
     PACKAGE_WITH_UPDATER=0 \
     DESKTOP_TEMPLATE="$desktop_template" \
     render_desktop_entry "$rendered_desktop"
@@ -10753,7 +10800,7 @@ DESKTOP
     assert_contains "$rendered_desktop" "[Desktop Action OpenDocs]"
     assert_not_contains "$rendered_desktop" "CheckForUpdates"
     assert_not_contains "$rendered_desktop" "InstallReadyUpdate"
-    assert_not_contains "$rendered_desktop" "codex-app-updater"
+    assert_not_contains "$rendered_desktop" "chatgpt-updater"
 }
 
 test_stage_common_package_files_resolves_tray_icon_deterministically() {
@@ -10763,8 +10810,8 @@ test_stage_common_package_files_resolves_tray_icon_deterministically() {
     local root="$workspace/root"
     local output_log="$workspace/output.log"
     local icon_source="$workspace/icon-source.png"
-    local tray_output="$root/opt/codex-app/.codex-linux/codex-app-tray.png"
-    local package_icon="$root/opt/codex-app/.codex-linux/codex-app.png"
+    local tray_output="$root/opt/chatgpt/.chatgpt-linux/chatgpt-tray.png"
+    local package_icon="$root/opt/chatgpt/.chatgpt-linux/chatgpt.png"
 
     mkdir -p "$workspace" "$root"
     make_fake_app "$app_dir"
@@ -10774,11 +10821,11 @@ test_stage_common_package_files_resolves_tray_icon_deterministically() {
 
     (
         export APP_DIR="$app_dir"
-        export PACKAGE_NAME="codex-app"
+        export PACKAGE_NAME="chatgpt"
         export PACKAGE_WITH_UPDATER=0
         export ICON_SOURCE="$icon_source"
-        export DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
-        export PACKAGED_RUNTIME_SOURCE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
+        export DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
+        export PACKAGED_RUNTIME_SOURCE="$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh"
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/package-common.sh"
         stage_common_package_files "$root"
@@ -10804,7 +10851,7 @@ test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing() 
     for scenario in ambiguous missing; do
         local app_dir="$workspace/$scenario-app"
         local root="$workspace/$scenario-root"
-        local tray_output="$root/opt/codex-app/.codex-linux/codex-app-tray.png"
+        local tray_output="$root/opt/chatgpt/.chatgpt-linux/chatgpt-tray.png"
 
         mkdir -p "$root"
         make_fake_app "$app_dir"
@@ -10816,11 +10863,11 @@ test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing() 
 
         (
             export APP_DIR="$app_dir"
-            export PACKAGE_NAME="codex-app"
+            export PACKAGE_NAME="chatgpt"
             export PACKAGE_WITH_UPDATER=0
             export ICON_SOURCE="$icon_source"
-            export DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
-            export PACKAGED_RUNTIME_SOURCE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
+            export DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
+            export PACKAGED_RUNTIME_SOURCE="$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh"
             # shellcheck disable=SC1091
             source "$REPO_DIR/scripts/lib/package-common.sh"
             stage_common_package_files "$root"
@@ -10840,12 +10887,12 @@ test_update_builder_omits_build_time_port_integrations_config() {
     local workspace="$TMP_DIR/update-builder-port-integrations"
     local root="$workspace/root"
     local app_dir="$workspace/app"
-    local staged_config="$root/usr/lib/codex-app/update-builder/port-integrations/integrations.json"
-    local staged_legacy_config="$root/usr/lib/codex-app/update-builder/port-integrations/features.json"
-    local staged_resolved_config="$root/usr/lib/codex-app/update-builder/.codex-linux/port-integrations.json"
-    local source_info="$root/usr/lib/codex-app/update-builder/.codex-linux/source-info.json"
+    local staged_config="$root/usr/lib/chatgpt/update-builder/port-integrations/integrations.json"
+    local staged_legacy_config="$root/usr/lib/chatgpt/update-builder/port-integrations/features.json"
+    local staged_resolved_config="$root/usr/lib/chatgpt/update-builder/.chatgpt-linux/port-integrations.json"
+    local source_info="$root/usr/lib/chatgpt/update-builder/.chatgpt-linux/source-info.json"
     local local_remote_update_builder="$workspace/local-remote-update-builder"
-    local local_remote_source_info="$local_remote_update_builder/.codex-linux/source-info.json"
+    local local_remote_source_info="$local_remote_update_builder/.chatgpt-linux/source-info.json"
     local source_config_dir="$REPO_DIR/port-integrations"
     local source_config="$source_config_dir/integrations.json"
     local source_legacy_config="$source_config_dir/features.json"
@@ -10894,10 +10941,10 @@ JSON
 JSON
 
         export APP_DIR="$app_dir"
-        export PACKAGE_NAME="codex-app"
-        export UPDATER_SERVICE_SOURCE="$REPO_DIR/packaging/linux/codex-app-updater.service"
-        export CODEX_LINUX_SOURCE_REMOTE="ssh://builder:secret-token@example.com/org/repo.git"
-        export CODEX_PORT_INTEGRATIONS_CONFIG="$source_config"
+        export PACKAGE_NAME="chatgpt"
+        export UPDATER_SERVICE_SOURCE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
+        export CHATGPT_LINUX_SOURCE_REMOTE="ssh://builder:secret-token@example.com/org/repo.git"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$source_config"
         export SOURCE_DATE_EPOCH="1710000000"
 
         # shellcheck disable=SC1091
@@ -10908,7 +10955,7 @@ JSON
     assert_file_not_exists "$staged_config"
     assert_file_not_exists "$staged_legacy_config"
     assert_file_exists "$staged_resolved_config"
-    assert_file_exists "$root/usr/lib/codex-app/update-builder/port-integrations/integrations.example.json"
+    assert_file_exists "$root/usr/lib/chatgpt/update-builder/port-integrations/integrations.example.json"
     assert_file_exists "$source_info"
 
     node - "$staged_resolved_config" <<'NODE' || fail "Expected staged resolved port integrations config"
@@ -10943,8 +10990,8 @@ NODE
 
     (
         export APP_DIR="$app_dir"
-        export PACKAGE_NAME="codex-app"
-        export CODEX_LINUX_SOURCE_REMOTE="foo/bar.git"
+        export PACKAGE_NAME="chatgpt"
+        export CHATGPT_LINUX_SOURCE_REMOTE="foo/bar.git"
         export SOURCE_DATE_EPOCH="1710000000"
 
         # shellcheck disable=SC1091
@@ -10987,7 +11034,7 @@ test_rpm_builder_can_disable_updater() {
     local bin_dir="$workspace/bin"
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
-    local spec_capture="$workspace/codex-app.spec"
+    local spec_capture="$workspace/chatgpt.spec"
 
     mkdir -p "$workspace" "$dist_dir"
     make_stub_bin_dir "$bin_dir"
@@ -11012,7 +11059,7 @@ done
 [ -n "$spec_file" ] || exit 1
 cp "$spec_file" "$RPM_SPEC_CAPTURE"
 mkdir -p "$rpmdir/x86_64"
-touch "$rpmdir/x86_64/codex-app-2026.03.24.120000-deadbeef.x86_64.rpm"
+touch "$rpmdir/x86_64/chatgpt-2026.03.24.120000-deadbeef.x86_64.rpm"
 SCRIPT
     cat > "$bin_dir/cargo" <<'SCRIPT'
 #!/bin/bash
@@ -11030,15 +11077,15 @@ SCRIPT
     RPM_SPEC_CAPTURE="$spec_capture" \
     "$REPO_DIR/scripts/build-rpm.sh"
 
-    assert_file_exists "$dist_dir/codex-app-2026.03.24.120000-deadbeef.x86_64.rpm"
+    assert_file_exists "$dist_dir/chatgpt-2026.03.24.120000-deadbeef.x86_64.rpm"
     assert_file_exists "$spec_capture"
-    assert_not_contains "$spec_capture" "/usr/bin/codex-app-updater"
-    assert_not_contains "$spec_capture" "codex-app-updater.service"
-    assert_not_contains "$spec_capture" "codex-app-updater-user-service.sh"
+    assert_not_contains "$spec_capture" "/usr/bin/chatgpt-updater"
+    assert_not_contains "$spec_capture" "chatgpt-updater.service"
+    assert_not_contains "$spec_capture" "chatgpt-updater-user-service.sh"
     assert_not_contains "$spec_capture" "Local auto-updates rebuild"
     assert_not_contains "$spec_capture" "/usr/bin/7z"
     assert_not_contains "$spec_capture" "polkit, curl, unzip, gcc-c++, make"
-    assert_contains "$spec_capture" "codex_no_updater_cleanup_update_manager_service"
+    assert_contains "$spec_capture" "chatgpt_no_updater_cleanup_update_manager_service"
 }
 
 test_official_dmg_build_app_workflow_tracks_dmg_metadata() {
@@ -11050,12 +11097,12 @@ test_official_dmg_build_app_workflow_tracks_dmg_metadata() {
     assert_contains "$workflow" 'OFFICIAL_DMG_URL: https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg'
     assert_contains "$workflow" 'actions/cache@'
     assert_contains "$workflow" '# v6.1.0'
-    assert_contains "$workflow" 'OFFICIAL_DMG_PATH: /tmp/codex-official-dmg-ci/ChatGPT.dmg'
+    assert_contains "$workflow" 'OFFICIAL_DMG_PATH: /tmp/chatgpt-official-dmg-ci/ChatGPT.dmg'
     assert_contains "$workflow" 'path: ${{ env.OFFICIAL_DMG_PATH }}'
     assert_contains "$workflow" 'tolower($0) ~ /^last-modified:/'
     assert_contains "$workflow" 'sha256sum'
-    assert_contains "$workflow" 'CODEX_ACCEPTANCE_DECISION_JSON:'
-    assert_contains "$workflow" 'CODEX_UPSTREAM_DMG_METADATA_JSON:'
+    assert_contains "$workflow" 'CHATGPT_ACCEPTANCE_DECISION_JSON:'
+    assert_contains "$workflow" 'CHATGPT_UPSTREAM_DMG_METADATA_JSON:'
     assert_contains "$workflow" 'REBUILD_REPORT_DIR:'
     assert_contains "$workflow" 'make build-app DMG="$OFFICIAL_DMG_PATH"'
     assert_contains "$workflow" 'official-dmg-decision.json'
@@ -11068,7 +11115,7 @@ test_installer_writes_package_version_from_app_plist() {
     local workspace="$TMP_DIR/app-package-version"
     local app_dir="$workspace/ChatGPT.app"
     local plist_dir="$app_dir/Contents"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$plist_dir"
@@ -11085,30 +11132,30 @@ test_installer_writes_package_version_from_app_plist() {
 </plist>
 PLIST
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_app_version_metadata "$2"' \
         _ "$REPO_DIR/install.sh" "$app_dir" >"$output_log" 2>&1
 
-    assert_contains "$output_log" "Detected Codex App package version from DMG: 26.429.20946"
-    assert_contains "$install_dir/codex-app-version.env" "CODEX_APP_PACKAGE_VERSION=26.429.20946"
-    assert_contains "$install_dir/codex-app-version.env" "CODEX_APP_BUNDLE_VERSION=2312"
+    assert_contains "$output_log" "Detected ChatGPT package version from DMG: 26.429.20946"
+    assert_contains "$install_dir/chatgpt-version.env" "CHATGPT_APP_PACKAGE_VERSION=26.429.20946"
+    assert_contains "$install_dir/chatgpt-version.env" "CHATGPT_APP_BUNDLE_VERSION=2312"
 }
 
 test_installer_copies_webview_into_generated_app() {
     info "Checking webview extraction target"
     local workspace="$TMP_DIR/webview-extraction-target"
     local fake_app_dir="$workspace/ChatGPT.app"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local integration_config="$workspace/integrations.json"
     local output_log="$workspace/output.log"
 
     mkdir -p "$fake_app_dir" "$install_dir"
     cp "$SMOKE_PORT_INTEGRATIONS_CONFIG" "$integration_config"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 \
-    CODEX_INSTALL_TRANSACTION_ACTIVE=1 \
-    CODEX_INSTALL_DIR="$install_dir" \
-    CODEX_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 \
+    CHATGPT_INSTALL_TRANSACTION_ACTIVE=1 \
+    CHATGPT_INSTALL_DIR="$install_dir" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
     FAKE_APP_DIR="$fake_app_dir" \
     bash -c '
         source "$1"
@@ -11152,17 +11199,17 @@ EOF
     assert_contains "$output_log" "Webview files copied"
     assert_file_exists "$install_dir/content/webview/index.html"
     assert_file_exists "$install_dir/content/webview/assets/app-test.js"
-    assert_file_exists "$install_dir/.codex-linux/webview-integrity.sha256"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  index.html"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/app-test.js"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/images/logo.svg"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/nested/chunk.js"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/styles/app.css"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/styles/nested.css"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/package.json"
+    assert_file_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  index.html"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/app-test.js"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/images/logo.svg"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/nested/chunk.js"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/styles/app.css"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/styles/nested.css"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/package.json"
     (
         cd "$install_dir/content/webview" \
-            && sha256sum --check "$install_dir/.codex-linux/webview-integrity.sha256" >/dev/null
+            && sha256sum --check "$install_dir/.chatgpt-linux/webview-integrity.sha256" >/dev/null
     ) || fail "Expected webview-integrity.sha256 digests to match generated startup assets"
     [ ! -e "$fake_app_dir/content/webview/index.html" ] || fail "Webview was copied into the temporary DMG app instead of the generated app"
 }
@@ -11170,27 +11217,27 @@ EOF
 test_webview_integrity_manifest_fails_missing_static_import() {
     info "Checking webview integrity manifest fails on missing static imports"
     local workspace="$TMP_DIR/webview-integrity-missing-import"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
     printf "%s\n" "<title>Codex</title><script type=\"module\" src=\"./assets/app-test.js\"></script>" > "$install_dir/content/webview/index.html"
     printf "%s\n" "import \"./missing.js\";" > "$install_dir/content/webview/assets/app-test.js"
 
-    if CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
         fail "Expected webview integrity manifest generation to fail for a missing static import"
     fi
 
-    assert_file_not_exists "$install_dir/.codex-linux/webview-integrity.sha256"
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
     assert_contains "$output_log" "missing webview startup asset: assets/missing.js"
 }
 
 test_webview_integrity_manifest_fails_missing_multiline_from_import() {
     info "Checking webview integrity manifest fails on missing multiline from imports"
     local workspace="$TMP_DIR/webview-integrity-missing-multiline-import"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
@@ -11203,20 +11250,20 @@ import {
 console.log(missing);
 EOF
 
-    if CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
         fail "Expected webview integrity manifest generation to fail for a missing multiline from import"
     fi
 
-    assert_file_not_exists "$install_dir/.codex-linux/webview-integrity.sha256"
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
     assert_contains "$output_log" "missing webview startup asset: assets/missing.js"
 }
 
 test_webview_integrity_manifest_fails_missing_dynamic_import_options() {
     info "Checking webview integrity manifest fails on missing dynamic import options"
     local workspace="$TMP_DIR/webview-integrity-missing-dynamic-import-options"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
@@ -11225,20 +11272,20 @@ test_webview_integrity_manifest_fails_missing_dynamic_import_options() {
 import("./missing.js", { with: { type: "json" } });
 EOF
 
-    if CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
         fail "Expected webview integrity manifest generation to fail for a missing dynamic import with options"
     fi
 
-    assert_file_not_exists "$install_dir/.codex-linux/webview-integrity.sha256"
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
     assert_contains "$output_log" "missing webview startup asset: assets/missing.js"
 }
 
 test_webview_integrity_manifest_fails_missing_new_url_trailing_comma() {
     info "Checking webview integrity manifest fails on missing new URL trailing comma assets"
     local workspace="$TMP_DIR/webview-integrity-missing-new-url-trailing-comma"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
@@ -11247,40 +11294,40 @@ test_webview_integrity_manifest_fails_missing_new_url_trailing_comma() {
 new URL("./missing.svg", import.meta.url,);
 EOF
 
-    if CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
         fail "Expected webview integrity manifest generation to fail for a missing new URL trailing comma asset"
     fi
 
-    assert_file_not_exists "$install_dir/.codex-linux/webview-integrity.sha256"
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
     assert_contains "$output_log" "missing webview startup asset: assets/missing.svg"
 }
 
 test_webview_integrity_manifest_fails_missing_local_require() {
     info "Checking webview integrity manifest fails on missing local require assets"
     local workspace="$TMP_DIR/webview-integrity-missing-local-require"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
     printf "%s\n" "<title>Codex</title><script type=\"module\" src=\"./assets/app-test.js\"></script>" > "$install_dir/content/webview/index.html"
     printf "%s\n" "require(\"./missing.js\");" > "$install_dir/content/webview/assets/app-test.js"
 
-    if CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
         fail "Expected webview integrity manifest generation to fail for a missing local require asset"
     fi
 
-    assert_file_not_exists "$install_dir/.codex-linux/webview-integrity.sha256"
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
     assert_contains "$output_log" "missing webview startup asset: assets/missing.js"
 }
 
 test_webview_integrity_manifest_ignores_non_startup_html_links() {
     info "Checking webview integrity manifest ignores non-startup HTML links"
     local workspace="$TMP_DIR/webview-integrity-html-links"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
@@ -11293,21 +11340,21 @@ test_webview_integrity_manifest_ignores_non_startup_html_links() {
 HTML
     printf "%s\n" "console.log('startup');" > "$install_dir/content/webview/assets/app-test.js"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1
 
-    assert_file_exists "$install_dir/.codex-linux/webview-integrity.sha256"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  index.html"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/app-test.js"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  settings"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "favicon.ico"
+    assert_file_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  index.html"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/app-test.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  settings"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "favicon.ico"
 }
 
 test_webview_integrity_manifest_ignores_import_text_in_js_strings_and_comments() {
     info "Checking webview integrity manifest ignores import text in JS strings and comments"
     local workspace="$TMP_DIR/webview-integrity-import-text"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets"
@@ -11323,23 +11370,72 @@ import "./present.js";
 EOF
     printf "%s\n" "console.log('present');" > "$install_dir/content/webview/assets/present.js"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1
 
-    assert_file_exists "$install_dir/.codex-linux/webview-integrity.sha256"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/app-test.js"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/present.js"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-string.js"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-line-comment.js"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-block-comment.js"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-dynamic-comment.js"
+    assert_file_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/app-test.js"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/present.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-string.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-line-comment.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-block-comment.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-dynamic-comment.js"
+}
+
+test_webview_integrity_manifest_ignores_bundled_module_id_strings() {
+    info "Checking webview integrity manifest ignores bundled module ID strings"
+    local workspace="$TMP_DIR/webview-integrity-bundled-module-id"
+    local install_dir="$workspace/chatgpt"
+    local output_log="$workspace/output.log"
+
+    mkdir -p "$install_dir/content/webview/assets"
+    printf "%s\n" "<title>ChatGPT</title><script type=\"module\" src=\"./assets/app-test.js\"></script>" > "$install_dir/content/webview/index.html"
+    cat > "$install_dir/content/webview/assets/app-test.js" <<'EOF'
+const bundledModules = {
+  "../../../node_modules/.pnpm/es-toolkit@1.47.0/node_modules/es-toolkit/dist/_internal/isUnsafeProperty.js"(module) {
+    module.isUnsafeProperty = (value) => value === "__proto__";
+  },
+};
+import "./present.js";
+console.log(bundledModules);
+EOF
+    printf "%s\n" "console.log('present');" > "$install_dir/content/webview/assets/present.js"
+
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
+        'source "$1"; write_webview_integrity_manifest "$2"' \
+        _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1
+
+    assert_file_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/app-test.js"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/present.js"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "node_modules"
+}
+
+test_webview_integrity_manifest_rejects_import_escape() {
+    info "Checking webview integrity manifest rejects real import escapes"
+    local workspace="$TMP_DIR/webview-integrity-import-escape"
+    local install_dir="$workspace/chatgpt"
+    local output_log="$workspace/output.log"
+
+    mkdir -p "$install_dir/content/webview/assets"
+    printf "%s\n" "<title>ChatGPT</title><script type=\"module\" src=\"./assets/app-test.js\"></script>" > "$install_dir/content/webview/index.html"
+    printf "%s\n" 'import "../../../outside.js";' > "$install_dir/content/webview/assets/app-test.js"
+
+    if CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
+        'source "$1"; write_webview_integrity_manifest "$2"' \
+        _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1; then
+        fail "Expected webview integrity manifest generation to reject a real import escape"
+    fi
+
+    assert_file_not_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$output_log" "webview startup asset escapes content root: ../../../outside.js"
 }
 
 test_webview_integrity_manifest_ignores_css_comment_references() {
     info "Checking webview integrity manifest ignores CSS comment references"
     local workspace="$TMP_DIR/webview-integrity-css-comments"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local output_log="$workspace/output.log"
 
     mkdir -p "$install_dir/content/webview/assets/styles"
@@ -11359,15 +11455,15 @@ HTML
 }
 EOF
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 CODEX_INSTALL_DIR="$install_dir" bash -c \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 CHATGPT_INSTALL_DIR="$install_dir" bash -c \
         'source "$1"; write_webview_integrity_manifest "$2"' \
         _ "$REPO_DIR/install.sh" "$install_dir" >"$output_log" 2>&1
 
-    assert_file_exists "$install_dir/.codex-linux/webview-integrity.sha256"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  index.html"
-    assert_contains "$install_dir/.codex-linux/webview-integrity.sha256" "  assets/styles/app.css"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-comment.css"
-    assert_not_contains "$install_dir/.codex-linux/webview-integrity.sha256" "missing-comment.svg"
+    assert_file_exists "$install_dir/.chatgpt-linux/webview-integrity.sha256"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  index.html"
+    assert_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "  assets/styles/app.css"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-comment.css"
+    assert_not_contains "$install_dir/.chatgpt-linux/webview-integrity.sha256" "missing-comment.svg"
 }
 
 test_installer_inspect_mode_does_not_write_install_metadata() {
@@ -11375,15 +11471,15 @@ test_installer_inspect_mode_does_not_write_install_metadata() {
     local workspace="$TMP_DIR/inspect-no-install-metadata"
     local fake_dmg="$workspace/ChatGPT.dmg"
     local app_dir="$workspace/ChatGPT.app"
-    local install_dir="$workspace/codex-app"
+    local install_dir="$workspace/chatgpt"
     local trace_log="$workspace/trace.log"
     local output_log="$workspace/output.log"
 
     mkdir -p "$app_dir" "$install_dir"
     : > "$fake_dmg"
 
-    CODEX_INSTALLER_SOURCE_ONLY=1 \
-    CODEX_INSTALL_DIR="$install_dir" \
+    CHATGPT_INSTALLER_SOURCE_ONLY=1 \
+    CHATGPT_INSTALL_DIR="$install_dir" \
     TRACE_LOG="$trace_log" \
     FAKE_APP_DIR="$app_dir" \
     FAKE_DMG="$fake_dmg" \
@@ -11409,7 +11505,7 @@ test_installer_inspect_mode_does_not_write_install_metadata() {
         write_app_version_metadata() {
             printf "%s\n" metadata >> "$TRACE_LOG"
             mkdir -p "$INSTALL_DIR"
-            printf "%s\n" "CODEX_APP_PACKAGE_VERSION=should-not-write" > "$INSTALL_DIR/codex-app-version.env"
+            printf "%s\n" "CHATGPT_APP_PACKAGE_VERSION=should-not-write" > "$INSTALL_DIR/chatgpt-version.env"
         }
 
         main --inspect "$FAKE_DMG"
@@ -11419,7 +11515,7 @@ test_installer_inspect_mode_does_not_write_install_metadata() {
     assert_contains "$trace_log" "inspect"
     assert_not_contains "$trace_log" "metadata"
     assert_not_contains "$trace_log" "check_deps"
-    [ ! -e "$install_dir/codex-app-version.env" ] || fail "Inspect mode wrote install metadata"
+    [ ! -e "$install_dir/chatgpt-version.env" ] || fail "Inspect mode wrote install metadata"
 }
 
 test_rebuild_report_tolerates_bad_patch_json() {
@@ -11438,7 +11534,7 @@ test_rebuild_report_tolerates_bad_patch_json() {
         "$workspace/ChatGPT.dmg" \
         "41.2.0" \
         "$patch_report" \
-        "$workspace/codex-app"
+        "$workspace/chatgpt"
 
     assert_contains "$output_report" '"patches": \[\]'
     assert_contains "$output_report" '"patchReportError"'
@@ -11459,7 +11555,7 @@ test_rebuild_report_records_missing_patch_json() {
         "$workspace/ChatGPT.dmg" \
         "41.2.0" \
         "$patch_report" \
-        "$workspace/codex-app"
+        "$workspace/chatgpt"
 
     assert_contains "$output_report" '"patches": \[\]'
     assert_contains "$output_report" '"patchReportError"'
@@ -11519,7 +11615,7 @@ EOF
         ELECTRON_VERSION="42.0.1"
         MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_41="12.9.0"
         MIN_BETTER_SQLITE3_VERSION_FOR_ELECTRON_42="12.10.0"
-        CODEX_NATIVE_MODULES_SOURCE="$source_dir"
+        CHATGPT_NATIVE_MODULES_SOURCE="$source_dir"
         mkdir -p "$WORK_DIR"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
@@ -11548,15 +11644,15 @@ test_bundled_plugin_builders_fallback_from_invalid_chrome_host_override() {
     cat > "$cargo" <<SCRIPT
 #!/usr/bin/env bash
 mkdir -p "$script_dir/target/release"
-printf '#!/usr/bin/env bash\n' > "$script_dir/target/release/codex-chrome-extension-host"
-chmod +x "$script_dir/target/release/codex-chrome-extension-host"
+printf '#!/usr/bin/env bash\n' > "$script_dir/target/release/chatgpt-chrome-extension-host"
+chmod +x "$script_dir/target/release/chatgpt-chrome-extension-host"
 SCRIPT
     chmod +x "$cargo"
 
     (
         ARCH="x86_64"
         SCRIPT_DIR="$script_dir"
-        CODEX_CHROME_EXTENSION_HOST_SOURCE="$invalid_host"
+        CHATGPT_CHROME_EXTENSION_HOST_SOURCE="$invalid_host"
         info() { echo "[INFO] $*" >&2; }
         warn() { echo "[WARN] $*" >&2; }
         error() { echo "[ERROR] $*" >&2; exit 1; }
@@ -11566,9 +11662,9 @@ SCRIPT
         build_chrome_extension_host
     ) > "$output_log" 2>&1
 
-    assert_contains "$output_log" "CODEX_CHROME_EXTENSION_HOST_SOURCE is not executable"
+    assert_contains "$output_log" "CHATGPT_CHROME_EXTENSION_HOST_SOURCE is not executable"
     assert_contains "$output_log" "Building Chrome extension host"
-    assert_contains "$output_log" "$script_dir/target/release/codex-chrome-extension-host"
+    assert_contains "$output_log" "$script_dir/target/release/chatgpt-chrome-extension-host"
 }
 
 test_user_local_installer_uses_xdg_data_home() {
@@ -11587,14 +11683,14 @@ test_user_local_installer_uses_xdg_data_home() {
     XDG_STATE_HOME="$state_home" \
     "$REPO_DIR/contrib/user-local-install/install-user-local.sh"
 
-    assert_file_exists "$data_home/codex-app/bin/codex-app"
-    assert_file_exists "$data_home/codex-app/lib/common.sh"
-    assert_file_exists "$home_dir/.local/bin/codex-app"
-    assert_file_exists "$data_home/applications/codex-app.desktop"
-    assert_file_exists "$config_home/systemd/user/codex-app-update.service"
-    assert_file_exists "$state_home/codex-app/install.env"
-    assert_contains "$data_home/applications/codex-app.desktop" "$home_dir/.local/bin/codex-app %U"
-    assert_contains "$state_home/codex-app/install.env" "INSTALL_ROOT=$data_home/codex-app"
+    assert_file_exists "$data_home/chatgpt/bin/chatgpt"
+    assert_file_exists "$data_home/chatgpt/lib/common.sh"
+    assert_file_exists "$home_dir/.local/bin/chatgpt"
+    assert_file_exists "$data_home/applications/chatgpt.desktop"
+    assert_file_exists "$config_home/systemd/user/chatgpt-update.service"
+    assert_file_exists "$state_home/chatgpt/install.env"
+    assert_contains "$data_home/applications/chatgpt.desktop" "$home_dir/.local/bin/chatgpt %U"
+    assert_contains "$state_home/chatgpt/install.env" "INSTALL_ROOT=$data_home/chatgpt"
 }
 
 test_user_local_prepare_build_repo_uses_source_when_overlay_base_is_missing() {
@@ -11602,7 +11698,7 @@ test_user_local_prepare_build_repo_uses_source_when_overlay_base_is_missing() {
     local workspace="$TMP_DIR/user-local-missing-overlay-base"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -11652,7 +11748,7 @@ test_user_local_prepare_build_repo_fails_on_unmerged_overlay_paths() {
     local workspace="$TMP_DIR/user-local-unmerged-overlay"
     local origin_repo="$workspace/origin.git"
     local source_repo="$workspace/source"
-    local managed_repo="$workspace/xdg-data/codex-app/managed-repo"
+    local managed_repo="$workspace/xdg-data/chatgpt/managed-repo"
     local install_env="$workspace/install.env"
 
     mkdir -p "$workspace"
@@ -11729,8 +11825,8 @@ test_pacman_updater_upgrade_only_starts_enabled_service() {
     local app_dir="$workspace/app"
     local dist_dir="$workspace/dist"
     local capture_dir="$workspace/capture"
-    local updater_bin="$workspace/codex-app-updater"
-    local install_file="$capture_dir/codex-app.install"
+    local updater_bin="$workspace/chatgpt-updater"
+    local install_file="$capture_dir/chatgpt.install"
     local post_install_body
     local post_upgrade_body
 
@@ -11743,7 +11839,7 @@ test_pacman_updater_upgrade_only_starts_enabled_service() {
     cat > "$bin_dir/makepkg" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
-cp codex-app.install "$CAPTURE_DIR/codex-app.install"
+cp chatgpt.install "$CAPTURE_DIR/chatgpt.install"
 pkgname="$(sed -n 's/^pkgname=//p' PKGBUILD)"
 pkgver="$(sed -n 's/^pkgver=//p' PKGBUILD)"
 pkgrel="$(sed -n 's/^pkgrel=//p' PKGBUILD)"
@@ -11775,15 +11871,15 @@ SCRIPT
     post_install_body="$(awk '/^post_install\(\)/,/^}/' "$install_file")"
     post_upgrade_body="$(awk '/^post_upgrade\(\)/,/^}/' "$install_file")"
 
-    grep -q "codex_app_post_transaction_common" <<< "$post_install_body" \
+    grep -q "chatgpt_post_transaction_common" <<< "$post_install_body" \
         || fail "Expected pacman post_install to run common desktop integration work"
-    grep -q "codex_ensure_user_service_running" <<< "$post_install_body" \
+    grep -q "chatgpt_ensure_user_service_running" <<< "$post_install_body" \
         || fail "Expected pacman post_install to ensure the updater service is running"
-    grep -q "codex_app_post_transaction_common" <<< "$post_upgrade_body" \
+    grep -q "chatgpt_post_transaction_common" <<< "$post_upgrade_body" \
         || fail "Expected pacman post_upgrade to run common desktop integration work"
-    grep -q "codex_start_enabled_user_service" <<< "$post_upgrade_body" \
+    grep -q "chatgpt_start_enabled_user_service" <<< "$post_upgrade_body" \
         || fail "Expected pacman post_upgrade to start only an enabled updater service"
-    if grep -q "codex_ensure_user_service_running" <<< "$post_upgrade_body"; then
+    if grep -q "chatgpt_ensure_user_service_running" <<< "$post_upgrade_body"; then
         fail "Pacman post_upgrade must not enable the updater service"
     fi
 }
@@ -11845,15 +11941,13 @@ NODE
     cat > "$cleanup_hook" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
-[ "$CODEX_OFFICIAL_APP_DIR" = "$EXPECTED_APP_DIR" ]
-[ "$CODEX_UPSTREAM_APP_DIR" = "$EXPECTED_APP_DIR" ]
+[ "$CHATGPT_OFFICIAL_APP_DIR" = "$EXPECTED_APP_DIR" ]
 printf '%s\n' cleanup >> "$HOOK_ORDER_LOG"
 SCRIPT
     cat > "$stage_hook" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
-[ "$CODEX_OFFICIAL_APP_DIR" = "$EXPECTED_APP_DIR" ]
-[ "$CODEX_UPSTREAM_APP_DIR" = "$EXPECTED_APP_DIR" ]
+[ "$CHATGPT_OFFICIAL_APP_DIR" = "$EXPECTED_APP_DIR" ]
 printf '%s\n' stage >> "$HOOK_ORDER_LOG"
 SCRIPT
     chmod +x "$cleanup_hook" "$stage_hook"
@@ -12048,6 +12142,8 @@ main() {
     test_webview_integrity_manifest_fails_missing_local_require
     test_webview_integrity_manifest_ignores_non_startup_html_links
     test_webview_integrity_manifest_ignores_import_text_in_js_strings_and_comments
+    test_webview_integrity_manifest_ignores_bundled_module_id_strings
+    test_webview_integrity_manifest_rejects_import_escape
     test_webview_integrity_manifest_ignores_css_comment_references
     test_installer_inspect_mode_does_not_write_install_metadata
     test_rebuild_report_tolerates_bad_patch_json

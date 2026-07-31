@@ -1,21 +1,21 @@
 "use strict";
 
 const linuxSettingsKeys = {
-  readAloud: "codex-linux-read-aloud-enabled",
-  readAloudKokoroSpeed: "codex-linux-read-aloud-kokoro-speed",
-  promptWindow: "codex-linux-prompt-window-enabled",
-  systemTray: "codex-linux-system-tray-enabled",
-  warmStart: "codex-linux-warm-start-enabled",
-  autoUpdateOnExit: "codex-linux-auto-update-on-exit",
-  wrapperUpdates: "codex-linux-wrapper-updates-enabled",
-  integrationPickerOnUpdate: "codex-linux-integration-picker-on-update",
+  readAloud: "chatgpt-linux-read-aloud-enabled",
+  readAloudKokoroSpeed: "chatgpt-linux-read-aloud-kokoro-speed",
+  promptWindow: "chatgpt-linux-prompt-window-enabled",
+  systemTray: "chatgpt-linux-system-tray-enabled",
+  warmStart: "chatgpt-linux-warm-start-enabled",
+  autoUpdateOnExit: "chatgpt-linux-auto-update-on-exit",
+  wrapperUpdates: "chatgpt-linux-wrapper-updates-enabled",
+  integrationPickerOnUpdate: "chatgpt-linux-integration-picker-on-update",
 };
 
 const keybindsSettingsAsset = "keybinds-settings-linux.js";
-const linuxKeybindOverridesKey = "codex-linux-keybind-overrides";
+const linuxKeybindOverridesKey = "chatgpt-linux-keybind-overrides";
 
-const COMPUTER_USE_UI_ENV_VAR = "CODEX_LINUX_ENABLE_COMPUTER_USE_UI";
-const COMPUTER_USE_UI_SETTINGS_KEY = "codex-linux-computer-use-ui-enabled";
+const COMPUTER_USE_UI_ENV_VAR = "CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI";
+const COMPUTER_USE_UI_SETTINGS_KEY = "chatgpt-linux-computer-use-ui-enabled";
 
 module.exports = {
   COMPUTER_USE_UI_ENV_VAR,

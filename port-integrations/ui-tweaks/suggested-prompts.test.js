@@ -73,7 +73,7 @@ function homeContentFixture() {
   ].join("");
 }
 
-function integrationContext({ defaultEnabled = false, override } = {}) {
+function integrationContext({ defaultEnabled = true, override } = {}) {
   return {
     integration: {
       manifest: {
@@ -86,18 +86,18 @@ function integrationContext({ defaultEnabled = false, override } = {}) {
   };
 }
 
-test("Suggested Prompts stays disabled unless its nested UI tweak is enabled", () => {
-  assert.equal(suggestedPromptsEnabled(integrationContext()), false);
-  assert.equal(suggestedPromptsEnabled(integrationContext({ override: true })), true);
-  assert.equal(suggestedPromptsEnabled(integrationContext({ defaultEnabled: true, override: false })), false);
-  assert.equal(descriptors.every((descriptor) => descriptor.enabled(integrationContext()) === false), true);
+test("Suggested Prompts Linux support is default-on with an explicit per-tweak opt-out", () => {
+  assert.equal(suggestedPromptsEnabled(integrationContext()), true);
+  assert.equal(suggestedPromptsEnabled(integrationContext({ override: false })), false);
+  assert.equal(suggestedPromptsEnabled(integrationContext({ defaultEnabled: false })), false);
+  assert.equal(descriptors.every((descriptor) => descriptor.enabled(integrationContext()) === true), true);
   assert.equal(
-    descriptors.every((descriptor) => descriptor.enabled(integrationContext({ override: true })) === true),
+    descriptors.every((descriptor) => descriptor.enabled(integrationContext({ override: false })) === false),
     true,
   );
 });
 
-test("settings patch exposes the upstream row while preserving eligibility diagnostics", () => {
+test("settings patch requires the upstream rollout and account eligibility gates", () => {
   const source = settingsFixture();
   const patched = applySuggestedPromptsSettingsPatch(source);
 
@@ -107,12 +107,12 @@ test("settings patch exposes the upstream row while preserving eligibility diagn
   assert.match(patched, /xe\(`2425897452`\)/);
   assert.match(
     patched,
-    /if\(!\(M\(\{authMethod:i,email:d\?\.email\?\?a,plan:d\?\.plan\?\?o\}\)&&function codexLinuxUiTweaksSuggestedPromptsSettingsEligible\(\)\{return!0\}\(\)\)\)return null/,
+    /if\(!\(M\(\{authMethod:i,email:d\?\.email\?\?a,plan:d\?\.plan\?\?o\}\)&&function chatgptLinuxUiTweaksSuggestedPromptsSettingsEligible\(\)\{return!0\}\(\)\)\)return null/,
   );
   assert.equal(applySuggestedPromptsSettingsPatch(patched), patched);
 });
 
-test("app page patch enables Home generation and desktop availability gates atomically", () => {
+test("app page patch ANDs Linux support with upstream rollout and account eligibility", () => {
   const source = appPageFixture();
   const patched = applySuggestedPromptsAppPagePatch(source);
 
@@ -122,31 +122,34 @@ test("app page patch enables Home generation and desktop availability gates atom
   assert.equal((patched.match(/es\(`2425897452`\)/g) || []).length, 2);
   assert.match(
     patched,
-    /Ae=we&&ke&&function codexLinuxUiTweaksSuggestedPromptsAppPageEligible\(\)\{return!0\}\(\)/,
+    /Ae=we&&ke&&function chatgptLinuxUiTweaksSuggestedPromptsAppPageEligible\(\)\{return!0\}\(\)/,
   );
   assert.match(patched, /ambientSuggestions:n/);
   assert.equal(applySuggestedPromptsAppPagePatch(patched), patched);
 });
 
-test("main patch enables refresh while preserving the upstream account call", () => {
+test("main patch preserves the user setting gate and upstream account eligibility call", () => {
   const source = mainFixture();
   const patched = applySuggestedPromptsMainPatch(source);
 
   assert.notEqual(patched, source);
+  assert.match(patched, /if\(!nt\(t\)\)return\{enabled:!1,staleTimeMs:n\.ml\(null\)\}/);
   assert.equal((patched.match(new RegExp(MAIN_ELIGIBILITY_MARKER, "g")) || []).length, 1);
   assert.match(patched, /n\.pl\(r\.account\)/);
   assert.match(patched, /staleTimeMs:n\.ml\(r\.account\)/);
   assert.equal(applySuggestedPromptsMainPatch(patched), patched);
 });
 
-test("Home content renders generated suggestions instead of selecting curated cards", () => {
+test("Home content keeps the user setting in its generated-suggestion conjunction", () => {
   const source = homeContentFixture();
   const patched = applySuggestedPromptsHomeContentPatch(source);
 
   assert.notEqual(patched, source);
+  assert.match(patched, /Ee=d\(b\.enabled\)===!0/);
+  assert.match(patched, /Ne=De==null&&Me&&Ee/);
   assert.equal((patched.match(new RegExp(HOME_CONTENT_SOURCE_MARKER, "g")) || []).length, 1);
   assert.match(patched, /ze===`curated`/);
-  assert.match(patched, /function codexLinuxSuggestedPromptsGeneratedSource\(\)\{return!0\}/);
+  assert.match(patched, /function chatgptLinuxSuggestedPromptsGeneratedSource\(\)\{return!0\}/);
   assert.equal(applySuggestedPromptsHomeContentPatch(patched), patched);
 });
 

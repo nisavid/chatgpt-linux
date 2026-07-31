@@ -44,17 +44,17 @@ const BASH = commandPath("bash");
 
 function withIntegrationConfig(config, fn) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-omarchy-theme-config-"));
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const configPath = path.join(tempDir, "integrations.json");
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
   try {
     return fn(path.resolve(INTEGRATION_DIR, ".."));
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -164,7 +164,7 @@ test("omarchy-theme exposes optional patches, resources, and hooks when enabled"
       plan.resources.map((resource) => [resource.id, resource.target, resource.mode]),
       [[
         "omarchy-theme",
-        ".codex-linux/integrations/omarchy-theme/codex-app.css.tpl",
+        ".chatgpt-linux/integrations/omarchy-theme/chatgpt.css.tpl",
         0o644,
       ]],
     );
@@ -174,13 +174,13 @@ test("omarchy-theme exposes optional patches, resources, and hooks when enabled"
         [
           "omarchy-theme",
           "env",
-          ".codex-linux/env.d/omarchy-theme-user-stylesheet.env",
+          ".chatgpt-linux/env.d/omarchy-theme-user-stylesheet.env",
           0o644,
         ],
         [
           "omarchy-theme",
           "prelaunch",
-          ".codex-linux/prelaunch.d/omarchy-theme-install-template.sh",
+          ".chatgpt-linux/prelaunch.d/omarchy-theme-install-template.sh",
           0o755,
         ],
       ],
@@ -255,7 +255,7 @@ test("renderer patch is idempotent and installs one guarded runtime", () => {
   assert.equal(documentListeners.size, 1);
   assert.equal(links.get(STYLE_LINK_ID).href, `${THEME_CSS_ENDPOINT}?t=1234`);
 
-  sandbox.codexLinuxOmarchyThemeCleanup();
+  sandbox.chatgptLinuxOmarchyThemeCleanup();
   assert.equal(clearIntervalCount, 1);
   assert.equal(windowListeners.size, 0);
   assert.equal(documentListeners.size, 0);
@@ -270,7 +270,7 @@ test("webview server safely serves default and overridden user stylesheets", asy
     const configuredDefaultLine = fs
       .readFileSync(path.join(INTEGRATION_DIR, "user-stylesheet.env"), "utf8")
       .split("\n")
-      .find((line) => line.startsWith("CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT="));
+      .find((line) => line.startsWith("CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT="));
     assert.ok(configuredDefaultLine);
     const configuredDefault = configuredDefaultLine.slice(configuredDefaultLine.indexOf("=") + 1);
     fs.mkdirSync(webviewDir, { recursive: true });
@@ -280,7 +280,7 @@ test("webview server safely serves default and overridden user stylesheets", asy
     await withWebviewServer(
       serverPath,
       webviewDir,
-      { CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: generatedCss },
+      { CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: generatedCss },
       async (port) => {
         const existing = await request(port, `${THEME_CSS_ENDPOINT}?t=123`);
         assert.equal(existing.status, 200);
@@ -306,7 +306,7 @@ test("webview server safely serves default and overridden user stylesheets", asy
       "omarchy",
       "current",
       "theme",
-      "codex-app.css",
+      "chatgpt.css",
     );
     fs.mkdirSync(path.dirname(defaultGeneratedCss), { recursive: true });
     fs.writeFileSync(defaultGeneratedCss, "body{color:default-config}");
@@ -315,7 +315,7 @@ test("webview server safely serves default and overridden user stylesheets", asy
       webviewDir,
       {
         HOME: defaultHome,
-        CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: configuredDefault,
+        CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: configuredDefault,
       },
       async (port) => {
         const defaultConfigured = await request(port, THEME_CSS_ENDPOINT);
@@ -330,8 +330,8 @@ test("webview server safely serves default and overridden user stylesheets", asy
       serverPath,
       webviewDir,
       {
-        CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: generatedCss,
-        CODEX_LINUX_WEBVIEW_USER_STYLESHEET: overrideCss,
+        CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT: generatedCss,
+        CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET: overrideCss,
       },
       async (port) => {
         const overridden = await request(port, THEME_CSS_ENDPOINT);
@@ -352,13 +352,13 @@ test("prelaunch hook is a strict no-op when Omarchy is not detected", () => {
     const stagedDir = path.join(integrationsDir, "omarchy-theme");
     fs.mkdirSync(home, { recursive: true });
     fs.mkdirSync(stagedDir, { recursive: true });
-    fs.copyFileSync(path.join(INTEGRATION_DIR, "codex-app.css.tpl"), path.join(stagedDir, "codex-app.css.tpl"));
+    fs.copyFileSync(path.join(INTEGRATION_DIR, "chatgpt.css.tpl"), path.join(stagedDir, "chatgpt.css.tpl"));
 
     const result = spawnSync(BASH, [path.join(INTEGRATION_DIR, "install-template.sh")], {
       env: {
         HOME: home,
         PATH: path.dirname(BASH),
-        CODEX_PORT_INTEGRATIONS_DIR: integrationsDir,
+        CHATGPT_PORT_INTEGRATIONS_DIR: integrationsDir,
       },
       encoding: "utf8",
     });
@@ -379,17 +379,17 @@ test("prelaunch hook installs the template, refreshes missing CSS, and preserves
     const integrationsDir = path.join(tempDir, "integrations");
     const stagedDir = path.join(integrationsDir, "omarchy-theme");
     const omarchyHome = path.join(home, ".config", "omarchy");
-    const target = path.join(omarchyHome, "themed", "codex-app.css.tpl");
-    const generated = path.join(omarchyHome, "current", "theme", "codex-app.css");
+    const target = path.join(omarchyHome, "themed", "chatgpt.css.tpl");
+    const generated = path.join(omarchyHome, "current", "theme", "chatgpt.css");
     const binDir = path.join(tempDir, "bin");
     const callLog = path.join(tempDir, "omarchy.log");
     fs.mkdirSync(stagedDir, { recursive: true });
     fs.mkdirSync(binDir, { recursive: true });
-    fs.copyFileSync(path.join(INTEGRATION_DIR, "codex-app.css.tpl"), path.join(stagedDir, "codex-app.css.tpl"));
+    fs.copyFileSync(path.join(INTEGRATION_DIR, "chatgpt.css.tpl"), path.join(stagedDir, "chatgpt.css.tpl"));
     const fakeOmarchy = path.join(binDir, "omarchy");
     fs.writeFileSync(
       fakeOmarchy,
-      `#!${BASH}\nset -e\nprintf '%s\\n' "$*" >> "$OMARCHY_TEST_LOG"\nmkdir -p "$HOME/.config/omarchy/current/theme"\nprintf 'generated' > "$HOME/.config/omarchy/current/theme/codex-app.css"\n`,
+      `#!${BASH}\nset -e\nprintf '%s\\n' "$*" >> "$OMARCHY_TEST_LOG"\nmkdir -p "$HOME/.config/omarchy/current/theme"\nprintf 'generated' > "$HOME/.config/omarchy/current/theme/chatgpt.css"\n`,
     );
     fs.chmodSync(fakeOmarchy, 0o755);
 
@@ -397,7 +397,7 @@ test("prelaunch hook installs the template, refreshes missing CSS, and preserves
       ...process.env,
       HOME: home,
       PATH: `${binDir}${path.delimiter}${process.env.PATH || ""}`,
-      CODEX_PORT_INTEGRATIONS_DIR: integrationsDir,
+      CHATGPT_PORT_INTEGRATIONS_DIR: integrationsDir,
       OMARCHY_TEST_LOG: callLog,
     };
     const first = spawnSync(BASH, [path.join(INTEGRATION_DIR, "install-template.sh")], {
@@ -405,7 +405,7 @@ test("prelaunch hook installs the template, refreshes missing CSS, and preserves
       encoding: "utf8",
     });
     assert.equal(first.status, 0, first.stderr);
-    assert.equal(fs.readFileSync(target, "utf8"), fs.readFileSync(path.join(INTEGRATION_DIR, "codex-app.css.tpl"), "utf8"));
+    assert.equal(fs.readFileSync(target, "utf8"), fs.readFileSync(path.join(INTEGRATION_DIR, "chatgpt.css.tpl"), "utf8"));
     assert.equal(fs.readFileSync(generated, "utf8"), "generated");
     assert.equal(fs.readFileSync(callLog, "utf8"), "theme refresh\n");
 
@@ -430,7 +430,7 @@ test("prelaunch hook installs the template, refreshes missing CSS, and preserves
     const hanging = spawnSync(BASH, [path.join(INTEGRATION_DIR, "install-template.sh")], {
       env: {
         ...env,
-        CODEX_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS: "1",
+        CHATGPT_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS: "1",
       },
       encoding: "utf8",
     });
@@ -448,7 +448,7 @@ test("prelaunch hook installs the template, refreshes missing CSS, and preserves
     const oversizedTimeout = spawnSync(BASH, [path.join(INTEGRATION_DIR, "install-template.sh")], {
       env: {
         ...env,
-        CODEX_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS: "999999999999999999999",
+        CHATGPT_OMARCHY_THEME_REFRESH_TIMEOUT_SECONDS: "999999999999999999999",
         OMARCHY_TEST_TIMEOUT_LOG: timeoutLog,
       },
       encoding: "utf8",

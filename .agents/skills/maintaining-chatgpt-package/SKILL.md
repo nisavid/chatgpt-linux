@@ -1,0 +1,87 @@
+---
+name: maintaining-chatgpt-package
+description: Use when changing native package metadata or payload, installer-generated launcher behavior, packaged runtime helper behavior, updater service or install behavior, or native package shape in the chatgpt-linux repository.
+---
+
+# Maintaining ChatGPT Package
+
+Use this skill for package and runtime maintenance in this repository.
+
+Do not use it for README-only, policy-only, review-only, or generated-output-only turns unless the change also affects native package behavior, launcher generation, packaged runtime behavior, or updater install/service behavior.
+
+## Start Discovery
+
+Read these first:
+
+1. `AGENTS.md`
+2. `docs/README.md`
+3. `docs/maintainers/package-runtime-maintenance.md`
+4. `docs/maintainers/fork-divergences.md`
+5. `.agents/fork-sync-policy.toml`
+6. `docs/maintainers/fork-sync-policy.md`
+7. Source files for the touched area
+
+Then inspect the smallest relevant source set:
+
+- Installer, ASAR patches, launcher template, and generated launcher:
+  `install.sh`, `launcher/start.sh.template`, `scripts/patch-linux-window-ui.js`
+- Native package builders: `scripts/build-deb.sh`, `scripts/build-rpm.sh`, `scripts/build-pacman.sh`
+- Shared package staging: `scripts/lib/package-common.sh`
+- Package templates, maintainer scripts, desktop entry, service unit, and
+  packaged runtime helper: `packaging/linux/`, especially
+  `packaging/linux/chatgpt-packaged-runtime.sh`
+- Linux Computer Use backend and bundled plugin: `computer-use-linux/` and
+  `plugins/openai-bundled/plugins/computer-use/`
+- Updater service and CLI: `updater/`
+
+## Source Boundaries
+
+Source scripts, templates, and updater code are the durable source of truth.
+`chatgpt/`, side-by-side `*-app/` output, `dist/`, `ChatGPT.dmg`, and XDG updater paths are
+generated or runtime artifacts.
+
+Inspect generated output to verify behavior, but do not make generated output the only fix.
+
+When package contents move, keep the relevant package builder, `scripts/lib/package-common.sh`, and `packaging/linux/` files aligned.
+
+During upstream syncs, preserve the fork contracts recorded in
+`docs/maintainers/fork-divergences.md`, `.agents/fork-sync-policy.toml`, and
+`docs/maintainers/fork-sync-policy.md`. Use the user-global
+`syncing-forks-with-upstream` skill before resolving conflicts, pushing, or
+merging a broad upstream sync. If that external skill is unavailable, follow
+`docs/maintainers/fork-sync-policy.md` directly and record
+the missing-skill fallback in the sync ledger. Check the rename and
+compatibility map in `docs/maintainers/fork-divergences.md` before resolving
+missing-file conflicts; port upstream edits from old paths to current local
+paths before removing any resurrected old target.
+
+## Native Package Shape
+
+For native package changes:
+
+- Keep the `chatgpt` package name, dependencies, replacement metadata, and installed paths aligned with the package contract.
+- Use `CHATGPT_*` for port-owned environment variables and preserve inherited OpenAI `CODEX_*` interfaces exactly.
+- Keep the journaled forward and reverse XDG migration fail-closed on collisions, symlinks, unexpected file types, and cross-filesystem moves.
+- Keep package transition metadata for the former `codex-app` and `codex-desktop` packages where the package manager supports it. Do not add compatibility executables, desktop entries, or service aliases.
+- Inspect generated package metadata with `dpkg-deb -I`, `rpm -qip`, or `pacman -Qip` when practical.
+- Inspect package contents with `dpkg-deb -c`, `rpm -qlp`, or `pacman -Qlp` when practical.
+- Keep payload paths consistent with launcher and updater expectations. The installed app paths are `/opt/chatgpt`, `/usr/bin/chatgpt`, `/usr/bin/chatgpt-updater`, packaged runtime files, and the user service unit.
+
+## Verification
+
+Choose checks from `docs/maintainers/package-runtime-maintenance.md` that cover the changed behavior.
+
+- Before pushing installer, generated-app, package, updater rebuild, or bundled
+  runtime changes, refresh `ChatGPT.dmg` or verify it was refreshed within the
+  last 24 hours, then run `make build-app` or `./install.sh` from current
+  sources.
+- Shell changes: run `bash -n` on edited shell scripts.
+- Updater changes: run targeted `cargo check` or updater tests.
+- Package changes: build the affected package format when practical, then inspect metadata and the first package file listing.
+- Launcher changes: regenerate or inspect `chatgpt/start.sh`.
+
+If a preferred tool is missing, record the missing tool and run the closest useful static check.
+
+## Documentation
+
+Update tracked docs when maintenance policy, package payload, installed paths, updater behavior, service lifecycle, package metadata, or the user-visible package contract changes.

@@ -59,16 +59,16 @@ available.
 
 ## Runtime Controls
 
-- `CODEX_MCP_HELPER_REAPER_DISABLE=1` disables all cleanup triggers.
-- `CODEX_MCP_HELPER_REAPER_DISABLE_HOOK=1` skips installing the `SessionStart`
+- `CHATGPT_MCP_HELPER_REAPER_DISABLE=1` disables all cleanup triggers.
+- `CHATGPT_MCP_HELPER_REAPER_DISABLE_HOOK=1` skips installing the `SessionStart`
   hook from Desktop runtime hooks.
-- `CODEX_MCP_HELPER_REAPER_DELAY` sets the first delayed pass in seconds
+- `CHATGPT_MCP_HELPER_REAPER_DELAY` sets the first delayed pass in seconds
   (default `3`).
-- `CODEX_MCP_HELPER_REAPER_PASSES` sets how many cleanup passes run
+- `CHATGPT_MCP_HELPER_REAPER_PASSES` sets how many cleanup passes run
   (default `3`).
-- `CODEX_MCP_HELPER_REAPER_INTERVAL` sets seconds between passes
+- `CHATGPT_MCP_HELPER_REAPER_INTERVAL` sets seconds between passes
   (default `2`).
-- `CODEX_MCP_HELPER_REAPER_TERM_TIMEOUT` sets the SIGTERM grace period
+- `CHATGPT_MCP_HELPER_REAPER_TERM_TIMEOUT` sets the SIGTERM grace period
   (default `2`).
 
 ## Test

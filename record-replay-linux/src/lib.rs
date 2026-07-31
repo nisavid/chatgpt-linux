@@ -59,7 +59,7 @@ pub use timeline::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "codex-record-replay-linux")]
+#[command(name = "chatgpt-record-replay-linux")]
 #[command(about = "Linux Record & Replay demo-to-skill compiler helpers.")]
 pub struct Cli {
     #[command(subcommand)]
@@ -166,7 +166,7 @@ pub struct RecordStartArgs {
     pub no_accessibility: bool,
     #[arg(
         long,
-        help = "Capture native Linux audio evidence when CODEX_RECORD_REPLAY_AUDIO is enabled"
+        help = "Capture native Linux audio evidence when CHATGPT_RECORD_REPLAY_AUDIO is enabled"
     )]
     pub audio: bool,
     #[arg(long, help = "Do not capture native Linux audio evidence")]
@@ -354,7 +354,7 @@ pub async fn command_json(command: Commands) -> Result<Value> {
         Commands::Mcp => Ok(serde_json::json!({
             "ok": false,
             "command": "mcp",
-            "message": "Run `codex-record-replay-linux mcp` to start the stdio MCP server.",
+            "message": "Run `chatgpt-record-replay-linux mcp` to start the stdio MCP server.",
         })),
         Commands::EventStream { command } => match command {
             EventStreamCommand::Mcp => Ok(serde_json::json!({
@@ -419,8 +419,8 @@ pub async fn command_json(command: Commands) -> Result<Value> {
             }
         }
         Commands::Doctor => {
-            codex_computer_use_linux::diagnostics::hydrate_session_bus_env();
-            let diagnostics = codex_computer_use_linux::diagnostics::doctor_report();
+            chatgpt_computer_use_linux::diagnostics::hydrate_session_bus_env();
+            let diagnostics = chatgpt_computer_use_linux::diagnostics::doctor_report();
             let backend_catalog = recording_backend_catalog(&diagnostics);
             Ok(serde_json::json!({
                 "ok": true,

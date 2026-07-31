@@ -3,13 +3,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const HELPER_NAME = "codexLinuxStartDirectoryOnlyWorkingTreeWatch";
+const HELPER_NAME = "chatgptLinuxStartDirectoryOnlyWorkingTreeWatch";
 const DEFAULT_MAX_WATCHES = 8192;
 const DEFAULT_IGNORED_DIRECTORY_NAMES = [];
 const LOCAL_FILE_WATCH_METHOD =
   /async startFileWatch\((?<options>[A-Za-z_$][\w$]*)\)\{(?=let [^{}]{0,180}?await this\.platformPath\(\),[^{}]{0,180}?\(0,[A-Za-z_$][\w$]*\.watch\)\(this\.getFileSystemPath\(\k<options>\.path\),\{recursive:\k<options>\.recursive\})/gu;
 
-function codexLinuxStartDirectoryOnlyWorkingTreeWatch(host, options, configuration) {
+function chatgptLinuxStartDirectoryOnlyWorkingTreeWatch(host, options, configuration) {
   return (async () => {
     const fs = require("node:fs");
     const path = require("node:path");
@@ -114,7 +114,7 @@ function codexLinuxStartDirectoryOnlyWorkingTreeWatch(host, options, configurati
         : requested;
     }
 
-    const budgetKey = Symbol.for("codex-linux.directory-only-working-tree-watch.budget");
+    const budgetKey = Symbol.for("chatgpt-linux.directory-only-working-tree-watch.budget");
     const requestedLimit = kernelBudget();
     const budget = globalThis[budgetKey] ??= {
       active: 0,
@@ -2077,9 +2077,9 @@ function codexLinuxStartDirectoryOnlyWorkingTreeWatch(host, options, configurati
         finish({ reason: "disposed" });
         await topologyWorkTail;
       },
-      codexLinuxDirectoryWatchCount: () => watchers.size,
-      codexLinuxDirectoryWatchBudget: () => ({ active: budget.active, limit: budget.limit }),
-      codexLinuxDirectorySyncFlushCount: () => directorySyncFlushCount,
+      chatgptLinuxDirectoryWatchCount: () => watchers.size,
+      chatgptLinuxDirectoryWatchBudget: () => ({ active: budget.active, limit: budget.limit }),
+      chatgptLinuxDirectorySyncFlushCount: () => directorySyncFlushCount,
     };
   })();
 }
@@ -2182,7 +2182,7 @@ function patchWorkerSource(source, settings) {
     `return ${HELPER_NAME}(this,${optionsName},${JSON.stringify(settings)});`;
   const methodStart = match.index + match[0].length;
   const withBranch = source.slice(0, methodStart) + branch + source.slice(methodStart);
-  const helper = `${codexLinuxStartDirectoryOnlyWorkingTreeWatch.toString()};`;
+  const helper = `${chatgptLinuxStartDirectoryOnlyWorkingTreeWatch.toString()};`;
   return { source: helper + withBranch, matched: 1, changed: 1, reason: null };
 }
 
@@ -2278,7 +2278,7 @@ module.exports = {
   DEFAULT_MAX_WATCHES,
   HELPER_NAME,
   LOCAL_FILE_WATCH_METHOD,
-  codexLinuxStartDirectoryOnlyWorkingTreeWatch,
+  chatgptLinuxStartDirectoryOnlyWorkingTreeWatch,
   descriptors,
   findLocalFileWatchBundles,
   normalizedSettings,

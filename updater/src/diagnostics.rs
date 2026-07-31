@@ -1,4 +1,4 @@
-//! Read-only diagnostics for installed Codex App for Linux runtimes.
+//! Read-only diagnostics for installed ChatGPT for Linux runtimes.
 
 use crate::{
     config::{self, RuntimeConfig, RuntimePaths},
@@ -152,7 +152,7 @@ fn collect_with_webview(
     };
     let cli_repair = npm_cli_repair::snapshot(paths)?;
     let report_without_warnings = DiagnosticsReport {
-        schema: "codex-app-updater/diagnostics/v1",
+        schema: "chatgpt-updater/diagnostics/v1",
         ok: false,
         warnings: Vec::new(),
         update: UpdateDiagnostics {
@@ -176,7 +176,7 @@ fn collect_with_webview(
                 quarantine_paths: repair.quarantine_paths,
                 planned_quarantine_path: repair.planned_quarantine_path,
                 last_error: repair.last_error,
-                repair_command: "codex-app-updater repair-cli",
+                repair_command: "chatgpt-updater repair-cli",
             }),
         },
         app,
@@ -313,9 +313,8 @@ fn diagnostics_warnings(report: &DiagnosticsReport) -> Vec<String> {
         warnings.push("updater state has an update error".to_string());
     }
     if report.update.cli_repair.is_some() {
-        warnings.push(
-            "Codex CLI requires explicit repair; run codex-app-updater repair-cli".to_string(),
-        );
+        warnings
+            .push("Codex CLI requires explicit repair; run chatgpt-updater repair-cli".to_string());
     }
     if report.app.running && !report.webview.ok {
         warnings.push("app is running but webview did not respond".to_string());
@@ -353,11 +352,11 @@ fn webview_url() -> String {
 }
 
 fn webview_port() -> u16 {
-    env::var("CODEX_WEBVIEW_PORT")
+    env::var("CHATGPT_WEBVIEW_PORT")
         .ok()
         .and_then(|value| parse_tcp_port(&value))
         .or_else(|| {
-            env::var("CODEX_LINUX_WEBVIEW_PORT")
+            env::var("CHATGPT_LINUX_WEBVIEW_PORT")
                 .ok()
                 .and_then(|value| parse_tcp_port(&value))
         })
@@ -416,8 +415,8 @@ fn build_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
         .parent()
         .map(|app_root| {
             vec![
-                app_root.join(".codex-linux/build-info.json"),
-                app_root.join("resources/codex-linux-build-info.json"),
+                app_root.join(".chatgpt-linux/build-info.json"),
+                app_root.join("resources/chatgpt-linux-build-info.json"),
             ]
         })
         .unwrap_or_default()
@@ -426,12 +425,12 @@ fn build_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
 fn source_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(app_root) = config.app_executable_path.parent() {
-        paths.push(app_root.join(".codex-linux/source-info.json"));
+        paths.push(app_root.join(".chatgpt-linux/source-info.json"));
     }
     paths.push(
         config
             .builder_bundle_root
-            .join(".codex-linux/source-info.json"),
+            .join(".chatgpt-linux/source-info.json"),
     );
     paths
 }
@@ -513,20 +512,20 @@ mod tests {
     fn app_runtime_paths_follow_app_id_and_instance() -> Result<()> {
         let _env_guard = env_lock();
         let _restore_env = EnvRestoreGuard::capture(&[
-            "CODEX_LINUX_APP_ID",
-            "CODEX_APP_ID",
-            "CODEX_LINUX_INSTANCE_ID",
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
+            "CHATGPT_LINUX_INSTANCE_ID",
             "XDG_RUNTIME_DIR",
         ]);
-        env::set_var("CODEX_LINUX_APP_ID", "codex-test");
-        env::set_var("CODEX_LINUX_INSTANCE_ID", "port-6176");
-        env::set_var("XDG_RUNTIME_DIR", "/tmp/codex-runtime-test");
+        env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-test");
+        env::set_var("CHATGPT_LINUX_INSTANCE_ID", "port-6176");
+        env::set_var("XDG_RUNTIME_DIR", "/tmp/chatgpt-runtime-test");
 
-        assert!(config::resolve_app_state_dir()?.ends_with("codex-test/instances/port-6176"));
+        assert!(config::resolve_app_state_dir()?.ends_with("chatgpt-test/instances/port-6176"));
         assert_eq!(
             launch_action_socket_path()?,
             PathBuf::from(
-                "/tmp/codex-runtime-test/codex-test/instances/port-6176/launch-action.sock"
+                "/tmp/chatgpt-runtime-test/chatgpt-test/instances/port-6176/launch-action.sock"
             )
         );
         Ok(())
@@ -536,19 +535,19 @@ mod tests {
     fn launch_socket_uses_runtime_dir_and_instance() -> Result<()> {
         let _env_guard = env_lock();
         let _restore_env = EnvRestoreGuard::capture(&[
-            "CODEX_LINUX_APP_ID",
-            "CODEX_APP_ID",
-            "CODEX_LINUX_INSTANCE_ID",
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
+            "CHATGPT_LINUX_INSTANCE_ID",
             "XDG_RUNTIME_DIR",
         ]);
-        env::set_var("CODEX_LINUX_APP_ID", "codex-test");
-        env::set_var("CODEX_LINUX_INSTANCE_ID", "sidecar");
-        env::set_var("XDG_RUNTIME_DIR", "/tmp/codex-runtime-test");
+        env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-test");
+        env::set_var("CHATGPT_LINUX_INSTANCE_ID", "sidecar");
+        env::set_var("XDG_RUNTIME_DIR", "/tmp/chatgpt-runtime-test");
 
         assert_eq!(
             launch_action_socket_path()?,
             PathBuf::from(
-                "/tmp/codex-runtime-test/codex-test/instances/sidecar/launch-action.sock"
+                "/tmp/chatgpt-runtime-test/chatgpt-test/instances/sidecar/launch-action.sock"
             )
         );
         Ok(())
@@ -558,20 +557,20 @@ mod tests {
     fn webview_port_matches_launcher_precedence() {
         let _env_guard = env_lock();
         let _restore_env = EnvRestoreGuard::capture(&[
-            "CODEX_WEBVIEW_PORT",
-            "CODEX_LINUX_WEBVIEW_PORT",
-            "CODEX_LINUX_APP_ID",
-            "CODEX_APP_ID",
+            "CHATGPT_WEBVIEW_PORT",
+            "CHATGPT_LINUX_WEBVIEW_PORT",
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
         ]);
-        env::set_var("CODEX_LINUX_APP_ID", "codex-side");
-        env::remove_var("CODEX_WEBVIEW_PORT");
-        env::remove_var("CODEX_LINUX_WEBVIEW_PORT");
+        env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-side");
+        env::remove_var("CHATGPT_WEBVIEW_PORT");
+        env::remove_var("CHATGPT_LINUX_WEBVIEW_PORT");
         assert_eq!(webview_port(), SIDE_BY_SIDE_WEBVIEW_PORT);
 
-        env::set_var("CODEX_LINUX_WEBVIEW_PORT", "6176");
+        env::set_var("CHATGPT_LINUX_WEBVIEW_PORT", "6176");
         assert_eq!(webview_port(), 6176);
 
-        env::set_var("CODEX_WEBVIEW_PORT", "6177");
+        env::set_var("CHATGPT_WEBVIEW_PORT", "6177");
         assert_eq!(webview_port(), 6177);
     }
 
@@ -582,7 +581,7 @@ mod tests {
         fs::create_dir_all(temp.path().join("app/resources"))?;
         fs::write(
             temp.path()
-                .join("app/resources/codex-linux-build-info.json"),
+                .join("app/resources/chatgpt-linux-build-info.json"),
             "{}",
         )?;
 
@@ -592,7 +591,7 @@ mod tests {
             metadata.build_info_path.as_deref(),
             Some(
                 temp.path()
-                    .join("app/resources/codex-linux-build-info.json")
+                    .join("app/resources/chatgpt-linux-build-info.json")
                     .as_path()
             )
         );
@@ -606,7 +605,7 @@ mod tests {
         let config = test_config(temp.path());
         let paths = test_paths(temp.path());
         let report = DiagnosticsReport {
-            schema: "codex-app-updater/diagnostics/v1",
+            schema: "chatgpt-updater/diagnostics/v1",
             ok: false,
             warnings: Vec::new(),
             update: UpdateDiagnostics {
@@ -625,7 +624,7 @@ mod tests {
                 running: true,
                 running_error: None,
                 pid_file: PidFileDiagnostics {
-                    path: paths.state_dir.join("codex-desktop/app.pid"),
+                    path: paths.state_dir.join("chatgpt/app.pid"),
                     exists: true,
                     pid: Some(std::process::id()),
                     process_alive: Some(true),
@@ -637,14 +636,14 @@ mod tests {
                 status: None,
                 error: Some("connection refused".to_string()),
                 pid_file: PidFileDiagnostics {
-                    path: paths.state_dir.join("codex-desktop/webview.pid"),
+                    path: paths.state_dir.join("chatgpt/webview.pid"),
                     exists: true,
                     pid: Some(u32::MAX),
                     process_alive: Some(false),
                 },
             },
             warm_start: WarmStartDiagnostics {
-                socket_path: paths.state_dir.join("codex-desktop/launch-action.sock"),
+                socket_path: paths.state_dir.join("chatgpt/launch-action.sock"),
                 socket_exists: false,
             },
             metadata: MetadataDiagnostics {
@@ -677,16 +676,16 @@ mod tests {
     fn collect_marks_missing_metadata_without_failing() -> Result<()> {
         let _env_guard = env_lock();
         let _restore_env = EnvRestoreGuard::capture(&[
-            "CODEX_WEBVIEW_PORT",
-            "CODEX_LINUX_WEBVIEW_PORT",
-            "CODEX_LINUX_APP_ID",
-            "CODEX_APP_ID",
-            "CODEX_LINUX_INSTANCE_ID",
+            "CHATGPT_WEBVIEW_PORT",
+            "CHATGPT_LINUX_WEBVIEW_PORT",
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
+            "CHATGPT_LINUX_INSTANCE_ID",
             "XDG_RUNTIME_DIR",
         ]);
-        env::set_var("CODEX_WEBVIEW_PORT", "9");
-        env::set_var("CODEX_LINUX_APP_ID", "codex-test");
-        env::set_var("XDG_RUNTIME_DIR", "/tmp/codex-runtime-test");
+        env::set_var("CHATGPT_WEBVIEW_PORT", "9");
+        env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-test");
+        env::set_var("XDG_RUNTIME_DIR", "/tmp/chatgpt-runtime-test");
         let temp = tempfile::tempdir()?;
         let paths = test_paths(temp.path());
         paths.ensure_dirs()?;

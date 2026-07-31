@@ -50,7 +50,7 @@ impl AbsPointer {
 
         let device = VirtualDevice::builder()
             .context("uinput builder (is /dev/uinput writable?)")?
-            .name("codex-computer-use-linux absolute pointer")
+            .name("chatgpt-computer-use-linux absolute pointer")
             .with_properties(&props)?
             .with_absolute_axis(&abs_x)?
             .with_absolute_axis(&abs_y)?

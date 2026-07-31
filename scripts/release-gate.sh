@@ -4,13 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-APP_DIR="${APP_DIR:-$PWD/codex-app}"
+APP_DIR="${APP_DIR:-$PWD/chatgpt}"
 DIST_DIR="${DIST_DIR:-$PWD/dist}"
-DMG_PATH="${DMG:-$PWD/Codex.dmg}"
+DMG_PATH="${DMG:-$PWD/ChatGPT.dmg}"
 CHECKSUM_FILE="${CHECKSUM_FILE:-$DIST_DIR/SHA256SUMS}"
-PUBLIC_KEY_FILE="${CODEX_RELEASE_GPG_PUBLIC_KEY:-$DIST_DIR/release-signing-key.asc}"
+PUBLIC_KEY_FILE="${CHATGPT_RELEASE_GPG_PUBLIC_KEY:-$DIST_DIR/release-signing-key.asc}"
 REQUIRE_RELEASE_SIGNATURE="${REQUIRE_RELEASE_SIGNATURE:-0}"
-CODEX_RELEASE_GATE_SKIP_PACKAGE_METADATA="${CODEX_RELEASE_GATE_SKIP_PACKAGE_METADATA:-0}"
+CHATGPT_RELEASE_GATE_SKIP_PACKAGE_METADATA="${CHATGPT_RELEASE_GATE_SKIP_PACKAGE_METADATA:-0}"
 RELEASE_GATE_TMP_DIR=""
 
 info() {
@@ -49,28 +49,28 @@ sri_to_hex() {
 
 flake_dmg_sri() {
     awk '
-        /Codex\.dmg/ { found_dmg = 1 }
+        /ChatGPT\.dmg/ { found_dmg = 1 }
         found_dmg && /hash = "sha256-/ { print; exit }
     ' "$REPO_DIR/flake.nix" | sed -E 's/.*(sha256-[^"]+).*/\1/'
 }
 
 expected_dmg_sha256() {
-    if [ -n "${CODEX_DMG_SHA256:-}" ]; then
-        printf '%s\n' "$CODEX_DMG_SHA256"
+    if [ -n "${CHATGPT_DMG_SHA256:-}" ]; then
+        printf '%s\n' "$CHATGPT_DMG_SHA256"
         return
     fi
 
-    local sri="${CODEX_DMG_SRI:-}"
+    local sri="${CHATGPT_DMG_SRI:-}"
     if [ -z "$sri" ] && [ -f "$REPO_DIR/flake.nix" ]; then
         sri="$(flake_dmg_sri || true)"
     fi
 
-    [ -n "$sri" ] || error "Set CODEX_DMG_SHA256 or CODEX_DMG_SRI before releasing"
+    [ -n "$sri" ] || error "Set CHATGPT_DMG_SHA256 or CHATGPT_DMG_SRI before releasing"
     sri_to_hex "$sri"
 }
 
 verify_dmg_hash() {
-    require_file "$DMG_PATH" "official OpenAI Codex DMG"
+    require_file "$DMG_PATH" "official OpenAI ChatGPT DMG"
 
     local expected actual
     expected="$(expected_dmg_sha256)"
@@ -103,22 +103,22 @@ inspect_generated_app() {
 collect_packages() {
     shopt -s nullglob
     PACKAGES=(
-        "$DIST_DIR"/codex-app_*.deb
-        "$DIST_DIR"/codex-app-*.rpm
-        "$DIST_DIR"/codex-app-*.pkg.tar.zst
-        "$DIST_DIR"/codex-app-*.pkg.tar.xz
-        "$DIST_DIR"/codex-app-*.pkg.tar.gz
-        "$DIST_DIR"/codex-app-*.pkg.tar.bz2
-        "$DIST_DIR"/codex-app-*.pkg.tar.lz
-        "$DIST_DIR"/codex-app-*.pkg.tar.lz4
-        "$DIST_DIR"/codex-app-*.pkg.tar.lz5
+        "$DIST_DIR"/chatgpt_*.deb
+        "$DIST_DIR"/chatgpt-*.rpm
+        "$DIST_DIR"/chatgpt-*.pkg.tar.zst
+        "$DIST_DIR"/chatgpt-*.pkg.tar.xz
+        "$DIST_DIR"/chatgpt-*.pkg.tar.gz
+        "$DIST_DIR"/chatgpt-*.pkg.tar.bz2
+        "$DIST_DIR"/chatgpt-*.pkg.tar.lz
+        "$DIST_DIR"/chatgpt-*.pkg.tar.lz4
+        "$DIST_DIR"/chatgpt-*.pkg.tar.lz5
     )
     shopt -u nullglob
     [ "${#PACKAGES[@]}" -gt 0 ] || error "No native packages found in $DIST_DIR"
 }
 
 verify_package_metadata() {
-    [ "$CODEX_RELEASE_GATE_SKIP_PACKAGE_METADATA" = "1" ] && return
+    [ "$CHATGPT_RELEASE_GATE_SKIP_PACKAGE_METADATA" = "1" ] && return
 
     local package name
     for package in "${PACKAGES[@]}"; do
@@ -140,7 +140,7 @@ verify_package_metadata() {
                 ;;
         esac
 
-        [ "$name" = "codex-app" ] || error "Package $package has unexpected name '$name'"
+        [ "$name" = "chatgpt" ] || error "Package $package has unexpected name '$name'"
     done
 }
 
@@ -163,16 +163,16 @@ sign_checksums() {
     local signature="${CHECKSUM_FILE}.asc"
     local verify_home
 
-    if [ "$REQUIRE_RELEASE_SIGNATURE" != "1" ] && [ -z "${CODEX_RELEASE_GPG_KEY:-}" ]; then
-        info "Skipping detached signature; set REQUIRE_RELEASE_SIGNATURE=1 and CODEX_RELEASE_GPG_KEY for public releases"
+    if [ "$REQUIRE_RELEASE_SIGNATURE" != "1" ] && [ -z "${CHATGPT_RELEASE_GPG_KEY:-}" ]; then
+        info "Skipping detached signature; set REQUIRE_RELEASE_SIGNATURE=1 and CHATGPT_RELEASE_GPG_KEY for public releases"
         return
     fi
 
     command -v gpg >/dev/null 2>&1 || error "gpg is required to sign release checksums"
-    [ -n "${CODEX_RELEASE_GPG_KEY:-}" ] || error "CODEX_RELEASE_GPG_KEY is required when release signatures are required"
+    [ -n "${CHATGPT_RELEASE_GPG_KEY:-}" ] || error "CHATGPT_RELEASE_GPG_KEY is required when release signatures are required"
 
     gpg --batch --yes \
-        --local-user "$CODEX_RELEASE_GPG_KEY" \
+        --local-user "$CHATGPT_RELEASE_GPG_KEY" \
         --output "$signature" \
         --detach-sign \
         --armor \
@@ -182,7 +182,7 @@ sign_checksums() {
     mkdir -p "$(dirname "$PUBLIC_KEY_FILE")"
     local public_key_tmp
     public_key_tmp="$(mktemp "${PUBLIC_KEY_FILE}.tmp.XXXXXX")"
-    if ! gpg --batch --yes --armor --export "$CODEX_RELEASE_GPG_KEY" > "$public_key_tmp"; then
+    if ! gpg --batch --yes --armor --export "$CHATGPT_RELEASE_GPG_KEY" > "$public_key_tmp"; then
         rm -f "$public_key_tmp"
         return 1
     fi

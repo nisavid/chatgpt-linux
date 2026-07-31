@@ -10,9 +10,9 @@ const ADVANCED_MENU_VIEW_PATTERN =
 const MODEL_TITLE_MARKER = "composer.intelligenceDropdown.model.title";
 const MODEL_ROW_MARKER = "composer.intelligenceDropdown.model.rowLabel";
 const EFFORT_TITLE_MARKER = "composer.intelligenceDropdown.effort.title";
-const INLINE_MODEL_LIST_RUNTIME_MARKER = "codex-linux-inline-model-list";
+const INLINE_MODEL_LIST_RUNTIME_MARKER = "chatgpt-linux-inline-model-list";
 const DYNAMIC_POWER_EFFORTS_RUNTIME_MARKER =
-  "codex-linux-dynamic-supported-reasoning-efforts";
+  "chatgpt-linux-dynamic-supported-reasoning-efforts";
 const JS_IDENT = "[A-Za-z_$][\\w$]*";
 
 function warn(message) {
@@ -175,14 +175,14 @@ function applyDynamicSupportedReasoningEffortsPatch(source, context = {}) {
     const patched =
       `function ${resolverFunction}(${modelsVar},{includeUltraInSlider:${includeUltraVar}=!1,` +
       `removeXHigh:${removeXHighVar}=!1}={}){` +
-      `let codexLinuxCandidates=[...(${primaryCandidates}).filter(({model:codexLinuxModel})=>` +
-      `codexLinuxModel!==\`gpt-5.6-sol\`),...${dynamicPowerSelectionsFunction}(` +
-      `${modelsVar}?.filter(({model:codexLinuxModel})=>codexLinuxModel===\`gpt-5.6-sol\`))` +
-      `.filter(({reasoningEffort:codexLinuxEffort})=>` +
-      `(${includeUltraVar}||codexLinuxEffort!==\`ultra\`)&&` +
-      `(!${removeXHighVar}||codexLinuxEffort!==\`xhigh\`))]` +
+      `let chatgptLinuxCandidates=[...(${primaryCandidates}).filter(({model:chatgptLinuxModel})=>` +
+      `chatgptLinuxModel!==\`gpt-5.6-sol\`),...${dynamicPowerSelectionsFunction}(` +
+      `${modelsVar}?.filter(({model:chatgptLinuxModel})=>chatgptLinuxModel===\`gpt-5.6-sol\`))` +
+      `.filter(({reasoningEffort:chatgptLinuxEffort})=>` +
+      `(${includeUltraVar}||chatgptLinuxEffort!==\`ultra\`)&&` +
+      `(!${removeXHighVar}||chatgptLinuxEffort!==\`xhigh\`))]` +
       `/*${DYNAMIC_POWER_EFFORTS_RUNTIME_MARKER}*/,` +
-      `${primarySelectionsVar}=${supportedSelectionsFilter}(codexLinuxCandidates,${modelsVar});` +
+      `${primarySelectionsVar}=${supportedSelectionsFilter}(chatgptLinuxCandidates,${modelsVar});` +
       `if(${primarySelectionsVar}.length>=3)return ${primarySelectionsVar};` +
       `let ${fallbackSelectionsVar}=${supportedSelectionsFilter}(${fallbackCandidates},${modelsVar});` +
       `return ${fallbackSelectionsVar}.length>=3?${fallbackSelectionsVar}:[]}`;

@@ -4,23 +4,23 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$REPO_DIR/scripts/lib/package-common.sh"
-APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/codex-app}"
+APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 PKG_ROOT="${PKG_ROOT_OVERRIDE:-$REPO_DIR/dist/deb-root}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
 CONTROL_TEMPLATE="$REPO_DIR/packaging/linux/control"
-DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
-SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
-USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-PRERM_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.prerm"
-POSTRM_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.postrm"
-POSTINST_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.postinst"
-PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
+DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
+SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
+USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
+PRERM_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.prerm"
+POSTRM_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.postrm"
+POSTINST_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.postinst"
+PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh"
 
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
 ICON_SOURCE="$(resolve_package_icon_source)"
 MAX_BUILD_THREADS="${MAX_BUILD_THREADS:-0}"
-UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
+UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/chatgpt-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
 PACKAGED_RUNTIME_SOURCE="${PACKAGED_RUNTIME_SOURCE:-$PACKAGED_RUNTIME_TEMPLATE}"
 
@@ -58,7 +58,7 @@ main() {
         ensure_file_exists "$POSTRM_TEMPLATE" "Debian postrm template"
         ensure_file_exists "$POSTINST_TEMPLATE" "Debian postinst template"
     else
-        info "Building package without codex-app-updater (PACKAGE_WITH_UPDATER=0)"
+        info "Building package without chatgpt-updater (PACKAGE_WITH_UPDATER=0)"
     fi
     command -v dpkg-deb >/dev/null 2>&1 || error "dpkg-deb is required"
     command -v dpkg >/dev/null 2>&1 || error "dpkg is required"
@@ -98,10 +98,10 @@ main() {
     deb_depends+="$integration_dependency_suffix"
     if package_with_updater_enabled; then
         deb_depends="build-essential, curl, dpkg, p7zip-full, pkexec | policykit-1, polkitd | policykit-1, $deb_depends, unzip"
-        updater_description=" Local auto-updates rebuild a Linux package from the official OpenAI Codex.dmg and therefore
+        updater_description=" Local auto-updates rebuild a Linux package from the official OpenAI ChatGPT.dmg and therefore
  use the bundled managed Node.js runtime plus the local packaging toolchain listed in Depends."
     else
-        updater_description=" This package was built without codex-app-updater. Update manually from a trusted checkout."
+        updater_description=" This package was built without chatgpt-updater. Update manually from a trusted checkout."
     fi
     AWK_PACKAGE_NAME="$PACKAGE_NAME" \
     AWK_VERSION="$PACKAGE_VERSION" \
@@ -129,8 +129,8 @@ main() {
         package_name_escaped="$(sed_escape_replacement "$PACKAGE_NAME")"
         sed \
             -e "s|__PACKAGE_NAME__|$package_name_escaped|g" \
-            -e "s|/opt/codex-app|/opt/$PACKAGE_NAME|g" \
-            -e "s|/usr/lib/codex-app|/usr/lib/$PACKAGE_NAME|g" \
+            -e "s|/opt/chatgpt|/opt/$PACKAGE_NAME|g" \
+            -e "s|/usr/lib/chatgpt|/usr/lib/$PACKAGE_NAME|g" \
             "$POSTINST_TEMPLATE" > "$PKG_ROOT/DEBIAN/postinst"
         cp "$PRERM_TEMPLATE" "$PKG_ROOT/DEBIAN/prerm"
         cp "$POSTRM_TEMPLATE" "$PKG_ROOT/DEBIAN/postrm"

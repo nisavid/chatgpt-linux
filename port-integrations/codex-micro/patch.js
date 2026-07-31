@@ -11,8 +11,8 @@ const {
 
 const CODEX_MICRO_GATE_ID = "3207467860";
 const CODEX_MICRO_ROUTE = "/settings/codex-micro";
-const CODEX_MICRO_GATE_MARKER = "codexLinuxCodexMicroGateOverride";
-const CODEX_MICRO_HOTPLUG_MARKER = "codexLinuxCodexMicroHotplug";
+const CODEX_MICRO_GATE_MARKER = "chatgptLinuxCodexMicroGateOverride";
+const CODEX_MICRO_HOTPLUG_MARKER = "chatgptLinuxCodexMicroHotplug";
 const FEATURE_GATE_WARNING = "useFeatureGate hook failed to find a valid StatsigClient";
 const JS_IDENT = "[A-Za-z_$][\\w$]*";
 const CODEX_MICRO_SERVICE_PATTERN =
@@ -166,29 +166,29 @@ function patchCodexMicroHotplugSource(source) {
   const replacement =
     `function ${watcher.functionName}(${watcher.callbackName}){` +
     `if(process.platform===\`linux\`){` +
-    `let codexLinuxHotplugTimer=null,codexLinuxDevWatcher=null,` +
-    `codexLinuxPollTimer=null,codexLinuxDisposed=!1,` +
-    `codexLinuxNotify=()=>{if(codexLinuxDisposed)return;` +
-    `codexLinuxHotplugTimer!=null&&` +
-    `clearTimeout(codexLinuxHotplugTimer),codexLinuxHotplugTimer=setTimeout(()=>{` +
-    `codexLinuxHotplugTimer=null,codexLinuxDisposed||` +
-    `${watcher.callbackName}()},100)},codexLinuxStartPolling=()=>{` +
-    `codexLinuxPollTimer==null&&(codexLinuxPollTimer=` +
-    `setInterval(codexLinuxNotify,2e3),codexLinuxPollTimer.unref?.())};` +
-    `try{codexLinuxDevWatcher=require(\`node:fs\`).watch(` +
+    `let chatgptLinuxHotplugTimer=null,chatgptLinuxDevWatcher=null,` +
+    `chatgptLinuxPollTimer=null,chatgptLinuxDisposed=!1,` +
+    `chatgptLinuxNotify=()=>{if(chatgptLinuxDisposed)return;` +
+    `chatgptLinuxHotplugTimer!=null&&` +
+    `clearTimeout(chatgptLinuxHotplugTimer),chatgptLinuxHotplugTimer=setTimeout(()=>{` +
+    `chatgptLinuxHotplugTimer=null,chatgptLinuxDisposed||` +
+    `${watcher.callbackName}()},100)},chatgptLinuxStartPolling=()=>{` +
+    `chatgptLinuxPollTimer==null&&(chatgptLinuxPollTimer=` +
+    `setInterval(chatgptLinuxNotify,2e3),chatgptLinuxPollTimer.unref?.())};` +
+    `try{chatgptLinuxDevWatcher=require(\`node:fs\`).watch(` +
     `\`/dev\`,{persistent:!1},(eventType,filename)=>{` +
     `(filename==null||/^hidraw[0-9]+$/.test(String(filename)))&&` +
-    `codexLinuxNotify()}),codexLinuxDevWatcher.on(\`error\`,()=>{` +
-    `if(codexLinuxDisposed)return;` +
-    `codexLinuxDevWatcher?.close(),codexLinuxDevWatcher=null,` +
-    `codexLinuxStartPolling(),codexLinuxNotify()})}catch{` +
-    `codexLinuxDisposed||(` +
-    `codexLinuxStartPolling(),codexLinuxNotify())}` +
-    `return{dispose(){codexLinuxDisposed=!0,` +
-    `codexLinuxHotplugTimer!=null&&clearTimeout(codexLinuxHotplugTimer),` +
-    `codexLinuxPollTimer!=null&&clearInterval(codexLinuxPollTimer),` +
-    `codexLinuxDevWatcher?.close(),` +
-    `codexLinuxDevWatcher=null}}}` +
+    `chatgptLinuxNotify()}),chatgptLinuxDevWatcher.on(\`error\`,()=>{` +
+    `if(chatgptLinuxDisposed)return;` +
+    `chatgptLinuxDevWatcher?.close(),chatgptLinuxDevWatcher=null,` +
+    `chatgptLinuxStartPolling(),chatgptLinuxNotify()})}catch{` +
+    `chatgptLinuxDisposed||(` +
+    `chatgptLinuxStartPolling(),chatgptLinuxNotify())}` +
+    `return{dispose(){chatgptLinuxDisposed=!0,` +
+    `chatgptLinuxHotplugTimer!=null&&clearTimeout(chatgptLinuxHotplugTimer),` +
+    `chatgptLinuxPollTimer!=null&&clearInterval(chatgptLinuxPollTimer),` +
+    `chatgptLinuxDevWatcher?.close(),` +
+    `chatgptLinuxDevWatcher=null}}}` +
     `return ${watcher.loaderName}().watch(${watcher.callbackName})}` +
     `/*${CODEX_MICRO_HOTPLUG_MARKER}*/`;
   return {

@@ -49,9 +49,9 @@ Symlinks, regular files, and non-exact/manual backup names are never removed.
 Cleanup failures only warn and are retried by the next install or recovery.
 
 `--fresh` refreshes the DMG and candidate without deleting the working app
-early. Set `CODEX_KEEP_REJECTED_CANDIDATE=1` to retain a rejected or safely
+early. Set `CHATGPT_KEEP_REJECTED_CANDIDATE=1` to retain a rejected or safely
 unpromoted candidate for debugging; otherwise disposable candidates are
-removed. `CODEX_ACCEPTANCE_OVERRIDE=1` is a developer-only emergency escape
+removed. `CHATGPT_ACCEPTANCE_OVERRIDE=1` is a developer-only emergency escape
 hatch for a completely built candidate; CI and the updater do not set it.
 
 The updater also publishes downloads to immutable, content-addressed paths
@@ -83,8 +83,8 @@ never updated, reopened, superseded, or closed by the workflow.
 Normal local builds run acceptance automatically:
 
 ```bash
-./install.sh /path/to/Codex.dmg
-./scripts/rebuild-candidate.sh /path/to/Codex.dmg
+./install.sh /path/to/ChatGPT.dmg
+./scripts/rebuild-candidate.sh /path/to/ChatGPT.dmg
 ```
 
 The generated decision and its referenced patch reports are sufficient to

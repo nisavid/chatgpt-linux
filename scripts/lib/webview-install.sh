@@ -1,5 +1,5 @@
 #!/bin/bash
-# Webview asset extraction and patched app.asar install into the codex-app/ tree.
+# Webview asset extraction and patched app.asar install into the chatgpt/ tree.
 #
 # Sourced by install.sh. Do not run directly.
 # shellcheck shell=bash
@@ -9,7 +9,7 @@ replace_linux_webview_icon_assets() {
     local -a icon_assets=()
     local icon_asset linux_icon_source
 
-    linux_icon_source="${LINUX_ICON_SOURCE:-${CODEX_LINUX_ICON_SOURCE:-$SCRIPT_DIR/assets/codex-linux.png}}"
+    linux_icon_source="${LINUX_ICON_SOURCE:-${CHATGPT_LINUX_ICON_SOURCE:-$SCRIPT_DIR/assets/chatgpt-linux.png}}"
     [ -f "$linux_icon_source" ] || linux_icon_source="$ICON_SOURCE"
 
     [ -f "$linux_icon_source" ] || {
@@ -64,7 +64,7 @@ extract_webview() {
 write_webview_integrity_manifest() {
     local install_dir="$1"
     local target_webview="$install_dir/content/webview"
-    local manifest_dir="$install_dir/.codex-linux"
+    local manifest_dir="$install_dir/.chatgpt-linux"
     local manifest_file="$manifest_dir/webview-integrity.sha256"
 
     mkdir -p "$manifest_dir"
@@ -377,7 +377,14 @@ def collect_startup_asset_graph(initial_paths):
             raise SystemExit(f"missing webview startup asset: {relative_path}")
 
         for reference, require_existing, allow_plain in iter_dependency_references(relative_path, asset_path):
-            normalized = normalize_asset_reference(reference, relative_path, allow_plain)
+            try:
+                normalized = normalize_asset_reference(reference, relative_path, allow_plain)
+            except SystemExit:
+                if require_existing:
+                    raise
+                # Bundlers retain source-module IDs such as ../../../node_modules/...
+                # as object keys. They are not runtime asset edges.
+                continue
             if normalized is None:
                 continue
             dependency_path = webview_asset_path(normalized)

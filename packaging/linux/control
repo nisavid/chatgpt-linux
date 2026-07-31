@@ -3,13 +3,13 @@ Version: __VERSION__
 Section: utils
 Priority: optional
 Architecture: __ARCH__
-Maintainer: Codex App Linux Maintainers
+Maintainer: ChatGPT for Linux Maintainers
 Depends: __DEB_DEPENDS__
-Provides: codex-desktop
-Conflicts: codex-desktop
-Replaces: codex-desktop
+Provides: codex-app, codex-desktop
+Conflicts: codex-app, codex-desktop
+Replaces: codex-app, codex-desktop
 Recommends: zenity, kdialog
-Description: Codex App for Linux
- Community-built Linux package for Codex App generated from the macOS DMG.
+Description: ChatGPT for Linux
+ Community-built Linux package for ChatGPT generated from the macOS DMG.
  Requires the Codex CLI to be available in PATH or CODEX_CLI_PATH.
 __UPDATER_DESCRIPTION__

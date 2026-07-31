@@ -201,7 +201,7 @@ function findExecutableOnPath(name) {
 }
 
 function remoteControlKeyStorePaths(configHome) {
-  const directory = path.join(configHome, "codex-app", "remote-control-device-keys");
+  const directory = path.join(configHome, "chatgpt", "remote-control-device-keys");
   const store = path.join(directory, "remote-control-device-keys-v1.json");
   return { directory, lock: `${store}.lock`, store };
 }
@@ -416,7 +416,7 @@ function syntheticCurrentAppMainEnablementBridgeBundle() {
 }
 
 function withTempIntegrationRoot(enabled, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-integration-test-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-integration-test-"));
   try {
     fs.writeFileSync(path.join(root, "integrations.example.json"), JSON.stringify({ enabled: [] }, null, 2));
     fs.writeFileSync(path.join(root, "integrations.json"), JSON.stringify({ enabled }, null, 2));
@@ -434,15 +434,15 @@ function applyPatchTwice(patchFn, source, ...args) {
 }
 
 function withIntegrationRootEnv(root, fn) {
-  const previous = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const previous = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (previous == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = previous;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = previous;
     }
   }
 }
@@ -460,13 +460,13 @@ function captureWarnings(fn) {
 
 const COLD_START_TEST_ENV_KEYS = [
   "CODEX_HOME",
-  "CODEX_LINUX_APP_DIR",
-  "CODEX_REMOTE_CONTROL_CODEX_PATH",
-  "CODEX_REMOTE_CONTROL_CODEX_RELEASE",
-  "CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED",
-  "CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS",
-  "CODEX_REMOTE_CONTROL_FORCE_COLD_START_DAEMON",
-  "CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED",
+  "CHATGPT_LINUX_APP_DIR",
+  "CHATGPT_REMOTE_CONTROL_CODEX_PATH",
+  "CHATGPT_REMOTE_CONTROL_CODEX_RELEASE",
+  "CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED",
+  "CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS",
+  "CHATGPT_REMOTE_CONTROL_FORCE_COLD_START_DAEMON",
+  "CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED",
   "TEST_SYSTEMCTL_ACTIVE_STATUS",
   "TEST_SYSTEMCTL_CAT_STATUS",
   "TEST_SYSTEMCTL_ENABLED_STATUS",
@@ -481,15 +481,15 @@ function coldStartTestEnv(env) {
 }
 
 function runColdStartHook(env) {
-  const tempBin = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-bin-"));
+  const tempBin = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-bin-"));
   try {
     const systemctl = path.join(tempBin, "systemctl");
     fs.writeFileSync(systemctl, [
       "#!/usr/bin/env sh",
       "case \"$*\" in",
-      "  '--user is-active --quiet codex-remote-control.service') exit \"${TEST_SYSTEMCTL_ACTIVE_STATUS:-3}\" ;;",
-      "  '--user is-enabled --quiet codex-remote-control.service') exit \"${TEST_SYSTEMCTL_ENABLED_STATUS:-3}\" ;;",
-      "  '--user cat codex-remote-control.service') exit \"${TEST_SYSTEMCTL_CAT_STATUS:-3}\" ;;",
+      "  '--user is-active --quiet chatgpt-remote-control.service') exit \"${TEST_SYSTEMCTL_ACTIVE_STATUS:-3}\" ;;",
+      "  '--user is-enabled --quiet chatgpt-remote-control.service') exit \"${TEST_SYSTEMCTL_ENABLED_STATUS:-3}\" ;;",
+      "  '--user cat chatgpt-remote-control.service') exit \"${TEST_SYSTEMCTL_CAT_STATUS:-3}\" ;;",
       "esac",
       "exit 3",
       "",
@@ -515,7 +515,7 @@ function runStageHook(env) {
 }
 
 function writeDesktopAppServerRemoteControlMarker(appDir) {
-  const marker = path.join(appDir, ".codex-linux", "desktop-app-server-remote-control-enabled");
+  const marker = path.join(appDir, ".chatgpt-linux", "desktop-app-server-remote-control-enabled");
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, "version=1\nowner=desktop\n");
 }
@@ -538,24 +538,24 @@ test("remote mobile control integration exposes its stage hook when enabled", ()
 });
 
 test("remote mobile stage hook is idempotent and stages its markers and executable hook", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-stage-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-stage-"));
   try {
-    const installDir = path.join(tempRoot, "package", "opt", "codex-app");
+    const installDir = path.join(tempRoot, "package", "opt", "chatgpt");
     const workDir = path.join(tempRoot, "work");
     const buildDir = path.join(workDir, "app-extracted", ".vite", "build");
-    const featureMarker = path.join(installDir, ".codex-linux", "remote-mobile-control-enabled");
-    const marker = path.join(installDir, ".codex-linux", "desktop-app-server-remote-control-enabled");
-    const coldStartHook = path.join(installDir, ".codex-linux", "cold-start.d", "remote-mobile-control");
+    const featureMarker = path.join(installDir, ".chatgpt-linux", "remote-mobile-control-enabled");
+    const marker = path.join(installDir, ".chatgpt-linux", "desktop-app-server-remote-control-enabled");
+    const coldStartHook = path.join(installDir, ".chatgpt-linux", "cold-start.d", "remote-mobile-control");
     const env = {
       ARCH: "x64",
-      CODEX_OFFICIAL_APP_DIR: path.join(tempRoot, "upstream-app"),
+      CHATGPT_OFFICIAL_APP_DIR: path.join(tempRoot, "upstream-app"),
       INSTALL_DIR: installDir,
       SCRIPT_DIR: REPO_ROOT,
       WORK_DIR: workDir,
     };
 
     fs.mkdirSync(buildDir, { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "globalThis.codexLinuxRemoteMobileAppServerArgs=true;");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "globalThis.chatgptLinuxRemoteMobileAppServerArgs=true;");
 
     const first = runStageHook(env);
     const second = runStageHook(env);
@@ -575,12 +575,12 @@ test("remote mobile stage hook is idempotent and stages its markers and executab
 });
 
 test("remote mobile stage hook removes a stale ownership marker when the patch marker is missing", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-stage-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-stage-"));
   try {
-    const installDir = path.join(tempRoot, "package", "opt", "codex-app");
+    const installDir = path.join(tempRoot, "package", "opt", "chatgpt");
     const workDir = path.join(tempRoot, "work");
     const buildDir = path.join(workDir, "app-extracted", ".vite", "build");
-    const marker = path.join(installDir, ".codex-linux", "desktop-app-server-remote-control-enabled");
+    const marker = path.join(installDir, ".chatgpt-linux", "desktop-app-server-remote-control-enabled");
 
     fs.mkdirSync(buildDir, { recursive: true });
     fs.mkdirSync(path.dirname(marker), { recursive: true });
@@ -589,7 +589,7 @@ test("remote mobile stage hook removes a stale ownership marker when the patch m
 
     const result = runStageHook({
       ARCH: "x64",
-      CODEX_OFFICIAL_APP_DIR: path.join(tempRoot, "upstream-app"),
+      CHATGPT_OFFICIAL_APP_DIR: path.join(tempRoot, "upstream-app"),
       INSTALL_DIR: installDir,
       SCRIPT_DIR: REPO_ROOT,
       WORK_DIR: workDir,
@@ -604,23 +604,23 @@ test("remote mobile stage hook removes a stale ownership marker when the patch m
 });
 
 test("remote mobile stage hook replaces an ownership marker symlink without following it", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-stage-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-stage-"));
   try {
-    const installDir = path.join(tempRoot, "package", "opt", "codex-app");
+    const installDir = path.join(tempRoot, "package", "opt", "chatgpt");
     const workDir = path.join(tempRoot, "work");
     const buildDir = path.join(workDir, "app-extracted", ".vite", "build");
-    const marker = path.join(installDir, ".codex-linux", "desktop-app-server-remote-control-enabled");
+    const marker = path.join(installDir, ".chatgpt-linux", "desktop-app-server-remote-control-enabled");
     const target = path.join(tempRoot, "must-not-change");
 
     fs.mkdirSync(buildDir, { recursive: true });
     fs.mkdirSync(path.dirname(marker), { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "globalThis.codexLinuxRemoteMobileAppServerArgs=true;");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "globalThis.chatgptLinuxRemoteMobileAppServerArgs=true;");
     fs.writeFileSync(target, "preserved\n");
     fs.symlinkSync(target, marker);
 
     const result = runStageHook({
       ARCH: "x64",
-      CODEX_UPSTREAM_APP_DIR: path.join(tempRoot, "upstream-app"),
+      CHATGPT_OFFICIAL_APP_DIR: path.join(tempRoot, "upstream-app"),
       INSTALL_DIR: installDir,
       SCRIPT_DIR: REPO_ROOT,
       WORK_DIR: workDir,
@@ -636,7 +636,7 @@ test("remote mobile stage hook replaces an ownership marker symlink without foll
 });
 
 test("remote mobile cold-start hook removes leaked standalone codex symlink from interactive PATH", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -651,7 +651,7 @@ test("remote mobile cold-start hook removes leaked standalone codex symlink from
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
     });
 
@@ -664,7 +664,7 @@ test("remote mobile cold-start hook removes leaked standalone codex symlink from
 });
 
 test("remote mobile cold-start hook preserves active CODEX_CLI_PATH standalone symlink", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -680,7 +680,7 @@ test("remote mobile cold-start hook preserves active CODEX_CLI_PATH standalone s
     const result = runColdStartHook({
       CODEX_CLI_PATH: userCodex,
       CODEX_HOME: codexHome,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
     });
 
@@ -693,7 +693,7 @@ test("remote mobile cold-start hook preserves active CODEX_CLI_PATH standalone s
 });
 
 test("remote mobile cold-start hook preserves symlink resolving to active CODEX_CLI_PATH", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -709,7 +709,7 @@ test("remote mobile cold-start hook preserves symlink resolving to active CODEX_
     const result = runColdStartHook({
       CODEX_CLI_PATH: standaloneCodex,
       CODEX_HOME: codexHome,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
     });
 
@@ -722,7 +722,7 @@ test("remote mobile cold-start hook preserves symlink resolving to active CODEX_
 });
 
 test("remote mobile cold-start hook preserves user codex symlinks outside the standalone runtime", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -737,7 +737,7 @@ test("remote mobile cold-start hook preserves user codex symlinks outside the st
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
     });
 
@@ -749,11 +749,11 @@ test("remote mobile cold-start hook preserves user codex symlinks outside the st
 });
 
 test("remote mobile cold-start hook skips daemon when Desktop app-server owns remote-control", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
-    const appDir = path.join(tempRoot, "package", "share", "codex-app", "app");
+    const appDir = path.join(tempRoot, "package", "share", "chatgpt", "app");
     const standaloneCodex = path.join(codexHome, "packages", "standalone", "current", "codex");
     const callsLog = path.join(tempRoot, "calls.log");
 
@@ -769,8 +769,8 @@ test("remote mobile cold-start hook skips daemon when Desktop app-server owns re
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_LINUX_APP_DIR: appDir,
-      CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED: "1",
+      CHATGPT_LINUX_APP_DIR: appDir,
+      CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED: "1",
       HOME: home,
     });
 
@@ -783,7 +783,7 @@ test("remote mobile cold-start hook skips daemon when Desktop app-server owns re
 });
 
 test("remote mobile cold-start hook rejects an invalid Desktop owner marker", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -792,16 +792,16 @@ test("remote mobile cold-start hook rejects an invalid Desktop owner marker", ()
     const callsLog = path.join(tempRoot, "calls.log");
 
     fs.mkdirSync(path.dirname(standaloneCodex), { recursive: true });
-    fs.mkdirSync(path.join(appDir, ".codex-linux"), { recursive: true });
+    fs.mkdirSync(path.join(appDir, ".chatgpt-linux"), { recursive: true });
     fs.mkdirSync(home, { recursive: true });
     fs.writeFileSync(
-      path.join(appDir, ".codex-linux", "desktop-app-server-remote-control-enabled"),
+      path.join(appDir, ".chatgpt-linux", "desktop-app-server-remote-control-enabled"),
       "desktop-app-server-remote-control\n",
     );
     fs.writeFileSync(standaloneCodex, `#!/usr/bin/env sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(callsLog)}\n`);
     fs.chmodSync(standaloneCodex, 0o755);
 
-    const result = runColdStartHook({ CODEX_HOME: codexHome, CODEX_LINUX_APP_DIR: appDir, HOME: home });
+    const result = runColdStartHook({ CODEX_HOME: codexHome, CHATGPT_LINUX_APP_DIR: appDir, HOME: home });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /Ignoring invalid remote mobile control Desktop owner marker/);
@@ -813,7 +813,7 @@ test("remote mobile cold-start hook rejects an invalid Desktop owner marker", ()
 });
 
 test("remote mobile cold-start hook keeps explicit disablement ahead of the Desktop marker", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -823,20 +823,20 @@ test("remote mobile cold-start hook keeps explicit disablement ahead of the Desk
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_LINUX_APP_DIR: appDir,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_LINUX_APP_DIR: appDir,
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
     });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /owner: disabled by CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED/);
+    assert.match(result.stdout, /owner: disabled by CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
 test("remote mobile cold-start hook keeps an enabled inactive systemd owner without starting fallback", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -850,14 +850,14 @@ test("remote mobile cold-start hook keeps an enabled inactive systemd owner with
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED: "1",
       HOME: home,
       TEST_SYSTEMCTL_ACTIVE_STATUS: "3",
       TEST_SYSTEMCTL_ENABLED_STATUS: "0",
     });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /owner: systemd \(codex-remote-control.service is configured but inactive\)/);
+    assert.match(result.stdout, /owner: systemd \(chatgpt-remote-control.service is configured but inactive\)/);
     assert.equal(fs.existsSync(callsLog), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -865,7 +865,7 @@ test("remote mobile cold-start hook keeps an enabled inactive systemd owner with
 });
 
 test("remote mobile cold-start hook reports an active systemd owner", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -878,14 +878,14 @@ test("remote mobile cold-start hook reports an active systemd owner", () => {
     });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /owner: systemd \(codex-remote-control.service is active\)/);
+    assert.match(result.stdout, /owner: systemd \(chatgpt-remote-control.service is active\)/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
 test("remote mobile cold-start hook does not bypass a present disabled systemd unit", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
@@ -906,7 +906,7 @@ test("remote mobile cold-start hook does not bypass a present disabled systemd u
     });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /owner: systemd \(codex-remote-control.service is configured but inactive\)/);
+    assert.match(result.stdout, /owner: systemd \(chatgpt-remote-control.service is configured but inactive\)/);
     assert.equal(fs.existsSync(callsLog), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -914,12 +914,12 @@ test("remote mobile cold-start hook does not bypass a present disabled systemd u
 });
 
 test("remote mobile cold-start hook removes dead standalone daemon pid files when Desktop app-server owns remote-control", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
     const daemonDir = path.join(codexHome, "app-server-daemon");
-    const appDir = path.join(tempRoot, "package", "share", "codex-app", "app");
+    const appDir = path.join(tempRoot, "package", "share", "chatgpt", "app");
 
     fs.mkdirSync(home, { recursive: true });
     fs.mkdirSync(daemonDir, { recursive: true });
@@ -936,7 +936,7 @@ test("remote mobile cold-start hook removes dead standalone daemon pid files whe
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_LINUX_APP_DIR: appDir,
+      CHATGPT_LINUX_APP_DIR: appDir,
       HOME: home,
     });
 
@@ -951,12 +951,12 @@ test("remote mobile cold-start hook removes dead standalone daemon pid files whe
 });
 
 test("remote mobile cold-start hook preserves live standalone daemon pid files when Desktop app-server owns remote-control", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-cold-start-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-cold-start-"));
   try {
     const home = path.join(tempRoot, "home");
     const codexHome = path.join(tempRoot, "codex-home");
     const daemonDir = path.join(codexHome, "app-server-daemon");
-    const appDir = path.join(tempRoot, "package", "share", "codex-app", "app");
+    const appDir = path.join(tempRoot, "package", "share", "chatgpt", "app");
     const pidFile = path.join(daemonDir, "app-server.pid");
 
     fs.mkdirSync(home, { recursive: true });
@@ -967,7 +967,7 @@ test("remote mobile cold-start hook preserves live standalone daemon pid files w
 
     const result = runColdStartHook({
       CODEX_HOME: codexHome,
-      CODEX_LINUX_APP_DIR: appDir,
+      CHATGPT_LINUX_APP_DIR: appDir,
       HOME: home,
     });
 
@@ -1143,8 +1143,8 @@ test("Linux remote-control feature patch updates the device-key provider", () =>
   const patched = applyLinuxRemoteControlDeviceKeyPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlDeviceKeyClient/);
-  assert.match(patched, /process\.platform===`linux`\)return codexLinuxRemoteControlDeviceKeyClient\(\)/);
+  assert.match(patched, /chatgptLinuxRemoteControlDeviceKeyClient/);
+  assert.match(patched, /process\.platform===`linux`\)return chatgptLinuxRemoteControlDeviceKeyClient\(\)/);
   assert.doesNotMatch(patched, /n\.kind===`local`&&process\.platform!==`linux`/);
   assert.equal(applyLinuxRemoteControlDeviceKeyPatch(patched), patched);
 });
@@ -1154,8 +1154,8 @@ test("Linux remote-control device-key patch handles current minified aliases", (
   const patched = applyLinuxRemoteControlDeviceKeyPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlDeviceKeyClient/);
-  assert.match(patched, /process\.platform===`linux`\)return codexLinuxRemoteControlDeviceKeyClient\(\)/);
+  assert.match(patched, /chatgptLinuxRemoteControlDeviceKeyClient/);
+  assert.match(patched, /process\.platform===`linux`\)return chatgptLinuxRemoteControlDeviceKeyClient\(\)/);
   assert.doesNotMatch(patched, /n\.kind===`local`&&process\.platform!==`linux`/);
   assert.equal(applyLinuxRemoteControlDeviceKeyPatch(patched), patched);
 });
@@ -1169,11 +1169,11 @@ test("Linux remote-control device-key provider does not capture a function-local
 });
 
 test("Linux remote-control device-key provider avoids upstream minified alias collisions", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-collision-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-collision-"));
   try {
     const patched = applyLinuxRemoteControlDeviceKeyPatch(syntheticCryptoAliasCollisionMainBundle());
     assert.match(patched, /\(0,c\.generateKeyPairSync\)\(`/);
-    assert.match(patched, /codexLinuxRemoteControlKeyRecord/);
+    assert.match(patched, /chatgptLinuxRemoteControlKeyRecord/);
     assert.doesNotMatch(patched, /let c=\{algorithm:`ecdsa_p256_sha256`/);
 
     const context = {
@@ -1201,7 +1201,7 @@ test("Linux remote-control device-key provider avoids upstream minified alias co
     assert.equal(created.protectionClass, "os_protected_nonextractable");
     assert.match(created.keyId, /^[0-9a-f-]{36}$/u);
     assert.equal(
-      fs.existsSync(path.join(configHome, "codex-app", "remote-control-device-keys-v1.json.lock")),
+      fs.existsSync(path.join(configHome, "chatgpt", "remote-control-device-keys-v1.json.lock")),
       false,
     );
   } finally {
@@ -1231,7 +1231,7 @@ test("Linux remote mobile app-server launch enables remote control on the Deskto
   const patched = applyLinuxRemoteMobileAppServerRemoteControlPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileAppServerArgs/);
+  assert.match(patched, /chatgptLinuxRemoteMobileAppServerArgs/);
   assert.match(
     patched,
     /process\.platform===`linux`\?\[`-c`,`features\.code_mode_host=true`,`app-server`,`--remote-control`,`--analytics-default-enabled`\]:\[`-c`,`features\.code_mode_host=true`,`app-server`,`--analytics-default-enabled`\]/,
@@ -1240,7 +1240,7 @@ test("Linux remote mobile app-server launch enables remote control on the Deskto
     patched,
     /Wz=\[`-c`,`features\.code_mode_host=true`,`app-server`,`--analytics-default-enabled`\]/,
   );
-  assert.match(patched, /Wz=codexLinuxRemoteMobileAppServerArgs\(\)/);
+  assert.match(patched, /Wz=chatgptLinuxRemoteMobileAppServerArgs\(\)/);
   assert.equal(applyLinuxRemoteMobileAppServerRemoteControlPatch(patched), patched);
 });
 
@@ -1249,7 +1249,7 @@ test("Linux remote mobile app-server launch keeps a leading use strict directive
   const patched = applyLinuxRemoteMobileAppServerRemoteControlPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /^"use strict";function codexLinuxRemoteMobileAppServerArgs/);
+  assert.match(patched, /^"use strict";function chatgptLinuxRemoteMobileAppServerArgs/);
   assert.equal(applyLinuxRemoteMobileAppServerRemoteControlPatch(patched), patched);
 });
 
@@ -1258,7 +1258,7 @@ test("Linux remote mobile turns suppress inherited reasoning summaries on the lo
   const patched = applyLinuxRemoteMobileReasoningSummaryPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileReasoningSummaryNone/);
+  assert.match(patched, /chatgptLinuxRemoteMobileReasoningSummaryNone/);
   assert.equal(applyLinuxRemoteMobileReasoningSummaryPatch(patched), patched);
 
   const context = {
@@ -1334,7 +1334,7 @@ test("Linux remote-control client revoke resets current setup state after the la
 
   assert.notEqual(patched, source);
   assert.deepEqual(warnings, []);
-  assert.match(patched, /codexLinuxRemoteControlResetMobileSetupAfterRevoke/);
+  assert.match(patched, /chatgptLinuxRemoteControlResetMobileSetupAfterRevoke/);
   assert.equal(applyLinuxRemoteControlClientRevokeSetupResetPatch(patched), patched);
 
   const context = { module: { exports: {} } };
@@ -1429,9 +1429,9 @@ test("Linux remote-control load gate enables remote-control environment loading"
   const patched = applyLinuxRemoteControlLoadGatePatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlLoadGateEnabled/);
+  assert.match(patched, /chatgptLinuxRemoteControlLoadGateEnabled/);
   assert.match(patched, /navigator\.userAgent\.includes\(`Linux`\)/);
-  assert.match(patched, /return codexLinuxRemoteControlLoadGateEnabled\(\)\|\|c\(`1042620455`\)/);
+  assert.match(patched, /return chatgptLinuxRemoteControlLoadGateEnabled\(\)\|\|c\(`1042620455`\)/);
   assert.equal(applyLinuxRemoteControlLoadGatePatch(patched), patched);
 });
 
@@ -1447,8 +1447,8 @@ test("Linux remote-control feature sync forces remote_control and preserves remo
 
   assert.notEqual(patched, source);
   assert.match(patched, /r\[vI\]=t/);
-  assert.match(patched, /codexLinuxRemoteControlIntegrationSyncEnabled/);
-  assert.match(patched, /codexLinuxRemoteControlIntegrationSyncEnabled\(i,a,t\)/);
+  assert.match(patched, /chatgptLinuxRemoteControlIntegrationSyncEnabled/);
+  assert.match(patched, /chatgptLinuxRemoteControlIntegrationSyncEnabled\(i,a,t\)/);
   assert.match(
     patched,
     /navigator\.userAgent\.includes\(`Linux`\)&&t===n\?\{\.\.\.e,remote_control:!0\}:e/,
@@ -1461,7 +1461,7 @@ test("Linux remote-control feature sync does not advertise SSH hosts to mobile",
   const patched = applyLinuxRemoteControlIntegrationSyncPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlIntegrationSyncEnabled/);
+  assert.match(patched, /chatgptLinuxRemoteControlIntegrationSyncEnabled/);
 
   const calls = [];
   const context = {
@@ -1523,7 +1523,7 @@ test("Linux mobile setup copy does not refer to Mac-only Computer Use", () => {
   assert.notEqual(patched, source);
   assert.doesNotMatch(patched, /apps on your Mac/);
   assert.match(patched, /apps on this Linux desktop/);
-  assert.match(patched, /codexLinuxRemoteControlCopy/);
+  assert.match(patched, /chatgptLinuxRemoteControlCopy/);
   assert.equal(applyLinuxRemoteControlCopyPatch(patched), patched);
 });
 
@@ -1562,9 +1562,9 @@ test("Linux remote-control settings UX patch keeps outbound tab visible and remo
   const patched = applyLinuxRemoteControlSettingsUxPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlSettingsTabs/);
-  assert.match(patched, /codexLinuxRemoteControlSshInstallActions/);
-  assert.match(patched, /function codexLinuxRemoteControlSettingsTabs\(e\)\{return e\}/);
+  assert.match(patched, /chatgptLinuxRemoteControlSettingsTabs/);
+  assert.match(patched, /chatgptLinuxRemoteControlSshInstallActions/);
+  assert.match(patched, /function chatgptLinuxRemoteControlSettingsTabs\(e\)\{return e\}/);
   assert.doesNotMatch(patched, /e\.filter\(e=>e\.key!==`access-other-devices`\)/);
   assert.match(patched, /key:`access-other-devices`/);
   assert.match(patched, /Control this Linux desktop/);
@@ -1583,11 +1583,11 @@ test("Linux remote-control SSH install sends the local Desktop app-server versio
   const patched = applyLinuxRemoteControlSettingsUxPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlSshInstallRelease/);
-  assert.match(patched, /codexLinuxRemoteControlSshInstallDefaultRelease/);
+  assert.match(patched, /chatgptLinuxRemoteControlSshInstallRelease/);
+  assert.match(patched, /chatgptLinuxRemoteControlSshInstallDefaultRelease/);
   assert.match(patched, /De\(`local`\)/);
-  assert.match(patched, /release=codexLinuxRemoteControlSshInstallResolvedRelease/);
-  assert.match(patched, /onClick:\(\)=>a\(n,codexLinuxRemoteControlSshInstallReleaseTarget\)/);
+  assert.match(patched, /release=chatgptLinuxRemoteControlSshInstallResolvedRelease/);
+  assert.match(patched, /onClick:\(\)=>a\(n,chatgptLinuxRemoteControlSshInstallReleaseTarget\)/);
 
   const context = {
     $: { c: () => [] },
@@ -1684,9 +1684,9 @@ test("Linux remote-control settings UX patch handles current minified helper nam
   const patched = applyLinuxRemoteControlSettingsUxPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlSettingsTabs/);
-  assert.match(patched, /function codexLinuxRemoteControlSettingsTabs\(e\)\{return e\}/);
-  assert.match(patched, /tabs:codexLinuxRemoteControlSettingsTabs/);
+  assert.match(patched, /chatgptLinuxRemoteControlSettingsTabs/);
+  assert.match(patched, /function chatgptLinuxRemoteControlSettingsTabs\(e\)\{return e\}/);
+  assert.match(patched, /tabs:chatgptLinuxRemoteControlSettingsTabs/);
   assert.match(patched, /key:`access-other-devices`/);
   assert.match(patched, /Control this Linux desktop/);
   assert.doesNotMatch(patched, /Control this Mac/);
@@ -1700,17 +1700,17 @@ test("Linux remote-connections refresh patch shortens polling and refreshes on r
   assert.notEqual(patched, source);
   assert.match(patched, /Qn=5e3/);
   assert.doesNotMatch(patched, /Qn=15e3/);
-  assert.match(patched, /codexLinuxRemoteConnectionsRefreshNow/);
-  assert.match(patched, /codexLinuxRemoteConnectionsRefreshTimer=null/);
-  assert.match(patched, /codexLinuxRemoteConnectionsRefreshLast=0/);
-  assert.match(patched, /e-codexLinuxRemoteConnectionsRefreshLast<1e3/);
-  assert.match(patched, /document\.addEventListener\(`visibilitychange`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.addEventListener\(`focus`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.addEventListener\(`online`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.addEventListener\(`resume`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.clearTimeout\(codexLinuxRemoteConnectionsRefreshTimer\)/);
-  assert.match(patched, /document\.removeEventListener\(`visibilitychange`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.removeEventListener\(`resume`,codexLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /chatgptLinuxRemoteConnectionsRefreshNow/);
+  assert.match(patched, /chatgptLinuxRemoteConnectionsRefreshTimer=null/);
+  assert.match(patched, /chatgptLinuxRemoteConnectionsRefreshLast=0/);
+  assert.match(patched, /e-chatgptLinuxRemoteConnectionsRefreshLast<1e3/);
+  assert.match(patched, /document\.addEventListener\(`visibilitychange`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.addEventListener\(`focus`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.addEventListener\(`online`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.addEventListener\(`resume`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.clearTimeout\(chatgptLinuxRemoteConnectionsRefreshTimer\)/);
+  assert.match(patched, /document\.removeEventListener\(`visibilitychange`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.removeEventListener\(`resume`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
   assert.equal(applyLinuxRemoteConnectionsRefreshPatch(patched), patched);
 });
 
@@ -1721,9 +1721,9 @@ test("Linux remote-connections refresh patch handles current interval alias", ()
   assert.notEqual(patched, source);
   assert.match(patched, /Yn=5e3/);
   assert.doesNotMatch(patched, /Yn=15e3/);
-  assert.match(patched, /codexLinuxRemoteConnectionsRefreshNow/);
-  assert.match(patched, /document\.addEventListener\(`visibilitychange`,codexLinuxRemoteConnectionsRefreshNow\)/);
-  assert.match(patched, /window\.addEventListener\(`resume`,codexLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /chatgptLinuxRemoteConnectionsRefreshNow/);
+  assert.match(patched, /document\.addEventListener\(`visibilitychange`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
+  assert.match(patched, /window\.addEventListener\(`resume`,chatgptLinuxRemoteConnectionsRefreshNow\)/);
   assert.equal(applyLinuxRemoteConnectionsRefreshPatch(patched), patched);
 });
 
@@ -1741,8 +1741,8 @@ test("Linux remote mobile Chrome bridge patch preserves Chrome when backends con
   const patched = applyLinuxRemoteMobileChromeBridgePatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileBrowserBackends/);
-  assert.match(patched, /function _y\(\)\{let e=Su\(dy\);return codexLinuxRemoteMobileBrowserBackends/);
+  assert.match(patched, /chatgptLinuxRemoteMobileBrowserBackends/);
+  assert.match(patched, /function _y\(\)\{let e=Su\(dy\);return chatgptLinuxRemoteMobileBrowserBackends/);
   assert.equal(applyLinuxRemoteMobileChromeBridgePatch(patched), patched);
 
   const context = {
@@ -1759,8 +1759,8 @@ test("Linux remote mobile Chrome bridge patch handles current browser-client bac
   const patched = applyLinuxRemoteMobileChromeBridgePatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileBrowserBackends/);
-  assert.match(patched, /function N_\(\)\{let e=nl\(y_\);return codexLinuxRemoteMobileBrowserBackends/);
+  assert.match(patched, /chatgptLinuxRemoteMobileBrowserBackends/);
+  assert.match(patched, /function N_\(\)\{let e=nl\(y_\);return chatgptLinuxRemoteMobileBrowserBackends/);
   assert.equal(applyLinuxRemoteMobileChromeBridgePatch(patched), patched);
 
   const context = {
@@ -1793,22 +1793,22 @@ test("Linux remote mobile conversation hydration patch handles current app-serve
   const patched = applyLinuxRemoteMobileConversationHydrationPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileThreadRuntimeStatus/);
+  assert.match(patched, /chatgptLinuxRemoteMobileThreadRuntimeStatus/);
   assert.match(patched, /h\?\.type===`active`\|\|h\?\.type===`idle`/);
-  assert.match(patched, /codexLinuxRemoteMobileHydrateUnknownTurn/);
-  assert.match(patched, /codexLinuxRemoteMobileNotificationQueue/);
-  assert.match(patched, /codexLinuxRemoteMobileHydrationInFlight/);
+  assert.match(patched, /chatgptLinuxRemoteMobileHydrateUnknownTurn/);
+  assert.match(patched, /chatgptLinuxRemoteMobileNotificationQueue/);
+  assert.match(patched, /chatgptLinuxRemoteMobileHydrationInFlight/);
   assert.match(patched, /n\.params\?\.turn\?\.threadId\?\?n\.params\?\.thread\?\.id/);
   assert.doesNotMatch(patched, /n\.params\?\.threadId/);
   assert.match(patched, /Skipping hydration for ambiguous turn\/started/);
-  assert.match(patched, /codexLinuxRemoteMobilePendingNotifications\?\?=new Map/);
-  assert.match(patched, /codexLinuxRemoteMobileInFlightHydrations\?\?=new Set/);
+  assert.match(patched, /chatgptLinuxRemoteMobilePendingNotifications\?\?=new Map/);
+  assert.match(patched, /chatgptLinuxRemoteMobileInFlightHydrations\?\?=new Set/);
   assert.match(patched, /dedupedNotification:p>=0/);
   assert.match(patched, /this\.readThread\(d,\{includeTurns:!0\}\)/);
   assert.match(patched, /Hydrating conversation for turn\/started/);
   assert.match(patched, /Queueing turn\/started for hydrating conversation/);
   assert.match(patched, /this\.upsertConversationFromThread\(t\)/);
-  assert.match(patched, /this\.codexLinuxRemoteMobileInFlightHydrations\?\.delete\(d\)/);
+  assert.match(patched, /this\.chatgptLinuxRemoteMobileInFlightHydrations\?\.delete\(d\)/);
   assert.match(patched, /for\(let e of c\)this\.onNotification\(e\.method,e\.params\)/);
   assert.match(patched, /Queueing item\/started for hydrating conversation/);
   assert.match(patched, /Queueing item\/completed for hydrating conversation/);
@@ -1956,8 +1956,8 @@ test("Linux remote mobile hydration recovers when a completed turn is the first 
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(readThreadIds, ["thread-a"]);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
 });
 
 test("Linux remote mobile hydration recovers when a completed item is the first observed event", async () => {
@@ -1997,8 +1997,8 @@ test("Linux remote mobile hydration recovers when a completed item is the first 
 
   assert.deepEqual(readThreadIds, ["thread-a"]);
   assert.deepEqual(updatedConversations, ["thread-a"]);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
 });
 
 test("Linux remote mobile hydration does not upsert summary-only conversations", async () => {
@@ -2039,8 +2039,8 @@ test("Linux remote mobile hydration does not upsert summary-only conversations",
   assert.deepEqual(readThreadIds, ["thread-a"]);
   assert.deepEqual(upsertedThreads, []);
   assert.equal(manager.conversations.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications?.has("thread-a"), true);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations?.has("thread-a"), true);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications?.has("thread-a"), true);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations?.has("thread-a"), true);
   assert.equal(typeof scheduledRetry, "function");
 });
 
@@ -2061,7 +2061,7 @@ test("Linux remote mobile hydration restarts when a pending queue exists without
 
   manager.conversations = new Map();
   manager.frameTextDeltaQueue = { drainBefore: () => false };
-  manager.codexLinuxRemoteMobilePendingNotifications = new Map([
+  manager.chatgptLinuxRemoteMobilePendingNotifications = new Map([
     [
       "thread-a",
       [
@@ -2094,14 +2094,14 @@ test("Linux remote mobile hydration restarts when a pending queue exists without
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(readThreadIds, ["thread-a"]);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.get("thread-a").length, 2);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations.has("thread-a"), true);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.get("thread-a").length, 2);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations.has("thread-a"), true);
 
   resolveRead();
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications?.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations?.has("thread-a"), false);
   assert.deepEqual(updatedConversations, ["thread-a"]);
 });
 
@@ -2146,14 +2146,14 @@ test("Linux remote mobile hydration dedupes concurrent unknown turn reads", asyn
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(readThreadIds, ["thread-a"]);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.get("thread-a").length, 2);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations.has("thread-a"), true);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.get("thread-a").length, 2);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations.has("thread-a"), true);
 
   resolveRead();
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations.has("thread-a"), false);
   assert.deepEqual(streamed, ["thread-a", "thread-a"]);
 });
 
@@ -2198,17 +2198,17 @@ test("Linux remote mobile hydration coalesces duplicate pending turn starts", as
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(readThreadIds, ["thread-a"]);
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.get("thread-a").length, 1);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.get("thread-a").length, 1);
   assert.equal(
-    manager.codexLinuxRemoteMobilePendingNotifications.get("thread-a")[0].params.turn.marker,
+    manager.chatgptLinuxRemoteMobilePendingNotifications.get("thread-a")[0].params.turn.marker,
     "latest",
   );
 
   resolveRead();
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
-  assert.equal(manager.codexLinuxRemoteMobileInFlightHydrations.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobileInFlightHydrations.has("thread-a"), false);
   assert.deepEqual(streamed, ["thread-a"]);
 });
 
@@ -2253,7 +2253,7 @@ test("Linux remote mobile hydration does not coalesce non-turn pending events", 
   });
   await new Promise((resolve) => setImmediate(resolve));
 
-  const pending = manager.codexLinuxRemoteMobilePendingNotifications.get("thread-a");
+  const pending = manager.chatgptLinuxRemoteMobilePendingNotifications.get("thread-a");
   assert.equal(pending.length, 3);
   assert.deepEqual(
     Array.from(pending, (notification) => notification.method),
@@ -2263,7 +2263,7 @@ test("Linux remote mobile hydration does not coalesce non-turn pending events", 
   resolveRead();
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(manager.codexLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
+  assert.equal(manager.chatgptLinuxRemoteMobilePendingNotifications.has("thread-a"), false);
 });
 
 test("Linux remote mobile conversation hydration patch retries transient and missing thread reads", () => {
@@ -2286,7 +2286,7 @@ test("Linux remote mobile conversation hydration patch warns when only part of t
   const { result, warnings } = captureWarnings(() => applyLinuxRemoteMobileConversationHydrationPatch(source));
 
   assert.notEqual(result, source);
-  assert.match(result, /codexLinuxRemoteMobileHydrateUnknownTurn/);
+  assert.match(result, /chatgptLinuxRemoteMobileHydrateUnknownTurn/);
   assert.ok(warnings.some((warning) => warning.includes("unknown turn/completed needle")));
 });
 
@@ -2296,10 +2296,10 @@ test("remote mobile completed-item recovery restores a missing started item", ()
 
   assert.notEqual(patched, source);
   assert.equal(applyLinuxRemoteMobileCompletedItemRecoveryPatch(patched), patched);
-  assert.match(patched, /codexLinuxCompletedItemExists=n\.items\.some\(e=>e\.id===s\.id\)/);
+  assert.match(patched, /chatgptLinuxCompletedItemExists=n\.items\.some\(e=>e\.id===s\.id\)/);
   assert.match(
     patched,
-    /if\(e\.type!==`subAgentActivity`&&codexLinuxCompletedItemExists&&!LB\(n,e\.id,e\.type\)\)return;bP\(n,s\)/,
+    /if\(e\.type!==`subAgentActivity`&&chatgptLinuxCompletedItemExists&&!LB\(n,e\.id,e\.type\)\)return;bP\(n,s\)/,
   );
 
   const context = {};
@@ -2344,7 +2344,7 @@ test("Linux remote-control status guard skips slow remote SSH status reads", asy
   const patched = applyLinuxRemoteControlStatusReadGuardPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlShouldReadStatus/);
+  assert.match(patched, /chatgptLinuxRemoteControlShouldReadStatus/);
   assert.equal(applyLinuxRemoteControlStatusReadGuardPatch(patched), patched);
 
   const context = {
@@ -2414,12 +2414,12 @@ test("Linux remote-control status guard skips remote-control environment status 
     module: { exports: {} },
     navigator: { userAgent: "X11; Linux x86_64" },
   };
-  vm.runInNewContext(`${patched};module.exports={codexLinuxRemoteControlShouldReadStatus};`, context);
-  const { codexLinuxRemoteControlShouldReadStatus } = context.module.exports;
+  vm.runInNewContext(`${patched};module.exports={chatgptLinuxRemoteControlShouldReadStatus};`, context);
+  const { chatgptLinuxRemoteControlShouldReadStatus } = context.module.exports;
 
-  assert.equal(codexLinuxRemoteControlShouldReadStatus("remote-control:env_test"), false);
-  assert.equal(codexLinuxRemoteControlShouldReadStatus("remote-ssh-discovered:dev"), false);
-  assert.equal(codexLinuxRemoteControlShouldReadStatus("local"), true);
+  assert.equal(chatgptLinuxRemoteControlShouldReadStatus("remote-control:env_test"), false);
+  assert.equal(chatgptLinuxRemoteControlShouldReadStatus("remote-ssh-discovered:dev"), false);
+  assert.equal(chatgptLinuxRemoteControlShouldReadStatus("local"), true);
 });
 
 test("Linux remote terminal status recovery treats stale waiting input as idle", () => {
@@ -2428,12 +2428,12 @@ test("Linux remote terminal status recovery treats stale waiting input as idle",
 
   const patched = applyPatchTwice(applyLinuxRemoteTerminalStatusRecoveryPatch, source);
 
-  assert.match(patched, /codexLinuxRemoteTerminalStatusActive=i\?\.type===`active`/);
-  assert.match(patched, /codexLinuxRemoteTerminalStatusWaitingOnUserInput/);
-  assert.match(patched, /function codexLinuxRemoteHasUserInputRequest/);
+  assert.match(patched, /chatgptLinuxRemoteTerminalStatusActive=i\?\.type===`active`/);
+  assert.match(patched, /chatgptLinuxRemoteTerminalStatusWaitingOnUserInput/);
+  assert.match(patched, /function chatgptLinuxRemoteHasUserInputRequest/);
   assert.match(
     patched,
-    /hasUserInputRequest:codexLinuxRemoteHasUserInputRequest\(t\(fi,e\)\)/,
+    /hasUserInputRequest:chatgptLinuxRemoteHasUserInputRequest\(t\(fi,e\)\)/,
   );
   assert.doesNotMatch(
     patched,
@@ -2522,7 +2522,7 @@ test("Linux remote terminal status recovery escapes current minified function al
   assert.notEqual(patched, source);
   assert.match(
     patched,
-    /hasUserInputRequest:codexLinuxRemoteHasUserInputRequest\(t\(fi,e\)\)/,
+    /hasUserInputRequest:chatgptLinuxRemoteHasUserInputRequest\(t\(fi,e\)\)/,
   );
 });
 
@@ -2531,7 +2531,7 @@ test("Linux remote-control status wait supports the current 26.707 app bundle", 
   const patched = applyLinuxRemoteControlStatusWaitPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlStatusWaitMs/);
+  assert.match(patched, /chatgptLinuxRemoteControlStatusWaitMs/);
   assert.match(patched, /navigator\.userAgent\.includes\(`Linux`\)\?3e4:5e3/);
   assert.equal(applyLinuxRemoteControlStatusWaitPatch(patched), patched);
 });
@@ -2556,13 +2556,13 @@ test("Linux remote-control settings UX patch warns when SSH release handling dri
   const { result, warnings } = captureWarnings(() => applyLinuxRemoteControlSettingsUxPatch(source));
 
   assert.notEqual(result, source);
-  assert.match(result, /codexLinuxRemoteControlSettingsTabs/);
+  assert.match(result, /chatgptLinuxRemoteControlSettingsTabs/);
   assert.ok(warnings.some((warning) => warning.includes("SSH install release needles")));
 });
 
 test("remote mobile integration patch report records integration metadata and partial warnings", () => {
   withTempIntegrationRoot(["remote-mobile-control"], (root) => {
-    const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-report-"));
+    const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-report-"));
     try {
       const buildDir = path.join(tempApp, ".vite", "build");
       const assetsDir = path.join(tempApp, "webview", "assets");
@@ -2679,7 +2679,7 @@ test("Linux remote mobile active-status patch treats active thread status as act
   const patched = applyLinuxRemoteMobileActiveStatusPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteMobileActiveStatus/);
+  assert.match(patched, /chatgptLinuxRemoteMobileActiveStatus/);
   assert.equal(applyLinuxRemoteMobileActiveStatusPatch(patched), patched);
 
   const context = { module: { exports: {} } };
@@ -2720,7 +2720,7 @@ test("Linux remote-control enablement bridge loads remote-control clients on Lin
   const patched = applyLinuxRemoteControlEnablementBridgePatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlEnablementBridge/);
+  assert.match(patched, /chatgptLinuxRemoteControlEnablementBridge/);
   assert.equal(applyLinuxRemoteControlEnablementBridgePatch(patched), patched);
 
   const calls = [];
@@ -2830,7 +2830,7 @@ test("Linux remote-control enablement bridge omits params for current host toggl
   const patched = applyLinuxRemoteControlEnablementBridgePatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlEnableForHostParams/);
+  assert.match(patched, /chatgptLinuxRemoteControlEnableForHostParams/);
   assert.doesNotMatch(patched, /remoteControl\/disable`,null/);
   assert.equal(applyLinuxRemoteControlEnablementBridgePatch(patched), patched);
 
@@ -2857,7 +2857,7 @@ test("Linux remote-control host toggle params patch handles automations app-main
   const patched = applyLinuxRemoteControlEnableForHostParamsPatch(source);
 
   assert.notEqual(patched, source);
-  assert.match(patched, /codexLinuxRemoteControlEnableForHostParams/);
+  assert.match(patched, /chatgptLinuxRemoteControlEnableForHostParams/);
   assert.doesNotMatch(patched, /remoteControl\/disable`,null/);
   assert.equal(applyLinuxRemoteControlEnableForHostParamsPatch(patched), patched);
 
@@ -2893,7 +2893,7 @@ test("Linux remote-control enablement bridge auto-connects this Desktop host wit
 
   assert.doesNotMatch(patched, /safe:\{[^}]*\bhostId:/);
   assert.match(patched, /sensitive:\{hostId:[^}]+error:/);
-  assert.match(patched, /codexLinuxRemoteControlSelfAutoConnect/);
+  assert.match(patched, /chatgptLinuxRemoteControlSelfAutoConnect/);
 
   const calls = [];
   const context = {
@@ -2946,9 +2946,9 @@ test("Linux remote-control enablement bridge auto-connects this Desktop host wit
 });
 
 test("patched Linux device-key provider can create, sign with, and delete a key", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-store-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-store-"));
   try {
-    const sharedConfigDirectory = path.join(configHome, "codex-app");
+    const sharedConfigDirectory = path.join(configHome, "chatgpt");
     fs.mkdirSync(sharedConfigDirectory, { mode: 0o755 });
     const patched = applyLinuxRemoteControlDeviceKeyPatch(syntheticMainBundle());
     const context = {
@@ -3001,7 +3001,7 @@ test("patched Linux device-key provider can create, sign with, and delete a key"
 });
 
 test("Linux device-key provider encrypts protected records and decrypts them for signing", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-safe-storage-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-safe-storage-"));
   try {
     const storage = createSafeStorage();
     const client = createPatchedDeviceKeyClient(configHome, { electron: { safeStorage: storage.safeStorage } });
@@ -3026,7 +3026,7 @@ test("Linux device-key provider encrypts protected records and decrypts them for
 });
 
 test("Linux device-key provider falls back for basic_text and unavailable safeStorage", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-safe-storage-fallback-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-safe-storage-fallback-"));
   try {
     const basicText = createSafeStorage({ backend: "basic_text" });
     const basicTextClient = createPatchedDeviceKeyClient(path.join(root, "basic-text"), {
@@ -3052,7 +3052,7 @@ test("Linux device-key provider falls back for basic_text and unavailable safeSt
 });
 
 test("Linux device-key migration retains the legacy PEM when encryption fails", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-safe-storage-migration-failure-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-safe-storage-migration-failure-"));
   try {
     const fallbackClient = createPatchedDeviceKeyClient(configHome);
     const created = await fallbackClient.createDeviceKey("allow_os_protected_nonextractable");
@@ -3070,7 +3070,7 @@ test("Linux device-key migration retains the legacy PEM when encryption fails", 
 });
 
 test("Linux device-key migration serializes with a concurrent key update through flock", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-safe-storage-lock-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-safe-storage-lock-"));
   try {
     const fallbackClient = createPatchedDeviceKeyClient(configHome);
     const existing = await fallbackClient.createDeviceKey("allow_os_protected_nonextractable");
@@ -3122,7 +3122,7 @@ test("Linux device-key migration serializes with a concurrent key update through
 });
 
 test("Linux device-key replacement remains committed when directory fsync fails after rename", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-post-rename-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-post-rename-"));
   try {
     let failedDirectorySync = false;
     const fsOverride = {
@@ -3147,7 +3147,7 @@ test("Linux device-key replacement remains committed when directory fsync fails 
 });
 
 test("Linux device-key store serializes concurrent updates", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-concurrency-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-concurrency-"));
   try {
     const client = createPatchedDeviceKeyClient(configHome);
     const created = await Promise.all(
@@ -3175,7 +3175,7 @@ test("Linux device-key store serializes concurrent updates", async () => {
 });
 
 test("Linux device-key operations wait for lock process stdio to close", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-close-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-close-"));
   try {
     const child = new EventEmitter();
     child.stdin = { end() {} };
@@ -3211,7 +3211,7 @@ test("Linux device-key operations wait for lock process stdio to close", async (
 });
 
 test("Linux device-key store contends on its validated lock file", { timeout: 10_000 }, async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-lock-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-lock-"));
   let holder;
   let holderClosed;
   try {
@@ -3246,8 +3246,8 @@ test("Linux device-key store contends on its validated lock file", { timeout: 10
 });
 
 test("Linux device-key lock helper resolves flock and sh outside usr bin fallbacks", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-nix-lock-"));
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-nix-bin-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-nix-lock-"));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-nix-bin-"));
   try {
     const realFlock = findExecutableOnPath("flock");
     const realShell = findExecutableOnPath("sh");
@@ -3321,7 +3321,7 @@ test("Linux device-key lock helper resolves flock and sh outside usr bin fallbac
 });
 
 test("Linux device-key store migrates the legacy schema on the next write", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-migration-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-migration-"));
   try {
     const client = createPatchedDeviceKeyClient(configHome);
     const first = await client.createDeviceKey("allow_os_protected_nonextractable");
@@ -3342,12 +3342,12 @@ test("Linux device-key store migrates the legacy schema on the next write", asyn
 });
 
 test("Linux device-key store moves the previous key file into its private directory", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-path-migration-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-path-migration-"));
   try {
     const client = createPatchedDeviceKeyClient(configHome);
     const created = await client.createDeviceKey("allow_os_protected_nonextractable");
     const { directory, lock, store } = remoteControlKeyStorePaths(configHome);
-    const legacyStore = path.join(configHome, "codex-app", "remote-control-device-keys-v1.json");
+    const legacyStore = path.join(configHome, "chatgpt", "remote-control-device-keys-v1.json");
     fs.rmSync(lock, { force: true });
     fs.renameSync(store, legacyStore);
     fs.rmdirSync(directory);
@@ -3363,7 +3363,7 @@ test("Linux device-key store moves the previous key file into its private direct
 });
 
 test("Linux device-key store rejects corruption without replacing it", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-corrupt-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-corrupt-"));
   try {
     const { directory, store } = remoteControlKeyStorePaths(configHome);
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -3385,7 +3385,7 @@ test("Linux device-key store rejects corruption without replacing it", async () 
 });
 
 test("Linux device-key store does not remove a colliding temporary file", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-temp-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-temp-"));
   try {
     const { directory, store } = remoteControlKeyStorePaths(configHome);
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -3405,13 +3405,13 @@ test("Linux device-key store does not remove a colliding temporary file", async 
 });
 
 test("Linux device-key store rejects unsafe filesystem objects", { timeout: 2_000 }, async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-fs-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-fs-"));
   try {
     const directorySymlinkHome = path.join(root, "directory-symlink");
     const directoryTarget = path.join(root, "directory-target");
     fs.mkdirSync(directorySymlinkHome, { mode: 0o700 });
     fs.mkdirSync(directoryTarget, { mode: 0o700 });
-    fs.symlinkSync(directoryTarget, path.join(directorySymlinkHome, "codex-app"));
+    fs.symlinkSync(directoryTarget, path.join(directorySymlinkHome, "chatgpt"));
     await assert.rejects(
       () => createPatchedDeviceKeyClient(directorySymlinkHome).createDeviceKey("test"),
       /config path must be a regular directory/,
@@ -3457,7 +3457,7 @@ test("Linux device-key store rejects unsafe filesystem objects", { timeout: 2_00
 });
 
 test("Linux device-key store enforces paths, permissions, and size bounds", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-bounds-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-bounds-"));
   try {
     await assert.rejects(
       () => createPatchedDeviceKeyClient("relative-config").createDeviceKey("test"),
@@ -3496,7 +3496,7 @@ test("Linux device-key store enforces paths, permissions, and size bounds", asyn
 });
 
 test("Linux device-key store enforces its schema and key-count boundary", async () => {
-  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-key-count-"));
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-key-count-"));
   try {
     const client = createPatchedDeviceKeyClient(configHome);
     const created = await client.createDeviceKey("test");
@@ -3537,10 +3537,10 @@ test("remote mobile control feature participates in ASAR patching and reports", 
     withIntegrationRootEnv(root, () => {
       const source = syntheticMainBundle();
       const patched = patchMainBundleSource(source, null);
-      assert.match(patched, /codexLinuxRemoteControlDeviceKeyClient/);
+      assert.match(patched, /chatgptLinuxRemoteControlDeviceKeyClient/);
       assert.match(patched, /n\.kind===`local`&&process\.platform!==`linux`/);
 
-      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-remote-mobile-app-"));
+      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
         const assetsDir = path.join(tempApp, "webview", "assets");
@@ -3639,29 +3639,29 @@ test("remote mobile control feature participates in ASAR patching and reports", 
           path.join(assetsDir, CURRENT_REMOTE_TERMINAL_STATUS_ASSET),
           "utf8",
         );
-        assert.match(patchedFile, /codexLinuxRemoteControlDeviceKeyClient/);
+        assert.match(patchedFile, /chatgptLinuxRemoteControlDeviceKeyClient/);
         assert.match(patchedFile, /n\.kind===`local`&&process\.platform!==`linux`/);
-        assert.match(patchedAppServerLaunchFile, /codexLinuxRemoteMobileAppServerArgs/);
+        assert.match(patchedAppServerLaunchFile, /chatgptLinuxRemoteMobileAppServerArgs/);
         assert.match(patchedAppServerLaunchFile, /`--remote-control`/);
-        assert.match(patchedRemoteConnectionVisibilityFile, /codexLinuxRemoteControlLoadGateEnabled/);
+        assert.match(patchedRemoteConnectionVisibilityFile, /chatgptLinuxRemoteControlLoadGateEnabled/);
         assert.match(patchedAppMainFile, /\{\.\.\.e,remote_control:!0\}/);
         assert.match(patchedVisibilityFile, /navigator\.userAgent\.includes\(`Linux`\)/);
-        assert.match(patchedRemoteConnectionsSettingsFile, /codexLinuxRemoteControlSettingsTabs/);
-        assert.match(patchedRemoteConnectionsSettingsFile, /codexLinuxRemoteControlResetMobileSetupAfterRevoke/);
-        assert.match(patchedRemoteConnectionsSettingsFile, /codexLinuxRemoteConnectionsRefreshNow/);
+        assert.match(patchedRemoteConnectionsSettingsFile, /chatgptLinuxRemoteControlSettingsTabs/);
+        assert.match(patchedRemoteConnectionsSettingsFile, /chatgptLinuxRemoteControlResetMobileSetupAfterRevoke/);
+        assert.match(patchedRemoteConnectionsSettingsFile, /chatgptLinuxRemoteConnectionsRefreshNow/);
         assert.match(patchedRemoteConnectionsSettingsFile, /Qn=5e3/);
         assert.match(patchedRemoteConnectionsSettingsFile, /Control this Linux desktop/);
         assert.match(patchedRemoteConnectionsSettingsFile, /SSH connections from this Linux desktop/);
         assert.match(patchedMobileSetupDialogFile, /Connect your phone to this Linux desktop/);
         assert.match(patchedMobileSetupDialogFile, /apps on this Linux desktop/);
-        assert.match(patchedSignalsFile, /codexLinuxRemoteMobileHydrateUnknownTurn/);
-        assert.match(patchedSignalsFile, /codexLinuxRemoteMobileThreadRuntimeStatus/);
-        assert.match(patchedSignalsFile, /codexLinuxCompletedItemExists=/);
-        assert.match(patchedTerminalStatusFile, /codexLinuxRemoteTerminalStatusWaitingOnUserInput/);
-        assert.match(patchedStatusFile, /codexLinuxRemoteControlShouldReadStatus/);
-        assert.match(patchedStatusFile, /codexLinuxRemoteControlStatusWaitMs/);
-        assert.match(patchedAppMainFile, /codexLinuxRemoteControlEnablementBridge/);
-        assert.match(patchedActiveStatusFile, /codexLinuxRemoteMobileActiveStatus/);
+        assert.match(patchedSignalsFile, /chatgptLinuxRemoteMobileHydrateUnknownTurn/);
+        assert.match(patchedSignalsFile, /chatgptLinuxRemoteMobileThreadRuntimeStatus/);
+        assert.match(patchedSignalsFile, /chatgptLinuxCompletedItemExists=/);
+        assert.match(patchedTerminalStatusFile, /chatgptLinuxRemoteTerminalStatusWaitingOnUserInput/);
+        assert.match(patchedStatusFile, /chatgptLinuxRemoteControlShouldReadStatus/);
+        assert.match(patchedStatusFile, /chatgptLinuxRemoteControlStatusWaitMs/);
+        assert.match(patchedAppMainFile, /chatgptLinuxRemoteControlEnablementBridge/);
+        assert.match(patchedActiveStatusFile, /chatgptLinuxRemoteMobileActiveStatus/);
         assert.ok(
           report.patches.some((patch) =>
             patch.name === "integration:remote-mobile-control:linux-remote-control-device-key" &&

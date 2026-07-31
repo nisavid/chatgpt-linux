@@ -7,17 +7,17 @@ const path = require("node:path");
 // from {isMacOS, isPackaged}, which is always false on Linux — so the stock
 // `!flag ||` short-circuit skips requestSingleInstanceLock() entirely and
 // Linux gets no duplicate-instance protection. Rewrite the gate so Linux
-// always takes the lock (unless an explicit CODEX_LINUX_MULTI_LAUNCH=1
+// always takes the lock (unless an explicit CHATGPT_LINUX_MULTI_LAUNCH=1
 // side-by-side launch opts out) while other platforms keep upstream
 // semantics. Shapes handled, with minified variable names captured
 // dynamically (enabled flag, electron namespace):
 //   upstream:  if(!(!S||n.app.requestSingleInstanceLock()))
-//   guarded:   if(!(!S||process.platform===`linux`&&process.env.CODEX_LINUX_MULTI_LAUNCH===`1`||n.app.requestSingleInstanceLock()))
-//   enforced:  if(!(process.platform===`linux`?process.env.CODEX_LINUX_MULTI_LAUNCH===`1`||n.app.requestSingleInstanceLock():!S||n.app.requestSingleInstanceLock()))
+//   guarded:   if(!(!S||process.platform===`linux`&&process.env.CHATGPT_LINUX_MULTI_LAUNCH===`1`||n.app.requestSingleInstanceLock()))
+//   enforced:  if(!(process.platform===`linux`?process.env.CHATGPT_LINUX_MULTI_LAUNCH===`1`||n.app.requestSingleInstanceLock():!S||n.app.requestSingleInstanceLock()))
 const enforcedLockRegex =
-  /if\(!\(process\.platform===`linux`\?process\.env\.CODEX_LINUX_MULTI_LAUNCH===`1`\|\|([A-Za-z_$][\w$]*)\.app\.requestSingleInstanceLock\(\):!([A-Za-z_$][\w$]*)\|\|\1\.app\.requestSingleInstanceLock\(\)\)\)/;
+  /if\(!\(process\.platform===`linux`\?process\.env\.CHATGPT_LINUX_MULTI_LAUNCH===`1`\|\|([A-Za-z_$][\w$]*)\.app\.requestSingleInstanceLock\(\):!([A-Za-z_$][\w$]*)\|\|\1\.app\.requestSingleInstanceLock\(\)\)\)/;
 const guardedLockRegex =
-  /if\(!\(!([A-Za-z_$][\w$]*)\|\|process\.platform===`linux`&&process\.env\.CODEX_LINUX_MULTI_LAUNCH===`1`\|\|([A-Za-z_$][\w$]*)\.app\.requestSingleInstanceLock\(\)\)\)/;
+  /if\(!\(!([A-Za-z_$][\w$]*)\|\|process\.platform===`linux`&&process\.env\.CHATGPT_LINUX_MULTI_LAUNCH===`1`\|\|([A-Za-z_$][\w$]*)\.app\.requestSingleInstanceLock\(\)\)\)/;
 const unguardedLockRegex =
   /if\(!\(!([A-Za-z_$][\w$]*)\|\|([A-Za-z_$][\w$]*)\.app\.requestSingleInstanceLock\(\)\)\)/;
 const bootstrapImportRegex = /require\((["'])\.\/(bootstrap-[A-Za-z0-9_-]+\.js)\1\)/g;
@@ -54,7 +54,7 @@ function resolveBootstrapBundle(extractedDir) {
 
 function enforcedLockCondition(enabledVar, appVar) {
   return (
-    "if(!(process.platform===`linux`?process.env.CODEX_LINUX_MULTI_LAUNCH===`1`||" +
+    "if(!(process.platform===`linux`?process.env.CHATGPT_LINUX_MULTI_LAUNCH===`1`||" +
     `${appVar}.app.requestSingleInstanceLock():!${enabledVar}||` +
     `${appVar}.app.requestSingleInstanceLock()))`
   );

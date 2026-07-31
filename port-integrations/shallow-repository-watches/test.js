@@ -40,15 +40,15 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withFeatureConfig(enabled, callback) {
-  const original = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const original = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-shallow-watch-config-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
     return callback();
   } finally {
-    if (original == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = original;
+    if (original == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = original;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
@@ -108,7 +108,7 @@ test("patch is idempotent and downgrades every Linux recursive request", async (
   assert.equal(first.source.split(PATCH_MARKER).length - 1, 1);
   assert.match(
     first.source,
-    /process\.platform===`linux`&&e\.recursive\)\{\/\*codexLinuxShallowRepositoryWatches\*\/e=\{\.\.\.e,recursive:!1\}\}/,
+    /process\.platform===`linux`&&e\.recursive\)\{\/\*chatgptLinuxShallowRepositoryWatches\*\/e=\{\.\.\.e,recursive:!1\}\}/,
   );
   const second = patchWorkerSource(first.source);
   assert.deepEqual(second, { source: first.source, matched: 1, changed: 0, reason: null });

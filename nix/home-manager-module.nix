@@ -6,7 +6,7 @@
   ...
 }:
 let
-  cfg = config.programs.codexAppLinux;
+  cfg = config.programs.chatgptLinux;
   remoteCfg = cfg.remoteControl;
   remoteEnvironmentFilePath =
     if remoteCfg.environmentFile == null then null else lib.removePrefix "-" remoteCfg.environmentFile;
@@ -32,9 +32,9 @@ let
       null;
   codexCliPath = if codexCliPackage != null then lib.getExe' codexCliPackage "codex" else null;
   # Thin wrapper that bakes CODEX_CLI_PATH into the launcher. The `.desktop`
-  # entry shipped by the package launches `<pkg>/bin/codex-app` by absolute
+  # entry shipped by the package launches `<pkg>/bin/chatgpt` by absolute
   # path, so wrapping that binary (and repointing the desktop entry at the
-  # wrapper) makes Codex App locate the CLI no matter how it is started --
+  # wrapper) makes ChatGPT locate the CLI no matter how it is started --
   # graphical autostart, application launcher, terminal, or a warm-start handoff
   # to an already-running instance -- without depending on the session/login
   # `PATH` and without requiring a re-login for a config change to take effect.
@@ -47,17 +47,17 @@ let
       paths = [ base ];
       nativeBuildInputs = [ pkgs.makeWrapper ];
       postBuild = ''
-        if [ -e "$out/bin/codex-app" ]; then
-          rm -f "$out/bin/codex-app"
-          makeWrapper "${base}/bin/codex-app" "$out/bin/codex-app" \
+        if [ -e "$out/bin/chatgpt" ]; then
+          rm -f "$out/bin/chatgpt"
+          makeWrapper "${base}/bin/chatgpt" "$out/bin/chatgpt" \
             --set-default CODEX_CLI_PATH "${codexCliPath}"
         fi
-        desktopFile="$out/share/applications/codex-app.desktop"
+        desktopFile="$out/share/applications/chatgpt.desktop"
         if [ -e "$desktopFile" ]; then
           target="$(readlink -f "$desktopFile")"
           rm -f "$desktopFile"
           substitute "$target" "$desktopFile" \
-            --replace-fail "${base}/bin/codex-app" "$out/bin/codex-app"
+            --replace-fail "${base}/bin/chatgpt" "$out/bin/chatgpt"
         fi
       '';
       meta = base.meta or { };
@@ -81,21 +81,21 @@ let
   ) (lib.filterAttrs (_name: value: value != null) remoteControlEnvironment);
 in
 {
-  options.programs.codexAppLinux = {
-    enable = lib.mkEnableOption "Codex App for Linux";
+  options.programs.chatgptLinux = {
+    enable = lib.mkEnableOption "ChatGPT for Linux";
 
     package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = null;
       defaultText = lib.literalExpression ''
-        inputs.codex-app-linux.packages.''${pkgs.stdenv.hostPlatform.system}.codex-app
+        inputs.chatgpt-linux.packages.''${pkgs.stdenv.hostPlatform.system}.chatgpt
       '';
       description = ''
-        Codex App package to install. When unset, the module builds the
+        ChatGPT package to install. When unset, the module builds the
         selected configuration from
-        {option}`programs.codexAppLinux.computerUseUi.enable` and
-        {option}`programs.codexAppLinux.portIntegrations`. The
-        {option}`programs.codexAppLinux.remoteMobileControl.enable` option
+        {option}`programs.chatgptLinux.computerUseUi.enable` and
+        {option}`programs.chatgptLinux.portIntegrations`. The
+        {option}`programs.chatgptLinux.remoteMobileControl.enable` option
         remains a compatibility shorthand for the `remote-mobile-control`
         port integration.
       '';
@@ -107,10 +107,10 @@ in
       defaultText = lib.literalExpression "pkgs.codex";
       example = lib.literalExpression "pkgs.codex";
       description = ''
-        Codex CLI package that Codex App should launch. When set, the
-        installed Codex App launcher (and its `.desktop` entry) is wrapped so
+        Codex CLI package that ChatGPT should launch. When set, the
+        installed ChatGPT launcher (and its `.desktop` entry) is wrapped so
         it always starts with {env}`CODEX_CLI_PATH` pointing at this package's
-        `codex` binary. This lets Codex App locate the CLI regardless of how
+        `codex` binary. This lets ChatGPT locate the CLI regardless of how
         it is started — graphical autostart, application launcher, terminal, or a
         warm-start handoff to an already-running instance — without depending on
         the session/login {env}`PATH` and without requiring a re-login for the
@@ -118,9 +118,9 @@ in
         environment still wins.
 
         When unset, the module falls back to
-        {option}`programs.codexAppLinux.remoteControl.package` if
-        {option}`programs.codexAppLinux.remoteControl.enable` is set;
-        otherwise the launcher is left unwrapped and Codex App relies on
+        {option}`programs.chatgptLinux.remoteControl.package` if
+        {option}`programs.chatgptLinux.remoteControl.enable` is set;
+        otherwise the launcher is left unwrapped and ChatGPT relies on
         discovering `codex` on {env}`PATH`.
       '';
     };
@@ -141,7 +141,7 @@ in
         are deduplicated and sorted before the package derivation is created.
         Port integrations not supported by the Nix packaging layer fail module
         evaluation. This option does not affect an explicitly configured
-        {option}`programs.codexAppLinux.package`.
+        {option}`programs.chatgptLinux.package`.
       '';
     };
 
@@ -197,7 +197,7 @@ in
       environmentFile = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "/run/secrets/codex-remote-control.env";
+        example = "/run/secrets/chatgpt-remote-control.env";
         description = ''
           Runtime path to an additional environment file as defined in
           {manpage}`systemd.exec(5)`. Use a quoted runtime string. Nix path
@@ -233,7 +233,7 @@ in
         type = lib.types.bool;
         default = true;
         description = ''
-          Set {env}`CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED=1` in the
+          Set {env}`CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED=1` in the
           user session when this declarative service is enabled, so the Desktop
           launcher does not also start the mutable standalone daemon hook.
         '';
@@ -245,14 +245,14 @@ in
     assertions = [
       {
         assertion = !remoteCfg.enable || pkgs.stdenv.hostPlatform.isLinux;
-        message = "`programs.codexAppLinux.remoteControl.enable` is only supported on Linux";
+        message = "`programs.chatgptLinux.remoteControl.enable` is only supported on Linux";
       }
       {
         assertion =
           remoteCfg.environmentFile == null
           || (!builtins.hasContext remoteCfg.environmentFile && remoteEnvironmentFileIsCanonical);
         message = ''
-          `programs.codexAppLinux.remoteControl.environmentFile` must be an
+          `programs.chatgptLinux.remoteControl.environmentFile` must be an
           absolute canonical runtime path without Nix store context, optionally
           prefixed with `-`
         '';
@@ -265,7 +265,7 @@ in
             && !lib.hasPrefix "${builtins.storeDir}/" remoteEnvironmentFilePath
           );
         message = ''
-          `programs.codexAppLinux.remoteControl.environmentFile` must be a
+          `programs.chatgptLinux.remoteControl.environmentFile` must be a
           runtime path outside the Nix store
         '';
       }
@@ -276,16 +276,16 @@ in
     ];
 
     home.sessionVariables = lib.mkIf (remoteCfg.enable && remoteCfg.disableLauncherAutostart) {
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED = "1";
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED = "1";
     };
 
     systemd.user.sessionVariables = lib.mkIf (remoteCfg.enable && remoteCfg.disableLauncherAutostart) {
-      CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED = "1";
+      CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED = "1";
     };
 
-    systemd.user.services.codex-remote-control = lib.mkIf remoteCfg.enable {
+    systemd.user.services.chatgpt-remote-control = lib.mkIf remoteCfg.enable {
       Unit = {
-        Description = "Codex remote-control app-server";
+        Description = "ChatGPT remote-control app-server";
         After = [ "network.target" ];
       };
 

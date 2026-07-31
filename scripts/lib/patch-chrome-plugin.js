@@ -120,6 +120,131 @@ if (!pluginDir) {
 
 const scriptsDir = path.resolve(pluginDir, "scripts");
 
+function currentBrowserDiagnosticsContract() {
+  const diagnosticsPath = path.join(scriptsDir, "extension-ids.json");
+  const helperPath = path.join(scriptsDir, "chromium-browser-diagnostics.mjs");
+  let config;
+  let helper;
+  try {
+    config = JSON.parse(fs.readFileSync(diagnosticsPath, "utf8"));
+    helper = fs.readFileSync(helperPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  return (
+    Array.isArray(config.browserDiagnostics) &&
+    config.browserDiagnostics.some((browser) => browser.browserFamily === "chrome") &&
+    config.browserDiagnostics.some((browser) => browser.browserFamily === "edge") &&
+    helper.includes("export function getBrowserDiagnostics(config, browserFamily)") &&
+    helper.includes("export function resolveBrowserUserDataDirectory({") &&
+    helper.includes("export function resolveLinuxNativeMessagingManifestPath({")
+  );
+}
+
+function linuxBrowserDiagnostics(chrome, browserFamily) {
+  const common = {
+    ...JSON.parse(JSON.stringify(chrome)),
+    browserFamily,
+  };
+  if (browserFamily === "brave") {
+    return {
+      ...common,
+      displayName: "Brave Browser",
+      shortDisplayName: "Brave",
+      extensionManagementUrl: "brave://extensions",
+      linux: {
+        commands: ["brave-browser", "brave"],
+        configHomeEnvironmentVariables: ["XDG_CONFIG_HOME"],
+        nativeMessagingManifestDirectories: [
+          ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+        ],
+        processNames: ["brave", "brave-browser"],
+        userDataDirectorySegments: [
+          ".config",
+          "BraveSoftware",
+          "Brave-Browser",
+        ],
+      },
+    };
+  }
+  return {
+    ...common,
+    displayName: "Chromium",
+    shortDisplayName: "Chromium",
+    extensionManagementUrl: "chrome://extensions",
+    linux: {
+      commands: ["chromium", "chromium-browser"],
+      configHomeEnvironmentVariables: ["XDG_CONFIG_HOME"],
+      nativeMessagingManifestDirectories: [
+        ".config/chromium/NativeMessagingHosts",
+      ],
+      processNames: ["chromium", "chromium-browser"],
+      userDataDirectorySegments: [".config", "chromium"],
+    },
+  };
+}
+
+function patchCurrentBrowserDiagnostics() {
+  if (!currentBrowserDiagnosticsContract()) return false;
+
+  const diagnosticsPath = path.join(scriptsDir, "extension-ids.json");
+  const config = JSON.parse(fs.readFileSync(diagnosticsPath, "utf8"));
+  const chrome = config.browserDiagnostics.find(
+    (browser) => browser.browserFamily === "chrome",
+  );
+  let changed = false;
+  for (const browserFamily of ["brave", "chromium"]) {
+    if (
+      config.browserDiagnostics.some(
+        (browser) => browser.browserFamily === browserFamily,
+      )
+    ) {
+      continue;
+    }
+    const edgeIndex = config.browserDiagnostics.findIndex(
+      (browser) => browser.browserFamily === "edge",
+    );
+    const insertionIndex = edgeIndex === -1 ? config.browserDiagnostics.length : edgeIndex;
+    config.browserDiagnostics.splice(
+      insertionIndex,
+      0,
+      linuxBrowserDiagnostics(chrome, browserFamily),
+    );
+    changed = true;
+  }
+  if (changed) {
+    fs.writeFileSync(diagnosticsPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    console.log("Patched extension-ids.json: Linux Brave and Chromium diagnostics");
+  } else {
+    console.log("extension-ids.json already patched: Linux Brave and Chromium diagnostics");
+  }
+
+  const installManifestPath = path.join(scriptsDir, "installManifest.mjs");
+  let installManifest = fs.readFileSync(installManifestPath, "utf8");
+  const chromiumManifest = '".config/chromium/NativeMessagingHosts"';
+  const braveManifest =
+    '".config/BraveSoftware/Brave-Browser/NativeMessagingHosts"';
+  if (installManifest.includes(braveManifest)) {
+    console.log("installManifest.mjs already patched: Linux Brave native host manifest");
+  } else if (installManifest.includes(chromiumManifest)) {
+    installManifest = installManifest.replace(
+      chromiumManifest,
+      `${chromiumManifest},${braveManifest}`,
+    );
+    fs.writeFileSync(installManifestPath, installManifest, "utf8");
+    console.log("Patched installManifest.mjs: Linux Brave native host manifest");
+  } else {
+    warn(
+      "installManifest.mjs current browser diagnostics contract lacks the Chromium native host manifest anchor",
+    );
+  }
+
+  return true;
+}
+
+const usesCurrentBrowserDiagnostics = patchCurrentBrowserDiagnostics();
+
 const linuxExtensionAwareUserDataFallback = `  const linuxChromeUserDataDirectory = path.join(os.homedir(), ".config", "google-chrome");
   const linuxChromeBetaUserDataDirectory = path.join(os.homedir(), ".config", "google-chrome-beta");
   const linuxChromeUnstableUserDataDirectory = path.join(os.homedir(), ".config", "google-chrome-unstable");
@@ -354,6 +479,8 @@ patchFileFirstMatch(path.join(scriptsDir, "installManifest.mjs"), {
   ],
   newText:
     'linux:[".config/google-chrome/NativeMessagingHosts",".config/google-chrome-beta/NativeMessagingHosts",".config/google-chrome-unstable/NativeMessagingHosts",".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",".config/chromium/NativeMessagingHosts"]',
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current declarative browser diagnostics contract is active",
 });
 
 patchFile(path.join(scriptsDir, "check-native-host-manifest.js"), [
@@ -392,6 +519,8 @@ ${linuxNativeHostManifestFallback}
     \`Unsupported platform for native host manifest check: \${process.platform}. This script supports macOS, Linux, and Windows.\`,
   );`,
     alreadyText: '"google-chrome-beta",\n        "NativeMessagingHosts"',
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser diagnostics contract is active",
   },
   {
     label: "Linux browser native host manifest fallback",
@@ -411,6 +540,8 @@ ${linuxNativeHostManifestFallback}
   }`,
     newText: linuxNativeHostManifestFallback,
     alreadyText: '"google-chrome-beta",\n        "NativeMessagingHosts"',
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser diagnostics contract is active",
   },
 ]);
 
@@ -424,6 +555,10 @@ When more than one Chrome extension instance is connected, enumerate \`agent.bro
 
 Do not call \`browser.tabs.new()\` until the intended browser/profile has been selected. On Linux, creating a tab on the wrong extension backend can start a different Chrome or Brave profile instead of using the already-open user profile.`,
     alreadyText: "creating a tab on the wrong extension backend",
+    skipIf: (source) =>
+      source.includes("App-provided in-app-browser context is ambient UI state") &&
+      source.includes('agent.browsers.get("extension")'),
+    skipDescription: "current explicit browser-selection policy supersedes this guard",
   },
 ]);
 
@@ -476,6 +611,8 @@ patchFile(path.join(scriptsDir, "installed-browsers.js"), [
     windowsExecutable: "chrome.exe",
   },
 ];`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser inventory is active",
   },
 ]);
 
@@ -491,6 +628,8 @@ patchFile(path.join(scriptsDir, "chrome-is-running.js"), [
   linux: new Set(["chrome", "google-chrome", "google-chrome-beta", "google-chrome-unstable", "brave", "brave-browser", "chromium", "chromium-browser"]),
   win32: new Set(["chrome.exe"]),
 };`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative process inventory is active",
   },
 ]);
 
@@ -512,7 +651,12 @@ patchFileFirstMatch(path.join(scriptsDir, "check-extension-installed.js"), {
   return linuxChromeUserDataDirectory;`,
   ],
   newText: linuxExtensionAwareUserDataFallback,
-  alreadyText: "linuxChromiumUserDataDirectory",
+  alreadyText: [
+    "linuxChromiumUserDataDirectory",
+    "resolveBrowserUserDataDirectory({",
+  ],
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current browser-family profile diagnostics are active",
 });
 
 patchFileFirstMatch(path.join(scriptsDir, "check-extension-installed.js"), {
@@ -562,7 +706,12 @@ patchFileFirstMatch(path.join(scriptsDir, "open-chrome-window.js"), {
   return linuxChromeUserDataDirectory;`,
   ],
   newText: linuxDefaultBrowserUserDataFallback,
-  alreadyText: "linuxChromiumUserDataDirectory",
+  alreadyText: [
+    "linuxChromiumUserDataDirectory",
+    "resolveBrowserUserDataDirectory({",
+  ],
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current browser-family profile diagnostics are active",
 });
 
 patchFileFirstMatch(path.join(scriptsDir, "open-chrome-window.js"), {
@@ -621,5 +770,7 @@ patchFile(path.join(scriptsDir, "open-chrome-window.js"), [
     command: linuxCommand,
     args: chromeArgs,
   };`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current browser-family launch command is active",
   },
 ]);

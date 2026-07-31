@@ -9,6 +9,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  defaultMaterializePackage,
   discoverBundledNodeHid,
   inspectElf,
   selectPrebuild,
@@ -372,9 +373,9 @@ test("Codex Micro service patch adds disposable Linux hidraw hot-plug discovery"
   assert.match(patched, /require\(`node:fs`\)\.watch\(`\/dev`/);
   assert.match(patched, /\^hidraw/);
   assert.match(patched, /dispose\(\)/);
-  assert.match(patched, /setInterval\(codexLinuxNotify,2e3\)/);
-  assert.match(patched, /clearInterval\(codexLinuxPollTimer\)/);
-  assert.match(patched, /if\(codexLinuxDisposed\)return/);
+  assert.match(patched, /setInterval\(chatgptLinuxNotify,2e3\)/);
+  assert.match(patched, /clearInterval\(chatgptLinuxPollTimer\)/);
+  assert.match(patched, /if\(chatgptLinuxDisposed\)return/);
   assert.match(patched, /return p\(\)\.watch\(e\)/);
   assert.doesNotMatch(patched, /function d\(e\)\{[^}]*let e=/);
   assert.doesNotThrow(() => new Function(patched));
@@ -585,6 +586,22 @@ for (const arch of ["x64", "arm64"]) {
     );
   });
 }
+
+test("Codex Micro uses the ChatGPT-owned node-hid archive override", async (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-micro-archive-"));
+  const previous = process.env.CHATGPT_MICRO_NODE_HID_ARCHIVE;
+  process.env.CHATGPT_MICRO_NODE_HID_ARCHIVE = tempDir;
+  t.after(() => {
+    if (previous == null) delete process.env.CHATGPT_MICRO_NODE_HID_ARCHIVE;
+    else process.env.CHATGPT_MICRO_NODE_HID_ARCHIVE = previous;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  await assert.rejects(
+    defaultMaterializePackage({ name: "node-hid", version: "3.3.0" }),
+    /CHATGPT_MICRO_NODE_HID_ARCHIVE is not a safe file/u,
+  );
+});
 
 test("an already verified binding is idempotent and performs no package fetch", async (t) => {
   const binary = makeElf("x64", "already-staged");
@@ -808,8 +825,8 @@ test("native formats stage the exact rule and integration-only dependencies", (t
   const expectedDependencies = {
     deb: ["libudev1", "libusb-1.0-0"],
     rpm: [
-      "libudev.so.1%{codex_elf_suffix}",
-      "libusb-1.0.so.0%{codex_elf_suffix}",
+      "libudev.so.1%{chatgpt_elf_suffix}",
+      "libusb-1.0.so.0%{chatgpt_elf_suffix}",
     ],
     pacman: ["libusb", "systemd-libs"],
   };

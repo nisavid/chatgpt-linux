@@ -1,6 +1,6 @@
 "use strict";
 
-const X11_COMPUTER_USE_PLUGIN_NAME = "codex-computer-use-x11";
+const X11_COMPUTER_USE_PLUGIN_NAME = "chatgpt-computer-use-x11";
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

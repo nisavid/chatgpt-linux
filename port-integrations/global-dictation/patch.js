@@ -1,6 +1,6 @@
 "use strict";
 
-const PATCH_MARKER = "codex-linux-global-dictation-v2";
+const PATCH_MARKER = "chatgpt-linux-global-dictation-v2";
 const IDENT = "[A-Za-z_$][\\w$]*";
 
 function warn(message) {
@@ -20,7 +20,7 @@ function replaceUnique(source, pattern, replacement, description) {
   return source.replace(pattern, replacement);
 }
 
-function codexLinuxGlobalDictationUsesWayland() {
+function chatgptLinuxGlobalDictationUsesWayland() {
   const sessionType = String(process.env.XDG_SESSION_TYPE ?? "").toLowerCase();
   return (
     process.platform === "linux" &&
@@ -29,7 +29,7 @@ function codexLinuxGlobalDictationUsesWayland() {
   );
 }
 
-function codexLinuxGlobalDictationNativePath(name) {
+function chatgptLinuxGlobalDictationNativePath(name) {
   const fs = require("node:fs");
   const path = require("node:path");
   const candidates = [];
@@ -47,7 +47,7 @@ function codexLinuxGlobalDictationNativePath(name) {
   return null;
 }
 
-function codexLinuxGlobalDictationLines(stream, onLine) {
+function chatgptLinuxGlobalDictationLines(stream, onLine) {
   let buffer = "";
   stream?.on("data", (chunk) => {
     buffer += chunk.toString("utf8");
@@ -64,14 +64,14 @@ function codexLinuxGlobalDictationLines(stream, onLine) {
   });
 }
 
-async function codexLinuxGlobalDictationPaste() {
-  for (const registration of codexLinuxGlobalDictationPortalRegistrations) {
+async function chatgptLinuxGlobalDictationPaste() {
+  for (const registration of chatgptLinuxGlobalDictationPortalRegistrations) {
     if (registration.ready()) return registration.paste();
   }
   throw new Error("No ready Wayland global dictation helper is available.");
 }
 
-function codexLinuxGlobalDictationPasteX11() {
+function chatgptLinuxGlobalDictationPasteX11() {
   return new Promise((resolve, reject) => {
     try {
       require("node:child_process").execFile(
@@ -86,8 +86,8 @@ function codexLinuxGlobalDictationPasteX11() {
   });
 }
 
-function codexLinuxGlobalDictationPortalRegistration(accelerator, callbacks) {
-  const helperPath = codexLinuxGlobalDictationNativePath("codex-global-dictation-linux");
+function chatgptLinuxGlobalDictationPortalRegistration(accelerator, callbacks) {
+  const helperPath = chatgptLinuxGlobalDictationNativePath("chatgpt-global-dictation-linux");
   if (helperPath == null) return null;
 
   let child = null;
@@ -120,7 +120,7 @@ function codexLinuxGlobalDictationPortalRegistration(accelerator, callbacks) {
     if (closed) return;
     closed = true;
     if (registrationTimer != null) clearTimeout(registrationTimer);
-    codexLinuxGlobalDictationPortalRegistrations.delete(registration);
+    chatgptLinuxGlobalDictationPortalRegistrations.delete(registration);
     if (pressed) callbacks.onReleased?.();
     try {
       child?.kill();
@@ -152,11 +152,11 @@ function codexLinuxGlobalDictationPortalRegistration(accelerator, callbacks) {
         30000,
       );
       registrationTimer.unref?.();
-      codexLinuxGlobalDictationLines(child.stdout, (line) => {
+      chatgptLinuxGlobalDictationLines(child.stdout, (line) => {
         if (line === "ready") {
           isReady = true;
           if (registrationTimer != null) clearTimeout(registrationTimer);
-          codexLinuxGlobalDictationPortalRegistrations.add(registration);
+          chatgptLinuxGlobalDictationPortalRegistrations.add(registration);
           finishQueue();
         } else if (line === "down" && isReady && !pressed) {
           pressed = true;
@@ -219,12 +219,12 @@ function codexLinuxGlobalDictationPortalRegistration(accelerator, callbacks) {
     unregister: () =>
       close(new Error("Wayland global dictation helper was stopped."), false),
   };
-  codexLinuxGlobalDictationPortalQueue = codexLinuxGlobalDictationPortalQueue.then(start, start);
+  chatgptLinuxGlobalDictationPortalQueue = chatgptLinuxGlobalDictationPortalQueue.then(start, start);
   return registration;
 }
 
-function codexLinuxGlobalDictationReleaseWatcher(accelerator, onReleased) {
-  const helperPath = codexLinuxGlobalDictationNativePath("global-dictation-release-monitor");
+function chatgptLinuxGlobalDictationReleaseWatcher(accelerator, onReleased) {
+  const helperPath = chatgptLinuxGlobalDictationNativePath("global-dictation-release-monitor");
   if (helperPath == null) return null;
   const child = require("node:child_process").spawn(helperPath, ["--accelerator", accelerator], {
     stdio: "ignore",
@@ -251,15 +251,15 @@ function codexLinuxGlobalDictationReleaseWatcher(accelerator, onReleased) {
 
 function helperSource() {
   return [
-    `var codexLinuxGlobalDictationPatch=${JSON.stringify(PATCH_MARKER)};`,
-    codexLinuxGlobalDictationUsesWayland,
-    codexLinuxGlobalDictationNativePath,
-    codexLinuxGlobalDictationLines,
-    "var codexLinuxGlobalDictationPortalQueue=Promise.resolve(),codexLinuxGlobalDictationPortalRegistrations=new Set();",
-    codexLinuxGlobalDictationPaste,
-    codexLinuxGlobalDictationPortalRegistration,
-    codexLinuxGlobalDictationReleaseWatcher,
-    codexLinuxGlobalDictationPasteX11,
+    `var chatgptLinuxGlobalDictationPatch=${JSON.stringify(PATCH_MARKER)};`,
+    chatgptLinuxGlobalDictationUsesWayland,
+    chatgptLinuxGlobalDictationNativePath,
+    chatgptLinuxGlobalDictationLines,
+    "var chatgptLinuxGlobalDictationPortalQueue=Promise.resolve(),chatgptLinuxGlobalDictationPortalRegistrations=new Set();",
+    chatgptLinuxGlobalDictationPaste,
+    chatgptLinuxGlobalDictationPortalRegistration,
+    chatgptLinuxGlobalDictationReleaseWatcher,
+    chatgptLinuxGlobalDictationPasteX11,
   ]
     .map(String)
     .join("");
@@ -293,7 +293,7 @@ function applyLinuxGlobalDictationMainProcessPatch(source) {
       (original) =>
         original.replace(
           "{",
-          "{if(process.platform===`linux`&&codexLinuxGlobalDictationUsesWayland())return codexLinuxGlobalDictationPortalRegistration(e,t);",
+          "{if(process.platform===`linux`&&chatgptLinuxGlobalDictationUsesWayland())return chatgptLinuxGlobalDictationPortalRegistration(e,t);",
         ),
       "global shortcut registration function",
     );
@@ -313,7 +313,7 @@ function applyLinuxGlobalDictationMainProcessPatch(source) {
     patched = replaceUnique(
       patched,
       /case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`linux`:case`netbsd`:case`openbsd`:case`sunos`:throw Error\(`Global dictation hotkey release watching is not supported\.`\)/u,
-      "case`linux`:{let n=codexLinuxGlobalDictationReleaseWatcher(e,t);if(n==null)throw Error(`Global dictation hotkey release watching is not supported.`);return n}case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`netbsd`:case`openbsd`:case`sunos`:throw Error(`Global dictation hotkey release watching is not supported.`)",
+      "case`linux`:{let n=chatgptLinuxGlobalDictationReleaseWatcher(e,t);if(n==null)throw Error(`Global dictation hotkey release watching is not supported.`);return n}case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`netbsd`:case`openbsd`:case`sunos`:throw Error(`Global dictation hotkey release watching is not supported.`)",
       "Linux release watcher platform branch",
     );
 
@@ -342,7 +342,7 @@ function applyLinuxGlobalDictationMainProcessPatch(source) {
     patched = replaceUnique(
       patched,
       /case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`linux`:case`netbsd`:case`openbsd`:case`sunos`:throw Error\(`Global dictation paste is not supported on this OS\.`\)/u,
-      "case`linux`:if(codexLinuxGlobalDictationUsesWayland()){await codexLinuxGlobalDictationPaste();return}await codexLinuxGlobalDictationPasteX11();return;case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`netbsd`:case`openbsd`:case`sunos`:throw Error(`Global dictation paste is not supported on this OS.`)",
+      "case`linux`:if(chatgptLinuxGlobalDictationUsesWayland()){await chatgptLinuxGlobalDictationPaste();return}await chatgptLinuxGlobalDictationPasteX11();return;case`aix`:case`android`:case`cygwin`:case`freebsd`:case`haiku`:case`netbsd`:case`openbsd`:case`sunos`:throw Error(`Global dictation paste is not supported on this OS.`)",
       "Linux global dictation paste branch",
     );
 

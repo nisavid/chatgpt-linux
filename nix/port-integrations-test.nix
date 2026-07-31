@@ -14,7 +14,7 @@ let
     "persistent-status-panel"
     "appshots"
     "codex-micro"
-    "codex-wrapper-updater"
+    "chatgpt-wrapper-updater"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"
@@ -29,7 +29,7 @@ let
   normalizedTestIntegrationIds = [
     "appshots"
     "codex-micro"
-    "codex-wrapper-updater"
+    "chatgpt-wrapper-updater"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"
@@ -45,7 +45,7 @@ let
   normalizedWatchdogIntegrationIds = [
     "appshots"
     "codex-micro"
-    "codex-wrapper-updater"
+    "chatgpt-wrapper-updater"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"
@@ -91,7 +91,7 @@ let
           config = {
             home.homeDirectory = "/home/tester";
             home.profileDirectory = "/home/tester/.nix-profile";
-            programs.codexAppLinux = moduleConfig;
+            programs.chatgptLinux = moduleConfig;
           };
         })
       ];
@@ -125,7 +125,7 @@ let
               default = { };
             };
           };
-          config.programs.codexAppLinux = moduleConfig;
+          config.programs.chatgptLinux = moduleConfig;
         })
       ];
     };
@@ -155,20 +155,20 @@ let
     portIntegrations = testIntegrationIds;
   };
 
-  expectedCombined = packages.codex-app.override {
+  expectedCombined = packages.chatgpt.override {
     enableComputerUseUi = true;
     portIntegrationIds = normalizedTestIntegrationIds;
   };
-  expectedCodexMicro = packages.codex-app.override {
+  expectedCodexMicro = packages.chatgpt.override {
     portIntegrationIds = [ "codex-micro" ];
   };
-  reorderedCombined = packages.codex-app.override {
+  reorderedCombined = packages.chatgpt.override {
     enableComputerUseUi = true;
     portIntegrationIds = [
       "remote-mobile-control"
       "frameless-titlebar"
       "codex-micro"
-      "codex-wrapper-updater"
+      "chatgpt-wrapper-updater"
       "directory-only-working-tree-watch"
       "global-dictation"
       "persistent-status-panel"
@@ -187,7 +187,7 @@ let
   nixosCodexMicro = evalNixOS codexMicroConfig;
   nixosDisabledCodexMicro = evalNixOS disabledCodexMicroConfig;
 
-  customPackage = pkgs.runCommand "codex-app-custom-test-package" { } ''
+  customPackage = pkgs.runCommand "chatgpt-custom-test-package" { } ''
     mkdir -p "$out"
   '';
   customConfig = combinedConfig // { package = customPackage; };
@@ -198,7 +198,7 @@ let
     remoteControl = {
       enable = true;
       package = pkgs.writeShellScriptBin "codex" "exit 0";
-      environmentFile = "/run/secrets/codex-remote-control.env";
+      environmentFile = "/run/secrets/chatgpt-remote-control.env";
     };
   };
   remoteControlConfigWithEnvironmentFile = environmentFile:
@@ -207,25 +207,25 @@ let
       remoteControl = remoteControlConfig.remoteControl // { inherit environmentFile; };
     };
   homeRemoteService =
-    (evalHomeManager remoteControlConfig).config.systemd.user.services.codex-remote-control;
+    (evalHomeManager remoteControlConfig).config.systemd.user.services.chatgpt-remote-control;
   nixosRemoteService =
-    (evalNixOS remoteControlConfig).config.systemd.user.services.codex-remote-control;
+    (evalNixOS remoteControlConfig).config.systemd.user.services.chatgpt-remote-control;
   optionalHomeRemoteService =
     (evalHomeManager (
-      remoteControlConfigWithEnvironmentFile "-/run/secrets/codex-remote-control.env"
-    )).config.systemd.user.services.codex-remote-control;
+      remoteControlConfigWithEnvironmentFile "-/run/secrets/chatgpt-remote-control.env"
+    )).config.systemd.user.services.chatgpt-remote-control;
   optionalNixOSRemoteService =
     (evalNixOS (
-      remoteControlConfigWithEnvironmentFile "-/run/secrets/codex-remote-control.env"
-    )).config.systemd.user.services.codex-remote-control;
+      remoteControlConfigWithEnvironmentFile "-/run/secrets/chatgpt-remote-control.env"
+    )).config.systemd.user.services.chatgpt-remote-control;
 
   invalidBuilder = builtins.tryEval (
-    (packages.codex-app.override {
+    (packages.chatgpt.override {
       portIntegrationIds = [ "not-nix-compatible" ];
     }).drvPath
   );
   shallowRepositoryWatchBuilder = builtins.tryEval (
-    (packages.codex-app.override {
+    (packages.chatgpt.override {
       portIntegrationIds = [ "shallow-repository-watches" ];
     }).drvPath
   );
@@ -249,14 +249,14 @@ let
     builtins.deepSeq
       (evalHomeManager (
         remoteControlConfigWithEnvironmentFile ./port-integrations-test.nix
-      )).config.systemd.user.services.codex-remote-control
+      )).config.systemd.user.services.chatgpt-remote-control
       true
   );
   invalidNixOSEnvironmentFile = builtins.tryEval (
     builtins.deepSeq
       (evalNixOS (
         remoteControlConfigWithEnvironmentFile ./port-integrations-test.nix
-      )).config.systemd.user.services.codex-remote-control
+      )).config.systemd.user.services.chatgpt-remote-control
       true
   );
   storeEnvironmentFiles = [
@@ -270,7 +270,7 @@ let
     "//nix/store/example-secret"
     "/run/../nix/store/example-secret"
     "/nix//store/example-secret"
-    "/run/secrets/./codex-remote-control.env"
+    "/run/secrets/./chatgpt-remote-control.env"
     "/run/secrets/"
   ];
   contextEnvironmentFiles = [
@@ -330,10 +330,10 @@ assert lib.assertMsg
   (portIntegrations.normalize watchdogIntegrationIds == normalizedWatchdogIntegrationIds)
   "the committed watchdog port integration profile drifted from the Nix-supported profile";
 assert lib.assertMsg
-  ((homePackage defaultConfig).drvPath == packages.codex-app.drvPath)
+  ((homePackage defaultConfig).drvPath == packages.chatgpt.drvPath)
   "the Home Manager default package changed";
 assert lib.assertMsg
-  ((nixosPackage defaultConfig).drvPath == packages.codex-app.drvPath)
+  ((nixosPackage defaultConfig).drvPath == packages.chatgpt.drvPath)
   "the NixOS default package changed";
 assert lib.assertMsg
   ((homePackage codexMicroConfig).drvPath == expectedCodexMicro.drvPath)
@@ -342,7 +342,7 @@ assert lib.assertMsg
   ((nixosPackage codexMicroConfig).drvPath == expectedCodexMicro.drvPath)
   "NixOS did not select the codex-micro package";
 assert lib.assertMsg
-  (expectedCodexMicro.drvPath != packages.codex-app.drvPath)
+  (expectedCodexMicro.drvPath != packages.chatgpt.drvPath)
   "enabling codex-micro did not change the selected package";
 assert lib.assertMsg
   (
@@ -358,10 +358,10 @@ assert lib.assertMsg
   (nixosDisabledCodexMicro.config.services.udev.packages == [ ])
   "disabled NixOS unexpectedly installs codex-micro udev rules";
 assert lib.assertMsg
-  ((homePackage legacyRemoteConfig).drvPath == packages.codex-app-remote-mobile-control.drvPath)
+  ((homePackage legacyRemoteConfig).drvPath == packages.chatgpt-remote-mobile-control.drvPath)
   "the Home Manager remoteMobileControl shorthand changed";
 assert lib.assertMsg
-  ((nixosPackage legacyRemoteConfig).drvPath == packages.codex-app-remote-mobile-control.drvPath)
+  ((nixosPackage legacyRemoteConfig).drvPath == packages.chatgpt-remote-mobile-control.drvPath)
   "the NixOS remoteMobileControl shorthand changed";
 assert lib.assertMsg
   ((homePackage combinedConfig).drvPath == expectedCombined.drvPath)
@@ -388,16 +388,16 @@ assert lib.assertMsg
 assert lib.assertMsg (!invalidHomeManager.success) "Home Manager accepted an unsupported integration";
 assert lib.assertMsg (!invalidNixOS.success) "NixOS accepted an unsupported integration";
 assert lib.assertMsg
-  (homeRemoteService.Service.EnvironmentFile == "/run/secrets/codex-remote-control.env")
+  (homeRemoteService.Service.EnvironmentFile == "/run/secrets/chatgpt-remote-control.env")
   "Home Manager changed the runtime remote-control environment-file path";
 assert lib.assertMsg
-  (nixosRemoteService.serviceConfig.EnvironmentFile == "/run/secrets/codex-remote-control.env")
+  (nixosRemoteService.serviceConfig.EnvironmentFile == "/run/secrets/chatgpt-remote-control.env")
   "NixOS changed the runtime remote-control environment-file path";
 assert lib.assertMsg
-  (optionalHomeRemoteService.Service.EnvironmentFile == "-/run/secrets/codex-remote-control.env")
+  (optionalHomeRemoteService.Service.EnvironmentFile == "-/run/secrets/chatgpt-remote-control.env")
   "Home Manager rejected or changed an optional absolute environment-file path";
 assert lib.assertMsg
-  (optionalNixOSRemoteService.serviceConfig.EnvironmentFile == "-/run/secrets/codex-remote-control.env")
+  (optionalNixOSRemoteService.serviceConfig.EnvironmentFile == "-/run/secrets/chatgpt-remote-control.env")
   "NixOS rejected or changed an optional absolute environment-file path";
 assert lib.assertMsg
   (!invalidHomeManagerEnvironmentFile.success)

@@ -1,8 +1,8 @@
 "use strict";
 
 const JS_IDENT = "[A-Za-z_$][\\w$]*";
-const PATCH_MARKER = "codexLinuxApiKeyFastTier";
-const MODEL_MARKER = "codexLinuxApiKeyServiceTierModel";
+const PATCH_MARKER = "chatgptLinuxApiKeyFastTier";
+const MODEL_MARKER = "chatgptLinuxApiKeyServiceTierModel";
 const SERVICE_TIER_GATE_SHAPE = new RegExp(
   `authMethod===\`chatgpt\`[\\s\\S]{0,200}?authMethod\\?\\?null` +
     `[\\s\\S]{0,1200}?featureRequirements\\?\\.fast_mode` +
@@ -130,7 +130,7 @@ const descriptors = [
     phase: "webview-asset",
     order: 20600,
     ciPolicy: "optional",
-    pattern: /^app-initial~app-main~onboarding-page-[^.]+\.js$/,
+    pattern: /^app-initial-[A-Za-z0-9_-]+\.js$/,
     missingDescription: "current API key service tier gate bundle",
     skipDescription: "API key service tier gate patch",
     apply: applyCurrentGatePatch,

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
-use clap::Parser;
-use codex_record_replay_linux::{
+use chatgpt_record_replay_linux::{
     command_json, mcp, Cli, Commands, EventStreamCommand, SkysightCommand,
 };
+use clap::Parser;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {

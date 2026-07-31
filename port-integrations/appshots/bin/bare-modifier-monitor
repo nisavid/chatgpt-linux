@@ -115,7 +115,7 @@ fi
 xmodmap_output="$(xmodmap -pke 2>/dev/null || true)"
 IFS=$'\t' read -r key_symbols fallback_codes < <(select_keys "$key")
 key_codes="$(find_keycodes "$key_symbols" "$fallback_codes")"
-double_tap_ms="${CODEX_BARE_MODIFIER_DOUBLE_TAP_MS:-500}"
+double_tap_ms="${CHATGPT_BARE_MODIFIER_DOUBLE_TAP_MS:-500}"
 
 if [ -z "$key_codes" ]; then
     echo "modifier key did not resolve to any keycodes" >&2

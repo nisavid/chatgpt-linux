@@ -462,7 +462,7 @@ impl RuntimeManager {
         if constraints.required_native_host_protocol_version != NATIVE_HOST_PROTOCOL_VERSION {
             return Err(RuntimeError::typed(
                 "version_mismatch",
-                "The Codex app and Chrome extension versions are incompatible.",
+                "The ChatGPT app and Chrome extension versions are incompatible.",
             ));
         }
         if constraints.native_host_name.trim().is_empty()
@@ -476,7 +476,7 @@ impl RuntimeManager {
         if self.extension_id.as_deref() != Some(constraints.extension_id.as_str()) {
             return Err(RuntimeError::typed(
                 "no_matching_codex_install",
-                "No compatible Codex app-server entry was found",
+                "No compatible ChatGPT app-server entry was found",
             ));
         }
         Ok(())
@@ -504,17 +504,17 @@ impl RuntimeManager {
         let listener = bind_proxy_listener(bind_address)?;
         listener.set_nonblocking(true).map_err(|error| {
             RuntimeError::internal(format!(
-                "Failed to configure Codex app-server proxy: {error}"
+                "Failed to configure ChatGPT app-server proxy: {error}"
             ))
         })?;
         let address = listener.local_addr().map_err(|error| {
             RuntimeError::internal(format!(
-                "Failed to read Codex app-server proxy address: {error}"
+                "Failed to read ChatGPT app-server proxy address: {error}"
             ))
         })?;
         let token = random_hex(32).map_err(|error| {
             RuntimeError::internal(format!(
-                "Failed to create Codex app-server proxy token: {error}"
+                "Failed to create ChatGPT app-server proxy token: {error}"
             ))
         })?;
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -522,7 +522,7 @@ impl RuntimeManager {
         let extension_id = self.extension_id.clone().ok_or_else(|| {
             RuntimeError::typed(
                 "no_matching_codex_install",
-                "No compatible Codex app-server entry was found",
+                "No compatible ChatGPT app-server entry was found",
             )
         })?;
         let allowed_origin = format!("chrome-extension://{extension_id}");
@@ -532,7 +532,7 @@ impl RuntimeManager {
             .build()
             .map_err(|error| {
                 RuntimeError::internal(format!(
-                    "Failed to create Codex app-server proxy runtime: {error}"
+                    "Failed to create ChatGPT app-server proxy runtime: {error}"
                 ))
             })?;
         let join = thread::Builder::new()
@@ -547,7 +547,7 @@ impl RuntimeManager {
                 ));
             })
             .map_err(|error| {
-                RuntimeError::internal(format!("Failed to start Codex app-server proxy: {error}"))
+                RuntimeError::internal(format!("Failed to start ChatGPT app-server proxy: {error}"))
             })?;
 
         *proxy = Some(ProxyServer {
@@ -697,10 +697,10 @@ impl RuntimeManager {
             .lock()
             .expect("app-server process mutex poisoned");
         let process = processes.get_mut(client_id).ok_or_else(|| {
-            RuntimeError::internal("Codex app-server is not running for this sidepanel")
+            RuntimeError::internal("ChatGPT app-server is not running for this sidepanel")
         })?;
         if leader_exited_without_reaping(&process.child).map_err(|error| {
-            RuntimeError::internal(format!("Failed to inspect Codex app-server: {error}"))
+            RuntimeError::internal(format!("Failed to inspect ChatGPT app-server: {error}"))
         })? {
             let mut process = processes
                 .remove(client_id)
@@ -708,7 +708,7 @@ impl RuntimeManager {
             drop(processes);
             stop_managed_process(&mut process);
             return Err(RuntimeError::internal(
-                "Codex app-server exited before the sidepanel connected",
+                "ChatGPT app-server exited before the sidepanel connected",
             ));
         }
         process.leases = process.leases.checked_add(1).ok_or_else(|| {
@@ -770,7 +770,7 @@ impl RuntimeManager {
             .expect("app-server cleanup state mutex poisoned")
         {
             return Err(RuntimeError::internal(
-                "Codex app-server runtime is shutting down",
+                "ChatGPT app-server runtime is shutting down",
             ));
         }
 
@@ -1097,7 +1097,7 @@ fn process_is_reusable(
         return Ok(false);
     }
     let exited = leader_exited_without_reaping(&process.child).map_err(|error| {
-        RuntimeError::internal(format!("Failed to inspect Codex app-server: {error}"))
+        RuntimeError::internal(format!("Failed to inspect ChatGPT app-server: {error}"))
     })?;
     Ok(!exited && socket_is_ready(&process.socket_path))
 }
@@ -1197,13 +1197,13 @@ fn select_runtime_entry_for_host(
     matching.into_iter().next().ok_or_else(|| {
         RuntimeError::typed(
             "no_matching_codex_install",
-            "No compatible Codex app-server entry was found",
+            "No compatible ChatGPT app-server entry was found",
         )
     })
 }
 
 fn manifest_paths() -> Vec<PathBuf> {
-    if let Some(path) = env::var_os("CODEX_CHROME_NATIVE_HOSTS_MANIFEST") {
+    if let Some(path) = env::var_os("CHATGPT_CHROME_NATIVE_HOSTS_MANIFEST") {
         return vec![PathBuf::from(path)];
     }
     let mut paths = Vec::new();
@@ -1264,7 +1264,7 @@ fn validate_runtime_entry_for_host(
     if current_exe != &configured_host {
         return Err(RuntimeError::typed(
             "no_matching_codex_install",
-            "No compatible Codex app-server entry was found",
+            "No compatible ChatGPT app-server entry was found",
         ));
     }
     Ok(())
@@ -1312,7 +1312,7 @@ fn validate_owned_dir(path: &Path, require_user_owner: bool) -> RuntimeResult<()
 fn required_path_error(field: &str) -> RuntimeError {
     RuntimeError::typed(
         "required_path_missing",
-        format!("Codex app-server manifest entry is missing required path {field}"),
+        format!("ChatGPT app-server manifest entry is missing required path {field}"),
     )
 }
 
@@ -1417,13 +1417,16 @@ fn proxy_bind_address(entry: &RuntimeEntry) -> RuntimeResult<SocketAddr> {
     let ip = match entry.proxy_host.as_str() {
         "localhost" => IpAddr::V4(Ipv4Addr::LOCALHOST),
         value => value.parse::<IpAddr>().map_err(|_| {
-            RuntimeError::typed("manifest_invalid", "Codex app-server proxy host is invalid")
+            RuntimeError::typed(
+                "manifest_invalid",
+                "ChatGPT app-server proxy host is invalid",
+            )
         })?,
     };
     if !ip.is_loopback() {
         return Err(RuntimeError::typed(
             "manifest_invalid",
-            "Codex app-server proxy must use a loopback address",
+            "ChatGPT app-server proxy must use a loopback address",
         ));
     }
     Ok(SocketAddr::new(ip, entry.proxy_port))
@@ -1439,12 +1442,12 @@ fn bind_proxy_listener(requested: SocketAddr) -> RuntimeResult<TcpListener> {
             ));
             TcpListener::bind(fallback).map_err(|fallback_error| {
                 RuntimeError::internal(format!(
-                    "Failed to bind Codex app-server proxy to {requested} ({first_error}) or an available fallback port ({fallback_error})"
+                    "Failed to bind ChatGPT app-server proxy to {requested} ({first_error}) or an available fallback port ({fallback_error})"
                 ))
             })
         }
         Err(error) => Err(RuntimeError::internal(format!(
-            "Failed to bind Codex app-server proxy: {error}"
+            "Failed to bind ChatGPT app-server proxy: {error}"
         ))),
     }
 }
@@ -1467,7 +1470,7 @@ fn start_app_server(
     let socket_path = runtime_root.join(format!("a-{client_hash}.sock"));
     if !unix_socket_path_fits(&socket_path) {
         return Err(RuntimeError::internal(
-            "Codex app-server Unix socket path is too long",
+            "ChatGPT app-server Unix socket path is too long",
         ));
     }
     match fs::remove_file(&socket_path) {
@@ -1475,7 +1478,7 @@ fn start_app_server(
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
             return Err(RuntimeError::internal(format!(
-                "Failed to remove stale Codex app-server socket: {error}"
+                "Failed to remove stale ChatGPT app-server socket: {error}"
             )))
         }
     }
@@ -1493,8 +1496,8 @@ fn start_app_server(
         .env("CODEX_CLI_PATH", &entry.paths.codex_cli_path)
         .env("CODEX_EXTENSION_ID", extension_id)
         .env("CODEX_BROWSER_USE_NODE_PATH", &entry.paths.node_path)
-        .env("CODEX_APP_SERVER_PROXY_HOST", &entry.proxy_host)
-        .env("CODEX_APP_SERVER_PROXY_PORT", proxy_port.to_string())
+        .env("CHATGPT_APP_SERVER_PROXY_HOST", &entry.proxy_host)
+        .env("CHATGPT_APP_SERVER_PROXY_PORT", proxy_port.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -1520,7 +1523,7 @@ fn start_app_server(
         });
     }
     let mut child = command.spawn().map_err(|error| {
-        RuntimeError::internal(format!("Failed to start Codex app-server: {error}"))
+        RuntimeError::internal(format!("Failed to start ChatGPT app-server: {error}"))
     })?;
     if let Some(stderr) = child.stderr.take() {
         let _ = thread::Builder::new()
@@ -1551,7 +1554,7 @@ fn start_app_server(
                 };
                 stop_managed_process(&mut process);
                 return Err(RuntimeError::internal(
-                    "Codex app-server exited before becoming ready",
+                    "ChatGPT app-server exited before becoming ready",
                 ));
             }
             Ok(false) => {}
@@ -1570,7 +1573,7 @@ fn start_app_server(
                 };
                 stop_managed_process(&mut process);
                 return Err(RuntimeError::internal(format!(
-                    "Failed to inspect Codex app-server: {error}"
+                    "Failed to inspect ChatGPT app-server: {error}"
                 )));
             }
         }
@@ -1605,7 +1608,7 @@ fn start_app_server(
     };
     stop_managed_process(&mut process);
     Err(RuntimeError::internal(
-        "Timed out waiting for Codex app-server to start",
+        "Timed out waiting for ChatGPT app-server to start",
     ))
 }
 
@@ -2624,7 +2627,7 @@ mod tests {
             manager.shutdown();
             let result = worker.join().unwrap();
             if let Err(error) = result {
-                assert_eq!(error.message, "Codex app-server runtime is shutting down");
+                assert_eq!(error.message, "ChatGPT app-server runtime is shutting down");
             }
             assert_eq!(manager.running_process_count(), 0);
             fs::remove_dir_all(root).unwrap();

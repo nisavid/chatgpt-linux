@@ -16,7 +16,7 @@ module.exports = [
     ciPolicy: "optional",
     pattern: /^app-initial-[^.]+\.js$/,
     assetMatch: matchesAutomationUpdateEagerToolContract,
-    missingDescription: "dynamic Codex app tools bundle",
+    missingDescription: "dynamic ChatGPT app tools bundle",
     skipDescription: "automation_update eager dynamic tool patch",
     apply: applyAutomationUpdateEagerToolPatch,
   }),

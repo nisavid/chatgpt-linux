@@ -8,7 +8,7 @@
 #
 # Usage: node-repl-reaper.sh <app-dir> [once|watch]
 #   once   (default) one reap pass
-#   watch  reap every CODEX_NODE_REPL_REAPER_INTERVAL seconds (default 300)
+#   watch  reap every CHATGPT_NODE_REPL_REAPER_INTERVAL seconds (default 300)
 #          after the first electron from <app-dir> appears, then exit with a
 #          final pass once no matching electron remains
 set -u
@@ -16,7 +16,7 @@ set -u
 APP_DIR="${1:?usage: node-repl-reaper.sh <app-dir> [once|watch]}"
 MODE="${2:-once}"
 NODE_REPL_BIN="$APP_DIR/resources/node_repl"
-NODE_REPL_ORIGINAL_BIN="$APP_DIR/resources/node_repl.codex-linux-original"
+NODE_REPL_ORIGINAL_BIN="$APP_DIR/resources/node_repl.chatgpt-linux-original"
 
 positive_integer_env_or_default() {
     local name="$1" default_value="$2" value
@@ -41,9 +41,9 @@ positive_integer_env_or_default() {
     printf '%s' "$value"
 }
 
-WATCH_INTERVAL_SECONDS="$(positive_integer_env_or_default CODEX_NODE_REPL_REAPER_INTERVAL 300)"
-STARTUP_GRACE_SECONDS="$(positive_integer_env_or_default CODEX_NODE_REPL_REAPER_STARTUP_GRACE 120)"
-KILL_GRACE_SECONDS="$(positive_integer_env_or_default CODEX_NODE_REPL_REAPER_KILL_GRACE 5)"
+WATCH_INTERVAL_SECONDS="$(positive_integer_env_or_default CHATGPT_NODE_REPL_REAPER_INTERVAL 300)"
+STARTUP_GRACE_SECONDS="$(positive_integer_env_or_default CHATGPT_NODE_REPL_REAPER_STARTUP_GRACE 120)"
+KILL_GRACE_SECONDS="$(positive_integer_env_or_default CHATGPT_NODE_REPL_REAPER_KILL_GRACE 5)"
 
 # True when the process's argv[0] is exactly <bin>. Chromium/Electron
 # processes rewrite their argv area, leaving /proc/<pid>/cmdline space-joined
@@ -89,7 +89,7 @@ parent_is_live_codex_owner() {
     case "$name" in
         codex|codex-*)
             case "$name" in
-                codex-mcp-helper-reaper|codex-linux-sandbox) return 1 ;;
+                chatgpt-mcp-helper-reaper|chatgpt-linux-sandbox) return 1 ;;
             esac
             return 0
             ;;

@@ -14,14 +14,14 @@ function applyReadAloudMainBundlePatch(source) {
   }
   if (
     source.includes("e.source===`conversation`") &&
-    source.includes("codexLinuxReadAloudSpeak(e.text,{requireEnabled:!1})")
+    source.includes("chatgptLinuxReadAloudSpeak(e.text,{requireEnabled:!1})")
   ) {
     return source;
   }
   const explicitButton =
-    "e.action===`speak`&&e.source===`button`?codexLinuxReadAloudSpeak(e.text,{requireEnabled:!1})";
-  const buttonOnly = "e.action===`speak`&&e.source===`button`?codexLinuxReadAloudSpeak(e.text)";
-  const withConversation = "e.action===`speak`&&(e.source===`button`||e.source===`conversation`)?codexLinuxReadAloudSpeak(e.text,{requireEnabled:!1})";
+    "e.action===`speak`&&e.source===`button`?chatgptLinuxReadAloudSpeak(e.text,{requireEnabled:!1})";
+  const buttonOnly = "e.action===`speak`&&e.source===`button`?chatgptLinuxReadAloudSpeak(e.text)";
+  const withConversation = "e.action===`speak`&&(e.source===`button`||e.source===`conversation`)?chatgptLinuxReadAloudSpeak(e.text,{requireEnabled:!1})";
   if (source.includes(explicitButton)) {
     return source.replace(explicitButton, withConversation);
   }
@@ -34,12 +34,12 @@ function applyReadAloudMainBundlePatch(source) {
 
 function conversationRuntimeSource() {
   return [
-    `;(()=>{const VERSION=${JSON.stringify(RUNTIME_VERSION)};if(globalThis.codexLinuxConversationVersion===VERSION)return;globalThis.codexLinuxConversationVersion=VERSION;`,
+    `;(()=>{const VERSION=${JSON.stringify(RUNTIME_VERSION)};if(globalThis.chatgptLinuxConversationVersion===VERSION)return;globalThis.chatgptLinuxConversationVersion=VERSION;`,
     `const METHOD=${JSON.stringify(HANDLER_NAME)};let seq=0,pending=new Map,state={active:false,controls:null,activeConversationId:null,epoch:0,listening:false,muted:false,transcribing:false,awaitingUserTranscript:false,allowAssistant:false,finalizing:false,assistantKey:null,assistantFallbackKey:null,assistantFinalSpoken:false,assistantText:"",assistantSpokenText:"",assistantKeys:[],spokenAssistant:new Map,spokenAssistantTexts:[],queue:[],speaking:false,speechTimer:null,speechCooldownUntil:0,interruptCleanup:null,interruptPendingEpoch:0,interruptSerial:0,restartTimer:null,flushTimer:null,seenAssistantKeys:new Set,lastConversationId:null,lastSentText:"",lastSentAt:0,cursorSentAtMs:0,spokenEchoText:"",spokenEchoAt:0,stopButton:null,muteButton:null,composerAura:null,surfaceObserver:null};`,
     `function onMessage(e){let t=e?.data;if(!t||typeof t!="object"||t.type!=="fetch-response")return;let n=pending.get(t.requestId);if(!n)return;pending.delete(t.requestId);clearTimeout(n.timer);if(t.responseType==="success"){let e=null;try{e=t.bodyJsonString?JSON.parse(t.bodyJsonString):null}catch{}n.resolve({status:t.status,body:e})}else n.reject(Error(t.error||"fetch failed"))}`,
     `window.addEventListener("message",onMessage);`,
     `function dispatch(payload){let bridge=window.electronBridge,event=new CustomEvent("codex-message-from-view",{detail:payload});if(bridge?.sendMessageFromView){event.__codexForwardedViaBridge=!0;bridge.sendMessageFromView(payload).catch(()=>{})}window.dispatchEvent(event)}`,
-    `function post(params,timeoutMs=4000){let requestId="codex-linux-conversation-"+ ++seq;let payload={type:"fetch",hostId:"local",requestId,method:"POST",url:"vscode://codex/"+METHOD,body:JSON.stringify(params??{})};return new Promise((resolve,reject)=>{let timer=setTimeout(()=>{pending.delete(requestId);reject(Error("timeout"))},timeoutMs);pending.set(requestId,{resolve,reject,timer});dispatch(payload)})}`,
+    `function post(params,timeoutMs=4000){let requestId="chatgpt-linux-conversation-"+ ++seq;let payload={type:"fetch",hostId:"local",requestId,method:"POST",url:"vscode://codex/"+METHOD,body:JSON.stringify(params??{})};return new Promise((resolve,reject)=>{let timer=setTimeout(()=>{pending.delete(requestId);reject(Error("timeout"))},timeoutMs);pending.set(requestId,{resolve,reject,timer});dispatch(payload)})}`,
     `function clean(text){return String(text||"").replace(/\\r\\n/g,"\\n").replace(/\\\`\\\`\\\`[\\s\\S]*?\\\`\\\`\\\`/g," code block. ").replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,"$1").replace(/[*_#>~]/g,"").replace(/\\n{3,}/g,"\\n\\n").trim().slice(0,8e3)}`,
     `function available(){return navigator.userAgent.includes("Linux")&&!!navigator.mediaDevices&&typeof MediaRecorder!="undefined"}`,
     `function conversationId(value){return typeof value==="string"&&value.length>0?value:null}`,
@@ -49,16 +49,16 @@ function conversationRuntimeSource() {
     `function stopSpeech(resetAssistant=false){state.epoch++;resetSpeechState();resetAssistant&&resetTurnState();try{globalThis.speechSynthesis?.cancel?.()}catch{}post({action:"stop"}).catch(()=>{})}`,
     `function isSpeaking(){return state.active&&(state.speaking||state.queue.length>0)}`,
     `function stopSpeaking(){if(!isSpeaking())return false;state.assistantFinalSpoken=true;stopSpeech(false);return true}`,
-    `function installUi(){if(typeof document==="undefined"||!document.body)return;let style=document.getElementById("codex-linux-conversation-style");if(!style){style=document.createElement("style");style.id="codex-linux-conversation-style";style.textContent=".codex-linux-conversation-composer-aura{position:relative!important;outline:1px solid rgba(58,196,125,.55)!important;box-shadow:0 0 0 2px rgba(58,196,125,.11),0 0 0 6px rgba(56,189,248,.055),0 12px 30px rgba(20,120,90,.10)!important;border-radius:18px!important;transition:outline-color .18s ease,box-shadow .18s ease}.codex-linux-conversation-composer-aura::after{content:\\"\\";position:absolute;inset:-4px;border:1px solid rgba(56,189,248,.36);border-radius:20px;box-shadow:0 0 18px rgba(34,197,94,.12);opacity:.78;pointer-events:none}.codex-linux-conversation-stop,.codex-linux-conversation-mute{position:fixed;right:var(--codex-linux-conversation-control-right,22px);width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--token-surface-primary,#fff);box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:pointer;z-index:2147483001}.codex-linux-conversation-stop{bottom:var(--codex-linux-conversation-stop-bottom,92px);border:1px solid rgba(58,196,125,.75);color:rgb(18,126,82)}.codex-linux-conversation-mute{bottom:var(--codex-linux-conversation-mute-bottom,138px);border:1px solid rgba(56,189,248,.75);color:rgb(14,116,144)}.codex-linux-conversation-muted .codex-linux-conversation-mute{border-color:rgba(239,68,68,.8);background:rgba(239,68,68,.10);color:rgb(185,28,28)}.codex-linux-conversation-stop:hover,.codex-linux-conversation-mute:hover{background:rgba(58,196,125,.12)}.codex-linux-conversation-muted .codex-linux-conversation-mute:hover{background:rgba(239,68,68,.16)}.codex-linux-conversation-stop:active,.codex-linux-conversation-mute:active{transform:translateY(1px)}.codex-linux-conversation-stop[hidden],.codex-linux-conversation-mute[hidden]{display:none}.codex-linux-conversation-stop svg,.codex-linux-conversation-mute svg{width:18px;height:18px}@media (prefers-reduced-motion:no-preference){.codex-linux-conversation-composer-aura::after{animation:codex-linux-conversation-aura 2.4s ease-in-out infinite}@keyframes codex-linux-conversation-aura{0%,100%{opacity:.55;box-shadow:0 0 14px rgba(34,197,94,.10)}50%{opacity:.95;box-shadow:0 0 24px rgba(56,189,248,.16)}}}";document.head?.appendChild?.(style)}if(!state.stopButton)state.stopButton=document.getElementById("codex-linux-conversation-stop");if(!state.stopButton){let button=document.createElement("button");button.id="codex-linux-conversation-stop";button.type="button";button.className="codex-linux-conversation-stop";button.title="Stop conversation mode";button.setAttribute("aria-label","Stop conversation mode");button.hidden=true;button.innerHTML="<svg aria-hidden=\\"true\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\" stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\"><circle cx=\\"12\\" cy=\\"12\\" r=\\"9\\"></circle><rect x=\\"9\\" y=\\"9\\" width=\\"6\\" height=\\"6\\" rx=\\"1\\" fill=\\"currentColor\\"></rect></svg>";button.addEventListener("click",e=>{e?.preventDefault?.();e?.stopPropagation?.();stopConversation()});document.body.appendChild(button);state.stopButton=button}if(!state.muteButton)state.muteButton=document.getElementById("codex-linux-conversation-mute");if(!state.muteButton){let button=document.createElement("button");button.id="codex-linux-conversation-mute";button.type="button";button.className="codex-linux-conversation-mute";button.hidden=true;button.addEventListener("click",e=>{e?.preventDefault?.();e?.stopPropagation?.();toggleMute()});document.body.appendChild(button);state.muteButton=button}}`,
+    `function installUi(){if(typeof document==="undefined"||!document.body)return;let style=document.getElementById("chatgpt-linux-conversation-style");if(!style){style=document.createElement("style");style.id="chatgpt-linux-conversation-style";style.textContent=".chatgpt-linux-conversation-composer-aura{position:relative!important;outline:1px solid rgba(58,196,125,.55)!important;box-shadow:0 0 0 2px rgba(58,196,125,.11),0 0 0 6px rgba(56,189,248,.055),0 12px 30px rgba(20,120,90,.10)!important;border-radius:18px!important;transition:outline-color .18s ease,box-shadow .18s ease}.chatgpt-linux-conversation-composer-aura::after{content:\\"\\";position:absolute;inset:-4px;border:1px solid rgba(56,189,248,.36);border-radius:20px;box-shadow:0 0 18px rgba(34,197,94,.12);opacity:.78;pointer-events:none}.chatgpt-linux-conversation-stop,.chatgpt-linux-conversation-mute{position:fixed;right:var(--chatgpt-linux-conversation-control-right,22px);width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--token-surface-primary,#fff);box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:pointer;z-index:2147483001}.chatgpt-linux-conversation-stop{bottom:var(--chatgpt-linux-conversation-stop-bottom,92px);border:1px solid rgba(58,196,125,.75);color:rgb(18,126,82)}.chatgpt-linux-conversation-mute{bottom:var(--chatgpt-linux-conversation-mute-bottom,138px);border:1px solid rgba(56,189,248,.75);color:rgb(14,116,144)}.chatgpt-linux-conversation-muted .chatgpt-linux-conversation-mute{border-color:rgba(239,68,68,.8);background:rgba(239,68,68,.10);color:rgb(185,28,28)}.chatgpt-linux-conversation-stop:hover,.chatgpt-linux-conversation-mute:hover{background:rgba(58,196,125,.12)}.chatgpt-linux-conversation-muted .chatgpt-linux-conversation-mute:hover{background:rgba(239,68,68,.16)}.chatgpt-linux-conversation-stop:active,.chatgpt-linux-conversation-mute:active{transform:translateY(1px)}.chatgpt-linux-conversation-stop[hidden],.chatgpt-linux-conversation-mute[hidden]{display:none}.chatgpt-linux-conversation-stop svg,.chatgpt-linux-conversation-mute svg{width:18px;height:18px}@media (prefers-reduced-motion:no-preference){.chatgpt-linux-conversation-composer-aura::after{animation:chatgpt-linux-conversation-aura 2.4s ease-in-out infinite}@keyframes chatgpt-linux-conversation-aura{0%,100%{opacity:.55;box-shadow:0 0 14px rgba(34,197,94,.10)}50%{opacity:.95;box-shadow:0 0 24px rgba(56,189,248,.16)}}}";document.head?.appendChild?.(style)}if(!state.stopButton)state.stopButton=document.getElementById("chatgpt-linux-conversation-stop");if(!state.stopButton){let button=document.createElement("button");button.id="chatgpt-linux-conversation-stop";button.type="button";button.className="chatgpt-linux-conversation-stop";button.title="Stop conversation mode";button.setAttribute("aria-label","Stop conversation mode");button.hidden=true;button.innerHTML="<svg aria-hidden=\\"true\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\" stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\"><circle cx=\\"12\\" cy=\\"12\\" r=\\"9\\"></circle><rect x=\\"9\\" y=\\"9\\" width=\\"6\\" height=\\"6\\" rx=\\"1\\" fill=\\"currentColor\\"></rect></svg>";button.addEventListener("click",e=>{e?.preventDefault?.();e?.stopPropagation?.();stopConversation()});document.body.appendChild(button);state.stopButton=button}if(!state.muteButton)state.muteButton=document.getElementById("chatgpt-linux-conversation-mute");if(!state.muteButton){let button=document.createElement("button");button.id="chatgpt-linux-conversation-mute";button.type="button";button.className="chatgpt-linux-conversation-mute";button.hidden=true;button.addEventListener("click",e=>{e?.preventDefault?.();e?.stopPropagation?.();toggleMute()});document.body.appendChild(button);state.muteButton=button}}`,
     `function conversationMuteIcon(muted){return muted?"<svg aria-hidden=\\"true\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\" stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\"><path d=\\"M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 5.12 2.12\\"></path><path d=\\"M15 9.34V6a3 3 0 0 0-4.28-2.71\\"></path><path d=\\"M19 10v2a7 7 0 0 1-.7 3.05\\"></path><path d=\\"M5 10v2a7 7 0 0 0 9.74 6.44\\"></path><line x1=\\"12\\" y1=\\"19\\" x2=\\"12\\" y2=\\"22\\"></line><line x1=\\"4\\" y1=\\"4\\" x2=\\"20\\" y2=\\"20\\"></line></svg>":"<svg aria-hidden=\\"true\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\" stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\"><path d=\\"M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z\\"></path><path d=\\"M19 10v2a7 7 0 0 1-14 0v-2\\"></path><line x1=\\"12\\" y1=\\"19\\" x2=\\"12\\" y2=\\"22\\"></line></svg>"}`,
     `function findComposerAuraTarget(){if(typeof document==="undefined")return null;let anchors=document.querySelectorAll?.("[data-composer-attachments-row],textarea,[contenteditable='true'],[data-above-composer-queue-portal],[data-above-composer-portal]")??[];for(let i=anchors.length-1;i>=0;i--){let anchor=anchors[i],target=anchor.closest?.("form,[data-composer-overlay-floating-ui],[class*='composer']")||anchor.parentElement;if(target&&(!document.body?.contains||document.body.contains(target)))return target}return null}`,
-    `function updateControlAnchor(target){if(typeof document==="undefined")return;let style=document.documentElement?.style;if(!style)return;if(!state.active||!target?.getBoundingClientRect){style.removeProperty?.("--codex-linux-conversation-control-right");style.removeProperty?.("--codex-linux-conversation-stop-bottom");style.removeProperty?.("--codex-linux-conversation-mute-bottom");return}let rect=target.getBoundingClientRect(),width=window.innerWidth||document.documentElement?.clientWidth||0,height=window.innerHeight||document.documentElement?.clientHeight||0;if(!width||!height)return;let right=Math.max(12,Math.min(width-50,width-rect.right-48)),maxStopBottom=Math.max(82,Math.min(240,height-96)),stopBottom=Math.max(82,Math.min(maxStopBottom,height-rect.top+8)),muteBottom=Math.min(height-50,stopBottom+46);style.setProperty("--codex-linux-conversation-control-right",right+"px");style.setProperty("--codex-linux-conversation-stop-bottom",stopBottom+"px");style.setProperty("--codex-linux-conversation-mute-bottom",muteBottom+"px")}`,
-    `function updateComposerAura(){let previous=state.composerAura;if(!state.active){previous?.classList?.remove?.("codex-linux-conversation-composer-aura");state.composerAura=null;updateControlAnchor(null);return}let target=findComposerAuraTarget();if(previous&&previous!==target)previous.classList?.remove?.("codex-linux-conversation-composer-aura");target?.classList?.add?.("codex-linux-conversation-composer-aura");state.composerAura=target;updateControlAnchor(target)}`,
-    `function updateTrigger(){if(typeof document==="undefined")return;let buttons=document.querySelectorAll?.("button.codex-linux-conversation-trigger")??[],label=state.active?"Stop conversation mode":"Start conversation mode";for(let button of buttons){button.setAttribute?.("aria-label",label);button.title=label}}`,
+    `function updateControlAnchor(target){if(typeof document==="undefined")return;let style=document.documentElement?.style;if(!style)return;if(!state.active||!target?.getBoundingClientRect){style.removeProperty?.("--chatgpt-linux-conversation-control-right");style.removeProperty?.("--chatgpt-linux-conversation-stop-bottom");style.removeProperty?.("--chatgpt-linux-conversation-mute-bottom");return}let rect=target.getBoundingClientRect(),width=window.innerWidth||document.documentElement?.clientWidth||0,height=window.innerHeight||document.documentElement?.clientHeight||0;if(!width||!height)return;let right=Math.max(12,Math.min(width-50,width-rect.right-48)),maxStopBottom=Math.max(82,Math.min(240,height-96)),stopBottom=Math.max(82,Math.min(maxStopBottom,height-rect.top+8)),muteBottom=Math.min(height-50,stopBottom+46);style.setProperty("--chatgpt-linux-conversation-control-right",right+"px");style.setProperty("--chatgpt-linux-conversation-stop-bottom",stopBottom+"px");style.setProperty("--chatgpt-linux-conversation-mute-bottom",muteBottom+"px")}`,
+    `function updateComposerAura(){let previous=state.composerAura;if(!state.active){previous?.classList?.remove?.("chatgpt-linux-conversation-composer-aura");state.composerAura=null;updateControlAnchor(null);return}let target=findComposerAuraTarget();if(previous&&previous!==target)previous.classList?.remove?.("chatgpt-linux-conversation-composer-aura");target?.classList?.add?.("chatgpt-linux-conversation-composer-aura");state.composerAura=target;updateControlAnchor(target)}`,
+    `function updateTrigger(){if(typeof document==="undefined")return;let buttons=document.querySelectorAll?.("button.chatgpt-linux-conversation-trigger")??[],label=state.active?"Stop conversation mode":"Start conversation mode";for(let button of buttons){button.setAttribute?.("aria-label",label);button.title=label}}`,
     `function chatSurfaceOpen(){return typeof document!=="undefined"&&!!document.querySelector?.('section[role="dialog"][data-pip-obstacle="quick-chat"][data-state="open"]')}`,
     `function guardSurface(){state.active&&chatSurfaceOpen()&&deactivate("discard")}`,
     `function installSurfaceGuard(){if(state.surfaceObserver||typeof document==="undefined"||!document.body||!window.MutationObserver)return;state.surfaceObserver=new window.MutationObserver(guardSurface);state.surfaceObserver.observe(document.body,{attributes:!0,attributeFilter:["data-state"],childList:!0,subtree:!0})}`,
-    `function updateUi(){try{if(typeof document==="undefined")return;if(!document.body){state.active&&setTimeout(updateUi,250);return}installUi();updateTrigger();document.documentElement?.classList?.toggle?.("codex-linux-conversation-active",state.active);document.body.classList?.toggle?.("codex-linux-conversation-active",state.active);document.documentElement?.classList?.toggle?.("codex-linux-conversation-muted",state.active&&state.muted);document.body.classList?.toggle?.("codex-linux-conversation-muted",state.active&&state.muted);updateComposerAura();if(state.stopButton)state.stopButton.hidden=!state.active;if(state.muteButton){let label=state.muted?"Unmute microphone":"Mute microphone";state.muteButton.hidden=!state.active;state.muteButton.title=label;state.muteButton.setAttribute("aria-label",label);state.muteButton.setAttribute("aria-pressed",state.muted?"true":"false");state.muteButton.innerHTML=conversationMuteIcon(state.muted)}}catch{}}`,
+    `function updateUi(){try{if(typeof document==="undefined")return;if(!document.body){state.active&&setTimeout(updateUi,250);return}installUi();updateTrigger();document.documentElement?.classList?.toggle?.("chatgpt-linux-conversation-active",state.active);document.body.classList?.toggle?.("chatgpt-linux-conversation-active",state.active);document.documentElement?.classList?.toggle?.("chatgpt-linux-conversation-muted",state.active&&state.muted);document.body.classList?.toggle?.("chatgpt-linux-conversation-muted",state.active&&state.muted);updateComposerAura();if(state.stopButton)state.stopButton.hidden=!state.active;if(state.muteButton){let label=state.muted?"Unmute microphone":"Mute microphone";state.muteButton.hidden=!state.active;state.muteButton.title=label;state.muteButton.setAttribute("aria-label",label);state.muteButton.setAttribute("aria-pressed",state.muted?"true":"false");state.muteButton.innerHTML=conversationMuteIcon(state.muted)}}catch{}}`,
     `function stopConversation(){if(!state.active)return false;deactivate("discard");return true}`,
     `function cancelInterruptMonitor(){state.interruptSerial++;state.interruptPendingEpoch=0;stopInterruptMonitor()}`,
     `function toggleMute(force){if(!state.active)return false;let muted=typeof force==="boolean"?force:!state.muted;if(muted===state.muted){updateUi();return true}state.muted=muted;state.speechCooldownUntil=0;clearTimeout(state.restartTimer);state.restartTimer=null;if(state.muted){cancelInterruptMonitor();state.listening=false;state.controls?.stopDictation?.("discard")}else if(isResponseInProgress()||state.speaking||state.queue.length>0)startInterruptMonitor();else{state.listening=false;startListeningSoon(0,!0)}updateUi();return true}`,
@@ -67,7 +67,7 @@ function conversationRuntimeSource() {
     `function sync(conversation,controls){updateTrigger();if(!state.active)return false;let id=conversationId(conversation);if(id!==state.activeConversationId){deactivate("insert");return false}let was=isResponseInProgress();mergeControls(controls);let now=isResponseInProgress();if(now&&!was){(!state.allowAssistant||state.awaitingUserTranscript)&&stopSpeech(!0);state.awaitingUserTranscript=false;state.allowAssistant=true;state.muted||startInterruptMonitor()}else if(now&&!state.muted)startInterruptMonitor();if(was&&!now){state.finalizing=true;finishAssistantSoon(650)}updateComposerAura();return true}`,
     `function isActive(conversation){return state.active&&conversationId(conversation)===state.activeConversationId}`,
     `function estimateMs(text){let words=text.split(/\\s+/).filter(Boolean).length;return Math.max(2200,Math.min(600000,words*430))}`,
-    `function speechSettings(){let quiet=Number(localStorage.getItem("codex-linux-conversation-silence-ms")||1800),threshold=Number(localStorage.getItem("codex-linux-conversation-vad-threshold")||0.01),interrupt=Number(localStorage.getItem("codex-linux-conversation-interrupt-threshold")||0.035);threshold=Number.isFinite(threshold)?Math.min(.2,Math.max(.002,threshold)):.01;let possibleThreshold=Math.max(.002,threshold*.45);interrupt=Number.isFinite(interrupt)?Math.min(.25,Math.max(threshold*1.8,interrupt)):.035;return{quietMs:Number.isFinite(quiet)?Math.min(2000,Math.max(900,quiet)):1800,threshold,possibleThreshold,interruptThreshold:interrupt,speechMs:220,interruptMs:420,interruptGraceMs:180,audioPollMs:32}}`,
+    `function speechSettings(){let quiet=Number(localStorage.getItem("chatgpt-linux-conversation-silence-ms")||1800),threshold=Number(localStorage.getItem("chatgpt-linux-conversation-vad-threshold")||0.01),interrupt=Number(localStorage.getItem("chatgpt-linux-conversation-interrupt-threshold")||0.035);threshold=Number.isFinite(threshold)?Math.min(.2,Math.max(.002,threshold)):.01;let possibleThreshold=Math.max(.002,threshold*.45);interrupt=Number.isFinite(interrupt)?Math.min(.25,Math.max(threshold*1.8,interrupt)):.035;return{quietMs:Number.isFinite(quiet)?Math.min(2000,Math.max(900,quiet)):1800,threshold,possibleThreshold,interruptThreshold:interrupt,speechMs:220,interruptMs:420,interruptGraceMs:180,audioPollMs:32}}`,
     `function micConstraints(){return{audio:{channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}}}`,
     `function stopTracks(stream){try{stream?.getTracks?.().forEach(e=>e.stop())}catch{}}`,
     `function makeAudioGraph(stream){let ctx=null,source=null,analyser=null;try{ctx=new (window.AudioContext||window.webkitAudioContext)(),source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser(),analyser.fftSize=512,source.connect(analyser)}catch{try{source?.disconnect?.()}catch{}try{ctx?.close?.()}catch{}return null}let data=new Float32Array(analyser.fftSize);return{level(){analyser.getFloatTimeDomainData(data);let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];return Math.sqrt(sum/data.length)},close(){try{source?.disconnect?.()}catch{}try{ctx?.close?.()}catch{}}}}`,
@@ -99,7 +99,7 @@ function conversationRuntimeSource() {
     `function tokenSimilarity(a,b){let A=[...new Set(a.split(/\\s+/).filter(e=>e.length>2))],B=new Set(b.split(/\\s+/).filter(e=>e.length>2));if(A.length<4||B.size<4)return false;let hits=0;for(let word of A)B.has(word)&&hits++;return hits/Math.min(A.length,B.size)>=.72}`,
     `function isLikelySpeechEcho(normalized){if(!normalized||Date.now()-state.spokenEchoAt>45e3)return false;let echo=state.spokenEchoText;if(!echo)return false;return normalized.length>=16&&(echo.includes(normalized)||normalized.includes(echo)||tokenSimilarity(normalized,echo))}`,
     `function shouldSendTranscript(text,action){if(!state.active||action!==\`send\`)return true;if(state.muted)return false;let normalized=normalizeSent(text);if(!normalized)return false;let now=Date.now();if(normalized===state.lastSentText&&now-state.lastSentAt<3e4)return false;if(isLikelySpeechEcho(normalized)){state.epoch++;state.awaitingUserTranscript=false;state.allowAssistant=false;resetSpeechState();resetTurnState();startListeningSoon(900,!0);return false}stopSpeech(!0);state.awaitingUserTranscript=false;state.allowAssistant=true;state.spokenAssistant.clear();state.spokenAssistantTexts=[];state.cursorSentAtMs=now-1500;state.lastSentText=normalized;state.lastSentAt=now;return true}`,
-    `installSurfaceGuard();globalThis.codexLinuxConversationAvailable=available;globalThis.codexLinuxConversationToggle=toggle;globalThis.codexLinuxConversationToggleMute=toggleMute;globalThis.codexLinuxConversationSync=sync;globalThis.codexLinuxConversationIsActive=isActive;globalThis.codexLinuxConversationStop=stopConversation;globalThis.codexLinuxConversationIsSpeaking=isSpeaking;globalThis.codexLinuxConversationStopSpeaking=stopSpeaking;globalThis.codexLinuxConversationEndpoint=endpoint;globalThis.codexLinuxConversationAssistant=assistant;globalThis.codexLinuxConversationShouldSendTranscript=shouldSendTranscript;})();`,
+    `installSurfaceGuard();globalThis.chatgptLinuxConversationAvailable=available;globalThis.chatgptLinuxConversationToggle=toggle;globalThis.chatgptLinuxConversationToggleMute=toggleMute;globalThis.chatgptLinuxConversationSync=sync;globalThis.chatgptLinuxConversationIsActive=isActive;globalThis.chatgptLinuxConversationStop=stopConversation;globalThis.chatgptLinuxConversationIsSpeaking=isSpeaking;globalThis.chatgptLinuxConversationStopSpeaking=stopSpeaking;globalThis.chatgptLinuxConversationEndpoint=endpoint;globalThis.chatgptLinuxConversationAssistant=assistant;globalThis.chatgptLinuxConversationShouldSendTranscript=shouldSendTranscript;})();`,
   ].join("");
 }
 
@@ -194,7 +194,7 @@ function composerTogglePayload(vars, props) {
 }
 
 function applyComposerControlPatch(source) {
-  if (source.includes("codexLinuxConversationSync?.(") && source.includes("codexLinuxConversationToggle?.(")) {
+  if (source.includes("chatgptLinuxConversationSync?.(") && source.includes("chatgptLinuxConversationToggle?.(")) {
     return source;
   }
   const binding = currentComposerBinding(source);
@@ -213,7 +213,7 @@ function applyComposerControlPatch(source) {
     onStop: objectPropVar(binding.propsObject, "onStop", null),
   };
   const controlPattern = new RegExp(
-    `\\{isVisible:${escapeRegExp(vars.isDictationButtonVisible)},disabled:([^,{}]+),` +
+    `\\{idleIcon:([\\s\\S]*?),isVisible:${escapeRegExp(vars.isDictationButtonVisible)},disabled:([^,{}]+),` +
       `isTranscribing:${escapeRegExp(vars.isTranscribing)},canRetryDictation:${escapeRegExp(vars.canRetryDictation)},` +
       `shortcutLabel:${escapeRegExp(vars.dictationShortcutLabel)},retryDictation:${escapeRegExp(vars.retryDictation)},` +
       `startDictation:${escapeRegExp(vars.startDictation)},stopDictation:${escapeRegExp(vars.stopDictation)}\\}`,
@@ -228,12 +228,12 @@ function applyComposerControlPatch(source) {
     warn("Could not find current composer control insertion point", "conversation mode composer control patch");
     return source;
   }
-  const syncCall = `globalThis.codexLinuxConversationSync?.(${props.conversationId},{${composerSyncPayload(vars, props)}})`;
+  const syncCall = `globalThis.chatgptLinuxConversationSync?.(${props.conversationId},{${composerSyncPayload(vars, props)}})`;
   let patched = `${source.slice(0, insertionIndex + 1)}${syncCall};${source.slice(insertionIndex + 1)}`;
-  const toggleCall = `globalThis.codexLinuxConversationToggle?.({${composerTogglePayload(vars, props)}})`;
+  const toggleCall = `globalThis.chatgptLinuxConversationToggle?.({${composerTogglePayload(vars, props)}})`;
   patched = patched.replace(
     controlPattern,
-    `{isVisible:${vars.isDictationButtonVisible}||${props.conversationId}&&globalThis.codexLinuxConversationAvailable?.(),className:${props.conversationId}?\`codex-linux-conversation-trigger\`:void 0,disabled:$1,isTranscribing:${vars.isTranscribing},canRetryDictation:${vars.canRetryDictation},shortcutLabel:${vars.dictationShortcutLabel},retryDictation:${vars.retryDictation},startDictation:()=>${toggleCall}?Promise.resolve():${vars.startDictation}(),stopDictation:${vars.stopDictation}}`,
+    `{idleIcon:$1,isVisible:${vars.isDictationButtonVisible}||${props.conversationId}&&globalThis.chatgptLinuxConversationAvailable?.(),className:${props.conversationId}?\`chatgpt-linux-conversation-trigger\`:void 0,disabled:$2,isTranscribing:${vars.isTranscribing},canRetryDictation:${vars.canRetryDictation},shortcutLabel:${vars.dictationShortcutLabel},retryDictation:${vars.retryDictation},startDictation:()=>${toggleCall}?Promise.resolve():${vars.startDictation}(),stopDictation:${vars.stopDictation}}`,
   );
   return patched;
 }
@@ -244,16 +244,16 @@ function applyDictationEndpointPatch(source) {
     return source;
   }
   if (
-    source.includes("codexLinuxConversationCleanup") &&
-    source.includes("codexLinuxConversationEndpoint") &&
-    source.includes("codexLinuxConversationShouldSendTranscript")
+    source.includes("chatgptLinuxConversationCleanup") &&
+    source.includes("chatgptLinuxConversationEndpoint") &&
+    source.includes("chatgptLinuxConversationShouldSendTranscript")
   ) {
     return source;
   }
   if (
-    source.includes("codexLinuxConversationCleanup") ||
-    source.includes("codexLinuxConversationEndpoint") ||
-    source.includes("codexLinuxConversationShouldSendTranscript")
+    source.includes("chatgptLinuxConversationCleanup") ||
+    source.includes("chatgptLinuxConversationEndpoint") ||
+    source.includes("chatgptLinuxConversationShouldSendTranscript")
   ) {
     warn("Found an incomplete current dictation patch", "conversation mode dictation endpoint patch");
     return source;
@@ -265,9 +265,9 @@ function applyDictationEndpointPatch(source) {
     /([A-Za-z_$][\w$]*)&&\(\1\.ondataavailable=null,\1\.onstop=null\),([A-Za-z_$][\w$]*)\.current=null,([A-Za-z_$][\w$]*)\(\),([A-Za-z_$][\w$]*)\(\),/u;
   const actionRef = source.match(/let [A-Za-z_$][\w$]*=([A-Za-z_$][\w$]*)\.current\?\?`insert`/)?.[1] ?? null;
   const recorderPattern =
-    /let ([A-Za-z_$][\w$]*)=new MediaRecorder\(([A-Za-z_$][\w$]*)\);if\(([A-Za-z_$][\w$]*)\.current=\1,([A-Za-z_$][\w$]*)\.current=\[\],\1\.ondataavailable=([A-Za-z_$][\w$]*)=>\{\5\.data\.size>0&&\4\.current\.push\(\5\.data\)\},\1\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},\1\.start\(\),([A-Za-z_$][\w$]*)\(!0\)/u;
+    /let ([A-Za-z_$][\w$]*)=new MediaRecorder\(([A-Za-z_$][\w$]*)\);if\(([A-Za-z_$][\w$]*)\.current=\1,([A-Za-z_$][\w$]*)\.current=\[\],\1\.ondataavailable=([A-Za-z_$][\w$]*)=>\{\5\.data\.size>0&&\4\.current\.push\(\5\.data\)\},\1\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},\1\.start\(\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/u;
   const transcriptPattern =
-    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\),([A-Za-z_$][\w$]*)===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\4\.onTranscriptInsert\(\1\)\)/u;
+    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\5\.onTranscriptInsert\(\1\)\)/u;
 
   if (
     !micConstraintsPattern.test(source) ||
@@ -286,16 +286,16 @@ function applyDictationEndpointPatch(source) {
   );
   patched = patched.replace(
     cleanupPattern,
-    "$1?.codexLinuxConversationCleanup?.(),$1&&($1.ondataavailable=null,$1.onstop=null),$2.current=null,$3(),$4(),",
+    "$1?.chatgptLinuxConversationCleanup?.(),$1&&($1.ondataavailable=null,$1.onstop=null),$2.current=null,$3(),$4(),",
   );
   patched = patched.replace(
     recorderPattern,
-    (_needle, recorderVar, streamVar, recorderRefVar, chunksRefVar, dataVar, finishFn, activeSetterVar) =>
-      `let ${recorderVar}=new MediaRecorder(${streamVar});if(${recorderRefVar}.current=${recorderVar},${chunksRefVar}.current=[],${recorderVar}.ondataavailable=${dataVar}=>{${dataVar}.data.size>0&&${chunksRefVar}.current.push(${dataVar}.data)},${recorderVar}.onstop=()=>{${finishFn}()},${recorderVar}.codexLinuxConversationCleanup=globalThis.codexLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderVar}.start(),${activeSetterVar}(!0)`,
+    (_needle, recorderVar, streamVar, recorderRefVar, chunksRefVar, dataVar, finishFn, analyticsVar, activeSetterVar) =>
+      `let ${recorderVar}=new MediaRecorder(${streamVar});if(${recorderRefVar}.current=${recorderVar},${chunksRefVar}.current=[],${recorderVar}.ondataavailable=${dataVar}=>{${dataVar}.data.size>0&&${chunksRefVar}.current.push(${dataVar}.data)},${recorderVar}.onstop=()=>{${finishFn}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderVar}.start(),${analyticsVar}.performance.mark(\`recording_started\`),${activeSetterVar}(!0)`,
   );
   return patched.replace(
     transcriptPattern,
-    "$1.length>0&&$3!==`discard`&&globalThis.codexLinuxConversationShouldSendTranscript?.($1,$3)!==!1&&($2.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:$1}),$3===`send`?$4.onTranscriptSend($1):$4.onTranscriptInsert($1))",
+    "$1.length>0&&$4!==`discard`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.($1,$4)!==!1&&($2.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:$1}),$3.performance.mark(`transcript_dispatched`),$4===`send`?$5.onTranscriptSend($1):$5.onTranscriptInsert($1))",
   );
 }
 
@@ -305,11 +305,11 @@ function propVar(match, name) {
 }
 
 function readAssistantObserveSource(itemVar, copyVar, conversationVar, turnVar) {
-  return `globalThis.codexLinuxConversationAssistant?.(${itemVar},${copyVar},${conversationVar},${turnVar},typeof c!="undefined"?c:null)??null`;
+  return `globalThis.chatgptLinuxConversationAssistant?.(${itemVar},${copyVar},${conversationVar},${turnVar},typeof c!="undefined"?c:null)??null`;
 }
 
 function applyAssistantRenderPatch(source) {
-  if (source.includes("codexLinuxConversationAssistant?.(")) {
+  if (source.includes("chatgptLinuxConversationAssistant?.(")) {
     return source;
   }
   const jsxCallPattern =
@@ -334,7 +334,7 @@ function applyComposerPatch(source) {
   const patched = applyComposerControlPatch(source);
   if (
     patched === source &&
-    (!source.includes("codexLinuxConversationSync?.(") || !source.includes("codexLinuxConversationToggle?.("))
+    (!source.includes("chatgptLinuxConversationSync?.(") || !source.includes("chatgptLinuxConversationToggle?.("))
   ) {
     return source;
   }

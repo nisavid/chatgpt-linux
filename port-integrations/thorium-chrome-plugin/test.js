@@ -153,7 +153,7 @@ test("Thorium Chrome plugin integration exposes its patch and stage hook when en
 
 test("Thorium settings patch extends the core Linux Chrome status helper", () => {
   const source =
-    "function codexLinuxChromeProfileRoots({homeDir:e,platform:t}){return t===`linux`?[(0,p.join)(e,`.config`,`BraveSoftware`,`Brave-Browser`),(0,p.join)(e,`.config`,`google-chrome`),(0,p.join)(e,`.config`,`google-chrome-beta`),(0,p.join)(e,`.config`,`google-chrome-unstable`),(0,p.join)(e,`.config`,`chromium`)]:[]}function codexLinuxChromeCommand(){for(let t of[`brave-browser`,`brave`,`google-chrome`,`google-chrome-stable`,`google-chrome-beta`,`google-chrome-unstable`,`chromium-browser`,`chromium`]){}}throw Error(`Google Chrome, Brave, or Chromium is not installed`)";
+    "function chatgptLinuxChromeProfileRoots({homeDir:e,platform:t}){return t===`linux`?[(0,p.join)(e,`.config`,`BraveSoftware`,`Brave-Browser`),(0,p.join)(e,`.config`,`google-chrome`),(0,p.join)(e,`.config`,`google-chrome-beta`),(0,p.join)(e,`.config`,`google-chrome-unstable`),(0,p.join)(e,`.config`,`chromium`)]:[]}function chatgptLinuxChromeCommand(){for(let t of[`brave-browser`,`brave`,`google-chrome`,`google-chrome-stable`,`google-chrome-beta`,`google-chrome-unstable`,`chromium-browser`,`chromium`]){}}throw Error(`Google Chrome, Brave, or Chromium is not installed`)";
   const patched = applyThoriumChromeExtensionStatusPatch(source);
 
   assert.match(patched, /`\.config`,`thorium`/);
@@ -183,7 +183,7 @@ test("Thorium stage hook upgrades a core Linux-patched Chrome plugin", () => {
     const workDir = path.join(workspace, "work");
     const chromePlugin = path.join(installDir, "resources", "plugins", "openai-bundled", "plugins", "chrome");
     const featuresConfig = path.join(workspace, "integrations.json");
-    const manifestPathsFile = path.join(installDir, ".codex-linux", "chrome-native-host-manifest-paths");
+    const manifestPathsFile = path.join(installDir, ".chatgpt-linux", "chrome-native-host-manifest-paths");
 
     fs.mkdirSync(workDir, { recursive: true });
     writeFakeChromePlugin(chromePlugin);
@@ -207,7 +207,7 @@ test("Thorium stage hook upgrades a core Linux-patched Chrome plugin", () => {
     ], {
       env: {
         ...process.env,
-        CODEX_PORT_INTEGRATIONS_CONFIG: featuresConfig,
+        CHATGPT_PORT_INTEGRATIONS_CONFIG: featuresConfig,
         PORT_INTEGRATIONS_RUNNER: path.join(repoRoot, "scripts", "lib", "port-integrations.sh"),
         REPO_ROOT: repoRoot,
         INSTALL_DIR: installDir,
@@ -238,7 +238,7 @@ test("Thorium stage hook does not advertise native host paths when Chrome plugin
     const installDir = path.join(workspace, "install");
     const workDir = path.join(workspace, "work");
     const featuresConfig = path.join(workspace, "integrations.json");
-    const manifestPathsFile = path.join(installDir, ".codex-linux", "chrome-native-host-manifest-paths");
+    const manifestPathsFile = path.join(installDir, ".chatgpt-linux", "chrome-native-host-manifest-paths");
 
     fs.mkdirSync(installDir, { recursive: true });
     fs.mkdirSync(workDir, { recursive: true });
@@ -259,7 +259,7 @@ test("Thorium stage hook does not advertise native host paths when Chrome plugin
     ], {
       env: {
         ...process.env,
-        CODEX_PORT_INTEGRATIONS_CONFIG: featuresConfig,
+        CHATGPT_PORT_INTEGRATIONS_CONFIG: featuresConfig,
         PORT_INTEGRATIONS_RUNNER: path.join(repoRoot, "scripts", "lib", "port-integrations.sh"),
         REPO_ROOT: repoRoot,
         INSTALL_DIR: installDir,

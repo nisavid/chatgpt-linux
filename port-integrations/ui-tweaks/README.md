@@ -1,6 +1,6 @@
 # UI Tweaks
 
-`ui-tweaks` is an optional port integration for small ChatGPT Desktop UI
+`ui-tweaks` is an optional port integration for small ChatGPT for Linux UI
 customizations. It is disabled by default and is intended as a shared place for
 future visual tweaks that are useful to some Linux users but should not affect
 the baseline app.
@@ -56,7 +56,7 @@ Exposes the upstream Dock icon selector on Linux and stages the original PNG
 resources from the current macOS bundle. The selected icon is applied to open
 and restored Electron windows and to the system tray. On KDE Plasma, the tweak
 also creates and updates a managed user-local desktop entry so a pinned taskbar
-launcher follows the selected icon without reloading Plasma Shell. The Codex
+launcher follows the selected icon without reloading Plasma Shell. The alternate-icon
 resources are cropped to the same visual occupancy as the ChatGPT icon because
 Linux taskbars do not apply macOS Dock normalization. Existing user-managed
 desktop entries remain untouched. Packaged launchers are discovered from the
@@ -64,8 +64,8 @@ runtime desktop hint or the standard `XDG_DATA_DIRS` application paths. The
 source launcher must match the active app id before it can be copied, so a
 side-by-side identity cannot inherit the default package's launch commands.
 
-This tweak is independently disabled by default. Enable it while keeping the
-rest of `ui-tweaks` configurable:
+This tweak is enabled by default with `ui-tweaks`. Disable only the Dock
+icon behavior while keeping the other UI tweaks enabled:
 
 ```json
 {
@@ -75,7 +75,7 @@ rest of `ui-tweaks` configurable:
       "tweaks": {
         "appearance": {
           "dockIcon": {
-            "enabled": true
+            "enabled": false
           }
         }
       }
@@ -99,12 +99,13 @@ existing generated-suggestion path on Home. Suggestions are generated from the
 selected project and connected apps by the upstream implementation. Selecting a
 card fills the composer with its proposed next action.
 
-The patch continues to call the upstream rollout and account-eligibility
-functions for diagnostics, then honors the explicit Linux opt-in. It also keeps
-the upstream setting as the user's runtime on/off control after the integration is
-built into the app.
+Suggested Prompts is available only when all three gates pass: the upstream
+rollout and account-eligibility checks, the user's upstream Suggested Prompts
+setting, and this port integration's Linux support. The patch preserves the
+upstream checks as required conditions; the Linux marker does not bypass them.
 
-This tweak is independently disabled by default:
+This tweak is enabled by default with `ui-tweaks`. Disable its Linux support
+without disabling the other UI tweaks:
 
 ```json
 {
@@ -114,7 +115,7 @@ This tweak is independently disabled by default:
       "tweaks": {
         "home": {
           "suggestedPrompts": {
-            "enabled": true
+            "enabled": false
           }
         }
       }
@@ -125,9 +126,9 @@ This tweak is independently disabled by default:
 
 Config keys:
 
-- `enabled`: `true` applies the four current-DMG Suggested Prompts descriptors.
-  `false` leaves the upstream Settings and Home behavior unchanged while other
-  UI tweaks remain independently configurable.
+- `enabled`: `true` supplies Linux support while preserving the upstream
+  eligibility and user-setting gates. `false` leaves the upstream Settings and
+  Home behavior unchanged while other UI tweaks remain independently configurable.
 
 ### `modelPicker.showModelsByDefault`
 

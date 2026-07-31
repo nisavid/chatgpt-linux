@@ -54,7 +54,7 @@ What it changes:
   the local Chrome plugin and native host are healthy, and adds a diagnostic
   when the native browser bridge is not exposed to the session.
 - Persists the private key material at
-  `~/.config/codex-app/remote-control-device-keys/remote-control-device-keys-v1.json`
+  `~/.config/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json`
   with `0600` file permissions inside a dedicated `0700` directory. Updates are
   serialized with a safely resolved `flock`/`sh` helper, including migrations
   triggered by reading or signing a key. A replacement fsyncs its temporary
@@ -84,7 +84,7 @@ What it changes:
   startup.
 - Updates Remote settings and mobile setup copy so the experimental Linux flow
   is not described as Mac-only.
-- Stages `.codex-linux/cold-start.d/remote-mobile-control`, an integration-owned
+- Stages `.chatgpt-linux/cold-start.d/remote-mobile-control`, an integration-owned
   cold-start hook that provisions the official managed standalone daemon runtime
   when it is missing, then starts the managed app-server daemon with
   `remote-control start`.
@@ -142,7 +142,7 @@ Integration-owned surfaces outside the descriptor array are also topology-scoped
 | `stage.sh` | `mobile-host` | Stages the host marker, cold-start hook, and optional Chrome bridge patch. |
 | `cold-start-hook.sh` | `mobile-host` | Elects one local remote-control runtime owner and starts only the standalone fallback. |
 | `applyLinuxRemoteMobileChromeBridgePatch` | `mobile-host` | Keeps local Browser Use available to an authorized mobile-controlled session. |
-| Nix `codex-remote-control.service` | `mobile-host` | Replaces the mutable standalone fallback with one declarative local app-server owner. |
+| Nix `chatgpt-remote-control.service` | `mobile-host` | Replaces the mutable standalone fallback with one declarative local app-server owner. |
 | `applyLinuxRemoteControlSshInstallActionPatch` | `remote-ssh` | Keeps the existing Remote SSH install action available. |
 | `applyLinuxRemoteControlSshInstallReleasePatch` | `remote-ssh` | Sends an explicit Codex release only to the Remote SSH install/update action. |
 
@@ -171,7 +171,7 @@ integration uses the upstream managed standalone daemon runtime at:
 ```
 
 If that binary is missing, the integration's cold-start hook runs the official
-standalone installer with `CODEX_INSTALL_DIR` pointed at a private bin directory
+standalone installer with `CHATGPT_INSTALL_DIR` pointed at a private bin directory
 under `~/.codex/packages/standalone/.bin`. That satisfies the managed daemon
 layout without changing `CODEX_CLI_PATH`, creating `~/.local/bin/codex`, or
 adding PATH blocks to your shell profile.
@@ -179,7 +179,7 @@ adding PATH blocks to your shell profile.
 The hook is launched best-effort in the background by the generic launcher hook
 runner. When the system `timeout` command is available, the installer/start path
 is capped by
-`CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS` (default `30`), so
+`CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS` (default `30`), so
 Desktop cold start is not blocked by network, GitHub, or installer stalls.
 When `timeout` is unavailable, the hook continues the installer/start path in a
 background subprocess. Hook output is written to the launcher log.
@@ -189,10 +189,10 @@ On NixOS, prefer the flake's Home Manager module instead of the launcher hook:
 ```nix
 {
   imports = [
-    inputs.codex-app-linux.homeManagerModules.default
+    inputs.chatgpt-linux.homeManagerModules.default
   ];
 
-  programs.codexAppLinux = {
+  programs.chatgptLinux = {
     enable = true;
     computerUseUi.enable = true;
     remoteMobileControl.enable = true;
@@ -202,9 +202,9 @@ On NixOS, prefer the flake's Home Manager module instead of the launcher hook:
 ```
 
 The module installs the remote-mobile package variant and manages
-`codex-remote-control.service` as a user systemd unit running
+`chatgpt-remote-control.service` as a user systemd unit running
 `codex app-server --remote-control --listen unix://`. It also sets
-`CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED=1` so the launcher does not
+`CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED=1` so the launcher does not
 start a second mutable standalone daemon.
 
 At cold start, an active, enabled, or otherwise installed systemd user unit is
@@ -220,20 +220,20 @@ package layering, or base-OS mutation. The private `.bin` directory is only a
 launcher-owned target for the installer symlink; it is not prepended to the
 user's persistent shell `PATH`.
 
-Set `CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED=1` to disable that
+Set `CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED=1` to disable that
 runtime provisioning and only use an already-installed standalone runtime.
-Set `CODEX_REMOTE_CONTROL_INSTALLER_SHA256` to require the downloaded official
+Set `CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256` to require the downloaded official
 standalone installer script to match a pinned SHA-256 digest before it runs.
 
 To force a specific daemon binary without affecting the interactive CLI, set:
 
 ```bash
-CODEX_REMOTE_CONTROL_CODEX_PATH=/path/to/standalone/codex
+CHATGPT_REMOTE_CONTROL_CODEX_PATH=/path/to/standalone/codex
 ```
 
 To keep Desktop using Homebrew while the daemon uses standalone, set
 `CODEX_CLI_PATH` to the Brew binary and leave
-`CODEX_REMOTE_CONTROL_CODEX_PATH` unset or pointed at the standalone binary.
+`CHATGPT_REMOTE_CONTROL_CODEX_PATH` unset or pointed at the standalone binary.
 
 KDE Plasma smoke check:
 
@@ -242,8 +242,8 @@ enrolled. On Plasma/Wayland, verify that the KWin backend is ready after
 building or installing the package:
 
 ```bash
-./codex-app/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux doctor
-./codex-app/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux windows
+./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux doctor
+./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux windows
 ```
 
 The doctor report should show the KWin window backend, XDG Desktop Portal, and

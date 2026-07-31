@@ -10,7 +10,7 @@ const test = require("node:test");
 const { pathToFileURL } = require("node:url");
 
 const runtimePath = process.env.CODEX_NODE_REPL_PATH;
-const pluginsRoot = process.env.CODEX_STAGED_BUNDLED_PLUGINS_ROOT;
+const pluginsRoot = process.env.CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT;
 
 function runNodeReplImport(runtime, clients) {
   return new Promise((resolve, reject) => {

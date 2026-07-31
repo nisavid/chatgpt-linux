@@ -1,16 +1,16 @@
 "use strict";
 
 const RUNTIME_VERSION = "omarchy-theme-v1";
-const STYLE_LINK_ID = "codex-linux-omarchy-theme-link";
+const STYLE_LINK_ID = "chatgpt-linux-omarchy-theme-link";
 const THEME_CSS_ENDPOINT = "/__codex_user_stylesheet.css";
 
 function omarchyThemeRuntimeSource() {
   return [
     ";(()=>{",
     `const VERSION=${JSON.stringify(RUNTIME_VERSION)};`,
-    "if(globalThis.codexLinuxOmarchyThemeVersion===VERSION)return;",
-    "try{globalThis.codexLinuxOmarchyThemeCleanup?.()}catch{}",
-    "globalThis.codexLinuxOmarchyThemeVersion=VERSION;",
+    "if(globalThis.chatgptLinuxOmarchyThemeVersion===VERSION)return;",
+    "try{globalThis.chatgptLinuxOmarchyThemeCleanup?.()}catch{}",
+    "globalThis.chatgptLinuxOmarchyThemeVersion=VERSION;",
     `const STYLE_LINK_ID=${JSON.stringify(STYLE_LINK_ID)};`,
     `const THEME_CSS_ENDPOINT=${JSON.stringify(THEME_CSS_ENDPOINT)};`,
     "let interval=null,installed=false;",
@@ -18,7 +18,7 @@ function omarchyThemeRuntimeSource() {
     "function onVisibilityChange(){document.hidden||refresh()}",
     "function install(){if(installed)return;installed=true;refresh();interval=setInterval(refresh,5000);window.addEventListener(`focus`,refresh);document.addEventListener(`visibilitychange`,onVisibilityChange)}",
     "function cleanup(){document.removeEventListener(`DOMContentLoaded`,install);document.removeEventListener(`visibilitychange`,onVisibilityChange);window.removeEventListener(`focus`,refresh);interval!=null&&clearInterval(interval);interval=null;installed=false}",
-    "globalThis.codexLinuxOmarchyThemeCleanup=cleanup;",
+    "globalThis.chatgptLinuxOmarchyThemeCleanup=cleanup;",
     "document.readyState===`loading`?document.addEventListener(`DOMContentLoaded`,install,{once:true}):install();",
     "})();",
   ].join("");
@@ -28,7 +28,7 @@ function applyOmarchyThemeLoader(source) {
   if (typeof source !== "string") {
     return source;
   }
-  if (source.includes("codexLinuxOmarchyThemeVersion=")) {
+  if (source.includes("chatgptLinuxOmarchyThemeVersion=")) {
     return source;
   }
   return `${source}\n${omarchyThemeRuntimeSource()}`;

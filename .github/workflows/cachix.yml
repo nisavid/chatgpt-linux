@@ -16,13 +16,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CACHIX_CACHE_NAME: codex-app-linux
+  CACHIX_CACHE_NAME: chatgpt-linux
   CARGO_TERM_COLOR: always
   NIX_CONFIG: experimental-features = nix-command flakes
 
 jobs:
-  detect-codex-dmg-hash:
-    name: Detect Codex DMG hash change
+  detect-chatgpt-dmg-hash:
+    name: Detect ChatGPT DMG hash change
     if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Compare Codex DMG hashes
+      - name: Compare ChatGPT DMG hashes
         id: codex-dmg-hash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -44,7 +44,7 @@ jobs:
 
           current_hash="$(
             scripts/ci/update-nix-hashes.sh \
-              read-flake-hash "codexDmg = pkgs.fetchurl {" "hash = "
+              read-flake-hash "chatgptDmg = pkgs.fetchurl {" "hash = "
           )"
           previous_flake="$(mktemp)"
           trap 'rm -f "$previous_flake"' EXIT
@@ -62,7 +62,7 @@ jobs:
             git show "$BEFORE_SHA:flake.nix" > "$previous_flake"
             previous_hash="$(
               FLAKE_FILE="$previous_flake" scripts/ci/update-nix-hashes.sh \
-                read-flake-hash "codexDmg = pkgs.fetchurl {" "hash = "
+                read-flake-hash "chatgptDmg = pkgs.fetchurl {" "hash = "
             )"
             if [ "$current_hash" = "$previous_hash" ]; then
               changed=false
@@ -76,7 +76,7 @@ jobs:
             echo "current=$current_hash"
           } >> "$GITHUB_OUTPUT"
           {
-            echo "## Codex DMG hash"
+            echo "## ChatGPT DMG hash"
             echo
             echo "- Previous: \`$previous_hash\`"
             echo "- Current: \`$current_hash\`"
@@ -85,8 +85,8 @@ jobs:
 
   populate:
     name: Build Nix flake outputs
-    needs: detect-codex-dmg-hash
-    if: needs.detect-codex-dmg-hash.outputs.changed == 'true'
+    needs: detect-chatgpt-dmg-hash
+    if: needs.detect-chatgpt-dmg-hash.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -112,7 +112,7 @@ jobs:
           ## Cachix
 
           `CACHIX_AUTH_TOKEN` is not configured, so this run will build without pushing to Cachix.
-          Add a write token for the `codex-app-linux` Cachix cache as a repository secret to populate it automatically.
+          Add a write token for the `chatgpt-linux` Cachix cache as a repository secret to populate it automatically.
           EOF
 
       - name: Build, upload, and collect cacheable Nix outputs
@@ -120,10 +120,10 @@ jobs:
           set -euo pipefail
 
           outputs=(
-            .#codex-app
-            .#codex-app-computer-use-ui
-            .#codex-app-remote-mobile-control
-            .#codex-app-computer-use-ui-remote-mobile-control
+            .#chatgpt
+            .#chatgpt-computer-use-ui
+            .#chatgpt-remote-mobile-control
+            .#chatgpt-computer-use-ui-remote-mobile-control
             .#checks.x86_64-linux.watchdog-linux-features
             .#installer
           )
@@ -149,7 +149,7 @@ jobs:
           {
             echo "## Cachix population"
             echo
-            echo "- Triggering Codex DMG hash: \`${{ needs.detect-codex-dmg-hash.outputs.current }}\`"
+            echo "- Triggering ChatGPT DMG hash: \`${{ needs.detect-chatgpt-dmg-hash.outputs.current }}\`"
             echo "- Cache: \`$CACHIX_CACHE_NAME\`"
             printf -- '- Built and collected: `%s`\n' "${outputs[@]}"
           } >> "$GITHUB_STEP_SUMMARY"

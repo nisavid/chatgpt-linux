@@ -60,11 +60,11 @@ function deferred() {
 }
 
 function linuxDesktopSettingsFixture() {
-  return 'var React={Fragment:{},Component:class{constructor(){this.state={}}setState(e){this.state={...this.state,...e}}}},$={jsx(){},jsxs(){}},KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled",autoUpdateOnExit:"codex-linux-auto-update-on-exit"};function codexLinuxChecked(e){return e===!0}class LinuxToggle extends React.Component{}function SettingsRow(){}function SettingsSection(){}function SettingsGroup(){}function SettingsPage(){}function Toggle(){}function LinuxBuildInfoPanel(){}function LinuxDesktopSettings(){return $.jsx(SettingsPage,{title:"Linux desktop",subtitle:"Launcher, tray, prompt window, and update behavior.",children:$.jsxs("div",{className:"flex flex-col gap-6",children:[$.jsxs(SettingsSection,{className:"gap-2",children:[$.jsx(SettingsSection.Header,{title:"Updates"}),$.jsx(SettingsSection.Content,{children:$.jsx(SettingsGroup,{children:$.jsx(LinuxToggle,{settingKey:KEYS.autoUpdateOnExit,label:"Install updates when you close ChatGPT",description:"When on, a ready update waits for ChatGPT to close and then installs. When off, updates wait until you click Update."})})})]}),$.jsxs(SettingsSection,{className:"gap-2",children:[$.jsx(SettingsSection.Header,{title:"Build"}),$.jsx(SettingsSection.Content,{children:$.jsx(SettingsGroup,{children:$.jsx(LinuxBuildInfoPanel,{})})})]})]})})}export{LinuxDesktopSettings,LinuxDesktopSettings as default};';
+  return 'var React={Fragment:{},Component:class{constructor(){this.state={}}setState(e){this.state={...this.state,...e}}}},$={jsx(){},jsxs(){}},KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled",autoUpdateOnExit:"chatgpt-linux-auto-update-on-exit"};function chatgptLinuxChecked(e){return e===!0}class LinuxToggle extends React.Component{}function SettingsRow(){}function SettingsSection(){}function SettingsGroup(){}function SettingsPage(){}function Toggle(){}function LinuxBuildInfoPanel(){}function LinuxDesktopSettings(){return $.jsx(SettingsPage,{title:"Linux desktop",subtitle:"Launcher, tray, prompt window, and update behavior.",children:$.jsxs("div",{className:"flex flex-col gap-6",children:[$.jsxs(SettingsSection,{className:"gap-2",children:[$.jsx(SettingsSection.Header,{title:"Updates"}),$.jsx(SettingsSection.Content,{children:$.jsx(SettingsGroup,{children:$.jsx(LinuxToggle,{settingKey:KEYS.autoUpdateOnExit,label:"Install updates when you close ChatGPT",description:"When on, a ready update waits for ChatGPT to close and then installs. When off, updates wait until you click Update."})})})]}),$.jsxs(SettingsSection,{className:"gap-2",children:[$.jsx(SettingsSection.Header,{title:"Build"}),$.jsx(SettingsSection.Content,{children:$.jsx(SettingsGroup,{children:$.jsx(LinuxBuildInfoPanel,{})})})]})]})})}export{LinuxDesktopSettings,LinuxDesktopSettings as default};';
 }
 
 function createLinuxReadAloudSettings(post) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-runtime-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-runtime-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
@@ -94,11 +94,11 @@ function createDeferredSettingsWrites({ writeKey, enabled = false, speed = 1.05 
   const settings = createLinuxReadAloudSettings((method, { params }) => {
     if (method === "get-global-state") {
       assert.ok([
-        "codex-linux-read-aloud-enabled",
-        "codex-linux-read-aloud-kokoro-speed",
+        "chatgpt-linux-read-aloud-enabled",
+        "chatgpt-linux-read-aloud-kokoro-speed",
       ].includes(params.key));
       return Promise.resolve({
-        value: params.key === "codex-linux-read-aloud-enabled" ? enabled : speed,
+        value: params.key === "chatgpt-linux-read-aloud-enabled" ? enabled : speed,
       });
     }
     assert.equal(method, "set-global-state");
@@ -117,25 +117,25 @@ test("main bundle patch adds a Linux read aloud handler", () => {
   ].join("");
   const patched = twice(applyMainBundlePatch, source);
   assert.match(patched, /"linux-read-aloud":async/);
-  assert.match(patched, /function codexLinuxReadAloudSpeak\(input,options=\{\}\)/);
+  assert.match(patched, /function chatgptLinuxReadAloudSpeak\(input,options=\{\}\)/);
   assert.match(patched, /options\?\.requireEnabled!==!1/);
-  assert.match(patched, /function codexLinuxReadAloudConfig/);
-  assert.match(patched, /function codexLinuxReadAloudSetup/);
-  assert.match(patched, /function codexLinuxReadAloudNativeFallbackEnabled/);
-  assert.match(patched, /function codexLinuxReadAloudSetupResult/);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-model/);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-python/);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-speed/);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-voices/);
-  assert.match(patched, /CODEX_LINUX_SETTINGS_FILE/);
-  assert.match(patched, /CODEX_LINUX_APP_ID/);
-  assert.match(patched, /CODEX_LINUX_READ_ALOUD_KOKORO_SPEED/);
+  assert.match(patched, /function chatgptLinuxReadAloudConfig/);
+  assert.match(patched, /function chatgptLinuxReadAloudSetup/);
+  assert.match(patched, /function chatgptLinuxReadAloudNativeFallbackEnabled/);
+  assert.match(patched, /function chatgptLinuxReadAloudSetupResult/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-model/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-python/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-speed/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-voices/);
+  assert.match(patched, /CHATGPT_LINUX_SETTINGS_FILE/);
+  assert.match(patched, /CHATGPT_LINUX_APP_ID/);
+  assert.match(patched, /CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED/);
   assert.match(patched, /kokoro-unavailable/);
   assert.match(patched, /piper-unavailable/);
   assert.match(patched, /not-explicit/);
   assert.match(patched, /action===`setup`/);
   assert.match(patched, /source===`button`/);
-  assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
+  assert.match(patched, /chatgptLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
   assert.match(patched, /constants\.X_OK/);
   assert.match(patched, /require\(`node:child_process`\)\.spawn/);
   assert.match(patched, /kokoro-stdin/);
@@ -182,20 +182,20 @@ test("main bundle helper preserves the core Electron binding across patch reruns
 
 test("webview runtime appends only once", () => {
   const patched = twice(applyIndexRuntimePatch, "console.log(`index`);");
-  assert.match(patched, /codexLinuxReadAloudClick/);
+  assert.match(patched, /chatgptLinuxReadAloudClick/);
   assert.match(patched, /vscode:\/\/codex\/"\+METHOD/);
   assert.match(patched, /codex-message-from-view/);
   assert.match(patched, /__codexForwardedViaBridge/);
   assert.match(patched, /Starting voice/);
   assert.match(patched, /kokoro-explicit-v5/);
-  assert.match(patched, /codexLinuxConversationIsSpeaking/);
-  assert.match(patched, /codexLinuxConversationStopSpeaking/);
+  assert.match(patched, /chatgptLinuxConversationIsSpeaking/);
+  assert.match(patched, /chatgptLinuxConversationStopSpeaking/);
   assert.match(patched, /speechSynthesis\?\.cancel/);
   assert.match(patched, /action:"speak",source:"button",text/);
-  assert.match(patched, /codexLinuxReadAloudSetup/);
+  assert.match(patched, /chatgptLinuxReadAloudSetup/);
   assert.match(patched, /action:"setup",mode/);
   assert.match(patched, /9e5/);
-  assert.match(applyIndexRuntimePatch("globalThis.codexLinuxReadAloudClick=()=>{};"), /kokoro-explicit-v5/);
+  assert.match(applyIndexRuntimePatch("globalThis.chatgptLinuxReadAloudClick=()=>{};"), /kokoro-explicit-v5/);
   assert.doesNotMatch(patched, /SpeechSynthesisUtterance/);
   assert.doesNotMatch(patched, /browser speech/);
   assert.doesNotMatch(patched, /no-voices/);
@@ -250,8 +250,8 @@ test("kokoro stdin runner compiles and makes a bounded first streaming chunk", (
       encoding: "utf8",
       env: {
         ...process.env,
-        CODEX_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS: "50",
-        CODEX_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS: "100",
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS: "50",
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS: "100",
       },
     },
   );
@@ -265,7 +265,7 @@ test("kokoro stdin runner waits for first PCM before launching aplay", (t) => {
     return;
   }
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-kokoro-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-kokoro-"));
   try {
     const binDir = path.join(root, "bin");
     fs.mkdirSync(binDir, { recursive: true });
@@ -347,8 +347,8 @@ test("kokoro stdin runner waits for first PCM before launching aplay", (t) => {
       input: "First sentence for playback. ".repeat(12),
       env: {
         ...process.env,
-        CODEX_LINUX_READ_ALOUD_KOKORO_MODEL: path.join(root, "model.onnx"),
-        CODEX_LINUX_READ_ALOUD_KOKORO_VOICES: path.join(root, "voices.bin"),
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL: path.join(root, "model.onnx"),
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES: path.join(root, "voices.bin"),
         KOKORO_TEST_EVENTS: eventsPath,
         KOKORO_TEST_PCM: pcmPath,
         PATH: `${binDir}${path.delimiter}${process.env.PATH || ""}`,
@@ -374,7 +374,7 @@ test("kokoro stdin runner waits for first PCM before launching aplay", (t) => {
 });
 
 test("main handler stores a chosen Kokoro model folder", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const configHome = path.join(root, "config");
     const modelDir = path.join(root, "kokoro");
@@ -386,7 +386,7 @@ test("main handler stores a chosen Kokoro model folder", async () => {
     fs.mkdirSync(path.dirname(runner), { recursive: true });
     fs.writeFileSync(runner, "");
     fs.chmodSync(runner, 0o755);
-    const python = path.join(root, ".local", "share", "codex-app", "read-aloud", "kokoro-venv", "bin", "python");
+    const python = path.join(root, ".local", "share", "chatgpt", "read-aloud", "kokoro-venv", "bin", "python");
     fs.mkdirSync(path.dirname(python), { recursive: true });
     fs.writeFileSync(python, "");
     fs.chmodSync(python, 0o755);
@@ -427,22 +427,22 @@ test("main handler stores a chosen Kokoro model folder", async () => {
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
     )(requireStub, processStub);
 
     assert.equal(result.ok, true);
     const settings = JSON.parse(
-      fs.readFileSync(path.join(configHome, "codex-app", "settings.json"), "utf8"),
+      fs.readFileSync(path.join(configHome, "chatgpt", "settings.json"), "utf8"),
     );
-    assert.equal(settings["codex-linux-read-aloud-kokoro-model"], path.join(modelDir, "kokoro-v1.0.onnx"));
-    assert.equal(settings["codex-linux-read-aloud-kokoro-voices"], path.join(modelDir, "voices-v1.0.bin"));
+    assert.equal(settings["chatgpt-linux-read-aloud-kokoro-model"], path.join(modelDir, "kokoro-v1.0.onnx"));
+    assert.equal(settings["chatgpt-linux-read-aloud-kokoro-voices"], path.join(modelDir, "voices-v1.0.bin"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("main handler reports when a chosen Kokoro model folder is not speakable yet", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const configHome = path.join(root, "config");
     const modelDir = path.join(root, "kokoro");
@@ -479,24 +479,24 @@ test("main handler reports when a chosen Kokoro model folder is not speakable ye
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
     )(requireStub, processStub);
 
     assert.equal(result.ok, false);
     assert.equal(result.reason, "voice-unavailable");
     assert.deepEqual(result.config.kokoro.missing.sort(), ["aplay", "python", "runner"].sort());
     const settings = JSON.parse(
-      fs.readFileSync(path.join(configHome, "codex-app", "settings.json"), "utf8"),
+      fs.readFileSync(path.join(configHome, "chatgpt", "settings.json"), "utf8"),
     );
-    assert.equal(settings["codex-linux-read-aloud-kokoro-model"], path.join(modelDir, "kokoro-v1.0.onnx"));
-    assert.equal(settings["codex-linux-read-aloud-kokoro-voices"], path.join(modelDir, "voices-v1.0.bin"));
+    assert.equal(settings["chatgpt-linux-read-aloud-kokoro-model"], path.join(modelDir, "kokoro-v1.0.onnx"));
+    assert.equal(settings["chatgpt-linux-read-aloud-kokoro-voices"], path.join(modelDir, "voices-v1.0.bin"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("main handler honors Linux app-specific settings paths", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const configHome = path.join(root, "config");
     const modelDir = path.join(root, "kokoro");
@@ -508,7 +508,7 @@ test("main handler honors Linux app-specific settings paths", async () => {
     fs.mkdirSync(path.dirname(runner), { recursive: true });
     fs.writeFileSync(runner, "");
     fs.chmodSync(runner, 0o755);
-    const python = path.join(root, ".local", "share", "codex-app", "read-aloud", "kokoro-venv", "bin", "python");
+    const python = path.join(root, ".local", "share", "chatgpt", "read-aloud", "kokoro-venv", "bin", "python");
     fs.mkdirSync(path.dirname(python), { recursive: true });
     fs.writeFileSync(python, "");
     fs.chmodSync(python, 0o755);
@@ -540,28 +540,28 @@ test("main handler honors Linux app-specific settings paths", async () => {
     };
     const processStub = {
       platform: "linux",
-      env: { HOME: root, XDG_CONFIG_HOME: configHome, CODEX_LINUX_APP_ID: "codex-app-5" },
+      env: { HOME: root, XDG_CONFIG_HOME: configHome, CHATGPT_LINUX_APP_ID: "chatgpt-5" },
       resourcesPath,
     };
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"setup",mode:"choose-folder"});`,
     )(requireStub, processStub);
 
     assert.equal(result.ok, true);
     assert.equal(
-      fs.existsSync(path.join(configHome, "codex-app-5", "settings.json")),
+      fs.existsSync(path.join(configHome, "chatgpt-5", "settings.json")),
       true,
     );
-    assert.equal(fs.existsSync(path.join(configHome, "codex-app", "settings.json")), false);
+    assert.equal(fs.existsSync(path.join(configHome, "chatgpt", "settings.json")), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("main handler reports missing Python during download setup", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -585,7 +585,7 @@ test("main handler reports missing Python during download setup", async () => {
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"setup",mode:"download"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"setup",mode:"download"});`,
     )(requireStub, processStub);
 
     assert.equal(result.ok, false);
@@ -597,14 +597,14 @@ test("main handler reports missing Python during download setup", async () => {
 });
 
 test("main handler reads and clamps stored Kokoro pace", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const configHome = path.join(root, "config");
-    const settingsDir = path.join(configHome, "codex-app");
+    const settingsDir = path.join(configHome, "chatgpt");
     fs.mkdirSync(settingsDir, { recursive: true });
     fs.writeFileSync(
       path.join(settingsDir, "settings.json"),
-      JSON.stringify({ "codex-linux-read-aloud-kokoro-speed": 9 }, null, 2),
+      JSON.stringify({ "chatgpt-linux-read-aloud-kokoro-speed": 9 }, null, 2),
     );
 
     const source = [
@@ -629,7 +629,7 @@ test("main handler reads and clamps stored Kokoro pace", async () => {
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"config"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"config"});`,
     )(requireStub, processStub);
 
     assert.equal(result.kokoro.speed, 1.4);
@@ -639,7 +639,7 @@ test("main handler reads and clamps stored Kokoro pace", async () => {
 });
 
 test("main handler enables native fallback by default but allows explicit disable", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -659,7 +659,7 @@ test("main handler enables native fallback by default but allows explicit disabl
     const defaultConfig = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"config"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"config"});`,
     )(requireStub, {
       platform: "linux",
       env: { HOME: root },
@@ -668,10 +668,10 @@ test("main handler enables native fallback by default but allows explicit disabl
     const disabledConfig = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"config"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"config"});`,
     )(requireStub, {
       platform: "linux",
-      env: { HOME: root, CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK: "0" },
+      env: { HOME: root, CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK: "0" },
       resourcesPath: path.join(root, "resources"),
     });
 
@@ -683,7 +683,7 @@ test("main handler enables native fallback by default but allows explicit disabl
 });
 
 test("main handler treats the message button as an explicit speech request", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -720,7 +720,7 @@ test("main handler treats the message button as an explicit speech request", asy
     const buttonResult = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
     )(requireStub, processStub);
     assert.equal(buttonResult.spoken, true);
     assert.equal(buttonResult.engine, "spd-say");
@@ -729,7 +729,7 @@ test("main handler treats the message button as an explicit speech request", asy
     const directResult = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudSpeak("hello");`,
+      `${patched};return chatgptLinuxReadAloudSpeak("hello");`,
     )(requireStub, processStub);
     assert.equal(directResult.spoken, false);
     assert.equal(directResult.reason, "disabled");
@@ -739,7 +739,7 @@ test("main handler treats the message button as an explicit speech request", asy
 });
 
 test("main handler passes the configured Kokoro Python to the runner", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const resourcesPath = path.join(root, "resources");
     const runner = path.join(resourcesPath, "read-aloud", "kokoro-stdin");
@@ -786,15 +786,15 @@ test("main handler passes the configured Kokoro Python to the runner", async () 
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
     )(requireStub, {
       platform: "linux",
       env: {
         HOME: root,
-        CODEX_LINUX_READ_ALOUD_ENABLED: "1",
-        CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON: python,
-        CODEX_LINUX_READ_ALOUD_KOKORO_MODEL: model,
-        CODEX_LINUX_READ_ALOUD_KOKORO_VOICES: voices,
+        CHATGPT_LINUX_READ_ALOUD_ENABLED: "1",
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON: python,
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL: model,
+        CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES: voices,
       },
       resourcesPath,
     });
@@ -802,14 +802,14 @@ test("main handler passes the configured Kokoro Python to the runner", async () 
     assert.equal(result.spoken, true);
     assert.equal(result.engine, "kokoro");
     assert.equal(spawned[0]?.command, runner);
-    assert.equal(spawned[0]?.options?.env?.CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON, python);
+    assert.equal(spawned[0]?.options?.env?.CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON, python);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("main handler falls back to native speech without forcing spd-say voice type", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -840,10 +840,10 @@ test("main handler falls back to native speech without forcing spd-say voice typ
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"speak",source:"button",text:"hello"});`,
     )(requireStub, {
       platform: "linux",
-      env: { HOME: root, CODEX_LINUX_READ_ALOUD_ENABLED: "1" },
+      env: { HOME: root, CHATGPT_LINUX_READ_ALOUD_ENABLED: "1" },
       resourcesPath: path.join(root, "resources"),
     });
 
@@ -858,7 +858,7 @@ test("main handler falls back to native speech without forcing spd-say voice typ
 });
 
 test("main handler exposes Hugging Face Kokoro download defaults", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -882,7 +882,7 @@ test("main handler exposes Hugging Face Kokoro download defaults", async () => {
     const result = await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudHandle({action:"config"});`,
+      `${patched};return chatgptLinuxReadAloudHandle({action:"config"});`,
     )(requireStub, processStub);
 
     assert.equal(
@@ -899,7 +899,7 @@ test("main handler exposes Hugging Face Kokoro download defaults", async () => {
 });
 
 test("main handler downloads setup files atomically", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-main-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-main-"));
   try {
     const source = [
       "let e=require(`node:child_process`),f=require(`node:fs`),p=require(`node:path`),o=require(`node:os`);",
@@ -943,12 +943,12 @@ test("main handler downloads setup files atomically", async () => {
     await new Function(
       "require",
       "process",
-      `${patched};return codexLinuxReadAloudDownloadFile("https://huggingface.co/test.bin", ${JSON.stringify(target)}, 10);`,
+      `${patched};return chatgptLinuxReadAloudDownloadFile("https://huggingface.co/test.bin", ${JSON.stringify(target)}, 10);`,
     )(requireStub, processStub);
 
     assert.equal(fs.readFileSync(target, "utf8"), "downloaded voice bytes");
     assert.equal(fs.existsSync(`${target}.part`), false);
-    assert.equal(observedHeaders?.["User-Agent"], "codex-app-read-aloud");
+    assert.equal(observedHeaders?.["User-Agent"], "chatgpt-read-aloud");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -957,11 +957,11 @@ test("main handler downloads setup files atomically", async () => {
 test("assistant render patch adds an explicit read aloud button under the message", () => {
   const source = "return (0,$.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,autoReviewStats:y,hookStats:b,completedThreadGoal:x,after:g,conversationId:o,cwd:u,forceCodeBlockWordWrap:V,hasArtifacts:F,onAddSelectedTextToChat:H,onFileLinkOpen:v,onFork:D,renderCodeBlocksAsWritingBlocks:V})";
   const patched = twice(applyAssistantRenderPatch, source);
-  assert.match(patched, /codex-linux-read-aloud-button/);
-  assert.match(patched, /codex-linux-read-aloud-icon/);
+  assert.match(patched, /chatgpt-linux-read-aloud-button/);
+  assert.match(patched, /chatgpt-linux-read-aloud-icon/);
   assert.match(patched, /viewBox:"0 0 24 24"/);
   assert.doesNotMatch(patched, /children:"Read aloud"/);
-  assert.match(patched, /globalThis\.codexLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
   assert.match(patched, /\$\.Fragment/);
 });
 
@@ -996,7 +996,7 @@ test("assistant render patch preserves the current JSX runtime alias", () => {
 
   assert.match(patched, /Q\.Fragment/);
   assert.match(patched, /\(0,Q\.jsx\)\("button"/);
-  assert.match(patched, /globalThis\.codexLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
 });
 
 test("assistant render patch covers the current shared assistant message call", () => {
@@ -1005,7 +1005,7 @@ test("assistant render patch covers the current shared assistant message call", 
 
   assert.match(patched, /t8\.Fragment/);
   assert.match(patched, /\(0,t8\.jsx\)\("button"/);
-  assert.match(patched, /globalThis\.codexLinuxReadAloudClick\?\.\(n,b,d,e\.currentTarget\)/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,b,d,e\.currentTarget\)/);
 });
 
 test("assistant runtime descriptor targets current shared assistant bundles", () => {
@@ -1029,7 +1029,7 @@ test("assistant runtime descriptor targets current shared assistant bundles", ()
 });
 
 test("assistant runtime descriptor fails soft and atomically when the current render contract drifts", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-drift-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-drift-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
@@ -1057,7 +1057,7 @@ test("assistant runtime descriptor fails soft and atomically when the current re
 });
 
 test("assistant runtime descriptor reports applied then already-applied for the current contract", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-current-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-current-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
@@ -1080,8 +1080,8 @@ test("assistant runtime descriptor reports applied then already-applied for the 
     applyWebviewAssetPatchDescriptors(root, descriptors, {}, secondReport);
 
     const patched = fs.readFileSync(assetPath, "utf8");
-    assert.match(patched, /codex-linux-read-aloud-button/);
-    assert.match(patched, /codexLinuxReadAloudVersion/);
+    assert.match(patched, /chatgpt-linux-read-aloud-button/);
+    assert.match(patched, /chatgptLinuxReadAloudVersion/);
     assert.equal(firstReport.patches[0].status, "applied");
     assert.equal(secondReport.patches[0].status, "already-applied");
   } finally {
@@ -1090,17 +1090,17 @@ test("assistant runtime descriptor reports applied then already-applied for the 
 });
 
 test("settings patch does not add the legacy normal settings toggle", () => {
-  const source = 'KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})';
+  const source = 'KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})';
   const patched = twice(applySettingsPatch, source);
   assert.equal(patched, source);
-  assert.doesNotMatch(patched, /readAloud:"codex-linux-read-aloud-enabled"/);
+  assert.doesNotMatch(patched, /readAloud:"chatgpt-linux-read-aloud-enabled"/);
   assert.doesNotMatch(patched, /label:"Read aloud responses"/);
 });
 
 test("settings patch removes an older legacy normal settings toggle", () => {
-  const source = 'KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled",readAloud:"codex-linux-read-aloud-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."}),$.jsx(LinuxToggle,{settingKey:KEYS.readAloud,label:"Read aloud responses",description:"Show a Read aloud button on assistant responses.",defaultValue:!1})';
+  const source = 'KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled",readAloud:"chatgpt-linux-read-aloud-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."}),$.jsx(LinuxToggle,{settingKey:KEYS.readAloud,label:"Read aloud responses",description:"Show a Read aloud button on assistant responses.",defaultValue:!1})';
   const patched = twice(applySettingsPatch, source);
-  assert.doesNotMatch(patched, /readAloud:"codex-linux-read-aloud-enabled"/);
+  assert.doesNotMatch(patched, /readAloud:"chatgpt-linux-read-aloud-enabled"/);
   assert.doesNotMatch(patched, /label:"Read aloud responses"/);
   assert.match(patched, /KEYS=\{promptWindow/);
   assert.match(patched, /Warm start/);
@@ -1109,56 +1109,56 @@ test("settings patch removes an older legacy normal settings toggle", () => {
 test("general settings patch exports read aloud page without rendering it in General", () => {
   const source = "function Gn(){return (0,$.jsxs)(ht,{children:[S,C,w,T,D,O,k,A,j,M,N,P,L]})}";
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.match(patched, /function codexLinuxReadAloudSettingsRow/);
-  assert.match(patched, /codex-linux-read-aloud-enabled/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsRow/);
+  assert.match(patched, /chatgpt-linux-read-aloud-enabled/);
   assert.match(patched, /settings\.general\.readAloud\.label/);
   assert.match(patched, /Read aloud responses/);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-speed/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-speed/);
   assert.match(patched, /Choose folder/);
   assert.match(patched, /Download voice/);
   assert.match(patched, /settings\.general\.readAloud\.help/);
   assert.match(patched, /Hugging Face/);
   assert.match(patched, /children:`\?`/);
   assert.match(patched, /Speech pace/);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage/);
   assert.match(patched, /settings\.readAloud\.title/);
   assert.match(patched, /Listen to assistant responses with a local Kokoro voice/);
   assert.match(patched, /type:`range`/);
   assert.match(patched, /min:\.7/);
   assert.match(patched, /max:1\.4/);
-  assert.match(patched, /codexLinuxReadAloudSetup/);
+  assert.match(patched, /chatgptLinuxReadAloudSetup/);
   assert.match(patched, /kokoro-explicit-v5/);
-  assert.match(patched, /globalThis\.codexLinuxReadAloudSetup=setup/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudSetup=setup/);
   assert.doesNotThrow(() => new Function("$", "w", "C", "N", "L", "F", "P", "J", "q", patched));
   assert.doesNotMatch(
     patched,
-    /children:\[S,C,w,T,\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
+    /children:\[S,C,w,T,\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
   );
   assert.match(patched, /children:\[S,C,w,T,D,O,k,A,j,M,N,P,L\]/);
 });
 
 test("general settings patch upgrades and removes an older injected General row", () => {
   const source = [
-    "function codexLinuxReadAloudSettingsRow(){let e=(0,Q.c)(11),t=w(C),n=N(),{data:r,isLoading:i}=L(\"codex-linux-read-aloud-enabled\"),a=r===!0,o,s;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(o=(0,$.jsx)(F,{id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`,description:`Label for Linux read aloud setting`}),s=(0,$.jsx)(F,{id:`settings.general.readAloud.description`,defaultMessage:`Show a read aloud button under assistant responses`,description:`Description for Linux read aloud setting`}),e[0]=o,e[1]=s):(o=e[0],s=e[1]);let c;e[2]===t?c=e[3]:(c=e=>{P(t,\"codex-linux-read-aloud-enabled\",e)},e[2]=t,e[3]=c);let l;e[4]===n?l=e[5]:(l=n.formatMessage({id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`,description:`Label for Linux read aloud setting`}),e[4]=n,e[5]=l);let u;return e[6]!==i||e[7]!==a||e[8]!==c||e[9]!==l?(u=(0,$.jsx)(J,{label:o,description:s,control:(0,$.jsx)(q,{checked:a,disabled:i,onChange:c,ariaLabel:l})}),e[6]=i,e[7]=a,e[8]=c,e[9]=l,e[10]=u):u=e[10],u}",
-    "function Gn(){return (0,$.jsxs)(ht,{children:[S,C,w,T,D,O,k,(0,$.jsx)(codexLinuxReadAloudSettingsRow,{}),A,j,M,N,P,L]})}",
+    "function chatgptLinuxReadAloudSettingsRow(){let e=(0,Q.c)(11),t=w(C),n=N(),{data:r,isLoading:i}=L(\"chatgpt-linux-read-aloud-enabled\"),a=r===!0,o,s;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(o=(0,$.jsx)(F,{id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`,description:`Label for Linux read aloud setting`}),s=(0,$.jsx)(F,{id:`settings.general.readAloud.description`,defaultMessage:`Show a read aloud button under assistant responses`,description:`Description for Linux read aloud setting`}),e[0]=o,e[1]=s):(o=e[0],s=e[1]);let c;e[2]===t?c=e[3]:(c=e=>{P(t,\"chatgpt-linux-read-aloud-enabled\",e)},e[2]=t,e[3]=c);let l;e[4]===n?l=e[5]:(l=n.formatMessage({id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`,description:`Label for Linux read aloud setting`}),e[4]=n,e[5]=l);let u;return e[6]!==i||e[7]!==a||e[8]!==c||e[9]!==l?(u=(0,$.jsx)(J,{label:o,description:s,control:(0,$.jsx)(q,{checked:a,disabled:i,onChange:c,ariaLabel:l})}),e[6]=i,e[7]=a,e[8]=c,e[9]=l,e[10]=u):u=e[10],u}",
+    "function Gn(){return (0,$.jsxs)(ht,{children:[S,C,w,T,D,O,k,(0,$.jsx)(chatgptLinuxReadAloudSettingsRow,{}),A,j,M,N,P,L]})}",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.match(patched, /codex-linux-read-aloud-kokoro-speed/);
+  assert.match(patched, /chatgpt-linux-read-aloud-kokoro-speed/);
   assert.match(patched, /Choose folder/);
   assert.match(patched, /Download voice/);
   assert.match(patched, /settings\.general\.readAloud\.help/);
   assert.match(patched, /Speech pace/);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage/);
   assert.doesNotMatch(
     patched,
-    /children:\[S,C,w,T,\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
+    /children:\[S,C,w,T,\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
   );
   assert.doesNotMatch(
     patched,
-    /children:\[S,C,w,T,D,O,k,\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\),A,j,M,N,P,L\]/,
+    /children:\[S,C,w,T,D,O,k,\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\),A,j,M,N,P,L\]/,
   );
   assert.match(patched, /children:\[S,C,w,T,D,O,k,A,j,M,N,P,L\]/);
-  assert.equal((patched.match(/function codexLinuxReadAloudSettingsRow/g) ?? []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxReadAloudSettingsRow/g) ?? []).length, 1);
 });
 
 test("general settings patch exports a dedicated read aloud settings page", () => {
@@ -1167,8 +1167,8 @@ test("general settings patch exports a dedicated read aloud settings page", () =
     "export{Yn as i,Jn as n,Gn as r,fr as t};",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage/);
-  assert.match(patched, /codexLinuxReadAloudSettingsPage as ReadAloudSettings/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage/);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsPage as ReadAloudSettings/);
   assert.match(patched, /settings\.readAloud\.voice\.title/);
 });
 
@@ -1178,9 +1178,9 @@ test("general settings patch exports read aloud from the current inner chunk", (
     "export{ir as i,rr as n,$n as r,Cr as t};",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage/);
-  assert.match(patched, /codexLinuxReadAloudSettingsPage as ReadAloudSettings/);
-  assert.match(patched, /export\{ir as i,rr as n,\$n as r,Cr as t,codexLinuxReadAloudSettingsPage as ReadAloudSettings\}/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage/);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsPage as ReadAloudSettings/);
+  assert.match(patched, /export\{ir as i,rr as n,\$n as r,Cr as t,chatgptLinuxReadAloudSettingsPage as ReadAloudSettings\}/);
 });
 
 test("general settings patch follows current export map instead of stale Gn aliases", () => {
@@ -1204,8 +1204,8 @@ test("general settings patch follows current export map instead of stale Gn alia
     "export{or as i,ar as n,nr as r,Tr as t};",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.match(patched, /codexLinuxReadAloudSettingsAliasesV2/);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(xt/);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsAliasesV2/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(xt/);
   assert.match(patched, /\(0,\$\.jsx\)\(J,\{label:l/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(K,\{label:l/);
   assert.match(patched, /\(0,\$\.jsx\)\(Tg,\{checked:e===!0/);
@@ -1215,23 +1215,23 @@ test("general settings patch follows current export map instead of stale Gn alia
   assert.doesNotMatch(patched, /c=F\(\);/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(I,\{id:`settings\.(general\.readAloud|readAloud)\./);
   assert.match(patched, /\(0,Q\.useState\)\(!1\)/);
-  assert.match(patched, /m\(`get-global-state`,\{params:\{key:"codex-linux-read-aloud-enabled"\}\}\)/);
-  assert.match(patched, /m\(`set-global-state`,\{params:\{key:"codex-linux-read-aloud-enabled",value:n\}\}\)/);
-  assert.match(patched, /m\(`set-global-state`,\{params:\{key:"codex-linux-read-aloud-kokoro-speed",value:t\}\}\)/);
-  assert.match(patched, /codexLinuxReadAloudChooseFolderLabel=c\.formatMessage/);
-  assert.match(patched, /let o=n,t=codexLinuxReadAloudPaceValue\(e\.currentTarget\.value\)/);
+  assert.match(patched, /m\(`get-global-state`,\{params:\{key:"chatgpt-linux-read-aloud-enabled"\}\}\)/);
+  assert.match(patched, /m\(`set-global-state`,\{params:\{key:"chatgpt-linux-read-aloud-enabled",value:n\}\}\)/);
+  assert.match(patched, /m\(`set-global-state`,\{params:\{key:"chatgpt-linux-read-aloud-kokoro-speed",value:t\}\}\)/);
+  assert.match(patched, /chatgptLinuxReadAloudChooseFolderLabel=c\.formatMessage/);
+  assert.match(patched, /let o=n,t=chatgptLinuxReadAloudPaceValue\(e\.currentTarget\.value\)/);
   assert.match(patched, /catch\(e=>\{r\(o\),s\(e instanceof Error\?e\.message:String\(e\)\)\}\)/);
   assert.doesNotMatch(patched, /m=c\.formatMessage/);
   assert.doesNotMatch(patched, /set-setting|get-setting/);
-  assert.doesNotMatch(patched, /let e=S\(D\),t=F\(\),n=\{key:"codex-linux-read-aloud-enabled",default:!1\}/);
+  assert.doesNotMatch(patched, /let e=S\(D\),t=F\(\),n=\{key:"chatgpt-linux-read-aloud-enabled",default:!1\}/);
   assert.doesNotMatch(patched, /U\(e,n,t\)/);
-  assert.doesNotMatch(patched, /function codexLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(St/);
+  assert.doesNotMatch(patched, /function chatgptLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(St/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(W,\{electron:!0/);
-  assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(wt,\{children:\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\)\}/);
-  assert.doesNotMatch(patched, /function codexLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(pt/);
-  assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(ht,\{children:\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow/);
-  assert.ok(patched.indexOf("function codexLinuxReadAloudSettingsRow") > patched.indexOf("function Gn(){"));
-  assert.ok(patched.indexOf("function codexLinuxReadAloudSettingsRow") < patched.indexOf("function nr(){"));
+  assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(wt,\{children:\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\)\}/);
+  assert.doesNotMatch(patched, /function chatgptLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(pt/);
+  assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(ht,\{children:\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow/);
+  assert.ok(patched.indexOf("function chatgptLinuxReadAloudSettingsRow") > patched.indexOf("function Gn(){"));
+  assert.ok(patched.indexOf("function chatgptLinuxReadAloudSettingsRow") < patched.indexOf("function nr(){"));
 });
 
 test("general settings patch upgrades a stale current read aloud settings page", () => {
@@ -1251,15 +1251,15 @@ test("general settings patch upgrades a stale current read aloud settings page",
     'import{n as wt}from"./external-agent-import-step-CfOKFuct.js";',
     "var Q=e(v(),1),$=y();",
     "function Gn(){return (0,$.jsx)(K,{label:`Service tier`})}",
-    "function codexLinuxReadAloudPaceValue(e){return 1.05}function codexLinuxReadAloudSettingsRow(){return `codex-linux-read-aloud-enabled codex-linux-read-aloud-kokoro-speed settings.general.readAloud.chooseFolder settings.general.readAloud.help`}function codexLinuxReadAloudSettingsPage(){return(0,$.jsx)(St,{children:(0,$.jsx)(W,{electron:!0,children:(0,$.jsx)(wt,{children:(0,$.jsx)(codexLinuxReadAloudSettingsRow,{})})})})}",
+    "function chatgptLinuxReadAloudPaceValue(e){return 1.05}function chatgptLinuxReadAloudSettingsRow(){return `chatgpt-linux-read-aloud-enabled chatgpt-linux-read-aloud-kokoro-speed settings.general.readAloud.chooseFolder settings.general.readAloud.help`}function chatgptLinuxReadAloudSettingsPage(){return(0,$.jsx)(St,{children:(0,$.jsx)(W,{electron:!0,children:(0,$.jsx)(wt,{children:(0,$.jsx)(chatgptLinuxReadAloudSettingsRow,{})})})})}",
     "function nr(){return (0,$.jsx)(J,{label:`General`})}",
-    "export{or as i,ar as n,nr as r,Tr as t,codexLinuxReadAloudSettingsPage as ReadAloudSettings};",
+    "export{or as i,ar as n,nr as r,Tr as t,chatgptLinuxReadAloudSettingsPage as ReadAloudSettings};",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.equal((patched.match(/function codexLinuxReadAloudSettingsRow/g) ?? []).length, 1);
-  assert.equal((patched.match(/function codexLinuxReadAloudSettingsPage/g) ?? []).length, 1);
-  assert.match(patched, /codexLinuxReadAloudSettingsAliasesV2/);
-  assert.match(patched, /function codexLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(xt/);
+  assert.equal((patched.match(/function chatgptLinuxReadAloudSettingsRow/g) ?? []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxReadAloudSettingsPage/g) ?? []).length, 1);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsAliasesV2/);
+  assert.match(patched, /function chatgptLinuxReadAloudSettingsPage\(\)\{return\(0,\$\.jsx\)\(xt/);
   assert.match(patched, /c=N\(\);/);
   assert.match(patched, /\(0,\$\.jsx\)\(P,\{id:`settings\.readAloud\.title`/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(St,\{children:\(0,\$\.jsx\)\(W/);
@@ -1279,15 +1279,15 @@ test("general settings patch refreshes a current read aloud row with a stale set
     'import{n as v,t as y}from"./jsx-runtime-CiQ1k8xo.js";',
     "var Q=e(v(),1),$=y();",
     "function Gn(){return (0,$.jsx)(K,{label:`Service tier`})}",
-    "/*codexLinuxReadAloudSettingsAliasesV2*/function codexLinuxReadAloudPaceValue(e){return 1.05}function codexLinuxReadAloudSettingsRow(){let e=!0,l=`codex-linux-read-aloud-enabled`,d=`codex-linux-read-aloud-kokoro-speed`;return(0,$.jsxs)($.Fragment,{children:[(0,$.jsx)(K,{label:l,description:`settings.general.readAloud.chooseFolder settings.general.readAloud.help`,control:null}),e?(0,$.jsx)(K,{label:d,description:`settings.general.readAloud.help`,control:null}):null]})}function codexLinuxReadAloudSettingsPage(){return(0,$.jsx)(xt,{children:(0,$.jsx)(codexLinuxReadAloudSettingsRow,{})})}",
+    "/*chatgptLinuxReadAloudSettingsAliasesV2*/function chatgptLinuxReadAloudPaceValue(e){return 1.05}function chatgptLinuxReadAloudSettingsRow(){let e=!0,l=`chatgpt-linux-read-aloud-enabled`,d=`chatgpt-linux-read-aloud-kokoro-speed`;return(0,$.jsxs)($.Fragment,{children:[(0,$.jsx)(K,{label:l,description:`settings.general.readAloud.chooseFolder settings.general.readAloud.help`,control:null}),e?(0,$.jsx)(K,{label:d,description:`settings.general.readAloud.help`,control:null}):null]})}function chatgptLinuxReadAloudSettingsPage(){return(0,$.jsx)(xt,{children:(0,$.jsx)(chatgptLinuxReadAloudSettingsRow,{})})}",
     "function nr(){return (0,$.jsx)(J,{label:`General`})}",
-    "export{or as i,ar as n,nr as r,Tr as t,codexLinuxReadAloudSettingsPage as ReadAloudSettings};",
+    "export{or as i,ar as n,nr as r,Tr as t,chatgptLinuxReadAloudSettingsPage as ReadAloudSettings};",
   ].join("");
   const patched = twice(applyGeneralSettingsPatch, source);
-  assert.equal((patched.match(/function codexLinuxReadAloudSettingsRow/g) ?? []).length, 1);
-  assert.equal((patched.match(/function codexLinuxReadAloudSettingsPage/g) ?? []).length, 1);
-  assert.equal((patched.match(/codexLinuxReadAloudSettingsAliasesV2/g) ?? []).length, 1);
-  assert.match(patched, /codexLinuxReadAloudSettingsAliasesV2/);
+  assert.equal((patched.match(/function chatgptLinuxReadAloudSettingsRow/g) ?? []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxReadAloudSettingsPage/g) ?? []).length, 1);
+  assert.equal((patched.match(/chatgptLinuxReadAloudSettingsAliasesV2/g) ?? []).length, 1);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsAliasesV2/);
   assert.match(patched, /\(0,\$\.jsx\)\(J,\{label:l/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(K,\{label:l/);
   assert.match(patched, /\(0,\$\.jsx\)\(Tg,\{checked:e===!0/);
@@ -1295,7 +1295,7 @@ test("general settings patch refreshes a current read aloud row with a stale set
   assert.match(patched, /\(0,\$\.jsx\)\(P,\{id:`settings\.general\.readAloud\.label`/);
   assert.doesNotMatch(patched, /c=F\(\);/);
   assert.doesNotMatch(patched, /\(0,\$\.jsx\)\(I,\{id:`settings\.(general\.readAloud|readAloud)\./);
-  assert.match(patched, /codexLinuxReadAloudChooseFolderLabel=c\.formatMessage/);
+  assert.match(patched, /chatgptLinuxReadAloudChooseFolderLabel=c\.formatMessage/);
   assert.doesNotMatch(patched, /m=c\.formatMessage/);
 });
 
@@ -1304,9 +1304,9 @@ test("general settings wrapper re-exports the read aloud settings page", () => {
   const patched = twice(applyGeneralSettingsWrapperPatch, source);
   assert.match(
     patched,
-    /import\{r as e,ReadAloudSettings as codexLinuxReadAloudSettings\}from"\.\/general-settings-Bvwhh0-i\.js"/,
+    /import\{r as e,ReadAloudSettings as chatgptLinuxReadAloudSettings\}from"\.\/general-settings-Bvwhh0-i\.js"/,
   );
-  assert.match(patched, /export\{e as GeneralSettings,codexLinuxReadAloudSettings as ReadAloudSettings\}/);
+  assert.match(patched, /export\{e as GeneralSettings,chatgptLinuxReadAloudSettings as ReadAloudSettings\}/);
   assert.doesNotMatch(patched, /e as GeneralSettings,e as ReadAloudSettings/);
 });
 
@@ -1325,10 +1325,10 @@ test("general settings wrapper re-exports read aloud when side-effect imports sp
   const patched = twice(applyGeneralSettingsWrapperPatch, source);
   assert.match(
     patched,
-    /import\{r as e,ReadAloudSettings as codexLinuxReadAloudSettings\}from"\.\/general-settings-DobuGNrH\.js"/,
+    /import\{r as e,ReadAloudSettings as chatgptLinuxReadAloudSettings\}from"\.\/general-settings-DobuGNrH\.js"/,
   );
   assert.match(patched, /import"\.\/general-settings\.search-BiUmOZih\.js";/);
-  assert.match(patched, /export\{e as GeneralSettings,codexLinuxReadAloudSettings as ReadAloudSettings\}/);
+  assert.match(patched, /export\{e as GeneralSettings,chatgptLinuxReadAloudSettings as ReadAloudSettings\}/);
 });
 
 test("settings nav patches add a visible read aloud section after computer use", () => {
@@ -1353,7 +1353,7 @@ test("settings nav patches add a visible read aloud section after computer use",
     "case`computer-use`:z=k.isLoading||m.isLoading;break bb0;",
   ].join("");
   const patchedPage = twice(applySettingsPageNavPatch, page);
-  assert.doesNotMatch(patchedPage, /codexLinuxReadAloudSettingsIcon=e=>/);
+  assert.doesNotMatch(patchedPage, /chatgptLinuxReadAloudSettingsIcon=e=>/);
   assert.match(
     patchedPage,
     /"read-aloud-settings":\(e=>\{try\{return \(0,Z\.jsxs\)\(`svg`,/,
@@ -1374,7 +1374,7 @@ test("settings nav patch adds the read aloud icon to the current settings page i
     "case`computer-use`:z=D.isLoading||h.isLoading;break bb0;",
   ].join("");
   const patched = twice(applySettingsPageNavPatch, page);
-  assert.doesNotMatch(patched, /codexLinuxReadAloudSettingsIcon=e=>/);
+  assert.doesNotMatch(patched, /chatgptLinuxReadAloudSettingsIcon=e=>/);
   assert.match(
     patched,
     /"browser-use":me,"computer-use":fe,"read-aloud-settings":\(e=>\{try\{return \(0,\$\.jsxs\)\(`svg`,/,
@@ -1408,15 +1408,15 @@ test("settings nav patch adds read aloud visibility before drifted computer-use 
 test("settings nav patch repairs stale read aloud icon references in var icon maps", () => {
   const page = [
     "var $=i();",
-    "var codexLinuxAgentWorkspaceSettingsIcon=e=>(0,$.jsxs)(`svg`,{children:[]});",
-    'var qe={"general-settings":I,profile:J,"browser-use":ke,"computer-use":De,"read-aloud-settings":codexLinuxReadAloudSettingsIcon,"local-environments":Oe,"agent-workspaces":codexLinuxAgentWorkspaceSettingsIcon,worktrees:q};',
+    "var chatgptLinuxAgentWorkspaceSettingsIcon=e=>(0,$.jsxs)(`svg`,{children:[]});",
+    'var qe={"general-settings":I,profile:J,"browser-use":ke,"computer-use":De,"read-aloud-settings":chatgptLinuxReadAloudSettingsIcon,"local-environments":Oe,"agent-workspaces":chatgptLinuxAgentWorkspaceSettingsIcon,worktrees:q};',
     "Ye=[`browser-use`,`computer-use`,`data-controls`];",
     "Ze=[{slugs:[`browser-use`,`computer-use`,`local-environments`]}];",
     "case`computer-use`:return A;",
     "case`computer-use`:I=T.isLoading||g.isLoading;break bb0;",
   ].join("");
   const patched = twice(applySettingsPageNavPatch, page);
-  assert.doesNotMatch(patched, /codexLinuxReadAloudSettingsIcon=e=>/);
+  assert.doesNotMatch(patched, /chatgptLinuxReadAloudSettingsIcon=e=>/);
   assert.match(
     patched,
     /"computer-use":De,"read-aloud-settings":\(e=>\{try\{return \(0,\$\.jsxs\)\(`svg`,/,
@@ -1429,7 +1429,7 @@ test("settings nav patch repairs stale read aloud icon references in var icon ma
 test("settings nav patch declares legacy read aloud icon assignments before they can throw", () => {
   const page = [
     'import{n as e}from"./rolldown-runtime.js";',
-    "var $=i(),Hn,Xn=e((()=>{Hn=null,codexLinuxReadAloudSettingsIcon=e=>(0,$.jsxs)(`svg`,{children:[]}),Hn={\"browser-use\":me,\"computer-use\":fe,\"read-aloud-settings\":codexLinuxReadAloudSettingsIcon,\"local-environments\":pe}}));",
+    "var $=i(),Hn,Xn=e((()=>{Hn=null,chatgptLinuxReadAloudSettingsIcon=e=>(0,$.jsxs)(`svg`,{children:[]}),Hn={\"browser-use\":me,\"computer-use\":fe,\"read-aloud-settings\":chatgptLinuxReadAloudSettingsIcon,\"local-environments\":pe}}));",
     "xe=[`browser-use`,`computer-use`,`data-controls`];",
     "Se=[{slugs:[`browser-use`,`computer-use`,`local-environments`]}];",
     "case`computer-use`:return A;",
@@ -1438,9 +1438,9 @@ test("settings nav patch declares legacy read aloud icon assignments before they
   const patched = twice(applySettingsPageNavPatch, page);
   assert.match(
     patched,
-    /^import\{n as e\}from"\.\/rolldown-runtime\.js";var codexLinuxReadAloudSettingsIcon;/,
+    /^import\{n as e\}from"\.\/rolldown-runtime\.js";var chatgptLinuxReadAloudSettingsIcon;/,
   );
-  assert.match(patched, /codexLinuxReadAloudSettingsIcon=e=>\(0,\$\.jsxs\)/);
+  assert.match(patched, /chatgptLinuxReadAloudSettingsIcon=e=>\(0,\$\.jsxs\)/);
   assert.match(
     patched,
     /"computer-use":fe,"read-aloud-settings":\(e=>\{try\{return \(0,\$\.jsxs\)\(`svg`,/,
@@ -1458,18 +1458,18 @@ test("app route patch wires read aloud settings to the generated page export", (
 });
 
 test("settings asset patch leaves current keybinds settings file alone", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
     const asset = path.join(assets, "keybinds-settings-linux.js");
     fs.writeFileSync(
       asset,
-      'KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})',
+      'KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})',
     );
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 0 });
     const patched = fs.readFileSync(asset, "utf8");
-    assert.doesNotMatch(patched, /readAloud:"codex-linux-read-aloud-enabled"/);
+    assert.doesNotMatch(patched, /readAloud:"chatgpt-linux-read-aloud-enabled"/);
     assert.doesNotMatch(patched, /label:"Read aloud responses"/);
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 0 });
   } finally {
@@ -1478,7 +1478,7 @@ test("settings asset patch leaves current keybinds settings file alone", () => {
 });
 
 test("settings asset patch adds read aloud controls to generated Linux desktop settings", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
@@ -1487,8 +1487,8 @@ test("settings asset patch adds read aloud controls to generated Linux desktop s
 
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 1 });
     const patched = fs.readFileSync(asset, "utf8");
-    assert.match(patched, /readAloud:"codex-linux-read-aloud-enabled"/);
-    assert.match(patched, /readAloudSpeed:"codex-linux-read-aloud-kokoro-speed"/);
+    assert.match(patched, /readAloud:"chatgpt-linux-read-aloud-enabled"/);
+    assert.match(patched, /readAloudSpeed:"chatgpt-linux-read-aloud-kokoro-speed"/);
     assert.match(patched, /class LinuxReadAloudSettings extends React\.Component/);
     assert.doesNotMatch(patched, /useLinuxSetting/);
     assert.match(patched, /title:"Read Aloud"/);
@@ -1536,10 +1536,10 @@ test("Linux desktop read aloud settings refresh fails closed on a malformed clas
 test("generated Linux desktop read aloud settings preserve successful independent reads", async () => {
   const settings = createLinuxReadAloudSettings((method, { params }) => {
     assert.equal(method, "get-global-state");
-    if (params.key === "codex-linux-read-aloud-enabled") {
+    if (params.key === "chatgpt-linux-read-aloud-enabled") {
       return Promise.resolve({ value: true });
     }
-    if (params.key === "codex-linux-read-aloud-kokoro-speed") {
+    if (params.key === "chatgpt-linux-read-aloud-kokoro-speed") {
       return Promise.reject(new Error("speed unavailable"));
     }
     throw new Error(`Unexpected settings key: ${params.key}`);
@@ -1557,7 +1557,7 @@ test("generated Linux desktop read aloud settings preserve successful independen
 
 test("generated Linux desktop read aloud settings ignore superseded speed failures", async () => {
   const { settings, writes: speedWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-kokoro-speed",
+    writeKey: "chatgpt-linux-read-aloud-kokoro-speed",
     enabled: true,
     speed: 1.4,
   });
@@ -1583,7 +1583,7 @@ test("generated Linux desktop read aloud settings ignore superseded speed failur
 
 test("generated Linux desktop read aloud settings ignore superseded toggle errors", async () => {
   const { settings, writes: enabledWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-enabled",
+    writeKey: "chatgpt-linux-read-aloud-enabled",
   });
 
   settings.componentDidMount();
@@ -1605,7 +1605,7 @@ test("generated Linux desktop read aloud settings ignore superseded toggle error
 
 test("generated Linux desktop read aloud settings roll consecutive toggle failures back to confirmed state", async () => {
   const { settings, writes: enabledWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-enabled",
+    writeKey: "chatgpt-linux-read-aloud-enabled",
   });
 
   settings.componentDidMount();
@@ -1629,7 +1629,7 @@ test("generated Linux desktop read aloud settings roll consecutive toggle failur
 
 test("generated Linux desktop read aloud settings roll consecutive speed failures back to confirmed state", async () => {
   const { settings, writes: speedWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-kokoro-speed",
+    writeKey: "chatgpt-linux-read-aloud-kokoro-speed",
     enabled: true,
   });
 
@@ -1654,7 +1654,7 @@ test("generated Linux desktop read aloud settings roll consecutive speed failure
 
 test("generated Linux desktop read aloud settings roll a toggle failure back to the last successful write", async () => {
   const { settings, writes: enabledWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-enabled",
+    writeKey: "chatgpt-linux-read-aloud-enabled",
   });
 
   settings.componentDidMount();
@@ -1675,7 +1675,7 @@ test("generated Linux desktop read aloud settings roll a toggle failure back to 
 
 test("generated Linux desktop read aloud settings roll a speed failure back to the last successful write", async () => {
   const { settings, writes: speedWrites } = createDeferredSettingsWrites({
-    writeKey: "codex-linux-read-aloud-kokoro-speed",
+    writeKey: "chatgpt-linux-read-aloud-kokoro-speed",
     enabled: true,
   });
 
@@ -1696,18 +1696,18 @@ test("generated Linux desktop read aloud settings roll a speed failure back to t
 });
 
 test("settings asset patch removes an older generated keybinds read aloud toggle", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
     const asset = path.join(assets, "keybinds-settings-linux.js");
     fs.writeFileSync(
       asset,
-      'KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled",readAloud:"codex-linux-read-aloud-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."}),$.jsx(LinuxToggle,{settingKey:KEYS.readAloud,label:"Read aloud responses",description:"Show a Read aloud button on assistant responses.",defaultValue:!1})',
+      'KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled",readAloud:"chatgpt-linux-read-aloud-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."}),$.jsx(LinuxToggle,{settingKey:KEYS.readAloud,label:"Read aloud responses",description:"Show a Read aloud button on assistant responses.",defaultValue:!1})',
     );
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 1 });
     const patched = fs.readFileSync(asset, "utf8");
-    assert.doesNotMatch(patched, /readAloud:"codex-linux-read-aloud-enabled"/);
+    assert.doesNotMatch(patched, /readAloud:"chatgpt-linux-read-aloud-enabled"/);
     assert.doesNotMatch(patched, /label:"Read aloud responses"/);
     assert.match(patched, /Warm start/);
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 0 });
@@ -1717,7 +1717,7 @@ test("settings asset patch removes an older generated keybinds read aloud toggle
 });
 
 test("settings asset patch upgrades older general settings bundle", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
@@ -1725,18 +1725,18 @@ test("settings asset patch upgrades older general settings bundle", () => {
     fs.writeFileSync(
       asset,
       [
-        "function codexLinuxReadAloudSettingsRow(){let e=(0,Q.c)(11),t=w(C),n=N(),{data:r,isLoading:i}=L(\"codex-linux-read-aloud-enabled\"),a=r===!0;return (0,$.jsx)(J,{control:(0,$.jsx)(q,{checked:a,disabled:i,onChange:e=>P(t,\"codex-linux-read-aloud-enabled\",e),ariaLabel:n.formatMessage({id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`})})})}",
-        "function Gn(){return (0,$.jsxs)(ht,{children:[S,C,w,T,D,O,k,(0,$.jsx)(codexLinuxReadAloudSettingsRow,{}),A,j,M,N,P,L]})}",
+        "function chatgptLinuxReadAloudSettingsRow(){let e=(0,Q.c)(11),t=w(C),n=N(),{data:r,isLoading:i}=L(\"chatgpt-linux-read-aloud-enabled\"),a=r===!0;return (0,$.jsx)(J,{control:(0,$.jsx)(q,{checked:a,disabled:i,onChange:e=>P(t,\"chatgpt-linux-read-aloud-enabled\",e),ariaLabel:n.formatMessage({id:`settings.general.readAloud.label`,defaultMessage:`Read aloud responses`})})})}",
+        "function Gn(){return (0,$.jsxs)(ht,{children:[S,C,w,T,D,O,k,(0,$.jsx)(chatgptLinuxReadAloudSettingsRow,{}),A,j,M,N,P,L]})}",
       ].join(""),
     );
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 1 });
     const patched = fs.readFileSync(asset, "utf8");
-    assert.match(patched, /codex-linux-read-aloud-kokoro-speed/);
+    assert.match(patched, /chatgpt-linux-read-aloud-kokoro-speed/);
     assert.match(patched, /Choose folder/);
     assert.match(patched, /kokoro-explicit-v5/);
     assert.doesNotMatch(
       patched,
-      /children:\[S,C,w,T,\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
+      /children:\[S,C,w,T,\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
     );
     assert.match(patched, /children:\[S,C,w,T,D,O,k,A,j,M,N,P,L\]/);
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 0 });
@@ -1746,7 +1746,7 @@ test("settings asset patch upgrades older general settings bundle", () => {
 });
 
 test("settings asset patch updates current general settings bundle", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
@@ -1757,12 +1757,12 @@ test("settings asset patch updates current general settings bundle", () => {
     );
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 1 });
     const patched = fs.readFileSync(asset, "utf8");
-    assert.match(patched, /codex-linux-read-aloud-enabled/);
-    assert.match(patched, /codexLinuxReadAloudSettingsRow/);
-    assert.match(patched, /globalThis\.codexLinuxReadAloudSetup=setup/);
+    assert.match(patched, /chatgpt-linux-read-aloud-enabled/);
+    assert.match(patched, /chatgptLinuxReadAloudSettingsRow/);
+    assert.match(patched, /globalThis\.chatgptLinuxReadAloudSetup=setup/);
     assert.doesNotMatch(
       patched,
-      /children:\[S,C,w,T,\(0,\$\.jsx\)\(codexLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
+      /children:\[S,C,w,T,\(0,\$\.jsx\)\(chatgptLinuxReadAloudSettingsRow,\{\}\),D,O,k,A,j,M,N,P,L\]/,
     );
     assert.deepEqual(applySettingsAssetPatch(root), { matched: true, changed: 0 });
   } finally {
@@ -1771,13 +1771,13 @@ test("settings asset patch updates current general settings bundle", () => {
 });
 
 test("settings asset patch creates a first-class read aloud settings section", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-read-aloud-settings-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-settings-"));
   try {
     const assets = path.join(root, "webview", "assets");
     fs.mkdirSync(assets, { recursive: true });
     fs.writeFileSync(
       path.join(assets, "keybinds-settings-linux.js"),
-      'KEYS={promptWindow:"codex-linux-prompt-window-enabled",systemTray:"codex-linux-system-tray-enabled",warmStart:"codex-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})',
+      'KEYS={promptWindow:"chatgpt-linux-prompt-window-enabled",systemTray:"chatgpt-linux-system-tray-enabled",warmStart:"chatgpt-linux-warm-start-enabled"};$.jsx(LinuxToggle,{settingKey:KEYS.warmStart,label:"Warm start",description:"Use the running app for launch actions instead of starting a fresh Electron instance."})',
     );
     fs.writeFileSync(
       path.join(assets, "general-settings-inner.js"),
@@ -1828,7 +1828,7 @@ test("settings asset patch creates a first-class read aloud settings section", (
     );
     assert.match(
       fs.readFileSync(path.join(assets, "general-settings-wrapper.js"), "utf8"),
-      /export\{e as GeneralSettings,codexLinuxReadAloudSettings as ReadAloudSettings\}/,
+      /export\{e as GeneralSettings,chatgptLinuxReadAloudSettings as ReadAloudSettings\}/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

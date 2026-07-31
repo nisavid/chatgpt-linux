@@ -2,7 +2,7 @@
 # Transactional candidate promotion shared by direct installs and rebuild flows.
 # shellcheck shell=bash
 
-CANDIDATE_PROMOTION_HELPER="${CODEX_CANDIDATE_PROMOTION_HELPER:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/candidate-promotion.py}"
+CANDIDATE_PROMOTION_HELPER="${CHATGPT_CANDIDATE_PROMOTION_HELPER:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/candidate-promotion.py}"
 
 candidate_backup_path() {
     local final_dir="$1"
@@ -53,7 +53,7 @@ cleanup_managed_candidate_backups_locked() {
     elif [ "$keep_latest" = "1" ]; then
         args+=(--keep-latest)
     fi
-    if [ "${CODEX_PROMOTION_TEST_FAIL_BACKUP_CLEANUP:-0}" = "1" ]; then
+    if [ "${CHATGPT_PROMOTION_TEST_FAIL_BACKUP_CLEANUP:-0}" = "1" ]; then
         warn "Could not prune old app backups (simulated failure); cleanup will be retried"
         return 0
     fi
@@ -94,7 +94,7 @@ recover_pending_candidate_promotion() {
     mkdir -p "$(dirname "$final_dir")"
     lock_file="$(dirname "$final_dir")/.$(basename "$final_dir").promotion.lock"
     exec {promotion_lock_fd}>"$lock_file"
-    if ! flock -w "${CODEX_PROMOTION_LOCK_TIMEOUT_SECONDS:-60}" "$promotion_lock_fd"; then
+    if ! flock -w "${CHATGPT_PROMOTION_LOCK_TIMEOUT_SECONDS:-60}" "$promotion_lock_fd"; then
         error "Timed out waiting to recover an interrupted promotion: $final_dir"
         return 1
     fi
@@ -117,7 +117,7 @@ promote_candidate_install() {
 
     lock_file="$(dirname "$final_dir")/.$(basename "$final_dir").promotion.lock"
     exec {promotion_lock_fd}>"$lock_file"
-    if ! flock -w "${CODEX_PROMOTION_LOCK_TIMEOUT_SECONDS:-60}" "$promotion_lock_fd"; then
+    if ! flock -w "${CHATGPT_PROMOTION_LOCK_TIMEOUT_SECONDS:-60}" "$promotion_lock_fd"; then
         error "Timed out waiting to promote an accepted candidate: $final_dir"
     fi
 
@@ -129,7 +129,7 @@ promote_candidate_install() {
     INSTALL_DIR="$final_dir"
     if declare -F install_target_is_stopped >/dev/null 2>&1; then
         if ! install_target_is_stopped; then
-            warn "ChatGPT Desktop is still running from $final_dir (pid $RUNNING_INSTALL_TARGET_PID); accepted candidate was not promoted"
+            warn "ChatGPT is still running from $final_dir (pid $RUNNING_INSTALL_TARGET_PID); accepted candidate was not promoted"
             INSTALL_DIR="$previous_install_dir"
             flock -u "$promotion_lock_fd"
             exec {promotion_lock_fd}>&-
@@ -168,9 +168,9 @@ promote_candidate_install() {
         # Regression tests pause here to prove SIGKILL cannot remove the
         # canonical install path. Availability relies on atomic exchange, not
         # on this process receiving a cleanup signal.
-        if [ -n "${CODEX_PROMOTION_TEST_PAUSE_FILE:-}" ]; then
-            : >"$CODEX_PROMOTION_TEST_PAUSE_FILE"
-            while [ ! -e "${CODEX_PROMOTION_TEST_PAUSE_FILE}.release" ]; do
+        if [ -n "${CHATGPT_PROMOTION_TEST_PAUSE_FILE:-}" ]; then
+            : >"$CHATGPT_PROMOTION_TEST_PAUSE_FILE"
+            while [ ! -e "${CHATGPT_PROMOTION_TEST_PAUSE_FILE}.release" ]; do
                 sleep 0.05
             done
         fi

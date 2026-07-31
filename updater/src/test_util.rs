@@ -44,16 +44,6 @@ impl<'a> EnvVarGuard<'a> {
             _lock: PhantomData,
         }
     }
-
-    pub(crate) fn remove(_lock: &'a EnvLock, key: &'static str) -> Self {
-        let original = std::env::var_os(key);
-        std::env::remove_var(key);
-        Self {
-            key,
-            original,
-            _lock: PhantomData,
-        }
-    }
 }
 
 impl Drop for EnvVarGuard<'_> {

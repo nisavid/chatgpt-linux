@@ -3,7 +3,7 @@
 function applyFramelessTitlebarBranchPatch(currentSource) {
   let patchedTitlebar = false;
   const combinedLinuxTitlebarRegex =
-    /([A-Za-z_$][\w$]*)===`win32`\|\|\1===`linux`\?\{titleBarStyle:`hidden`,titleBarOverlay:\1===`linux`\?codexLinuxTitleBarOverlay\(([A-Za-z_$][\w$]*)\):([A-Za-z_$][\w$]*)\(\2\),(\.\.\.([A-Za-z_$][\w$]*)===`quickChat`\?\{resizable:!0\}:\{\})\}:/g;
+    /([A-Za-z_$][\w$]*)===`win32`\|\|\1===`linux`\?\{titleBarStyle:`hidden`,titleBarOverlay:\1===`linux`\?chatgptLinuxTitleBarOverlay\(([A-Za-z_$][\w$]*)\):([A-Za-z_$][\w$]*)\(\2\),(\.\.\.([A-Za-z_$][\w$]*)===`quickChat`\?\{resizable:!0\}:\{\})\}:/g;
   const patchedSource = currentSource.replace(
     combinedLinuxTitlebarRegex,
     (_match, platformAlias, zoomAlias, overlayHelperAlias, quickChatOptions, windowTypeAlias) => {
@@ -27,7 +27,7 @@ function applyFramelessTitlebarBranchPatch(currentSource) {
 function applyFramelessTitlebarOverlaySyncPatch(currentSource) {
   let patchedZoom = false;
   let patchedSource = currentSource.replace(
-    /(setWindowZoom\([^)]*\)\{(?=[\s\S]{0,600}?,([A-Za-z_$][\w$]*)=[A-Za-z_$][\w$]*&&this\.windowAppearances\.get\()[\s\S]{0,600}?)\(process\.platform===`win32`\|\|process\.platform===`linux`\)&&\(this\.windowZooms\.set\(([A-Za-z_$][\w$]*)\.id,([A-Za-z_$][\w$]*)\),\3\.setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay\(\4\):([A-Za-z_$][\w$]*)\(\4\)\)\)/g,
+    /(setWindowZoom\([^)]*\)\{(?=[\s\S]{0,600}?,([A-Za-z_$][\w$]*)=[A-Za-z_$][\w$]*&&this\.windowAppearances\.get\()[\s\S]{0,600}?)\(process\.platform===`win32`\|\|process\.platform===`linux`\)&&\(this\.windowZooms\.set\(([A-Za-z_$][\w$]*)\.id,([A-Za-z_$][\w$]*)\),\3\.setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay\(\4\):([A-Za-z_$][\w$]*)\(\4\)\)\)/g,
     (_match, functionPrefix, _appearanceAlias, windowAlias, zoomAlias, overlayHelperAlias) => {
       patchedZoom = true;
       return `${functionPrefix}process.platform===\`win32\`&&(this.windowZooms.set(${windowAlias}.id,${zoomAlias}),${windowAlias}.setTitleBarOverlay(${overlayHelperAlias}(${zoomAlias})))`;
@@ -42,7 +42,7 @@ function applyFramelessTitlebarOverlaySyncPatch(currentSource) {
 
   let patchedSync = false;
   patchedSource = patchedSource.replace(
-    /installApplicationMenuTitleBarOverlaySync\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{if\(process\.platform!==`win32`&&process\.platform!==`linux`\|\|\2!==`primary`&&\2!==`quickChat`\)return;let ([A-Za-z_$][\w$]*)=\(\)=>\{\1\.isDestroyed\(\)\|\|\1\.setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay\(this\.windowZooms\.get\(\1\.id\)\):([A-Za-z_$][\w$]*)\(this\.windowZooms\.get\(\1\.id\)\)\)\};return ([A-Za-z_$][\w$]*)\.nativeTheme\.on\(`updated`,\3\),\3\(\),\(\)=>\{\5\.nativeTheme\.off\(`updated`,\3\)\}\}/g,
+    /installApplicationMenuTitleBarOverlaySync\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{if\(process\.platform!==`win32`&&process\.platform!==`linux`\|\|\2!==`primary`&&\2!==`quickChat`\)return;let ([A-Za-z_$][\w$]*)=\(\)=>\{\1\.isDestroyed\(\)\|\|\1\.setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay\(this\.windowZooms\.get\(\1\.id\)\):([A-Za-z_$][\w$]*)\(this\.windowZooms\.get\(\1\.id\)\)\)\};return ([A-Za-z_$][\w$]*)\.nativeTheme\.on\(`updated`,\3\),\3\(\),\(\)=>\{\5\.nativeTheme\.off\(`updated`,\3\)\}\}/g,
     (_match, windowAlias, windowTypeAlias, updateAlias, overlayHelperAlias, electronAlias) => {
       patchedSync = true;
       return `installApplicationMenuTitleBarOverlaySync(${windowAlias},${windowTypeAlias}){if(process.platform!==\`win32\`||${windowTypeAlias}!==\`primary\`&&${windowTypeAlias}!==\`quickChat\`)return;let ${updateAlias}=()=>{${windowAlias}.isDestroyed()||${windowAlias}.setTitleBarOverlay(${overlayHelperAlias}(this.windowZooms.get(${windowAlias}.id)))};return ${electronAlias}.nativeTheme.on(\`updated\`,${updateAlias}),${updateAlias}(),()=>{${electronAlias}.nativeTheme.off(\`updated\`,${updateAlias})}}`;
@@ -81,7 +81,7 @@ function applyFramelessTitlebarWebviewPatch(currentSource) {
   const recognizedApplicationMenuLayout =
     foundApplicationMenuLayout || patchedSource.includes("applicationMenu:Object.freeze({left:0,right:0})");
 
-  const headerSafeAreaProp = "codexLinuxUseWindowControlsSafeArea";
+  const headerSafeAreaProp = "chatgptLinuxUseWindowControlsSafeArea";
   const hasHeaderSafeArea = currentSource.includes(headerSafeAreaProp);
   patchedSource = patchedSource.replace(
     new RegExp(`${headerSafeAreaProp}:![A-Za-z_$][\\w$]*,side:\`end\``, "g"),

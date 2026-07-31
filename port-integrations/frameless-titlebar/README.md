@@ -49,7 +49,7 @@ For a manual check, enable the integration as above, rebuild, and launch the app
 - On GNOME/X11, right-click the same titlebar area that previously locked input
   and verify whether clicks outside the window recover normally. If the issue
   still reproduces, disable the integration again and report the distro, GNOME
-  version, session type, and installed `.codex-linux/port-integrations-staged.json`.
+  version, session type, and installed `.chatgpt-linux/port-integrations-staged.json`.
 
 ## Known risks
 

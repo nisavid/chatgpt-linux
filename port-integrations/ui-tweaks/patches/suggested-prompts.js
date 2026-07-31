@@ -5,11 +5,11 @@ const APP_PAGE_ASSET_PATTERN =
 const GENERAL_SETTINGS_ASSET_PATTERN = /^general-settings-[A-Za-z0-9_-]+\.js$/;
 const HOME_CONTENT_ASSET_PATTERN = /^home-ambient-suggestions-content-[A-Za-z0-9_-]+\.js$/;
 const FEATURE_GATE_ID = "2425897452";
-const RUNTIME_MARKER = "codexLinuxUiTweaksSuggestedPromptsEnabled";
-const APP_PAGE_ELIGIBILITY_MARKER = "codexLinuxUiTweaksSuggestedPromptsAppPageEligible";
-const HOME_CONTENT_SOURCE_MARKER = "codexLinuxSuggestedPromptsGeneratedSource";
-const MAIN_ELIGIBILITY_MARKER = "codexLinuxUiTweaksSuggestedPromptsMainEnabled";
-const SETTINGS_ELIGIBILITY_MARKER = "codexLinuxUiTweaksSuggestedPromptsSettingsEligible";
+const RUNTIME_MARKER = "chatgptLinuxUiTweaksSuggestedPromptsEnabled";
+const APP_PAGE_ELIGIBILITY_MARKER = "chatgptLinuxUiTweaksSuggestedPromptsAppPageEligible";
+const HOME_CONTENT_SOURCE_MARKER = "chatgptLinuxSuggestedPromptsGeneratedSource";
+const MAIN_ELIGIBILITY_MARKER = "chatgptLinuxUiTweaksSuggestedPromptsMainEnabled";
+const SETTINGS_ELIGIBILITY_MARKER = "chatgptLinuxUiTweaksSuggestedPromptsSettingsEligible";
 
 function suggestedPromptsConfig(context) {
   const integration = context?.integration;

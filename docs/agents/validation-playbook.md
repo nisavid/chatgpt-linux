@@ -19,7 +19,7 @@ bash -n scripts/build-appimage.sh
 For launcher behavior changes, rebuild or inspect the generated launcher:
 
 ```bash
-sed -n '1,160p' codex-app/start.sh
+sed -n '1,160p' chatgpt/start.sh
 ```
 
 If the change affects webview startup probes, run:
@@ -39,14 +39,14 @@ bash tests/scripts_smoke.sh
 For upstream drift or protected surface analysis:
 
 ```bash
-make inspect-upstream DMG=/path/to/Codex.dmg
+make inspect-dmg DMG=/path/to/ChatGPT.dmg
 make inspect-upstream-intel-devcontainer
 ```
 
 For patch report validation:
 
 ```bash
-scripts/ci/validate-patch-report.js codex-app/.codex-linux/patch-report.json
+node scripts/ci/validate-patch-report.js chatgpt/.chatgpt-linux/patch-report.json --profile official-dmg-build
 ```
 
 Local installs and scheduled CI share `scripts/validate-upstream-dmg.js` and
@@ -65,29 +65,29 @@ node --test scripts/ci/upstream-dmg-issue.test.js
 Updater:
 
 ```bash
-cargo check -p codex-update-manager
-cargo test -p codex-update-manager
+cargo check -p chatgpt-updater
+cargo test -p chatgpt-updater
 ```
 
 Linux Computer Use:
 
 ```bash
-cargo check -p codex-computer-use-linux
-cargo test -p codex-computer-use-linux
+cargo check -p chatgpt-computer-use-linux
+cargo test -p chatgpt-computer-use-linux
 ```
 
 Read Aloud:
 
 ```bash
-cargo check -p codex-read-aloud-linux
-cargo test -p codex-read-aloud-linux
+cargo check -p chatgpt-read-aloud-linux
+cargo test -p chatgpt-read-aloud-linux
 ```
 
 Record & Replay:
 
 ```bash
-cargo check -p codex-record-replay-linux
-cargo test -p codex-record-replay-linux
+cargo check -p chatgpt-record-replay-linux
+cargo test -p chatgpt-record-replay-linux
 ```
 
 ## Package Payloads
@@ -96,8 +96,8 @@ Build the relevant package format and inspect metadata/layout:
 
 ```bash
 ./scripts/build-deb.sh
-dpkg-deb -I dist/codex-desktop_*.deb
-dpkg-deb -c dist/codex-desktop_*.deb | sed -n '1,80p'
+dpkg-deb -I dist/chatgpt_*.deb
+dpkg-deb -c dist/chatgpt_*.deb | sed -n '1,80p'
 ```
 
 Run other package formats when shared payload logic, package hooks, updater
@@ -120,10 +120,10 @@ PACKAGE_VERSION=2026.03.24.120000+deadbeef ./scripts/build-deb.sh
 When updater behavior changes, inspect service and state:
 
 ```bash
-systemctl --user status codex-update-manager.service
-codex-update-manager status --json
-sed -n '1,120p' ~/.local/state/codex-update-manager/state.json
-sed -n '1,160p' ~/.local/state/codex-update-manager/service.log
+systemctl --user status chatgpt-updater.service
+chatgpt-updater status --json
+sed -n '1,120p' ~/.local/state/chatgpt-updater/state.json
+sed -n '1,160p' ~/.local/state/chatgpt-updater/service.log
 ```
 
 For rebuild candidates:

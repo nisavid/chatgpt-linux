@@ -57,7 +57,7 @@ function applyLinuxFileManagerPatch(currentSource) {
 }
 
 function applyLinuxX11ProjectPickerPatch(currentSource) {
-  if (currentSource.includes("codexLinuxUseUnparentedX11ProjectPicker")) {
+  if (currentSource.includes("chatgptLinuxUseUnparentedX11ProjectPicker")) {
     return currentSource;
   }
 
@@ -79,7 +79,7 @@ function applyLinuxX11ProjectPickerPatch(currentSource) {
   const [, optionsVar, propertiesVar, parentVar, electronVar, webContentsVar, resultVar] = match;
   return currentSource.replace(
     pickerPattern,
-    `let ${optionsVar}={properties:${propertiesVar},title:\`Select Project Root\`},${parentVar}=${electronVar}.BrowserWindow.fromWebContents(${webContentsVar}),codexLinuxSessionType=(process.env.XDG_SESSION_TYPE||\`\`).trim().toLowerCase(),codexLinuxUseUnparentedX11ProjectPicker=process.platform===\`linux\`&&(codexLinuxSessionType===\`x11\`||codexLinuxSessionType!==\`wayland\`&&!process.env.WAYLAND_DISPLAY&&!!process.env.DISPLAY),${resultVar}=codexLinuxUseUnparentedX11ProjectPicker||${parentVar}==null?await ${electronVar}.dialog.showOpenDialog(${optionsVar}):await ${electronVar}.dialog.showOpenDialog(${parentVar},${optionsVar})`,
+    `let ${optionsVar}={properties:${propertiesVar},title:\`Select Project Root\`},${parentVar}=${electronVar}.BrowserWindow.fromWebContents(${webContentsVar}),chatgptLinuxSessionType=(process.env.XDG_SESSION_TYPE||\`\`).trim().toLowerCase(),chatgptLinuxUseUnparentedX11ProjectPicker=process.platform===\`linux\`&&(chatgptLinuxSessionType===\`x11\`||chatgptLinuxSessionType!==\`wayland\`&&!process.env.WAYLAND_DISPLAY&&!!process.env.DISPLAY),${resultVar}=chatgptLinuxUseUnparentedX11ProjectPicker||${parentVar}==null?await ${electronVar}.dialog.showOpenDialog(${optionsVar}):await ${electronVar}.dialog.showOpenDialog(${parentVar},${optionsVar})`,
   );
 }
 
@@ -162,8 +162,8 @@ function patchLinuxWorkerFileManagerTarget(extractedDir) {
 }
 
 function applyLinuxTerminalUserPathPatch(currentSource) {
-  const marker = "function codexLinuxRestoreUserTerminalPath(";
-  const callMarker = "&&codexLinuxRestoreUserTerminalPath(";
+  const marker = "function chatgptLinuxRestoreUserTerminalPath(";
+  const callMarker = "&&chatgptLinuxRestoreUserTerminalPath(";
   if (currentSource.includes(marker) && currentSource.includes(callMarker)) {
     return currentSource;
   }
@@ -186,11 +186,11 @@ function applyLinuxTerminalUserPathPatch(currentSource) {
   }
 
   const helper =
-    "function codexLinuxRestoreUserTerminalPath(e){try{let t=process.env.CODEX_LINUX_USER_PATH,n=process.env.CODEX_MANAGED_NODE_RUNTIME_DIR,r=typeof n==`string`&&n.length>0?`${n}/bin`:null,i=typeof e.PATH==`string`?e.PATH:null;if(typeof t==`string`&&t.length>0){if(r!=null&&i!=null&&i.split(`:`).includes(r)&&i!==process.env.PATH){let n=[];for(let e of i.split(`:`))e===r?n.push(...t.split(`:`)):n.push(e);e.PATH=n.join(`:`)}else(i==null||i.length===0||i===process.env.PATH)&&(e.PATH=t)}delete e.CODEX_LINUX_USER_PATH}catch{}return e}";
+    "function chatgptLinuxRestoreUserTerminalPath(e){try{let t=process.env.CHATGPT_LINUX_USER_PATH,n=process.env.CHATGPT_MANAGED_NODE_RUNTIME_DIR,r=typeof n==`string`&&n.length>0?`${n}/bin`:null,i=typeof e.PATH==`string`?e.PATH:null;if(typeof t==`string`&&t.length>0){if(r!=null&&i!=null&&i.split(`:`).includes(r)&&i!==process.env.PATH){let n=[];for(let e of i.split(`:`))e===r?n.push(...t.split(`:`)):n.push(e);e.PATH=n.join(`:`)}else(i==null||i.length===0||i===process.env.PATH)&&(e.PATH=t)}delete e.CHATGPT_LINUX_USER_PATH}catch{}return e}";
   const method = match[0];
   const returnNeedle = `return process.platform!==\`win32\`&&(${envVar}.TERM=`;
   const insertion =
-    `process.platform===\`linux\`&&this.isLocalTerminalSession(${sessionVar})&&codexLinuxRestoreUserTerminalPath(${envVar});`;
+    `process.platform===\`linux\`&&this.isLocalTerminalSession(${sessionVar})&&chatgptLinuxRestoreUserTerminalPath(${envVar});`;
   if (method.includes(insertion)) {
     return currentSource.includes(marker) ? currentSource : `${helper}${currentSource}`;
   }
@@ -206,7 +206,7 @@ function applyLinuxTerminalUserPathPatch(currentSource) {
     patchedSource = `${helper}${patchedSource}`;
   }
 
-  if (!patchedSource.includes(insertion) || !patchedSource.includes("CODEX_LINUX_USER_PATH")) {
+  if (!patchedSource.includes(insertion) || !patchedSource.includes("CHATGPT_LINUX_USER_PATH")) {
     console.warn("WARN: Linux terminal PATH patch verification failed");
     return currentSource;
   }
@@ -215,7 +215,7 @@ function applyLinuxTerminalUserPathPatch(currentSource) {
 }
 
 function applyLinuxTerminalHostEnvironmentPatch(currentSource) {
-  const marker = "function codexLinuxRestoreTerminalLibraryPath(";
+  const marker = "function chatgptLinuxRestoreTerminalLibraryPath(";
   if (currentSource.includes(marker)) {
     return currentSource;
   }
@@ -233,13 +233,13 @@ function applyLinuxTerminalHostEnvironmentPatch(currentSource) {
   }
 
   const helper =
-    "function codexLinuxRestoreTerminalLibraryPath(e){try{let t=process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,n=t==null?void 0:process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE??t,r=process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE==null?process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE;n===`unset`?delete e.LD_LIBRARY_PATH:n===`empty`?e.LD_LIBRARY_PATH=``:n===`value`&&typeof r==`string`&&(e.LD_LIBRARY_PATH=r);for(let t of[`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete e[t]}catch{}return e}";
-  const insertion = `${match[0]}process.platform===\`linux\`&&codexLinuxRestoreTerminalLibraryPath(${match[1]});`;
+    "function chatgptLinuxRestoreTerminalLibraryPath(e){try{let t=process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,n=t==null?void 0:process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE??t,r=process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE==null?process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE;n===`unset`?delete e.LD_LIBRARY_PATH:n===`empty`?e.LD_LIBRARY_PATH=``:n===`value`&&typeof r==`string`&&(e.LD_LIBRARY_PATH=r);for(let t of[`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete e[t]}catch{}return e}";
+  const insertion = `${match[0]}process.platform===\`linux\`&&chatgptLinuxRestoreTerminalLibraryPath(${match[1]});`;
   return `${helper}${currentSource.replace(terminalEnvPattern, insertion)}`;
 }
 
 function applyLinuxHostProcessEnvironmentPatch(currentSource) {
-  const marker = "function codexLinuxHostProcessEnv(";
+  const marker = "function chatgptLinuxHostProcessEnv(";
   if (currentSource.includes(marker)) {
     return currentSource;
   }
@@ -250,7 +250,7 @@ function applyLinuxHostProcessEnvironmentPatch(currentSource) {
   }
 
   const helper =
-    "function codexLinuxHostProcessEnv(e){let t={...e},n=process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,r=n==null?void 0:process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE??n,o=process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE==null?process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE;r===`unset`?delete t.LD_LIBRARY_PATH:r===`empty`?t.LD_LIBRARY_PATH=``:r===`value`&&typeof o==`string`&&(t.LD_LIBRARY_PATH=o);for(let e of[`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete t[e];return t}function codexLinuxLoginShellExtraEnv(e){let t=codexLinuxHostProcessEnv(e),n=process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,r=n==null?void 0:process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE??n;return r===`unset`&&(t.LD_LIBRARY_PATH=void 0),t}function codexLinuxShellEnvResult(e){let t={...e},n=process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE;n!=null&&(Object.hasOwn(t,`LD_LIBRARY_PATH`)?t.LD_LIBRARY_PATH===``?(process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE=`empty`,delete process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE):(process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE=`value`,process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE=t.LD_LIBRARY_PATH):(process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE=`unset`,delete process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE),delete t.LD_LIBRARY_PATH);for(let e of[`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete t[e];return t}";
+    "function chatgptLinuxHostProcessEnv(e){let t={...e},n=process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,r=n==null?void 0:process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE??n,o=process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE==null?process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE:process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE;r===`unset`?delete t.LD_LIBRARY_PATH:r===`empty`?t.LD_LIBRARY_PATH=``:r===`value`&&typeof o==`string`&&(t.LD_LIBRARY_PATH=o);for(let e of[`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete t[e];return t}function chatgptLinuxLoginShellExtraEnv(e){let t=chatgptLinuxHostProcessEnv(e),n=process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE,r=n==null?void 0:process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE??n;return r===`unset`&&(t.LD_LIBRARY_PATH=void 0),t}function chatgptLinuxShellEnvResult(e){let t={...e},n=process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE;n!=null&&(Object.hasOwn(t,`LD_LIBRARY_PATH`)?t.LD_LIBRARY_PATH===``?(process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE=`empty`,delete process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE):(process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE=`value`,process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE=t.LD_LIBRARY_PATH):(process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE=`unset`,delete process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE),delete t.LD_LIBRARY_PATH);for(let e of[`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE`,`CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE`])delete t[e];return t}";
 
   const shellLoadPattern =
     /([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\(\{interactive:!0,extraEnv:\{\[\1\.([A-Za-z_$][\w$]*)\]:`1`\},signal:([A-Za-z_$][\w$]*)\.signal\}\)/u;
@@ -269,11 +269,11 @@ function applyLinuxHostProcessEnvironmentPatch(currentSource) {
     const [, shellModule, shellMethod, shellMarker, abortController] = shellLoadMatch;
     patchedSource = patchedSource.replace(
       shellLoadPattern,
-      `${shellModule}.${shellMethod}({interactive:!0,extraEnv:codexLinuxLoginShellExtraEnv({...process.env,[${shellModule}.${shellMarker}]:\`1\`}),signal:${abortController}.signal})`,
+      `${shellModule}.${shellMethod}({interactive:!0,extraEnv:chatgptLinuxLoginShellExtraEnv({...process.env,[${shellModule}.${shellMarker}]:\`1\`}),signal:${abortController}.signal})`,
     );
     patchedSource = patchedSource.replace(
       shellAssignPattern,
-      "Object.assign(process.env,$1.userEnv=codexLinuxShellEnvResult($1.userEnv))",
+      "Object.assign(process.env,$1.userEnv=chatgptLinuxShellEnvResult($1.userEnv))",
     );
   }
   if (hasCliEnvironmentBuilder) {
@@ -285,7 +285,7 @@ function applyLinuxHostProcessEnvironmentPatch(currentSource) {
     }
     patchedSource = patchedSource.replace(
       cliEnvPattern,
-      "let $1=codexLinuxHostProcessEnv($2),$3=",
+      "let $1=chatgptLinuxHostProcessEnv($2),$3=",
     );
   }
 
@@ -468,7 +468,7 @@ function applyLinuxRemoteControlConfigPreservationPatch(currentSource) {
 }
 
 function applyLinuxXdgDocumentsDirPatch(currentSource) {
-  if (currentSource.includes("codexLinuxXdgDocumentsDir")) {
+  if (currentSource.includes("chatgptLinuxXdgDocumentsDir")) {
     return currentSource;
   }
 
@@ -496,7 +496,7 @@ function applyLinuxXdgDocumentsDirPatch(currentSource) {
 
   const [, fnName, desktopPathsVar, homeDirVar, platformVar, sameHomeFn, pathFactoryFn] = match;
   const helper = [
-    "function codexLinuxXdgDocumentsDir({fs:e,homeDir:t,path:n}){try{",
+    "function chatgptLinuxXdgDocumentsDir({fs:e,homeDir:t,path:n}){try{",
     "let r=process.env.XDG_CONFIG_HOME?.trim(),i=r&&n.isAbsolute(r)?n.join(r,`user-dirs.dirs`):n.join(t,`.config`,`user-dirs.dirs`);",
     "if(!e.existsSync(i))return null;",
     "let a=e.readFileSync(i,`utf8`).match(/^XDG_DOCUMENTS_DIR=([\"'])(.*)\\1/m);",
@@ -510,8 +510,8 @@ function applyLinuxXdgDocumentsDirPatch(currentSource) {
   ].join("");
   const patchedFn =
     `${helper}function ${fnName}({desktopPaths:${desktopPathsVar},homeDir:${homeDirVar},platform:${platformVar}}){` +
-    `if(${platformVar}===\`linux\`){let __codexLinuxDocumentsDir=codexLinuxXdgDocumentsDir({fs:${fsVar},homeDir:${homeDirVar},path:${pathFactoryFn}(${platformVar})});` +
-    "if(__codexLinuxDocumentsDir!=null)return __codexLinuxDocumentsDir}" +
+    `if(${platformVar}===\`linux\`){let __chatgptLinuxDocumentsDir=chatgptLinuxXdgDocumentsDir({fs:${fsVar},homeDir:${homeDirVar},path:${pathFactoryFn}(${platformVar})});` +
+    "if(__chatgptLinuxDocumentsDir!=null)return __chatgptLinuxDocumentsDir}" +
     `return ${sameHomeFn}(${homeDirVar},${desktopPathsVar}.getPath(\`home\`),${platformVar})?${desktopPathsVar}.getPath(\`documents\`):${pathFactoryFn}(${platformVar}).join(${homeDirVar},\`Documents\`)}`;
 
   return currentSource.replace(documentsDirRegex, () => patchedFn);

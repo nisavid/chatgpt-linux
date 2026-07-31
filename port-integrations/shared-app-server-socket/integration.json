@@ -1,7 +1,7 @@
 {
   "id": "shared-app-server-socket",
   "title": "Shared App-Server Socket",
-  "description": "Runtime-opt-in protocol-transparent Unix socket shared by Codex App and ordinary app-server clients.",
+  "description": "Runtime-opt-in protocol-transparent Unix socket shared by ChatGPT and ordinary app-server clients.",
   "defaultEnabled": true,
   "entrypoints": {
     "patchDescriptors": "./patch.js"

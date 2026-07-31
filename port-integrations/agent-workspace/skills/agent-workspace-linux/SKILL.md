@@ -18,13 +18,13 @@ only the tool schemas needed for the next action.
 
 ### Use the dedicated Codex for port integration page for setup
 
-Codex for Linux owns Agent Workspace setup through the **Agent Workspaces** page:
+ChatGPT for Linux owns Agent Workspace setup through the **Agent Workspaces** page:
 binary path, page-authored permission rules, permission file mutation,
 Reconnect/Smoke test, profile creation, workspace start/stop, and viewer launch.
 Do not send users to generic MCP settings, general configuration pages, or
-`~/.codex/config.toml` for normal Codex for Linux setup.
+`~/.codex/config.toml` for normal ChatGPT for Linux setup.
 
-Skip unless: the host is Codex for Linux and the task is setup, permission
+Skip unless: the host is ChatGPT for Linux and the task is setup, permission
 changes, reconnect/restart, or the workspace tools are unavailable.
 
 ### Keep tools progressive
@@ -122,7 +122,7 @@ shortcut.
 ## Do NOT
 
 - Do not dump all MCP tools into the agent context at startup.
-- Do not send users to generic MCP/configuration pages for Codex for Linux
+- Do not send users to generic MCP/configuration pages for ChatGPT for Linux
   Agent Workspace setup.
 - Do not start a workspace without `ack_hidden_workspace=true` and a `purpose`.
 - Do not send input to or screenshot the user's real desktop.

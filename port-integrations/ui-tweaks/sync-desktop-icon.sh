@@ -5,7 +5,7 @@ set -f
 home_dir="${HOME:-}"
 [ -n "$home_dir" ] || exit 0
 
-app_id="${CODEX_LINUX_APP_ID:-${CODEX_APP_ID:-codex-app}}"
+app_id="${CHATGPT_LINUX_APP_ID:-${CHATGPT_APP_ID:-chatgpt}}"
 case "$app_id" in
     *[!A-Za-z0-9._-]*|'') exit 0 ;;
 esac
@@ -14,14 +14,14 @@ data_home="${XDG_DATA_HOME:-$home_dir/.local/share}"
 applications_dir="$data_home/applications"
 icons_dir="$data_home/icons/hicolor/256x256/apps"
 desktop_target="$applications_dir/$app_id.desktop"
-legacy_icon_target="$icons_dir/$app_id-dock-selection.png"
-marker="X-Codex-Linux-Dock-Icon=1"
-icon_owner_marker="X-Codex-Linux-Dock-Icon-Resource=1"
+selection_icon_target="$icons_dir/$app_id-dock-selection.png"
+marker="X-ChatGPT-Linux-Dock-Icon=1"
+icon_owner_marker="X-ChatGPT-Linux-Dock-Icon-Resource=1"
 managed_icons=(
     "$icons_dir/$app_id-dock-chatgpt.png"
     "$icons_dir/$app_id-dock-codex-dark.png"
     "$icons_dir/$app_id-dock-codex-light.png"
-    "$legacy_icon_target"
+    "$selection_icon_target"
 )
 
 refresh_desktop_database() {
@@ -44,7 +44,7 @@ managed_desktop_is_owned() {
 
 managed_icon_is_owned() {
     local icon="$1"
-    local owner_path="$icon.codex-app-owned"
+    local owner_path="$icon.chatgpt-owned"
 
     [ -f "$icon" ] && [ ! -L "$icon" ] || return 1
     [ -f "$owner_path" ] && [ ! -L "$owner_path" ] || return 1
@@ -67,7 +67,7 @@ cleanup_managed_desktop() {
             if ! rm -f -- "$icon"; then
                 echo "WARN: Could not remove managed Dock icon resource: $icon" >&2
             else
-                rm -f -- "$icon.codex-app-owned"
+                rm -f -- "$icon.chatgpt-owned"
                 changed=1
             fi
         fi
@@ -75,9 +75,9 @@ cleanup_managed_desktop() {
     [ "$changed" -eq 0 ] || refresh_desktop_database
 }
 
-hook_phase="${CODEX_PORT_INTEGRATION_HOOK_PHASE:-${CODEX_LINUX_FEATURE_HOOK_PHASE:-}}"
+hook_phase="${CHATGPT_PORT_INTEGRATION_HOOK_PHASE:-}"
 if [ "$hook_phase" = "prelaunch" ]; then
-    app_dir="${CODEX_LINUX_APP_DIR:-${1:-}}"
+    app_dir="${CHATGPT_LINUX_APP_DIR:-${1:-}}"
     [ -n "$app_dir" ] && [ -d "$app_dir" ] || exit 0
     payload_helper="$app_dir/resources/dock-icon/sync-desktop-icon.sh"
     if [ -f "$payload_helper" ] && [ ! -L "$payload_helper" ]; then
@@ -106,7 +106,7 @@ desktop_source_matches_identity() {
             StartupWMClass=*) [ "${line#*=}" = "$app_id" ] || return 1 ;;
             X-GNOME-WMClass=*) [ "${line#*=}" = "$app_id" ] || return 1 ;;
             Exec=*)
-                if [ "$app_id" != "codex-desktop" ] && [[ "$line" != *"$app_id"* ]]; then
+                if [ "$app_id" != "chatgpt" ] && [[ "$line" != *"$app_id"* ]]; then
                     return 1
                 fi
                 ;;
@@ -120,7 +120,7 @@ desktop_source_matches_identity() {
                     value="${token#*=}"
                     [ "$(basename -- "$value")" = "$app_id.desktop" ] || return 1
                     ;;
-                CODEX_APP_ID=*|CODEX_LINUX_APP_ID=*)
+                CHATGPT_APP_ID=*|CHATGPT_LINUX_APP_ID=*)
                     [ "${token#*=}" = "$app_id" ] || return 1
                     ;;
             esac
@@ -133,7 +133,7 @@ if [ -e "$desktop_target" ] || [ -L "$desktop_target" ]; then
     grep -qxF "$marker" "$desktop_target" || exit 0
 fi
 
-desktop_source="${CODEX_LINUX_DESKTOP_FILE_SOURCE:-}"
+desktop_source="${CHATGPT_LINUX_DESKTOP_FILE_SOURCE:-}"
 if [ -z "$desktop_source" ]; then
     data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     IFS=: read -r -a data_dirs_array <<< "$data_dirs"
@@ -156,7 +156,8 @@ if ! desktop_source_matches_identity "$desktop_source"; then
 fi
 
 mkdir -p "$applications_dir" "$icons_dir"
-if [ -e "$icon_target" ] || [ -L "$icon_target" ]; then
+owner_target="$icon_target.chatgpt-owned"
+if [ -e "$icon_target" ] || [ -L "$icon_target" ] || [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
     managed_icon_is_owned "$icon_target" || exit 0
 fi
 desktop_tmp="$(mktemp "$applications_dir/.$app_id.desktop.XXXXXX")"
@@ -180,19 +181,28 @@ chmod 0644 "$desktop_tmp"
 
 changed=0
 if [ ! -f "$icon_target" ] || ! cmp -s "$icon_tmp" "$icon_target"; then
+    if [ -e "$icon_target" ] || [ -L "$icon_target" ] || [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
+        managed_icon_is_owned "$icon_target" || exit 0
+    fi
     mv -f -- "$icon_tmp" "$icon_target"
     changed=1
 fi
-if [ ! -f "$icon_target.codex-app-owned" ] || ! cmp -s "$owner_tmp" "$icon_target.codex-app-owned"; then
-    mv -f -- "$owner_tmp" "$icon_target.codex-app-owned"
+if [ ! -f "$owner_target" ] || ! cmp -s "$owner_tmp" "$owner_target"; then
+    if [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
+        managed_icon_is_owned "$icon_target" || exit 0
+    fi
+    mv -f -- "$owner_tmp" "$owner_target"
     changed=1
 fi
 if [ ! -f "$desktop_target" ] || ! cmp -s "$desktop_tmp" "$desktop_target"; then
+    if [ -e "$desktop_target" ] || [ -L "$desktop_target" ]; then
+        managed_desktop_is_owned || exit 0
+    fi
     mv -f -- "$desktop_tmp" "$desktop_target"
     changed=1
 fi
-if managed_icon_is_owned "$legacy_icon_target"; then
-    rm -f -- "$legacy_icon_target" "$legacy_icon_target.codex-app-owned"
+if managed_icon_is_owned "$selection_icon_target"; then
+    rm -f -- "$selection_icon_target" "$selection_icon_target.chatgpt-owned"
 fi
 
 [ "$changed" -eq 0 ] || refresh_desktop_database

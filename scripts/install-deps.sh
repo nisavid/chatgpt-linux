@@ -1,5 +1,5 @@
 #!/bin/bash
-# install-deps.sh — Install system dependencies for Codex App Linux
+# install-deps.sh — Install system dependencies for ChatGPT for Linux
 # Supports: Debian/Ubuntu (apt), Fedora 41+ (dnf5), Fedora <41 (dnf), Fedora Atomic detection (rpm-ostree), Arch (pacman), openSUSE (zypper)
 # Also installs the Rust toolchain (cargo) via rustup when not already present.
 set -Eeuo pipefail
@@ -328,7 +328,7 @@ bootstrap_7zz() {
     fi
 
     # System 7z is already new enough — skip. p7zip 17.05 still cannot
-    # extract current APFS-based Codex DMGs, so only accept non-p7zip 7z.
+    # extract current APFS-based ChatGPT DMGs, so only accept non-p7zip 7z.
     if command -v 7z &>/dev/null; then
         local seven_zip_banner
         seven_zip_banner="$(7z 2>&1 | head -n 3 || true)"

@@ -1,11 +1,11 @@
 use anyhow::{bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
-use chrono::{DateTime, Duration as ChronoDuration, NaiveDateTime, Utc};
-use codex_computer_use_linux::{
+use chatgpt_computer_use_linux::{
     atspi_tree,
     screenshot::{self, ScreenshotOutputFormat, ScreenshotPayloadOptions},
     windowing,
 };
+use chrono::{DateTime, Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -29,7 +29,7 @@ const SUMMARY_AGENT_SETTING_FILE_NAME: &str = "summary-agent";
 const MEMORY_INSTRUCTIONS_FILE_NAME: &str = "SkysightMemoryInstructions.md";
 const CHRONICLE_INSTRUCTIONS_FILE_NAME: &str = "instructions.md";
 const SUMMARIZER_FILE_NAME: &str = "SkysightSummarizer.md";
-const CHRONICLE_TMP_DIR_NAME: &str = "codex_chronicle";
+const CHRONICLE_TMP_DIR_NAME: &str = "chatgpt_chronicle";
 const CHRONICLE_STARTED_PID_FILE_NAME: &str = "chronicle-started.pid";
 const CHRONICLE_SCREEN_RECORDING_DIR: &str = "chronicle/screen_recording";
 const DEFAULT_INTERVAL_SECONDS: u64 = 60;
@@ -37,7 +37,7 @@ const TEN_MINUTE_RESOURCE_LIMIT: usize = 36;
 const TEN_MINUTE_WINDOW_SECONDS: i64 = 10 * 60;
 const SIX_HOUR_ROLLUP_SECONDS: i64 = 6 * 60 * 60;
 const SIX_HOUR_ROLLUP_REFRESH_SECONDS: i64 = 60 * 60;
-const SUMMARY_AGENT_ENABLE_ENV: &str = "CODEX_SKYSIGHT_SUMMARY_AGENT";
+const SUMMARY_AGENT_ENABLE_ENV: &str = "CHATGPT_SKYSIGHT_SUMMARY_AGENT";
 const ARTIFACTS_DIR_NAME: &str = "artifacts";
 const ACCESSIBILITY_NODE_LIMIT: usize = 160;
 const ACCESSIBILITY_DEPTH_LIMIT: u32 = 10;
@@ -316,7 +316,7 @@ impl SkysightPaths {
     }
 
     pub fn from_env() -> Self {
-        let runtime_dir = env::var_os("CODEX_SKYSIGHT_RUNTIME_DIR")
+        let runtime_dir = env::var_os("CHATGPT_SKYSIGHT_RUNTIME_DIR")
             .map(PathBuf::from)
             .or_else(|| {
                 env::var_os("XDG_RUNTIME_DIR").map(|dir| PathBuf::from(dir).join("skysight"))
@@ -326,22 +326,22 @@ impl SkysightPaths {
             .map(PathBuf::from)
             .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".codex")))
             .unwrap_or_else(|| PathBuf::from(".codex"));
-        let memory_extension_dir = env::var_os("CODEX_SKYSIGHT_MEMORY_EXTENSION_DIR")
+        let memory_extension_dir = env::var_os("CHATGPT_SKYSIGHT_MEMORY_EXTENSION_DIR")
             .map(PathBuf::from)
-            .or_else(|| env::var_os("CODEX_CHRONICLE_MEMORY_EXTENSION_DIR").map(PathBuf::from))
+            .or_else(|| env::var_os("CHATGPT_CHRONICLE_MEMORY_EXTENSION_DIR").map(PathBuf::from))
             .unwrap_or_else(|| {
                 code_home
                     .join("memories")
                     .join("extensions")
                     .join("chronicle")
             });
-        let resources_dir = env::var_os("CODEX_SKYSIGHT_RESOURCES_DIR").map(PathBuf::from);
+        let resources_dir = env::var_os("CHATGPT_SKYSIGHT_RESOURCES_DIR").map(PathBuf::from);
         let mut paths =
             Self::with_memory_extension_dir(runtime_dir, memory_extension_dir, resources_dir);
-        if let Some(segments_dir) = env::var_os("CODEX_SKYSIGHT_SEGMENTS_DIR") {
+        if let Some(segments_dir) = env::var_os("CHATGPT_SKYSIGHT_SEGMENTS_DIR") {
             paths.segments_dir = PathBuf::from(segments_dir);
         }
-        if let Some(exclusions_path) = env::var_os("CODEX_SKYSIGHT_EXCLUSIONS_PATH") {
+        if let Some(exclusions_path) = env::var_os("CHATGPT_SKYSIGHT_EXCLUSIONS_PATH") {
             paths.exclusions_path = PathBuf::from(exclusions_path);
         }
         paths.status_path = paths.runtime_dir.join(STATUS_FILE_NAME);
@@ -383,14 +383,14 @@ pub fn start_skysight(
         .arg("daemon")
         .arg("--interval-seconds")
         .arg(options.interval_seconds.to_string())
-        .env("CODEX_SKYSIGHT_RUNTIME_DIR", &paths.runtime_dir)
-        .env("CODEX_SKYSIGHT_SEGMENTS_DIR", &paths.segments_dir)
-        .env("CODEX_SKYSIGHT_RESOURCES_DIR", &paths.resources_dir)
+        .env("CHATGPT_SKYSIGHT_RUNTIME_DIR", &paths.runtime_dir)
+        .env("CHATGPT_SKYSIGHT_SEGMENTS_DIR", &paths.segments_dir)
+        .env("CHATGPT_SKYSIGHT_RESOURCES_DIR", &paths.resources_dir)
         .env(
-            "CODEX_SKYSIGHT_MEMORY_EXTENSION_DIR",
+            "CHATGPT_SKYSIGHT_MEMORY_EXTENSION_DIR",
             &paths.memory_extension_dir,
         )
-        .env("CODEX_SKYSIGHT_EXCLUSIONS_PATH", &paths.exclusions_path)
+        .env("CHATGPT_SKYSIGHT_EXCLUSIONS_PATH", &paths.exclusions_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -600,8 +600,8 @@ fn capture_skysight_snapshot_with_ocr(
         return Ok(status);
     }
 
-    codex_computer_use_linux::diagnostics::hydrate_session_bus_env();
-    let diagnostics = codex_computer_use_linux::diagnostics::doctor_report();
+    chatgpt_computer_use_linux::diagnostics::hydrate_session_bus_env();
+    let diagnostics = chatgpt_computer_use_linux::diagnostics::doctor_report();
     let recorded_at = now_timestamp();
     let window_ended_at = Utc::now();
     let source = source.unwrap_or("snapshot");
@@ -872,7 +872,7 @@ fn write_events_jsonl(path: &Path, events: &[Value]) -> Result<()> {
 fn provider_readiness_event(
     recorded_at: &str,
     source: &str,
-    diagnostics: &codex_computer_use_linux::diagnostics::DoctorReport,
+    diagnostics: &chatgpt_computer_use_linux::diagnostics::DoctorReport,
     ocr_policy: &crate::ocr::OcrPolicy,
     ocr_readiness: &crate::ocr::OcrReadiness,
 ) -> Value {
@@ -937,7 +937,7 @@ fn write_diagnostics_artifact(
     segment: &SegmentPaths,
     recorded_at: &str,
     source: &str,
-    diagnostics: &codex_computer_use_linux::diagnostics::DoctorReport,
+    diagnostics: &chatgpt_computer_use_linux::diagnostics::DoctorReport,
     exclusions: &[SkysightExclusion],
 ) -> Result<Value> {
     let relative = PathBuf::from(ARTIFACTS_DIR_NAME).join("diagnostics.json");
@@ -2622,7 +2622,7 @@ fn summary_agent_command_spec(
     paths: &SkysightPaths,
     output_path: &Path,
 ) -> SummaryAgentCommandSpec {
-    let executable = env::var("CODEX_SKYSIGHT_CODEX_CLI_PATH")
+    let executable = env::var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH")
         .or_else(|_| env::var("CODEX_CLI_PATH"))
         .unwrap_or_else(|_| "codex".to_string());
     let mut args = vec![
@@ -2685,8 +2685,8 @@ fn summary_agent_config_overrides(_paths: &SkysightPaths) -> Vec<String> {
 }
 
 fn consolidation_model() -> Option<String> {
-    env::var("CODEX_SKYSIGHT_CONSOLIDATION_MODEL")
-        .or_else(|_| env::var("CODEX_CHRONICLE_CONSOLIDATION_MODEL"))
+    env::var("CHATGPT_SKYSIGHT_CONSOLIDATION_MODEL")
+        .or_else(|_| env::var("CHATGPT_CHRONICLE_CONSOLIDATION_MODEL"))
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -3062,19 +3062,19 @@ fn next_6h_rollup_at(paths: &SkysightPaths) -> Result<Option<String>> {
 }
 
 fn chronicle_tmp_dir() -> PathBuf {
-    env::var_os("CODEX_CHRONICLE_TMP_DIR")
+    env::var_os("CHATGPT_CHRONICLE_TMP_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| env::temp_dir().join(CHRONICLE_TMP_DIR_NAME))
 }
 
 fn chronicle_started_pid_path() -> PathBuf {
-    env::var_os("CODEX_CHRONICLE_STARTED_PID_PATH")
+    env::var_os("CHATGPT_CHRONICLE_STARTED_PID_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| chronicle_tmp_dir().join(CHRONICLE_STARTED_PID_FILE_NAME))
 }
 
 fn chronicle_screen_recording_dir() -> PathBuf {
-    env::var_os("CODEX_CHRONICLE_SCREEN_RECORDING_DIR")
+    env::var_os("CHATGPT_CHRONICLE_SCREEN_RECORDING_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| env::temp_dir().join(CHRONICLE_SCREEN_RECORDING_DIR))
 }
@@ -3481,14 +3481,14 @@ mod tests {
     fn cached_ocr_readiness_reuses_daemon_session_probe() {
         let _guard = env_guard();
         let env_keys = [
-            "CODEX_SKYSIGHT_OCR",
-            "CODEX_CHRONICLE_OCR",
-            "CODEX_SKYSIGHT_OCR_BACKEND",
-            "CODEX_CHRONICLE_OCR_BACKEND",
-            "CODEX_SKYSIGHT_RAPIDOCR_PYTHON",
-            "CODEX_CHRONICLE_RAPIDOCR_PYTHON",
-            "CODEX_SKYSIGHT_RAPIDOCR_LANG",
-            "CODEX_CHRONICLE_RAPIDOCR_LANG",
+            "CHATGPT_SKYSIGHT_OCR",
+            "CHATGPT_CHRONICLE_OCR",
+            "CHATGPT_SKYSIGHT_OCR_BACKEND",
+            "CHATGPT_CHRONICLE_OCR_BACKEND",
+            "CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON",
+            "CHATGPT_CHRONICLE_RAPIDOCR_PYTHON",
+            "CHATGPT_SKYSIGHT_RAPIDOCR_LANG",
+            "CHATGPT_CHRONICLE_RAPIDOCR_LANG",
         ];
         let old_env = env_keys
             .iter()
@@ -3507,7 +3507,7 @@ mod tests {
                 r#"#!/usr/bin/env bash
 set -euo pipefail
 printf x >> '{}'
-echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_type":"en"}}'
+echo '__CHATGPT_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_type":"en"}}'
 "#,
                 counter.display()
             ),
@@ -3517,10 +3517,10 @@ echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_t
         permissions.set_mode(0o755);
         fs::set_permissions(&fake_python, permissions).unwrap();
 
-        env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-        env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "rapidocr");
-        env::set_var("CODEX_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
-        env::set_var("CODEX_SKYSIGHT_RAPIDOCR_LANG", "en");
+        env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+        env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "rapidocr");
+        env::set_var("CHATGPT_SKYSIGHT_RAPIDOCR_PYTHON", &fake_python);
+        env::set_var("CHATGPT_SKYSIGHT_RAPIDOCR_LANG", "en");
 
         let policy = crate::ocr::OcrPolicy::from_env();
         let mut cache = None;
@@ -3679,12 +3679,15 @@ echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_t
     fn summary_agent_10min_work_is_rate_limited() {
         let _guard = env_guard();
         let old_enable = env::var_os(SUMMARY_AGENT_ENABLE_ENV);
-        let old_cli = env::var_os("CODEX_SKYSIGHT_CODEX_CLI_PATH");
+        let old_cli = env::var_os("CHATGPT_SKYSIGHT_CODEX_CLI_PATH");
         let old_code_home = env::var_os("CODEX_HOME");
         let temp = tempfile::tempdir().unwrap();
         let paths = SkysightPaths::new(temp.path().join("runtime"), temp.path().join("resources"));
         env::set_var(SUMMARY_AGENT_ENABLE_ENV, "enabled");
-        env::set_var("CODEX_SKYSIGHT_CODEX_CLI_PATH", "/definitely/missing/codex");
+        env::set_var(
+            "CHATGPT_SKYSIGHT_CODEX_CLI_PATH",
+            "/definitely/missing/codex",
+        );
         env::set_var("CODEX_HOME", temp.path().join("codex-home"));
         ensure_layout(&paths).unwrap();
 
@@ -3740,8 +3743,8 @@ echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_t
             None => env::remove_var(SUMMARY_AGENT_ENABLE_ENV),
         }
         match old_cli {
-            Some(value) => env::set_var("CODEX_SKYSIGHT_CODEX_CLI_PATH", value),
-            None => env::remove_var("CODEX_SKYSIGHT_CODEX_CLI_PATH"),
+            Some(value) => env::set_var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH", value),
+            None => env::remove_var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH"),
         }
         match old_code_home {
             Some(value) => env::set_var("CODEX_HOME", value),
@@ -3752,15 +3755,15 @@ echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_t
     #[test]
     fn summary_agent_command_uses_chronicle_memgen_contract() {
         let _guard = env_guard();
-        let old_cli = env::var_os("CODEX_SKYSIGHT_CODEX_CLI_PATH");
-        let old_screen_dir = env::var_os("CODEX_CHRONICLE_SCREEN_RECORDING_DIR");
-        let old_model = env::var_os("CODEX_SKYSIGHT_CONSOLIDATION_MODEL");
+        let old_cli = env::var_os("CHATGPT_SKYSIGHT_CODEX_CLI_PATH");
+        let old_screen_dir = env::var_os("CHATGPT_CHRONICLE_SCREEN_RECORDING_DIR");
+        let old_model = env::var_os("CHATGPT_SKYSIGHT_CONSOLIDATION_MODEL");
 
         let temp = tempfile::tempdir().unwrap();
         let screen_dir = temp.path().join("chronicle").join("screen_recording");
-        env::set_var("CODEX_SKYSIGHT_CODEX_CLI_PATH", "/usr/bin/codex-test");
-        env::set_var("CODEX_CHRONICLE_SCREEN_RECORDING_DIR", &screen_dir);
-        env::set_var("CODEX_SKYSIGHT_CONSOLIDATION_MODEL", "gpt-memgen-test");
+        env::set_var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH", "/usr/bin/codex-test");
+        env::set_var("CHATGPT_CHRONICLE_SCREEN_RECORDING_DIR", &screen_dir);
+        env::set_var("CHATGPT_SKYSIGHT_CONSOLIDATION_MODEL", "gpt-memgen-test");
 
         let paths = SkysightPaths::new(temp.path().join("runtime"), temp.path().join("resources"));
         let output_path = temp.path().join("summary.md");
@@ -3816,16 +3819,16 @@ echo '__CODEX_RAPIDOCR_JSON__{{"rapidocr":"3.9.1","onnxruntime":"1.22.0","lang_t
         assert_eq!(spec.args.last().map(String::as_str), Some("-"));
 
         match old_cli {
-            Some(value) => env::set_var("CODEX_SKYSIGHT_CODEX_CLI_PATH", value),
-            None => env::remove_var("CODEX_SKYSIGHT_CODEX_CLI_PATH"),
+            Some(value) => env::set_var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH", value),
+            None => env::remove_var("CHATGPT_SKYSIGHT_CODEX_CLI_PATH"),
         }
         match old_screen_dir {
-            Some(value) => env::set_var("CODEX_CHRONICLE_SCREEN_RECORDING_DIR", value),
-            None => env::remove_var("CODEX_CHRONICLE_SCREEN_RECORDING_DIR"),
+            Some(value) => env::set_var("CHATGPT_CHRONICLE_SCREEN_RECORDING_DIR", value),
+            None => env::remove_var("CHATGPT_CHRONICLE_SCREEN_RECORDING_DIR"),
         }
         match old_model {
-            Some(value) => env::set_var("CODEX_SKYSIGHT_CONSOLIDATION_MODEL", value),
-            None => env::remove_var("CODEX_SKYSIGHT_CONSOLIDATION_MODEL"),
+            Some(value) => env::set_var("CHATGPT_SKYSIGHT_CONSOLIDATION_MODEL", value),
+            None => env::remove_var("CHATGPT_SKYSIGHT_CONSOLIDATION_MODEL"),
         }
     }
 

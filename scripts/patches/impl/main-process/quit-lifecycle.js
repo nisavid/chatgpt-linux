@@ -5,7 +5,7 @@ const {
 } = require("../../lib/minified-js.js");
 
 function applyLinuxQuitGuardPatch(currentSource) {
-  if (currentSource.includes("codexLinuxExplicitQuitApproved=!1")) {
+  if (currentSource.includes("chatgptLinuxExplicitQuitApproved=!1")) {
     return currentSource;
   }
 
@@ -16,7 +16,7 @@ function applyLinuxQuitGuardPatch(currentSource) {
     const matchedPrefix = currentBundlerQuitGuardMatch[0];
     const electronVar = currentBundlerQuitGuardMatch[1];
     const quitGuardSuffix =
-      `let codexLinuxTray=null,codexLinuxRegisterTray=e=>(codexLinuxTray=e,e),codexLinuxDestroyTray=()=>{if(process.platform!==\`linux\`)return;let e=codexLinuxTray;codexLinuxTray=null;try{e?.destroy()}catch{}},codexLinuxQuitInProgress=!1,codexLinuxExplicitQuitApproved=!1,codexLinuxExplicitQuitDrainTimeoutMs=3e3,codexLinuxMarkQuitInProgress=()=>{codexLinuxQuitInProgress=!0,codexLinuxDestroyTray()},codexLinuxPrepareForExplicitQuit=()=>{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress()},codexLinuxShouldBypassQuitPrompt=()=>codexLinuxExplicitQuitApproved===!0,codexLinuxIsQuitInProgress=()=>codexLinuxQuitInProgress===!0;${electronVar}.app.on(\`before-quit\`,()=>codexLinuxDestroyTray());`;
+      `let chatgptLinuxTray=null,chatgptLinuxRegisterTray=e=>(chatgptLinuxTray=e,e),chatgptLinuxDestroyTray=()=>{if(process.platform!==\`linux\`)return;let e=chatgptLinuxTray;chatgptLinuxTray=null;try{e?.destroy()}catch{}},chatgptLinuxQuitInProgress=!1,chatgptLinuxExplicitQuitApproved=!1,chatgptLinuxExplicitQuitDrainTimeoutMs=3e3,chatgptLinuxMarkQuitInProgress=()=>{chatgptLinuxQuitInProgress=!0,chatgptLinuxDestroyTray()},chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()},chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0,chatgptLinuxIsQuitInProgress=()=>chatgptLinuxQuitInProgress===!0;${electronVar}.app.on(\`before-quit\`,()=>chatgptLinuxDestroyTray());`;
     return currentSource.replace(matchedPrefix, `${matchedPrefix}${quitGuardSuffix}`);
   }
 
@@ -28,7 +28,7 @@ function applyLinuxQuitGuardPatch(currentSource) {
 }
 
 function linuxExplicitQuitExpression() {
-  return "typeof codexLinuxPrepareForExplicitQuit===`function`?codexLinuxPrepareForExplicitQuit():typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),";
+  return "typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),";
 }
 
 function parseCurrentWillQuitDrainBody(body, eventVar, listenerElectronVar) {
@@ -115,9 +115,9 @@ function currentWillQuitDrainCandidates(currentSource) {
 function applyLinuxWillQuitDrainTimeoutPatch(currentSource) {
   const linuxQuitDrainGuard = "process.platform===`linux`";
   const appliedMarkers = [
-    "codexLinuxLogQuitDrainResults=e=>{",
-    "codexLinuxFinalizeQuit=()=>{",
-    "codexLinuxRunQuitDrain=e=>{if(process.platform===`linux`){Promise.race([Promise.resolve().then(e)",
+    "chatgptLinuxLogQuitDrainResults=e=>{",
+    "chatgptLinuxFinalizeQuit=()=>{",
+    "chatgptLinuxRunQuitDrain=e=>{if(process.platform===`linux`){Promise.race([Promise.resolve().then(e)",
     "Linux quit drain timed out",
     "WARN: Linux quit drain cleanup failed",
     "WARN: Linux quit context cleanup failed",
@@ -125,7 +125,7 @@ function applyLinuxWillQuitDrainTimeoutPatch(currentSource) {
   ];
   const appliedFinalizerStart = currentSource.indexOf(appliedMarkers[0]);
   const appliedFinalizerEnd = currentSource.indexOf(
-    ",codexLinuxRunQuitDrain=",
+    ",chatgptLinuxRunQuitDrain=",
     appliedFinalizerStart,
   );
   const hasAppliedFinalizerPostcondition =
@@ -151,18 +151,18 @@ function applyLinuxWillQuitDrainTimeoutPatch(currentSource) {
   const { outer, finalizer, reduced, full } = candidate.shape;
   const originalFinalizer = `${outer.upstreamFinalize}=()=>{${outer.finalizer}}`;
   const linuxFinalizer =
-    `codexLinuxLogQuitDrainResults=e=>{for(let t of e)if(t.status===\`rejected\`)try{console.warn(\`WARN: Linux quit drain cleanup failed\`,t.reason)}catch{};return e},codexLinuxFinalizeQuit=()=>{Promise.resolve().then(()=>${finalizer.contextDispose}(${finalizer.contextArg},${finalizer.contextTimeout})).catch(e=>{try{console.warn(\`WARN: Linux quit context cleanup failed\`,e)}catch{}}).then(()=>{try{${finalizer.disposables}.dispose()}catch(e){try{console.warn(\`WARN: Linux quit disposables cleanup failed\`,e)}catch{}}finally{${finalizer.electron}.app.exit(0)}})},codexLinuxRunQuitDrain=e=>{if(${linuxQuitDrainGuard}){Promise.race([Promise.resolve().then(e).then(codexLinuxLogQuitDrainResults),new Promise((_,e)=>setTimeout(()=>e(Error(\`Linux quit drain timed out\`)),typeof codexLinuxExplicitQuitDrainTimeoutMs===\`number\`?codexLinuxExplicitQuitDrainTimeoutMs:3e3))]).catch(e=>{try{console.warn(\`WARN: Linux quit drain cleanup failed\`,e)}catch{}}).then(codexLinuxFinalizeQuit);return}e().then(${outer.upstreamFinalize})}`;
+    `chatgptLinuxLogQuitDrainResults=e=>{for(let t of e)if(t.status===\`rejected\`)try{console.warn(\`WARN: Linux quit drain cleanup failed\`,t.reason)}catch{};return e},chatgptLinuxFinalizeQuit=()=>{Promise.resolve().then(()=>${finalizer.contextDispose}(${finalizer.contextArg},${finalizer.contextTimeout})).catch(e=>{try{console.warn(\`WARN: Linux quit context cleanup failed\`,e)}catch{}}).then(()=>{try{${finalizer.disposables}.dispose()}catch(e){try{console.warn(\`WARN: Linux quit disposables cleanup failed\`,e)}catch{}}finally{${finalizer.electron}.app.exit(0)}})},chatgptLinuxRunQuitDrain=e=>{if(${linuxQuitDrainGuard}){Promise.race([Promise.resolve().then(e).then(chatgptLinuxLogQuitDrainResults),new Promise((_,e)=>setTimeout(()=>e(Error(\`Linux quit drain timed out\`)),typeof chatgptLinuxExplicitQuitDrainTimeoutMs===\`number\`?chatgptLinuxExplicitQuitDrainTimeoutMs:3e3))]).catch(e=>{try{console.warn(\`WARN: Linux quit drain cleanup failed\`,e)}catch{}}).then(chatgptLinuxFinalizeQuit);return}e().then(${outer.upstreamFinalize})}`;
   let patchedBody = candidate.body.replace(
     `let ${originalFinalizer};`,
     `let ${originalFinalizer},${linuxFinalizer};`,
   );
   patchedBody = patchedBody.replace(
     `${reduced.hotkey}.dispose(),${reduced.dictation}.dispose(),Promise.allSettled([${reduced.stop}(),${reduced.trace}()]).then(${outer.upstreamFinalize})`,
-    `codexLinuxRunQuitDrain(()=>{${reduced.hotkey}.dispose(),${reduced.dictation}.dispose();return Promise.allSettled([${reduced.stop}(),${reduced.trace}()])})`,
+    `chatgptLinuxRunQuitDrain(()=>{${reduced.hotkey}.dispose(),${reduced.dictation}.dispose();return Promise.allSettled([${reduced.stop}(),${reduced.trace}()])})`,
   );
   patchedBody = patchedBody.replace(
     `${full.hotkey}.dispose(),${full.dictation}.dispose(),Promise.allSettled([${full.globalState}.flush(),${full.settings}.flush(),${full.stop}(),${full.trace}()]).then(${outer.upstreamFinalize})`,
-    `codexLinuxRunQuitDrain(()=>{${full.hotkey}.dispose(),${full.dictation}.dispose();return Promise.allSettled([${full.globalState}.flush(),${full.settings}.flush(),${full.stop}(),${full.trace}()])})`,
+    `chatgptLinuxRunQuitDrain(()=>{${full.hotkey}.dispose(),${full.dictation}.dispose();return Promise.allSettled([${full.globalState}.flush(),${full.settings}.flush(),${full.stop}(),${full.trace}()])})`,
   );
 
   return `${currentSource.slice(0, candidate.openBrace + 1)}${patchedBody}${currentSource.slice(candidate.closeBrace)}`;
@@ -172,10 +172,10 @@ function applyLinuxExplicitQuitPromptBypassPatch(currentSource) {
   let patchedSource = currentSource;
 
   const promptBypassExpression =
-    "(typeof codexLinuxShouldBypassQuitPrompt===`function`&&codexLinuxShouldBypassQuitPrompt())||";
+    "(typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt())||";
   const promptBypassGuard = `if(${promptBypassExpression}`;
   const quitMarkerExpression =
-    "process.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),";
+    "process.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),";
   const beforeQuitNeedle =
     "if(e||i.canQuitWithoutPrompt()||r||!s&&!c){g=!0,a.markAppQuitting();return}";
   const beforeQuitPatch =
@@ -202,7 +202,7 @@ function applyLinuxExplicitQuitPromptBypassPatch(currentSource) {
     acceptedPromptRegex,
     (match, quitControllerVar, quittingStateVar, appQuittingControllerVar, offset, source) => {
       const prefix = source.slice(Math.max(0, offset - 120), offset);
-      if (prefix.includes("codexLinuxMarkQuitInProgress()")) {
+      if (prefix.includes("chatgptLinuxMarkQuitInProgress()")) {
         return match;
       }
       patchedAny = true;
@@ -228,7 +228,7 @@ function applyLinuxExplicitTrayQuitPatch(currentSource) {
   const quitMarkerExpression = linuxExplicitQuitExpression();
 
   const patchedTrayQuitRegex =
-    /\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),[A-Za-z_$][\w$]*\.app\.quit\(\)\}\}/;
+    /\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),[A-Za-z_$][\w$]*\.app\.quit\(\)\}\}/;
   const trayQuitRegex =
     /\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{([A-Za-z_$][\w$]*)\.app\.quit\(\)\}\}/g;
   let patchedAny = false;
@@ -261,7 +261,7 @@ function applyLinuxExplicitIpcQuitPatch(currentSource) {
   const quitAppRegex =
     /if\(([A-Za-z_$][\w$]*)\.type===`quit-app`\)\{([A-Za-z_$][\w$]*)\.app\.quit\(\);return\}/g;
   const patchedQuitAppRegex =
-    /if\([A-Za-z_$][\w$]*\.type===`quit-app`\)\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),[A-Za-z_$][\w$]*\.app\.quit\(\);return\}/;
+    /if\([A-Za-z_$][\w$]*\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),[A-Za-z_$][\w$]*\.app\.quit\(\);return\}/;
   let patchedAny = false;
   if (patchedSource.includes(quitAppNeedle)) {
     patchedAny = true;

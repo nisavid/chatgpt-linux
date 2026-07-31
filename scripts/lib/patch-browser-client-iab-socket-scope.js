@@ -11,8 +11,8 @@ if (!clientPath) {
 }
 const socketDirOnly = process.argv.includes("--socket-dir-only");
 
-const socketDirMarker = "/*codexLinuxPerUserBrowserSocketDir*/";
-const iabMarker = "/*codexLinuxIabSocketScope*/";
+const socketDirMarker = "/*chatgptLinuxPerUserBrowserSocketDir*/";
+const iabMarker = "/*chatgptLinuxIabSocketScope*/";
 let source = fs.readFileSync(clientPath, "utf8");
 
 if (!source.includes(socketDirMarker)) {
@@ -22,14 +22,14 @@ if (!source.includes(socketDirMarker)) {
   if (socketDirectoryMatches.length === 1) {
     const [target, resolver, platform, windowsSocket] = socketDirectoryMatches[0];
     const userInfoImport =
-      'import{userInfo as codexLinuxBrowserUseUserInfo}from"node:os";';
+      'import{userInfo as chatgptLinuxBrowserUseUserInfo}from"node:os";';
     const helper =
-      `function codexLinuxBrowserUseSocketDir(){let e=globalThis.nodeRepl?.env?.CODEX_BROWSER_USE_SOCKET_DIR;` +
-      `if(typeof e==="string"&&e.length>0)return e;let t=codexLinuxBrowserUseUserInfo().uid;` +
+      `function chatgptLinuxBrowserUseSocketDir(){let e=globalThis.nodeRepl?.env?.CODEX_BROWSER_USE_SOCKET_DIR;` +
+      `if(typeof e==="string"&&e.length>0)return e;let t=chatgptLinuxBrowserUseUserInfo().uid;` +
       `if(Number.isInteger(t)&&t>=0)return \`/tmp/codex-browser-use-\${t}\`;` +
       `throw Error("Browser Use cannot resolve a per-user Linux socket directory")}${socketDirMarker}`;
     const replacement =
-      `${resolver}=${platform}=>${platform}==="win32"?${windowsSocket}:codexLinuxBrowserUseSocketDir()`;
+      `${resolver}=${platform}=>${platform}==="win32"?${windowsSocket}:chatgptLinuxBrowserUseSocketDir()`;
     source = userInfoImport + helper + source.replace(target, replacement);
   } else if (source.includes("/tmp/codex-browser-use")) {
     process.stderr.write(

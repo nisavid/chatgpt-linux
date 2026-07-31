@@ -22,14 +22,14 @@ Read Aloud MCP tool. For older builds, or to force-enable direct runtime calls,
 set the runtime opt-in:
 
 ```bash
-mkdir -p ~/.config/codex-app
-node -e 'const fs=require("fs"),p=process.env.HOME+"/.config/codex-app/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch{}s["codex-linux-read-aloud-enabled"]=true;fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")'
+mkdir -p ~/.config/chatgpt
+node -e 'const fs=require("fs"),p=process.env.HOME+"/.config/chatgpt/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch{}s["chatgpt-linux-read-aloud-enabled"]=true;fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")'
 ```
 
 or:
 
 ```bash
-CODEX_LINUX_READ_ALOUD_ENABLED=1 codex-app
+CHATGPT_LINUX_READ_ALOUD_ENABLED=1 chatgpt
 ```
 
 The generated Read Aloud settings page also gets setup controls for machines
@@ -40,7 +40,7 @@ where the default Kokoro paths are not ready:
 - `Download voice` creates the default Python runtime and downloads the Kokoro
   model files into the default data directory.
 - `Speech pace` controls Kokoro playback speed from `0.70x` to `1.40x`
-  and stores the value in `codex-linux-read-aloud-kokoro-speed`.
+  and stores the value in `chatgpt-linux-read-aloud-kokoro-speed`.
 
 Nothing is downloaded during app install or on first launch.
 
@@ -73,7 +73,7 @@ bundle.
 
 Default paths:
 
-- Python runtime: `~/.local/share/codex-app/read-aloud/kokoro-venv/bin/python`
+- Python runtime: `~/.local/share/chatgpt/read-aloud/kokoro-venv/bin/python`
 - Model: `~/.local/share/kokoro/kokoro-v1.0.onnx`
 - Voices: `~/.local/share/kokoro/voices-v1.0.bin`
 
@@ -83,22 +83,22 @@ Install the Python runtime and model files from the command line:
 bash port-integrations/read-aloud/install-kokoro-runtime.sh
 ```
 
-Set `CODEX_LINUX_READ_ALOUD_SKIP_MODEL_DOWNLOAD=1` to install only the Python
+Set `CHATGPT_LINUX_READ_ALOUD_SKIP_MODEL_DOWNLOAD=1` to install only the Python
 runtime.
 
 Runtime overrides:
 
-- `CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_MODEL`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_VOICES`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_VOICE`, default `bm_george`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_SPEED`, default `1.05`, clamped to `0.70`-`1.40`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_LANG`, default `en-us`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_THREADS`, default `4`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS`, default `90`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS`, default `180`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_MODEL_URL`
-- `CODEX_LINUX_READ_ALOUD_KOKORO_VOICES_URL`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICE`, default `bm_george`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED`, default `1.05`, clamped to `0.70`-`1.40`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_LANG`, default `en-us`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_THREADS`, default `4`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS`, default `90`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS`, default `180`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL_URL`
+- `CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES_URL`
 
 Kokoro speech is chunk-streamed: the runner synthesizes a short first chunk and
 starts writing PCM to `aplay`, then prepares the next chunks while audio is
@@ -120,7 +120,7 @@ For private/local setups, a custom command can still be used. Codex writes the
 cleaned response text to stdin:
 
 ```bash
-CODEX_LINUX_READ_ALOUD_COMMAND="/path/to/tts-stdin-command" codex-app
+CHATGPT_LINUX_READ_ALOUD_COMMAND="/path/to/tts-stdin-command" chatgpt
 ```
 
 When Kokoro is not ready, Read Aloud can fall back to system TTS through
@@ -130,7 +130,7 @@ backend when it is available. Disable the native fallback if the machine voice
 is not acceptable:
 
 ```bash
-CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK=0 codex-app
+CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK=0 chatgpt
 ```
 
 The handler never invokes a shell for response text.

@@ -113,7 +113,7 @@ async fn run() -> Result<()> {
             &(
                 "ChatGPT",
                 0u32,
-                "codex-desktop",
+                "chatgpt",
                 request.title.as_str(),
                 request.body.as_str(),
                 action_pairs,

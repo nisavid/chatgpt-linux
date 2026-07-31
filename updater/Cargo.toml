@@ -1,5 +1,5 @@
 [package]
-name = "codex-app-updater"
+name = "chatgpt-updater"
 version = "0.10.4"
 edition = "2021"
 

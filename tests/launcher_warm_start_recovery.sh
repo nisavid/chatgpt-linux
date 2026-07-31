@@ -7,11 +7,11 @@ TMP_DIR="$(mktemp -d)"
 APP_DIR="$TMP_DIR/app"
 HOME_DIR="$TMP_DIR/home"
 RUNTIME_DIR="$TMP_DIR/runtime"
-STATE_DIR="$HOME_DIR/.local/state/codex-desktop"
-SOCKET_PATH="$RUNTIME_DIR/codex-desktop/launch-action.sock"
+STATE_DIR="$HOME_DIR/.local/state/chatgpt"
+SOCKET_PATH="$RUNTIME_DIR/chatgpt/launch-action.sock"
 FIRST_LOG="$TMP_DIR/first-launch.log"
 SECOND_LOG="$TMP_DIR/second-launch.log"
-APP_LOG="$HOME_DIR/.cache/codex-desktop/launcher.log"
+APP_LOG="$HOME_DIR/.cache/chatgpt/launcher.log"
 LAUNCHER_PID=""
 SOCKET_PID=""
 HOOK_PID=""
@@ -84,20 +84,20 @@ webview_is_down() {
 }
 
 mkdir -p \
-    "$APP_DIR/.codex-linux/cold-start.d" \
-    "$APP_DIR/.codex-linux/env.d" \
-    "$APP_DIR/.codex-linux/port-integrations" \
-    "$APP_DIR/.codex-linux/prelaunch.d" \
-    "$APP_DIR/.codex-linux/electron-args.d" \
-    "$APP_DIR/.codex-linux/launcher.d" \
-    "$APP_DIR/.codex-linux/after-exit.d" \
+    "$APP_DIR/.chatgpt-linux/cold-start.d" \
+    "$APP_DIR/.chatgpt-linux/env.d" \
+    "$APP_DIR/.chatgpt-linux/port-integrations" \
+    "$APP_DIR/.chatgpt-linux/prelaunch.d" \
+    "$APP_DIR/.chatgpt-linux/electron-args.d" \
+    "$APP_DIR/.chatgpt-linux/launcher.d" \
+    "$APP_DIR/.chatgpt-linux/after-exit.d" \
     "$APP_DIR/content/webview" \
     "$APP_DIR/resources/node-runtime/bin" \
-    "$HOME_DIR/.config/codex-desktop" \
+    "$HOME_DIR/.config/chatgpt" \
     "$HOME_DIR" \
-    "$RUNTIME_DIR/codex-desktop"
+    "$RUNTIME_DIR/chatgpt"
 
-if [ "${CODEX_TEST_DISABLE_PIDFD:-0}" = "1" ]; then
+if [ "${CHATGPT_TEST_DISABLE_PIDFD:-0}" = "1" ]; then
     mkdir -p "$TMP_DIR/python-site"
     cat > "$TMP_DIR/python-site/sitecustomize.py" <<'PY'
 import os
@@ -112,9 +112,9 @@ for module, attribute in (
 PY
 fi
 
-if [ "${CODEX_TEST_DISABLE_WARM_START:-0}" = "1" ]; then
-    printf '%s\n' '{"codex-linux-warm-start-enabled":false}' \
-        > "$HOME_DIR/.config/codex-desktop/settings.json"
+if [ "${CHATGPT_TEST_DISABLE_WARM_START:-0}" = "1" ]; then
+    printf '%s\n' '{"chatgpt-linux-warm-start-enabled":false}' \
+        > "$HOME_DIR/.config/chatgpt/settings.json"
 fi
 
 PORT="$(python3 - <<'PY'
@@ -129,20 +129,22 @@ PY
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'set -Eeuo pipefail' \
-        'CODEX_LINUX_APP_ID=codex-desktop' \
-        'CODEX_LINUX_APP_DISPLAY_NAME="ChatGPT Desktop"' \
-        'CODEX_LINUX_WEBVIEW_PORT="${CODEX_WEBVIEW_PORT:-5175}"'
+        'CHATGPT_LINUX_APP_ID=chatgpt' \
+        'CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"' \
+        'CHATGPT_LINUX_WEBVIEW_PORT="${CHATGPT_WEBVIEW_PORT:-5175}"'
     cat "$REPO_DIR/launcher/start.sh.template"
 } > "$APP_DIR/start.sh"
 chmod +x "$APP_DIR/start.sh"
-cp "$REPO_DIR/launcher/webview-server.py" "$APP_DIR/.codex-linux/webview-server.py"
-cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.codex-linux/cli-launch-path.py"
+cp "$REPO_DIR/launcher/webview-server.py" "$APP_DIR/.chatgpt-linux/webview-server.py"
+cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.chatgpt-linux/cli-launch-path.py"
+cp "$REPO_DIR/launcher/state-migration.py" "$APP_DIR/.chatgpt-linux/state-migration.py"
+chmod 0755 "$APP_DIR/.chatgpt-linux/state-migration.py"
 ln -s "$(command -v node)" "$APP_DIR/resources/node-runtime/bin/node"
 printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader"></div>' \
     > "$APP_DIR/content/webview/index.html"
 (
     cd "$APP_DIR/content/webview"
-    sha256sum index.html > "$APP_DIR/.codex-linux/webview-integrity.sha256"
+    sha256sum index.html > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
 )
 
 g++ -x c++ -O2 -o "$APP_DIR/electron" - <<'CPP'
@@ -160,13 +162,13 @@ int main() {
 }
 CPP
 
-if [ "${CODEX_TEST_KILL_DURING_PRELAUNCH:-0}" = "1" ]; then
-    cat > "$APP_DIR/.codex-linux/prelaunch.d/blocking-test-hook" <<'HOOK'
+if [ "${CHATGPT_TEST_KILL_DURING_PRELAUNCH:-0}" = "1" ]; then
+    cat > "$APP_DIR/.chatgpt-linux/prelaunch.d/blocking-test-hook" <<'HOOK'
 #!/usr/bin/env bash
-printf '%s\n' "$$" > "$CODEX_TEST_HOOK_PID_FILE"
+printf '%s\n' "$$" > "$CHATGPT_TEST_HOOK_PID_FILE"
 exec sleep 30
 HOOK
-    chmod +x "$APP_DIR/.codex-linux/prelaunch.d/blocking-test-hook"
+    chmod +x "$APP_DIR/.chatgpt-linux/prelaunch.d/blocking-test-hook"
 fi
 
 python3 - "$SOCKET_PATH" <<'PY' &
@@ -198,23 +200,23 @@ COMMON_ENV=(
     "HOME=$HOME_DIR"
     "XDG_RUNTIME_DIR=$RUNTIME_DIR"
     "CODEX_CLI_PATH=$(command -v true)"
-    "CODEX_WEBVIEW_PORT=$PORT"
-    "CODEX_TEST_HOOK_PID_FILE=$TMP_DIR/hook.pid"
+    "CHATGPT_WEBVIEW_PORT=$PORT"
+    "CHATGPT_TEST_HOOK_PID_FILE=$TMP_DIR/hook.pid"
 )
-if [ "${CODEX_TEST_DISABLE_PIDFD:-0}" = "1" ]; then
+if [ "${CHATGPT_TEST_DISABLE_PIDFD:-0}" = "1" ]; then
     COMMON_ENV+=("PYTHONPATH=$TMP_DIR/python-site")
 fi
 
 "${COMMON_ENV[@]}" "$APP_DIR/start.sh" > "$FIRST_LOG" 2>&1 &
 LAUNCHER_PID=$!
 
-if [ "${CODEX_TEST_KILL_DURING_PRELAUNCH:-0}" = "1" ]; then
+if [ "${CHATGPT_TEST_KILL_DURING_PRELAUNCH:-0}" = "1" ]; then
     wait_for "blocking prelaunch hook" test -s "$TMP_DIR/hook.pid"
     HOOK_PID="$(cat "$TMP_DIR/hook.pid")"
     kill -KILL "$LAUNCHER_PID"
     wait "$LAUNCHER_PID" 2>/dev/null || true
     LAUNCHER_PID=""
-    rm -f "$APP_DIR/.codex-linux/prelaunch.d/blocking-test-hook"
+    rm -f "$APP_DIR/.chatgpt-linux/prelaunch.d/blocking-test-hook"
 
     SECONDS=0
     "${COMMON_ENV[@]}" "$APP_DIR/start.sh" > "$SECOND_LOG" 2>&1 &
@@ -240,7 +242,7 @@ wait_for "first launcher lock release" grep -q "electron_spawned" "$APP_LOG"
 wait_for "first packaged webview" webview_is_ready
 FIRST_ELECTRON_PID="$(read_live_app_pid)"
 
-if [ "${CODEX_TEST_NORMAL_LOCK_ONLY:-0}" = "1" ]; then
+if [ "${CHATGPT_TEST_NORMAL_LOCK_ONLY:-0}" = "1" ]; then
     flock -n "$STATE_DIR/launcher.lock" true \
         || fail "launcher lock should be released after app.pid publication"
     if grep -q "launcher lock helper did not exit" "$FIRST_LOG"; then
@@ -249,7 +251,7 @@ if [ "${CODEX_TEST_NORMAL_LOCK_ONLY:-0}" = "1" ]; then
     kill "$FIRST_ELECTRON_PID"
     wait "$LAUNCHER_PID"
     LAUNCHER_PID=""
-    printf '%s\n' "launcher normal lock test passed (pidfd disabled=${CODEX_TEST_DISABLE_PIDFD:-0})"
+    printf '%s\n' "launcher normal lock test passed (pidfd disabled=${CHATGPT_TEST_DISABLE_PIDFD:-0})"
     exit 0
 fi
 
@@ -282,4 +284,4 @@ kill "$SECOND_ELECTRON_PID"
 wait "$LAUNCHER_PID"
 LAUNCHER_PID=""
 
-printf '%s\n' "launcher recovery test passed (warm-start disabled=${CODEX_TEST_DISABLE_WARM_START:-0})"
+printf '%s\n' "launcher recovery test passed (warm-start disabled=${CHATGPT_TEST_DISABLE_WARM_START:-0})"

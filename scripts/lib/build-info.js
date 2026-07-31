@@ -161,7 +161,7 @@ function shortSourceCommit(commit) {
 }
 
 function sourceInfoFromGit(repoDir, env = process.env) {
-  const overrideCommit = env.CODEX_LINUX_SOURCE_COMMIT?.trim();
+  const overrideCommit = env.CHATGPT_LINUX_SOURCE_COMMIT?.trim();
   const insideWorkTree = runGit(repoDir, ["rev-parse", "--is-inside-work-tree"]) === "true";
   if (!insideWorkTree && !overrideCommit) {
     return null;
@@ -169,21 +169,21 @@ function sourceInfoFromGit(repoDir, env = process.env) {
 
   const commit = overrideCommit || runGit(repoDir, ["rev-parse", "HEAD"]);
   const status = runGit(repoDir, ["status", "--porcelain"]);
-  const remote = sanitizeGitRemoteUrl(env.CODEX_LINUX_SOURCE_REMOTE?.trim() || runGit(repoDir, ["remote", "get-url", "origin"]));
+  const remote = sanitizeGitRemoteUrl(env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || runGit(repoDir, ["remote", "get-url", "origin"]));
   return {
     commit,
     shortCommit: shortSourceCommit(commit),
     version: readWrapperVersion(repoDir),
-    branch: env.CODEX_LINUX_SOURCE_BRANCH?.trim() || runGit(repoDir, ["branch", "--show-current"]),
+    branch: env.CHATGPT_LINUX_SOURCE_BRANCH?.trim() || runGit(repoDir, ["branch", "--show-current"]),
     remote,
     commitUrl: githubCommitUrl(remote, commit),
-    describe: env.CODEX_LINUX_SOURCE_DESCRIBE?.trim() || runGit(repoDir, ["describe", "--always", "--dirty", "--tags"]),
+    describe: env.CHATGPT_LINUX_SOURCE_DESCRIBE?.trim() || runGit(repoDir, ["describe", "--always", "--dirty", "--tags"]),
     dirty: status == null ? null : status.length > 0,
   };
 }
 
 function sourceInfo(repoDir, env = process.env) {
-  const sourceInfoPath = path.join(repoDir, ".codex-linux", "source-info.json");
+  const sourceInfoPath = path.join(repoDir, ".chatgpt-linux", "source-info.json");
   const staged = readJsonFile(sourceInfoPath);
   if (staged != null && typeof staged === "object" && !Array.isArray(staged)) {
     return {
@@ -197,13 +197,13 @@ function sourceInfo(repoDir, env = process.env) {
     return { ...gitInfo, provenance: "git" };
   }
   return {
-    commit: env.CODEX_LINUX_SOURCE_COMMIT?.trim() || null,
-    shortCommit: shortSourceCommit(env.CODEX_LINUX_SOURCE_COMMIT?.trim()),
+    commit: env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || null,
+    shortCommit: shortSourceCommit(env.CHATGPT_LINUX_SOURCE_COMMIT?.trim()),
     version: readWrapperVersion(repoDir),
-    branch: env.CODEX_LINUX_SOURCE_BRANCH?.trim() || null,
-    remote: sanitizeGitRemoteUrl(env.CODEX_LINUX_SOURCE_REMOTE?.trim() || null),
-    commitUrl: githubCommitUrl(env.CODEX_LINUX_SOURCE_REMOTE?.trim() || null, env.CODEX_LINUX_SOURCE_COMMIT?.trim() || null),
-    describe: env.CODEX_LINUX_SOURCE_DESCRIBE?.trim() || null,
+    branch: env.CHATGPT_LINUX_SOURCE_BRANCH?.trim() || null,
+    remote: sanitizeGitRemoteUrl(env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || null),
+    commitUrl: githubCommitUrl(env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || null, env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || null),
+    describe: env.CHATGPT_LINUX_SOURCE_DESCRIBE?.trim() || null,
     dirty: null,
     provenance: "unknown",
   };
@@ -220,7 +220,7 @@ function packageProfile(target) {
       label: "NixOS / Nix",
       packageManager: "flake",
       format: "runnable directly",
-      notes: "nix run github:nisavid/codex-app-linux",
+      notes: "nix run github:nisavid/chatgpt-linux",
     };
   }
   if (["debian", "ubuntu", "pop", "linuxmint", "elementary"].some((value) => ids.has(value))) {
@@ -377,8 +377,8 @@ function main() {
     appId,
     appDisplayName,
     outputPaths: [
-      path.join(installDir, "resources", "codex-linux-build-info.json"),
-      path.join(installDir, ".codex-linux", "build-info.json"),
+      path.join(installDir, "resources", "chatgpt-linux-build-info.json"),
+      path.join(installDir, ".chatgpt-linux", "build-info.json"),
     ],
   });
 }

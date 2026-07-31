@@ -125,7 +125,7 @@ fn pacman_program(path_env: &OsString) -> Option<PathBuf> {
 
 fn query_pacman_program(path_env: &OsString) -> Option<PathBuf> {
     #[cfg(test)]
-    if let Some(path) = std::env::var_os("CODEX_APP_UPDATER_TEST_PACMAN_PATH") {
+    if let Some(path) = std::env::var_os("CHATGPT_UPDATER_TEST_PACMAN_PATH") {
         return Some(PathBuf::from(path));
     }
 
@@ -255,11 +255,11 @@ fn os_release_matches(fields: &[&str], expected: &[&str]) -> bool {
 
 #[cfg(test)]
 fn test_detection_config(path_env: &OsString) -> Option<DetectionConfig> {
-    let root = std::env::var_os("CODEX_APP_UPDATER_TEST_SYSTEM_CLI_ROOT")?;
-    let pacman_program = std::env::var_os("CODEX_APP_UPDATER_TEST_PACMAN_PATH")
+    let root = std::env::var_os("CHATGPT_UPDATER_TEST_SYSTEM_CLI_ROOT")?;
+    let pacman_program = std::env::var_os("CHATGPT_UPDATER_TEST_PACMAN_PATH")
         .map(PathBuf::from)
         .or_else(|| pacman_program(path_env));
-    let arch_like_host = std::env::var_os("CODEX_APP_UPDATER_TEST_FORCE_ARCH_HOST")
+    let arch_like_host = std::env::var_os("CHATGPT_UPDATER_TEST_FORCE_ARCH_HOST")
         .is_some_and(|value| !value.is_empty());
     Some(DetectionConfig {
         arch_like_host,

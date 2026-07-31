@@ -1,15 +1,15 @@
 {
   "id": "omarchy-theme",
   "title": "Omarchy Theme",
-  "description": "Loads user CSS generated from the active Omarchy theme into Codex App when Omarchy is installed.",
+  "description": "Loads user CSS generated from the active Omarchy theme into ChatGPT when Omarchy is installed.",
   "defaultEnabled": true,
   "entrypoints": {
     "patchDescriptors": "./patch.js"
   },
   "resources": [
     {
-      "source": "codex-app.css.tpl",
-      "target": ".codex-linux/integrations/omarchy-theme/codex-app.css.tpl",
+      "source": "chatgpt.css.tpl",
+      "target": ".chatgpt-linux/integrations/omarchy-theme/chatgpt.css.tpl",
       "mode": "0644"
     }
   ],

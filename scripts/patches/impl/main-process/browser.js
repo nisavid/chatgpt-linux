@@ -9,10 +9,10 @@ const {
 } = require("../../lib/minified-js.js");
 
 function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
-  const ancestorHelperName = "codexLinuxValidateBundledPluginAncestors";
-  const sourceHelperName = "codexLinuxValidateBundledPluginSource";
-  const stageHelperName = "codexLinuxPrepareBundledPluginStage";
-  const writableHelperName = "codexLinuxMakeBundledPluginTreeWritable";
+  const ancestorHelperName = "chatgptLinuxValidateBundledPluginAncestors";
+  const sourceHelperName = "chatgptLinuxValidateBundledPluginSource";
+  const stageHelperName = "chatgptLinuxPrepareBundledPluginStage";
+  const writableHelperName = "chatgptLinuxMakeBundledPluginTreeWritable";
   if (
     currentSource.includes(`async function ${ancestorHelperName}(`) &&
     currentSource.includes(`async function ${sourceHelperName}(`) &&
@@ -112,7 +112,7 @@ function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
 }
 
 function applyLinuxBundledPluginReconcileStaleSnapshotPatch(currentSource) {
-  const marker = "/*codex-linux-skip-stale-bundled-plugin-reconcile*/";
+  const marker = "/*chatgpt-linux-skip-stale-bundled-plugin-reconcile*/";
   if (currentSource.includes(marker)) {
     return currentSource;
   }
@@ -233,15 +233,15 @@ function applyLinuxBundledPluginReconcileStaleSnapshotPatch(currentSource) {
 
   const guardedSource =
     currentSource.slice(0, insertionIndex) +
-    `if(${workerArgumentVar}.codexLinuxReconcileSnapshot!==globalThis.__codexLinuxBundledPluginReconcileSnapshot)return;${marker}` +
+    `if(${workerArgumentVar}.chatgptLinuxReconcileSnapshot!==globalThis.__chatgptLinuxBundledPluginReconcileSnapshot)return;${marker}` +
     currentSource.slice(insertionIndex);
   const propertySource =
     guardedSource.slice(0, reconcilePropertyIndex) +
-    `codexLinuxReconcileSnapshot:${capturedHashVar},` +
+    `chatgptLinuxReconcileSnapshot:${capturedHashVar},` +
     guardedSource.slice(reconcilePropertyIndex);
   return (
     propertySource.slice(0, globalHashInsertionIndex) +
-    `globalThis.__codexLinuxBundledPluginReconcileSnapshot=${capturedHashVar};` +
+    `globalThis.__chatgptLinuxBundledPluginReconcileSnapshot=${capturedHashVar};` +
     propertySource.slice(globalHashInsertionIndex)
   );
 }
@@ -253,7 +253,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
     /(?<!async )function [A-Za-z_$][\w$]*\(\{(?=[^{}]*nodePath:)(?=[^{}]*nodeReplPath:)(?=[^{}]*shouldUseWslPaths:)[^{}]*trustedBrowserClientSha256s:[A-Za-z_$][\w$]*(?:=\[\])?[^{}]*\}\)\{/.test(currentSource);
 
   const runtimeBuilderTrustedHashesRegex =
-    /(?<!async )function ([A-Za-z_$][\w$]*)\(\{(?=[^{}]*nodePath:)(?=[^{}]*nodeReplPath:)(?=[^{}]*shouldUseWslPaths:)([^{}]*?trustedBrowserClientSha256s:)([A-Za-z_$][\w$]*)([^{}]*?\})\)\{(?![A-Za-z_$][\w$]*=codexLinuxTrustedBrowserClientSha256s\()/g;
+    /(?<!async )function ([A-Za-z_$][\w$]*)\(\{(?=[^{}]*nodePath:)(?=[^{}]*nodeReplPath:)(?=[^{}]*shouldUseWslPaths:)([^{}]*?trustedBrowserClientSha256s:)([A-Za-z_$][\w$]*)([^{}]*?\})\)\{(?![A-Za-z_$][\w$]*=chatgptLinuxTrustedBrowserClientSha256s\()/g;
   if (
     requireName(patchedSource, "node:fs") != null &&
     requireName(patchedSource, "node:path") != null &&
@@ -269,7 +269,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
         configSuffix,
       ) => {
         patchedTrustedHashes = true;
-        return `function ${functionName}({${configPrefix}${trustedHashesVar}${configSuffix}){${trustedHashesVar}=codexLinuxTrustedBrowserClientSha256s(${trustedHashesVar});`;
+        return `function ${functionName}({${configPrefix}${trustedHashesVar}${configSuffix}){${trustedHashesVar}=chatgptLinuxTrustedBrowserClientSha256s(${trustedHashesVar});`;
       },
     );
   }
@@ -291,7 +291,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
 
   if (
     patchedTrustedHashes &&
-    !patchedSource.includes("function codexLinuxTrustedBrowserClientSha256s(")
+    !patchedSource.includes("function chatgptLinuxTrustedBrowserClientSha256s(")
   ) {
     const fsVar = requireName(patchedSource, "node:fs");
     const pathVar = requireName(patchedSource, "node:path");
@@ -303,7 +303,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
       return currentSource;
     } else {
       const helper =
-        `function codexLinuxTrustedBrowserClientSha256s(__codexHashes,__codexResourcesPath=process.resourcesPath){if(process.platform!==\`linux\`)return __codexHashes;let __codexTrustedHashes=Array.isArray(__codexHashes)?[...__codexHashes]:[],__codexBasePath=__codexResourcesPath??"";if(__codexBasePath.length===0)return Array.from(new Set(__codexTrustedHashes));for(let __codexPluginName of[\`browser\`,\`chrome\`])try{let __codexBrowserClientPath=(0,${pathVar}.join)(__codexBasePath,\`plugins\`,\`openai-bundled\`,\`plugins\`,__codexPluginName,\`scripts\`,\`browser-client.mjs\`);(0,${fsVar}.existsSync)(__codexBrowserClientPath)&&__codexTrustedHashes.push((0,${cryptoVar}.createHash)(\`sha256\`).update((0,${fsVar}.readFileSync)(__codexBrowserClientPath)).digest(\`hex\`))}catch{}return Array.from(new Set(__codexTrustedHashes))}`;
+        `function chatgptLinuxTrustedBrowserClientSha256s(__codexHashes,__codexResourcesPath=process.resourcesPath){if(process.platform!==\`linux\`)return __codexHashes;let __codexTrustedHashes=Array.isArray(__codexHashes)?[...__codexHashes]:[],__codexBasePath=__codexResourcesPath??"";if(__codexBasePath.length===0)return Array.from(new Set(__codexTrustedHashes));for(let __codexPluginName of[\`browser\`,\`chrome\`])try{let __codexBrowserClientPath=(0,${pathVar}.join)(__codexBasePath,\`plugins\`,\`openai-bundled\`,\`plugins\`,__codexPluginName,\`scripts\`,\`browser-client.mjs\`);(0,${fsVar}.existsSync)(__codexBrowserClientPath)&&__codexTrustedHashes.push((0,${cryptoVar}.createHash)(\`sha256\`).update((0,${fsVar}.readFileSync)(__codexBrowserClientPath)).digest(\`hex\`))}catch{}return Array.from(new Set(__codexTrustedHashes))}`;
       const strictDirective = '"use strict";';
       const helperInsertionIndex = patchedSource.startsWith(strictDirective)
         ? strictDirective.length
@@ -317,7 +317,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
 
   if (
     !patchedTrustedHashes &&
-    !patchedSource.includes("codexLinuxTrustedBrowserClientSha256s(") &&
+    !patchedSource.includes("chatgptLinuxTrustedBrowserClientSha256s(") &&
     hasTrustedHashesRuntimeBuilder
   ) {
     console.warn(
@@ -331,7 +331,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
     !patchedAnyMcpServerConfig &&
     !mcpServerConfigAlreadyApprovedRegex.test(patchedSource) &&
     !patchedTrustedHashes &&
-    !patchedSource.includes("codexLinuxTrustedBrowserClientSha256s(")
+    !patchedSource.includes("chatgptLinuxTrustedBrowserClientSha256s(")
   ) {
     console.warn(
       "WARN: Could not find Browser Use node_repl config insertion point — skipping node_repl approval patch",
@@ -384,7 +384,7 @@ function applyBrowserUseNodeReplApprovalAssets(extractedDir) {
 }
 
 function applyLinuxBrowserUseRouteLivenessPatch(currentSource) {
-  if (currentSource.includes("codexLinuxResolveLiveBrowserUseRouteWindow")) {
+  if (currentSource.includes("chatgptLinuxResolveLiveBrowserUseRouteWindow")) {
     return currentSource;
   }
 
@@ -420,15 +420,15 @@ function applyLinuxBrowserUseRouteLivenessPatch(currentSource) {
   // The old heuristic returned arbitrary live windows that may not match
   // the requested windowId, causing IAB_LIFECYCLE rebound loops where the
   // sidebar webview was created, destroyed, and re-created in a cycle.
-  const helper = `function codexLinuxResolveLiveBrowserUseRouteWindow(e,t,n,r){if(process.platform!==\`linux\`)return null;let o=r.BrowserWindow.fromId(t);if(o!=null&&!o.isDestroyed()&&!o.webContents.isDestroyed())return e(o,o.webContents);let s=n.get(t)??null;return s!=null&&!s.window.isDestroyed()&&!s.owner.isDestroyed()?s:null}`;
-  const replacement = `${helper}function ${functionName}({ensureWindowState:${ensureWindowStateVar},windowId:${windowIdVar},windows:${windowsVar}}){let ${stateVar}=${windowsVar}.get(${windowIdVar})??null;if(${stateVar}==null){let ${browserWindowVar}=${electronVar}.BrowserWindow.fromId(${windowIdVar});${browserWindowVar}!=null&&!${browserWindowVar}.isDestroyed()&&!${browserWindowVar}.webContents.isDestroyed()&&(${stateVar}=${ensureWindowStateVar}(${browserWindowVar},${browserWindowVar}.webContents))}${stateVar}==null&&(${stateVar}=codexLinuxResolveLiveBrowserUseRouteWindow(${ensureWindowStateVar},${windowIdVar},${windowsVar},${electronVar}));return ${stateVar}==null||${stateVar}.window.isDestroyed()||${stateVar}.owner.isDestroyed()?(${loggerVar}().warning(\`IAB_LIFECYCLE route window is not live\`,{safe:{hasWindowState:${stateVar}!=null,ownerDestroyed:${stateVar}?.owner.isDestroyed()??null,windowDestroyed:${stateVar}?.window.isDestroyed()??null,windowId:${windowIdVar}},sensitive:{}}),null):${stateVar}}`;
+  const helper = `function chatgptLinuxResolveLiveBrowserUseRouteWindow(e,t,n,r){if(process.platform!==\`linux\`)return null;let o=r.BrowserWindow.fromId(t);if(o!=null&&!o.isDestroyed()&&!o.webContents.isDestroyed())return e(o,o.webContents);let s=n.get(t)??null;return s!=null&&!s.window.isDestroyed()&&!s.owner.isDestroyed()?s:null}`;
+  const replacement = `${helper}function ${functionName}({ensureWindowState:${ensureWindowStateVar},windowId:${windowIdVar},windows:${windowsVar}}){let ${stateVar}=${windowsVar}.get(${windowIdVar})??null;if(${stateVar}==null){let ${browserWindowVar}=${electronVar}.BrowserWindow.fromId(${windowIdVar});${browserWindowVar}!=null&&!${browserWindowVar}.isDestroyed()&&!${browserWindowVar}.webContents.isDestroyed()&&(${stateVar}=${ensureWindowStateVar}(${browserWindowVar},${browserWindowVar}.webContents))}${stateVar}==null&&(${stateVar}=chatgptLinuxResolveLiveBrowserUseRouteWindow(${ensureWindowStateVar},${windowIdVar},${windowsVar},${electronVar}));return ${stateVar}==null||${stateVar}.window.isDestroyed()||${stateVar}.owner.isDestroyed()?(${loggerVar}().warning(\`IAB_LIFECYCLE route window is not live\`,{safe:{hasWindowState:${stateVar}!=null,ownerDestroyed:${stateVar}?.owner.isDestroyed()??null,windowDestroyed:${stateVar}?.window.isDestroyed()??null,windowId:${windowIdVar}},sensitive:{}}),null):${stateVar}}`;
 
   return currentSource.replace(original, replacement);
 }
 
 function applyLinuxBrowserUseSocketDirectoryPatch(currentSource) {
-  const helperName = "codexLinuxBrowserUseSocketDir";
-  const socketModeMarker = "/*codexLinuxBrowserUseSocketMode*/";
+  const helperName = "chatgptLinuxBrowserUseSocketDir";
+  const socketModeMarker = "/*chatgptLinuxBrowserUseSocketMode*/";
   const hasHelper = currentSource.includes(`function ${helperName}(`);
   const hasSocketModePatch = currentSource.includes(socketModeMarker);
   if (hasHelper && hasSocketModePatch) {
@@ -486,18 +486,18 @@ function applyLinuxBrowserUseSocketDirectoryPatch(currentSource) {
 
 function buildLinuxExternalOpenHelpers() {
   return (
-    `function codexLinuxExternalOpenEnv(){let __codexEnv={...process.env};` +
-    `for(let __codexKey of[\`LD_LIBRARY_PATH\`,\`LD_PRELOAD\`,\`NODE_OPTIONS\`,\`NODE_PATH\`,\`NODE_REPL_EXTERNAL_MODULE\`,\`ELECTRON_RUN_AS_NODE\`,\`ELECTRON_NO_ASAR\`,\`ELECTRON_ENABLE_LOGGING\`,\`VSCODE_NODE_OPTIONS\`,\`VSCODE_NODE_REPL_EXTERNAL_MODULE\`,\`npm_config_node_options\`,\`NPM_CONFIG_NODE_OPTIONS\`,\`CHROME_DESKTOP\`,\`ELECTRON_RENDERER_URL\`,\`CODEX_ELECTRON_RESOURCES_PATH\`,\`CODEX_ELECTRON_USER_DATA_DIR\`,\`CODEX_LINUX_APP_ID\`,\`CODEX_LINUX_APP_DISPLAY_NAME\`,\`CODEX_LINUX_WEBVIEW_PORT\`])delete __codexEnv[__codexKey];` +
+    `function chatgptLinuxExternalOpenEnv(){let __codexEnv={...process.env};` +
+    `for(let __codexKey of[\`LD_LIBRARY_PATH\`,\`LD_PRELOAD\`,\`NODE_OPTIONS\`,\`NODE_PATH\`,\`NODE_REPL_EXTERNAL_MODULE\`,\`ELECTRON_RUN_AS_NODE\`,\`ELECTRON_NO_ASAR\`,\`ELECTRON_ENABLE_LOGGING\`,\`VSCODE_NODE_OPTIONS\`,\`VSCODE_NODE_REPL_EXTERNAL_MODULE\`,\`npm_config_node_options\`,\`NPM_CONFIG_NODE_OPTIONS\`,\`CHROME_DESKTOP\`,\`ELECTRON_RENDERER_URL\`,\`CHATGPT_ELECTRON_RESOURCES_PATH\`,\`CHATGPT_ELECTRON_USER_DATA_DIR\`,\`CHATGPT_LINUX_APP_ID\`,\`CHATGPT_LINUX_APP_DISPLAY_NAME\`,\`CHATGPT_LINUX_WEBVIEW_PORT\`])delete __codexEnv[__codexKey];` +
     `return __codexEnv}` +
-    `function codexLinuxLaunchExternalUrl(__codexUrl){return new Promise((__codexResolve,__codexReject)=>{let __codexSettled=!1,__codexTimer;try{let __codexChild=require(\`node:child_process\`).spawn(\`xdg-open\`,[__codexUrl],{detached:!0,stdio:\`ignore\`,windowsHide:!0,env:codexLinuxExternalOpenEnv()});__codexTimer=setTimeout(()=>{__codexSettled=!0,__codexChild.unref?.(),__codexResolve()},400),__codexTimer.unref?.(),__codexChild.on(\`error\`,__codexError=>{__codexSettled||(clearTimeout(__codexTimer),__codexReject(__codexError))}),__codexChild.on(\`close\`,__codexCode=>{__codexSettled||(clearTimeout(__codexTimer),__codexCode===0?__codexResolve():__codexReject(Error(\`Linux external open failed\`)))})}catch(__codexError){clearTimeout(__codexTimer),__codexReject(__codexError)}})}` +
-    `function codexLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl){return codexLinuxLaunchExternalUrl(__codexUrl).catch(()=>__codexOriginalOpenExternal(__codexUrl))}` +
-    `function codexLinuxPatchExternalOpen(__codexElectron){if(process.platform!==\`linux\`||__codexElectron?.shell==null||typeof __codexElectron.shell.openExternal!==\`function\`)return __codexElectron;if(__codexElectron.shell.openExternal.__codexLinuxExternalOpenPatched)return __codexElectron;if(process.env.CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH===\`1\`)return __codexElectron;let __codexOriginalOpenExternal=__codexElectron.shell.openExternal.bind(__codexElectron.shell);async function __codexOpenExternal(__codexUrl,__codexOptions){if(typeof __codexUrl===\`string\`&&__codexOptions==null)return codexLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl);return __codexOriginalOpenExternal(__codexUrl,__codexOptions)}__codexOpenExternal.__codexLinuxExternalOpenPatched=!0,__codexElectron.shell.openExternal=__codexOpenExternal;return __codexElectron}`
+    `function chatgptLinuxLaunchExternalUrl(__codexUrl){return new Promise((__codexResolve,__codexReject)=>{let __codexSettled=!1,__codexTimer;try{let __codexChild=require(\`node:child_process\`).spawn(\`xdg-open\`,[__codexUrl],{detached:!0,stdio:\`ignore\`,windowsHide:!0,env:chatgptLinuxExternalOpenEnv()});__codexTimer=setTimeout(()=>{__codexSettled=!0,__codexChild.unref?.(),__codexResolve()},400),__codexTimer.unref?.(),__codexChild.on(\`error\`,__codexError=>{__codexSettled||(clearTimeout(__codexTimer),__codexReject(__codexError))}),__codexChild.on(\`close\`,__codexCode=>{__codexSettled||(clearTimeout(__codexTimer),__codexCode===0?__codexResolve():__codexReject(Error(\`Linux external open failed\`)))})}catch(__codexError){clearTimeout(__codexTimer),__codexReject(__codexError)}})}` +
+    `function chatgptLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl){return chatgptLinuxLaunchExternalUrl(__codexUrl).catch(()=>__codexOriginalOpenExternal(__codexUrl))}` +
+    `function chatgptLinuxPatchExternalOpen(__codexElectron){if(process.platform!==\`linux\`||__codexElectron?.shell==null||typeof __codexElectron.shell.openExternal!==\`function\`)return __codexElectron;if(__codexElectron.shell.openExternal.__chatgptLinuxExternalOpenPatched)return __codexElectron;if(process.env.CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH===\`1\`)return __codexElectron;let __codexOriginalOpenExternal=__codexElectron.shell.openExternal.bind(__codexElectron.shell);async function __codexOpenExternal(__codexUrl,__codexOptions){if(typeof __codexUrl===\`string\`&&__codexOptions==null)return chatgptLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl);return __codexOriginalOpenExternal(__codexUrl,__codexOptions)}__codexOpenExternal.__chatgptLinuxExternalOpenPatched=!0,__codexElectron.shell.openExternal=__codexOpenExternal;return __codexElectron}`
   );
 }
 
 function applyLinuxExternalOpenEnvPatch(currentSource) {
-  const hasHelper = currentSource.includes("function codexLinuxPatchExternalOpen(");
-  const hasPatchedElectronRequire = /codexLinuxPatchExternalOpen\(require\(([`'"])electron\1\)\)/.test(
+  const hasHelper = currentSource.includes("function chatgptLinuxPatchExternalOpen(");
+  const hasPatchedElectronRequire = /chatgptLinuxPatchExternalOpen\(require\(([`'"])electron\1\)\)/.test(
     currentSource,
   );
   let patchedAnyElectronRequire = false;
@@ -505,7 +505,7 @@ function applyLinuxExternalOpenEnvPatch(currentSource) {
     /([A-Za-z_$][\w$]*=)require\(([`'"])electron\2\)/g,
     (_match, prefix, quote) => {
       patchedAnyElectronRequire = true;
-      return `${prefix}codexLinuxPatchExternalOpen(require(${quote}electron${quote}))`;
+      return `${prefix}chatgptLinuxPatchExternalOpen(require(${quote}electron${quote}))`;
     },
   );
 

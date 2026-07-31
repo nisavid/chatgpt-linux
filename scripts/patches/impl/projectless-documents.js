@@ -7,11 +7,11 @@ const {
   readDirectoryNames,
 } = require("../lib/assets.js");
 
-const PROJECTLESS_DOCUMENTS_MARKER = "function codexLinuxProjectlessDocumentsDir(";
+const PROJECTLESS_DOCUMENTS_MARKER = "function chatgptLinuxProjectlessDocumentsDir(";
 
 function xdgDocumentsHelperSource() {
   return [
-    "function codexLinuxProjectlessDocumentsDir({homeDirectory:e,path:t}){try{",
+    "function chatgptLinuxProjectlessDocumentsDir({homeDirectory:e,path:t}){try{",
     "if(process.platform!==`linux`)return t.join(e,`Documents`,`Codex`);",
     "let n=process.env.XDG_CONFIG_HOME?.trim(),r=n&&t.isAbsolute(n)?t.join(n,`user-dirs.dirs`):t.join(e,`.config`,`user-dirs.dirs`);",
     "if(!require(`node:fs`).existsSync(r))return t.join(e,`Documents`,`Codex`);",
@@ -45,7 +45,7 @@ function applyLinuxProjectlessXdgDocumentsDirPatch(source) {
 
   const [, fnName, homeDirectoryVar, pathVar] = match;
   const patchedResolver =
-    `${xdgDocumentsHelperSource()}function ${fnName}({homeDirectory:${homeDirectoryVar},path:${pathVar}}){return codexLinuxProjectlessDocumentsDir({homeDirectory:${homeDirectoryVar},path:${pathVar}})}`;
+    `${xdgDocumentsHelperSource()}function ${fnName}({homeDirectory:${homeDirectoryVar},path:${pathVar}}){return chatgptLinuxProjectlessDocumentsDir({homeDirectory:${homeDirectoryVar},path:${pathVar}})}`;
   return source.replace(resolverRegex, () => patchedResolver);
 }
 

@@ -39,7 +39,7 @@ Kingdom, and Switzerland, and Computer Use must be available and enabled.
 The workflow is:
 
 1. The user starts "Record a skill" from the Plugins page overflow menu in the
-   Codex app.
+   ChatGPT app.
 2. Codex asks for recording permission.
 3. The user demonstrates a focused workflow on their Mac.
 4. Codex observes the actions, window content, and spoken user context needed
@@ -53,7 +53,7 @@ an `event-stream` MCP server and the durable output is a Codex skill. The
 current macOS bundle supplies that server through
 `computer-use-client-launcher event-stream mcp`; the port integration supplies
 `SkyLinuxComputerUseClient event-stream mcp`, backed by the Rust
-`codex-record-replay-linux` backend.
+`chatgpt-record-replay-linux` backend.
 
 ## Chronicle / Skysight Parity
 
@@ -85,7 +85,7 @@ Skysight prefers RapidOCR through Python + ONNXRuntime when available, then
 falls back to the Tesseract CLI. Skysight reports OCR mode, backend selection,
 availability, language, version, dependency hints, and errors through
 `skysight status`, provider readiness events, and the Linux Chronicle bridge.
-Missing OCR dependencies are non-fatal unless `CODEX_SKYSIGHT_OCR=required`;
+Missing OCR dependencies are non-fatal unless `CHATGPT_SKYSIGHT_OCR=required`;
 in non-required modes Skysight continues writing Chronicle-shaped `.ocr.jsonl`
 rows with `runs_ocr=false`, empty `normalized_text`, and an explicit
 unavailable/disabled status.
@@ -117,10 +117,10 @@ Relevant upstream docs:
 
 - Record & Replay: <https://developers.openai.com/codex/record-and-replay>
 - Skills: <https://developers.openai.com/codex/skills>
-- Codex app: <https://developers.openai.com/codex/app>
+- ChatGPT app: <https://developers.openai.com/codex/app>
 - Codex changelog: <https://developers.openai.com/codex/changelog>
 
-The June 18, 2026 changelog entry introduced Record & Replay in Codex app
+The June 18, 2026 changelog entry introduced Record & Replay in ChatGPT app
 26.616 as a macOS feature that turns a demonstrated workflow into a reusable
 skill.
 
@@ -166,7 +166,7 @@ This repo already has pieces that make skill consumption a realistic first
 step:
 
 - `port-integrations/agent-workspace/` stages a bundled skill under
-  `.codex-linux/port-integrations/...` and installs it into
+  `.chatgpt-linux/port-integrations/...` and installs it into
   `${CODEX_HOME:-~/.codex}/skills/...` from a prelaunch hook. This is a proven
   pattern for feature-owned skills that need real user paths at runtime.
 - `docs/port-integrations-architecture.md` documents the same pattern and warns
@@ -189,7 +189,7 @@ semantic and provider-gated.
 
 | Layer | Linux Phase 1 status |
 | --- | --- |
-| Codex app | Wrapped upstream app; this repo cannot unlock server-gated upstream product features. |
+| ChatGPT app | Wrapped upstream app; this repo cannot unlock server-gated upstream product features. |
 | Direct skill folders | Targeted; verify `$HOME/.agents/skills`, repo `.agents/skills`, symlinks, and duplicate names. |
 | `${CODEX_HOME:-~/.codex}/skills` | Wrapper-specific; verify before documenting as a general import path. |
 | Explicit skill invocation | Targeted; support claim requires a smoke test in the wrapped app and/or CLI. |
@@ -197,7 +197,7 @@ semantic and provider-gated.
 | Browser replay | Conditional; depends on browser provider, plugin state, and auth/session assumptions. |
 | Desktop GUI replay | Experimental; only through capability-gated Linux Computer Use or isolated workspace providers. |
 | macOS/Windows app automation | Unsupported; import/read/list only, then explain the platform blocker. |
-| Record & Replay capture | Opt-in experimental Linux bundle capture through the upstream-shaped `Record & Replay` plugin shell and `SkyLinuxComputerUseClient event-stream mcp`, backed by `codex-record-replay-linux`. |
+| Record & Replay capture | Opt-in experimental Linux bundle capture through the upstream-shaped `Record & Replay` plugin shell and `SkyLinuxComputerUseClient event-stream mcp`, backed by `chatgpt-record-replay-linux`. |
 
 ## Capability Model
 
@@ -310,7 +310,7 @@ Open verification items:
 - Confirm whether Record & Replay-generated skills are saved as ordinary skill
   directories with `SKILL.md`.
 - Confirm the exact save location and export path used by the macOS app.
-- Confirm whether the Linux wrapped Codex app and Codex CLI see
+- Confirm whether the Linux wrapped ChatGPT app and Codex CLI see
   `$HOME/.agents/skills`, repo `.agents/skills`, symlinks, and duplicates
   without additional patching.
 - Confirm whether `${CODEX_HOME:-~/.codex}/skills` is a general discovery path
@@ -357,7 +357,7 @@ Record & Replay into coordinate macro playback.
 
 Current Linux slice status:
 
-- `codex-record-replay-linux doctor` now emits a structured `backend_catalog`
+- `chatgpt-record-replay-linux doctor` now emits a structured `backend_catalog`
   alongside the older `recorders` list.
 - `record start` stores the same catalog in `manifest.json` and appends a
   `backend_catalog` observation to `timeline.jsonl`.
@@ -399,7 +399,7 @@ Current Linux slice status:
 1. Shared Rust Computer Use surface: expose existing Linux diagnostics,
    screenshot, accessibility, and windowing primitives as reusable Rust modules
    while preserving the current MCP binary behavior.
-2. `codex-record-replay-linux`: add a Rust CLI and stdio MCP server for
+2. `chatgpt-record-replay-linux`: add a Rust CLI and stdio MCP server for
    `doctor`, `record start/mark/speech/stop`, `bundle validate`, `bundle
    draft-prompt`, and `skill inspect/import`.
 3. Recording bundle schema: write `manifest.json`, `timeline.jsonl`,
@@ -447,7 +447,7 @@ that may still be pending but should be reported explicitly.
 | Cancel/discard | target | HUD discard cancels the active session, marks the bundle as discarded evidence, and does not draft a skill from it. | Note whether the control exists, final status, and bundle path. |
 | 30-minute session | target | The session remains usable up to the cap or fails with a clear cap message. | Start/stop timestamps or cap message. |
 | Mic / speech context | current | Spoken context is captured as transcript evidence, not replay audio. | Transcript excerpt or bundle file path. |
-| Native audio artifacts | current | Native audio capture stays off unless the caller opts in and `CODEX_RECORD_REPLAY_AUDIO` is affirmative. | Start command/options and `audio/recording.json` status when tested. |
+| Native audio artifacts | current | Native audio capture stays off unless the caller opts in and `CHATGPT_RECORD_REPLAY_AUDIO` is affirmative. | Start command/options and `audio/recording.json` status when tested. |
 | Browser trace evidence | current | Browser/CDP-style trace JSON can be added to the active bundle and appears in the draft prompt timeline. | `browser/*-trace.json` path and timeline row. |
 | Active desktop/window evidence | current | Focused app/window metadata is captured during the recording and appears in the draft prompt timeline. | `x11/*-desktop-snapshot.json` path and timeline row. |
 | InputCapture/libei evidence | current | The bundle records portal readiness and input capability evidence even when live input capture is unavailable. | `input-capture/0000-readiness.json`. |

@@ -82,7 +82,7 @@ test("Linux socket discovery uses the bridge override then a deterministic UID p
     });
     assert.equal(firstPatch.status, 0, firstPatch.stderr);
     const patched = fs.readFileSync(clientPath, "utf8");
-    assert.match(patched, /codexLinuxPerUserBrowserSocketDir/);
+    assert.match(patched, /chatgptLinuxPerUserBrowserSocketDir/);
     assert.doesNotMatch(patched, /\bprocess\./);
 
     let importIndex = 0;
@@ -129,7 +129,7 @@ test("keeps the per-user socket patch when IAB discovery cannot be identified", 
     fs.writeFileSync(clientPath, fixture, "utf8");
     const result = spawnSync(process.execPath, [patcher, clientPath], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
-    assert.match(fs.readFileSync(clientPath, "utf8"), /codexLinuxPerUserBrowserSocketDir/);
+    assert.match(fs.readFileSync(clientPath, "utf8"), /chatgptLinuxPerUserBrowserSocketDir/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
@@ -152,7 +152,7 @@ export const EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>w
     const firstPatch = spawnSync(process.execPath, [patcher, clientPath], { encoding: "utf8" });
     assert.equal(firstPatch.status, 0, firstPatch.stderr);
     const patched = fs.readFileSync(clientPath, "utf8");
-    assert.match(patched, /codexLinuxIabSocketScope/);
+    assert.match(patched, /chatgptLinuxIabSocketScope/);
 
     const secondPatch = spawnSync(process.execPath, [patcher, clientPath], { encoding: "utf8" });
     assert.equal(secondPatch.status, 0, secondPatch.stderr);
@@ -177,7 +177,7 @@ test("leaves an unrelated socket-directory map unchanged", () => {
     assert.equal(result.status, 0, result.stderr);
     const actual = fs.readFileSync(clientPath, "utf8");
     assert.equal(actual, fixture);
-    assert.doesNotMatch(actual, /codexLinuxIabSocketScope/);
+    assert.doesNotMatch(actual, /chatgptLinuxIabSocketScope/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

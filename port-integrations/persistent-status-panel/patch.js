@@ -1,6 +1,6 @@
 "use strict";
 
-const STORAGE_KEY = "codex-linux-persistent-status-panel-open";
+const STORAGE_KEY = "chatgpt-linux-persistent-status-panel-open";
 
 const statusStatePattern =
   /\{conversationId:[^,]+,threadId:[^,]+,rateLimit:[^,]+,onOpenChange:([A-Za-z_$][\w$]*)\}=e,([A-Za-z_$][\w$]*)=[A-Za-z_$][\w$]*\(\),\[([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\]=\(0,([A-Za-z_$][\w$]*)\.useState\)\(!1\),/;
@@ -37,13 +37,13 @@ function applyPersistentStatusPanelPatch(source) {
   }
 
   if (!source.includes("composer.statusSlashCommand.description")) {
-    console.warn("WARN: Could not find Codex status panel bundle marker - skipping persistent status panel patch");
+    console.warn("WARN: Could not find ChatGPT status panel bundle marker - skipping persistent status panel patch");
     return source;
   }
 
   const match = source.match(statusStatePattern);
   if (!match) {
-    console.warn("WARN: Could not find Codex status panel state - skipping persistent status panel patch");
+    console.warn("WARN: Could not find ChatGPT status panel state - skipping persistent status panel patch");
     return source;
   }
 
@@ -51,9 +51,9 @@ function applyPersistentStatusPanelPatch(source) {
   const openNeedle = `async()=>{${setIsOpen}(!0),${onOpenChange}?.(!0)}`;
   const closeNeedle = `()=>{${setIsOpen}(!1),${onOpenChange}?.(!1)}`;
   if (
-    !requireUniqueNeedle(source, stateNeedle, "Codex status panel state") ||
-    !requireUniqueNeedle(source, openNeedle, "Codex status panel open handler") ||
-    !requireUniqueNeedle(source, closeNeedle, "Codex status panel close handler")
+    !requireUniqueNeedle(source, stateNeedle, "ChatGPT status panel state") ||
+    !requireUniqueNeedle(source, openNeedle, "ChatGPT status panel open handler") ||
+    !requireUniqueNeedle(source, closeNeedle, "ChatGPT status panel close handler")
   ) {
     return source;
   }

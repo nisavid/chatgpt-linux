@@ -7,7 +7,7 @@ the current upstream DMG when it is available, swaps the macOS helper for a
 Linux `event-stream` helper, and keeps the fallback template aligned with that
 same contract. The staged plugin launches `./bin/SkyLinuxComputerUseClient
 event-stream mcp`; that helper is backed by the Rust
-`codex-record-replay-linux` binary. The Rust helper records Linux workflow
+`chatgpt-record-replay-linux` binary. The Rust helper records Linux workflow
 evidence into a bundle, generates a skill-drafting prompt, and imports
 generated skills as ordinary Codex skill folders.
 
@@ -23,12 +23,12 @@ It is disabled by default. Enable it in `port-integrations/integrations.json`:
 
 ## Build Prerequisite
 
-When this integration is enabled, staging builds `codex-record-replay-linux` with
+When this integration is enabled, staging builds `chatgpt-record-replay-linux` with
 Cargo and copies the release binary into `resources/native/`, the staged plugin
-`bin/codex-record-replay-linux`, and the official-shaped plugin helper alias
+`bin/chatgpt-record-replay-linux`, and the official-shaped plugin helper alias
 `bin/SkyLinuxComputerUseClient`. Builds without a Rust toolchain can set
-`CODEX_RECORD_REPLAY_LINUX_SOURCE` to an executable prebuilt
-`codex-record-replay-linux` binary.
+`CHATGPT_RECORD_REPLAY_LINUX_SOURCE` to an executable prebuilt
+`chatgpt-record-replay-linux` binary.
 
 ## Behavior
 

@@ -1,7 +1,7 @@
 "use strict";
 
 const JS_IDENT = "[A-Za-z_$][\\w$]*";
-const PATCH_MARKER = "codexLinuxApiKeyModelVisibility";
+const PATCH_MARKER = "chatgptLinuxApiKeyModelVisibility";
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} - skipping ${patchName}`);
@@ -9,19 +9,12 @@ function warn(message, patchName) {
 
 function applyApiKeyModelVisibilityPatch(source) {
   const modelVisibilityPattern = new RegExp(
-    `(function ${JS_IDENT}\\(\\{authMethod:(${JS_IDENT}),availableModels:${JS_IDENT},` +
-      `defaultModel:${JS_IDENT},enabledReasoningEfforts:${JS_IDENT},` +
-      `includeUltraReasoningEffort:${JS_IDENT},models:${JS_IDENT},` +
-      `useHiddenModels:(${JS_IDENT})\\}\\)\\{let[\\s\\S]{0,600}?[,;]${JS_IDENT}=)` +
-      `\\3&&\\2!==\\\`amazonBedrock\\\`(?=[,;])`,
+    "(function " + JS_IDENT + "\\(\\{additionalAvailableModels:" + JS_IDENT +
+      ",authMethod:(" + JS_IDENT + "),availableModels:" + JS_IDENT +
+      ",model:" + JS_IDENT + ",useHiddenModels:(" + JS_IDENT + ")\\}\\)" +
+      "\\{return [^{}]{0,300}?\\|\\|\\()" +
+      "\\3&&\\2!==`amazonBedrock`(?=\\?)",
     "g",
-  );
-  const patchedVisibilityPattern = new RegExp(
-    `function ${JS_IDENT}\\(\\{authMethod:(${JS_IDENT}),availableModels:${JS_IDENT},` +
-      `defaultModel:${JS_IDENT},enabledReasoningEfforts:${JS_IDENT},` +
-      `includeUltraReasoningEffort:${JS_IDENT},models:${JS_IDENT},` +
-      `useHiddenModels:(${JS_IDENT})\\}\\)\\{let[\\s\\S]{0,600}?[,;]${JS_IDENT}=` +
-      `\\2&&\\1!==\\\`amazonBedrock\\\`&&\\1!==\\\`apikey\\\`/\\*${PATCH_MARKER}\\*/(?=[,;])`,
   );
 
   const patched = source.replace(
@@ -31,16 +24,12 @@ function applyApiKeyModelVisibilityPatch(source) {
       `${authMethodVar}!==\`apikey\`/*${PATCH_MARKER}*/`,
   );
 
-  if (patched !== source) {
+  if (patched !== source || source.includes(`/*${PATCH_MARKER}*/`)) {
     return patched;
   }
 
-  if (patchedVisibilityPattern.test(source)) {
-    return source;
-  }
-
   if (
-    source.includes("list-models-for-host") &&
+    source.includes("additionalAvailableModels") &&
     source.includes("useHiddenModels") &&
     source.includes("amazonBedrock")
   ) {
@@ -55,7 +44,7 @@ const descriptors = [
     phase: "webview-asset",
     order: 20550,
     ciPolicy: "optional",
-    pattern: /^app-initial~app-main~.*\.js$/,
+    pattern: /^app-initial-[A-Za-z0-9_-]+\.js$/,
     missingDescription: "app main webview bundle",
     skipDescription: "API key model visibility patch",
     apply: applyApiKeyModelVisibilityPatch,

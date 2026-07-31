@@ -88,7 +88,7 @@ NODE
 }
 
 find_upstream_record_replay_plugin() {
-    local app_dir="${CODEX_UPSTREAM_APP_DIR:-}"
+    local app_dir="${CHATGPT_OFFICIAL_APP_DIR:-}"
     local candidate=""
 
     [ -n "$app_dir" ] || return 1
@@ -198,27 +198,27 @@ NODE
 }
 
 build_record_replay_backend() {
-    local source_binary="$SCRIPT_DIR/target/release/codex-record-replay-linux"
+    local source_binary="$SCRIPT_DIR/target/release/chatgpt-record-replay-linux"
     local cargo_cmd=""
 
-    if [ -n "${CODEX_RECORD_REPLAY_LINUX_SOURCE:-}" ]; then
-        [ -x "$CODEX_RECORD_REPLAY_LINUX_SOURCE" ] || {
-            echo "Record & Replay source is not executable: $CODEX_RECORD_REPLAY_LINUX_SOURCE" >&2
+    if [ -n "${CHATGPT_RECORD_REPLAY_LINUX_SOURCE:-}" ]; then
+        [ -x "$CHATGPT_RECORD_REPLAY_LINUX_SOURCE" ] || {
+            echo "Record & Replay source is not executable: $CHATGPT_RECORD_REPLAY_LINUX_SOURCE" >&2
             return 1
         }
         echo "Using prebuilt Record & Replay backend" >&2
-        printf '%s\n' "$CODEX_RECORD_REPLAY_LINUX_SOURCE"
+        printf '%s\n' "$CHATGPT_RECORD_REPLAY_LINUX_SOURCE"
         return 0
     fi
 
     if ! cargo_cmd="$(find_cargo_for_record_replay)"; then
         echo "cargo not found; Record & Replay backend cannot be built" >&2
-        echo "Install/use a Rust toolchain for this build, or set CODEX_RECORD_REPLAY_LINUX_SOURCE to an executable codex-record-replay-linux binary." >&2
+        echo "Install/use a Rust toolchain for this build, or set CHATGPT_RECORD_REPLAY_LINUX_SOURCE to an executable chatgpt-record-replay-linux binary." >&2
         return 1
     fi
 
     echo "Building Record & Replay backend..." >&2
-    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p codex-record-replay-linux >&2); then
+    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p chatgpt-record-replay-linux >&2); then
         echo "Failed to build Record & Replay backend" >&2
         return 1
     fi
@@ -242,13 +242,13 @@ target_marketplace="$INSTALL_DIR/resources/plugins/openai-bundled/.agents/plugin
 }
 
 mkdir -p "$native_target_dir"
-cp "$backend_binary" "$native_target_dir/codex-record-replay-linux"
-chmod 0755 "$native_target_dir/codex-record-replay-linux"
+cp "$backend_binary" "$native_target_dir/chatgpt-record-replay-linux"
+chmod 0755 "$native_target_dir/chatgpt-record-replay-linux"
 
 stage_record_replay_plugin_base "$target_plugin" "$plugin_template"
 patch_record_replay_plugin_for_linux "$target_plugin"
-cp "$backend_binary" "$target_plugin/bin/codex-record-replay-linux"
-chmod 0755 "$target_plugin/bin/codex-record-replay-linux"
+cp "$backend_binary" "$target_plugin/bin/chatgpt-record-replay-linux"
+chmod 0755 "$target_plugin/bin/chatgpt-record-replay-linux"
 cp "$backend_binary" "$target_plugin/bin/SkyLinuxComputerUseClient"
 chmod 0755 "$target_plugin/bin/SkyLinuxComputerUseClient"
 use_upstream_record_replay_icon "$target_plugin"

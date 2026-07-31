@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ChatGPT
+Comment=Run ChatGPT on Linux
+Exec=@USER_BIN_DIR@/chatgpt %U
+TryExec=@USER_BIN_DIR@/chatgpt
+Terminal=false
+Categories=Development;IDE;
+MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;
+Keywords=chatgpt;codex;openai;ai;coding;
+StartupNotify=true
+StartupWMClass=chatgpt
+Icon=chatgpt
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=@USER_BIN_DIR@/chatgpt --new-instance

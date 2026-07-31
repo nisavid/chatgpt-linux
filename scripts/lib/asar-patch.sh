@@ -92,17 +92,17 @@ patch_asar() {
 
     info "Patching Linux window and shell behavior..."
     # Always produce a report: enforcement and the end-of-build summary need it,
-    # and install.sh persists it into the app's .codex-linux/ directory.
-    local patch_report_json="${CODEX_PATCH_REPORT_JSON:-$WORK_DIR/patch-report.json}"
+    # and install.sh persists it into the app's .chatgpt-linux/ directory.
+    local patch_report_json="${CHATGPT_PATCH_REPORT_JSON:-$WORK_DIR/patch-report.json}"
     mkdir -p "$(dirname "$patch_report_json")"
     patch_args+=(--report-json "$patch_report_json")
-    if [ "${CODEX_ENFORCE_CRITICAL_PATCHES:-1}" != "0" ]; then
+    if [ "${CHATGPT_ENFORCE_CRITICAL_PATCHES:-1}" != "0" ]; then
         patch_args+=(--enforce-critical)
     else
-        warn "Critical patch enforcement disabled (CODEX_ENFORCE_CRITICAL_PATCHES=0)"
+        warn "Critical patch enforcement disabled (CHATGPT_ENFORCE_CRITICAL_PATCHES=0)"
     fi
     node "$SCRIPT_DIR/scripts/patch-linux-window-ui.js" "${patch_args[@]}" "$WORK_DIR/app-extracted"
-    CODEX_PATCH_REPORT_RESOLVED="$patch_report_json"
+    CHATGPT_PATCH_REPORT_RESOLVED="$patch_report_json"
     print_patch_report_summary "$patch_report_json"
 
     # Repack

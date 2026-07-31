@@ -97,7 +97,7 @@ function controllerFromPatchedSource(patched, overrides = {}) {
       if (moduleName === "node:path") return path;
       if (moduleName === "electron") {
         return {
-          app: { getName: () => "Codex" },
+          app: { getName: () => "ChatGPT" },
           screen: {
             getCursorScreenPoint: () => ({ x: 0, y: 0 }),
             getDisplayNearestPoint: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }),
@@ -157,7 +157,7 @@ test("pet-overlay is discoverable, enabled by default, and can be disabled", () 
     const plan = enabledPortIntegrationInstallPlan({ integrationsRoot });
     assert.deepEqual(
       plan.runtimeHooks.map((hook) => [hook.key, hook.target, hook.mode.toString(8)]),
-      [["launcher", ".codex-linux/launcher.d/pet-overlay-gpu-compositing-default.sh", "755"]],
+      [["launcher", ".chatgpt-linux/launcher.d/pet-overlay-gpu-compositing-default.sh", "755"]],
     );
 
     fs.writeFileSync(path.join(integrationsRoot, "integrations.json"), '{"disabled":["pet-overlay"]}\n');
@@ -188,13 +188,13 @@ test("GPU compositing launcher default preserves an explicit user override", () 
     encoding: "utf8",
     env: {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
-      ...(value == null ? {} : { CODEX_ELECTRON_DISABLE_GPU_COMPOSITING: value }),
+      ...(value == null ? {} : { CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING: value }),
     },
   });
 
   const defaulted = run(null);
   assert.equal(defaulted.status, 0, defaulted.stderr);
-  assert.equal(defaulted.stdout.trim(), "env CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=0");
+  assert.equal(defaulted.stdout.trim(), "env CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=0");
 
   for (const value of ["0", "1"]) {
     const explicit = run(value);
@@ -206,14 +206,14 @@ test("GPU compositing launcher default preserves an explicit user override", () 
 test("patches current avatar overlay layout, transparency, and window sync", () => {
   const patched = applyPatchTwice(currentAvatarOverlayBundleFixture());
 
-  assert.match(patched, /codexPetOverlayLayoutForDisplay\(t,this\.getLayoutForDisplay\(t\),e\)/);
-  assert.match(patched, /codexPetOverlaySyncWindow\(e,!0\)/);
-  assert.match(patched, /title:`Codex Pet Overlay`,width:zB\.width/);
+  assert.match(patched, /chatgptPetOverlayLayoutForDisplay\(t,this\.getLayoutForDisplay\(t\),e\)/);
+  assert.match(patched, /chatgptPetOverlaySyncWindow\(e,!0\)/);
+  assert.match(patched, /title:`ChatGPT Pet Overlay`,width:zB\.width/);
   assert.match(patched, /setVisibleOnAllWorkspaces/);
   assert.match(patched, /setAlwaysOnTop/);
   assert.match(patched, /setSkipTaskbar/);
   assert.match(patched, /t===`avatarOverlay`\?\{backgroundColor:`#00000000`,backgroundMaterial:null\}/);
-  assert.equal((patched.match(/codexPetOverlayLayoutForDisplay/g) ?? []).length, 2);
+  assert.equal((patched.match(/chatgptPetOverlayLayoutForDisplay/g) ?? []).length, 2);
 });
 
 test("refreshes only the avatar overlay after the selected pet changes", async () => {
@@ -228,7 +228,7 @@ test("refreshes only the avatar overlay after the selected pet changes", async (
           BrowserWindow: {
             getAllWindows: () => [
               {
-                getTitle: () => "Codex Pet Overlay",
+                getTitle: () => "ChatGPT Pet Overlay",
                 isDestroyed: () => false,
                 webContents: {
                   isDestroyed: () => false,
@@ -236,7 +236,7 @@ test("refreshes only the avatar overlay after the selected pet changes", async (
                 },
               },
               {
-                getTitle: () => "Codex",
+                getTitle: () => "Other App",
                 isDestroyed: () => false,
                 webContents: {
                   isDestroyed: () => false,
@@ -273,7 +273,7 @@ test("refreshes only the avatar overlay after the selected pet changes", async (
   assert.equal(timers.length, 1);
   timers[0]();
   assert.deepEqual(reloads, ["overlay"]);
-  assert.match(patched, /===`selected-avatar-id`&&codexPetOverlayRefreshAvatarWindows\(\)/);
+  assert.match(patched, /===`selected-avatar-id`&&chatgptPetOverlayRefreshAvatarWindows\(\)/);
 });
 
 test("discards the feature patch when the current settings handler drifts", () => {
@@ -379,7 +379,7 @@ test("locked gravity supports every corner on a negative-origin display", () => 
       integration: { manifest: { petOverlay: { gravity, lockPosition: true, margin: 32 } }, settings: {} },
     });
     const { controller } = controllerFromPatchedSource(patched);
-    const result = controller.codexPetOverlayLayoutForDisplay(
+    const result = controller.chatgptPetOverlayLayoutForDisplay(
       { workArea: { x: -1280, y: -200, width: 1280, height: 1024 } },
       layout,
       { isDestroyed: () => false },
@@ -405,7 +405,7 @@ test("unlocked mode preserves a visible manual window position when no tray need
       windowBounds: { x: 0, y: 0, width: 356, height: 320 },
     }),
   });
-  controller.codexPetOverlayInitialPositionDone = true;
+  controller.chatgptPetOverlayInitialPositionDone = true;
   controller.setWindowBounds = (_window, bounds) => {
     context.bounds = bounds;
   };
@@ -420,7 +420,7 @@ test("unlocked mode preserves a visible manual window position when no tray need
   );
 
   assert.deepEqual(JSON.parse(JSON.stringify(context.bounds)), { x: 930, y: 410, width: 356, height: 320 });
-  assert.equal(controller.codexPetOverlayManualPosition, true);
+  assert.equal(controller.chatgptPetOverlayManualPosition, true);
 });
 
 test("unlocked layout does not re-anchor while a drag is active", () => {
@@ -436,7 +436,7 @@ test("unlocked layout does not re-anchor while a drag is active", () => {
     windowBounds: { x: 0, y: 0, width: 356, height: 320 },
   };
 
-  const result = controller.codexPetOverlayLayoutForDisplay(
+  const result = controller.chatgptPetOverlayLayoutForDisplay(
     { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
     layout,
     {
@@ -479,7 +479,7 @@ test("unlocked mascot drags stay inside the overlay and do not invoke native win
   controller.moveDrag(1, { pointerScreenX: 350, pointerScreenY: 500 });
 
   assert.deepEqual(nativeDragCalls, []);
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.codexPetOverlayMascotLocalPosition)), { left: 240, top: 280 });
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.chatgptPetOverlayMascotLocalPosition)), { left: 240, top: 280 });
   assert.deepEqual(JSON.parse(JSON.stringify(controller.layout.mascot)), { left: 240, top: 280, width: 40, height: 40 });
   assert.deepEqual(JSON.parse(JSON.stringify(controller.layout.tray)), { left: 4, top: 145, width: 276, height: 131 });
   assert.equal(rendererLayouts.length, 1);
@@ -497,23 +497,23 @@ test("notification tray chooses a non-overlapping vertical side and stays within
     windowBounds,
   };
 
-  controller.codexPetOverlayMascotLocalPosition = { left: 0, top: 0 };
-  const atTop = controller.codexPetOverlayTrayAboveLeft(baseLayout);
+  controller.chatgptPetOverlayMascotLocalPosition = { left: 0, top: 0 };
+  const atTop = controller.chatgptPetOverlayTrayAboveLeft(baseLayout);
   assert.deepEqual(JSON.parse(JSON.stringify(atTop.mascot)), { left: 0, top: 0, width: 112, height: 121 });
   assert.equal(atTop.tray.top, 125);
   assert.ok(atTop.tray.top >= atTop.mascot.top + atTop.mascot.height + 4);
   assert.deepEqual(JSON.parse(JSON.stringify(atTop.windowBounds)), windowBounds);
 
-  controller.codexPetOverlayMascotLocalPosition = { left: 100, top: 100 };
-  const snappedFromMiddle = controller.codexPetOverlayTrayAboveLeft(baseLayout);
+  controller.chatgptPetOverlayMascotLocalPosition = { left: 100, top: 100 };
+  const snappedFromMiddle = controller.chatgptPetOverlayTrayAboveLeft(baseLayout);
   assert.deepEqual(JSON.parse(JSON.stringify(snappedFromMiddle.mascot)), { left: 100, top: 135, width: 112, height: 121 });
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.codexPetOverlayMascotLocalPosition)), { left: 100, top: 135 });
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.chatgptPetOverlayMascotLocalPosition)), { left: 100, top: 135 });
   assert.equal(snappedFromMiddle.tray.top, 0);
   assert.ok(snappedFromMiddle.tray.top + snappedFromMiddle.tray.height + 4 <= snappedFromMiddle.mascot.top);
   assert.deepEqual(JSON.parse(JSON.stringify(snappedFromMiddle.windowBounds)), windowBounds);
 
-  controller.codexPetOverlayMascotLocalPosition = { left: 244, top: 180 };
-  const withUpperSpace = controller.codexPetOverlayTrayAboveLeft(baseLayout);
+  controller.chatgptPetOverlayMascotLocalPosition = { left: 244, top: 180 };
+  const withUpperSpace = controller.chatgptPetOverlayTrayAboveLeft(baseLayout);
   assert.deepEqual(JSON.parse(JSON.stringify(withUpperSpace.mascot)), { left: 244, top: 180, width: 112, height: 121 });
   assert.equal(withUpperSpace.tray.top, 45);
   assert.ok(withUpperSpace.tray.top + withUpperSpace.tray.height + 4 <= withUpperSpace.mascot.top);
@@ -523,8 +523,8 @@ test("notification tray chooses a non-overlapping vertical side and stays within
   assert.ok(withUpperSpace.tray.top + withUpperSpace.tray.height <= windowBounds.height);
   assert.deepEqual(JSON.parse(JSON.stringify(withUpperSpace.windowBounds)), windowBounds);
 
-  controller.codexPetOverlayMascotLocalPosition = { left: 0, top: 0 };
-  const oversizedTray = controller.codexPetOverlayTrayAboveLeft({
+  controller.chatgptPetOverlayMascotLocalPosition = { left: 0, top: 0 };
+  const oversizedTray = controller.chatgptPetOverlayTrayAboveLeft({
     ...baseLayout,
     tray: { left: 0, top: 0, width: 700, height: 700 },
   });
@@ -567,14 +567,14 @@ test("another renderer cannot consume or mutate a local mascot drag", () => {
   controller.startDrag(2, { pointerWindowX: 20, pointerWindowY: 20 });
   controller.moveDrag(2, { pointerScreenX: 350, pointerScreenY: 500 });
 
-  assert.equal(controller.codexPetOverlayMascotDragState, undefined);
-  assert.equal(controller.codexPetOverlayMascotLocalPosition, undefined);
+  assert.equal(controller.chatgptPetOverlayMascotDragState, undefined);
+  assert.equal(controller.chatgptPetOverlayMascotLocalPosition, undefined);
   assert.deepEqual(JSON.parse(JSON.stringify(controller.layout)), before);
   assert.deepEqual(nativeDragCalls, []);
   assert.equal(boundsWrites, 0);
 
   controller.endDrag(2, {});
-  assert.equal(controller.codexPetOverlayMascotDragState, undefined);
+  assert.equal(controller.chatgptPetOverlayMascotDragState, undefined);
 });
 
 test("overlay close and recreate clear only ephemeral mascot drag state", async () => {
@@ -582,8 +582,8 @@ test("overlay close and recreate clear only ephemeral mascot drag state", async 
   const { controller } = controllerFromPatchedSource(patched);
   let closed;
   const localPosition = { left: 120, top: 80 };
-  controller.codexPetOverlayMascotDragState = { offsetX: 3, offsetY: 4 };
-  controller.codexPetOverlayMascotLocalPosition = localPosition;
+  controller.chatgptPetOverlayMascotDragState = { offsetX: 3, offsetY: 4 };
+  controller.chatgptPetOverlayMascotLocalPosition = localPosition;
   controller.windowManager.createWindow = async () => ({
     isDestroyed: () => false,
     isVisible: () => false,
@@ -596,13 +596,13 @@ test("overlay close and recreate clear only ephemeral mascot drag state", async 
   });
 
   await controller.createWindow();
-  assert.equal(controller.codexPetOverlayMascotDragState, null);
-  assert.equal(controller.codexPetOverlayMascotLocalPosition, localPosition);
+  assert.equal(controller.chatgptPetOverlayMascotDragState, null);
+  assert.equal(controller.chatgptPetOverlayMascotLocalPosition, localPosition);
 
-  controller.codexPetOverlayMascotDragState = { offsetX: 7, offsetY: 8 };
+  controller.chatgptPetOverlayMascotDragState = { offsetX: 7, offsetY: 8 };
   closed();
-  assert.equal(controller.codexPetOverlayMascotDragState, null);
-  assert.equal(controller.codexPetOverlayMascotLocalPosition, localPosition);
+  assert.equal(controller.chatgptPetOverlayMascotDragState, null);
+  assert.equal(controller.chatgptPetOverlayMascotLocalPosition, localPosition);
 });
 
 test("background drags retain native window movement and local mascot offsets survive later layout", () => {
@@ -629,13 +629,13 @@ test("background drags retain native window movement and local mascot offsets su
   };
   controller.getCurrentDisplay = () => null;
   controller.persistWindowBounds = () => {};
-  controller.codexPetOverlayMascotLocalPosition = { left: 100, top: 50 };
+  controller.chatgptPetOverlayMascotLocalPosition = { left: 100, top: 50 };
 
   controller.startDrag(1, { pointerWindowX: 300, pointerWindowY: 20 });
   assert.deepEqual(nativeDragCalls, ["window"]);
   controller.endDrag(1, {});
 
-  const result = controller.codexPetOverlayLayoutForDisplay(
+  const result = controller.chatgptPetOverlayLayoutForDisplay(
     { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
     controller.layout,
     controller.window,
@@ -685,7 +685,7 @@ test("syncs overlay window hints without requiring Hyprland", () => {
   controller.showWindow(window);
 
   assert.deepEqual(calls.slice(0, 5), [
-    ["title", "Codex Pet Overlay"],
+    ["title", "ChatGPT Pet Overlay"],
     ["focusable", false],
     ["skip", true],
     ["always", true],
@@ -730,8 +730,8 @@ test("syncs overlay window hints without requiring Hyprland", () => {
 test("unlocked pet overlays are frameless only on Linux and opt into whole-window input", async () => {
   const patched = applyPetOverlayPatch(currentAvatarOverlayBundleFixture());
   assert.match(patched, /frame:process\.platform===`linux`\?!1:!0/);
-  assert.match(patched, /codexPetOverlayShouldUseWholeWindowInput\(\)\{return process\.platform===`linux`&&this\.codexPetOverlaySettings\(\)\.lockPosition!==!0\}/);
-  assert.match(patched, /codexLinuxWholeWindowInput=this\.codexPetOverlayShouldUseWholeWindowInput\(\)/);
+  assert.match(patched, /chatgptPetOverlayShouldUseWholeWindowInput\(\)\{return process\.platform===`linux`&&this\.chatgptPetOverlaySettings\(\)\.lockPosition!==!0\}/);
+  assert.match(patched, /chatgptLinuxWholeWindowInput=this\.chatgptPetOverlayShouldUseWholeWindowInput\(\)/);
 
   const { controller } = controllerFromPatchedSource(patched);
   const created = [];
@@ -747,8 +747,8 @@ test("unlocked pet overlays are frameless only on Linux and opt into whole-windo
   };
   await controller.createWindow();
   assert.equal(created[0].frame, false);
-  controller.codexPetOverlaySyncWindow(controller.window);
-  assert.equal(controller.codexLinuxWholeWindowInput, true);
+  controller.chatgptPetOverlaySyncWindow(controller.window);
+  assert.equal(controller.chatgptLinuxWholeWindowInput, true);
 
   const { controller: nonLinuxController } = controllerFromPatchedSource(patched, {
     process: { platform: "darwin" },
@@ -760,7 +760,7 @@ test("unlocked pet overlays are frameless only on Linux and opt into whole-windo
   };
   await nonLinuxController.createWindow();
   assert.equal(nonLinuxCreated[0].frame, true);
-  assert.equal(nonLinuxController.codexLinuxWholeWindowInput, undefined);
+  assert.equal(nonLinuxController.chatgptLinuxWholeWindowInput, undefined);
 });
 
 test("unlocked drag CSS protects native mascot markup without an overlay hit region", () => {
@@ -770,7 +770,7 @@ test("unlocked drag CSS protects native mascot markup without an overlay hit reg
   const nativeMascotMarkup = '<div data-avatar-mascot="true"><button class="no-drag"></button></div>';
   assert.doesNotMatch(nativeMascotMarkup, /data-avatar-overlay-hit-region/);
 
-  controller.codexPetOverlayInstallTransparentRenderer({
+  controller.chatgptPetOverlayInstallTransparentRenderer({
     isDestroyed: () => false,
     webContents: {
       insertCSS: (css) => insertedCss.push(css),
@@ -799,11 +799,11 @@ test("locked pet overlays omit drag CSS and whole-window input", () => {
       on() {},
     },
   };
-  controller.codexPetOverlayInstallTransparentRenderer(window);
+  controller.chatgptPetOverlayInstallTransparentRenderer(window);
   assert.equal(calls.length, 1);
   assert.doesNotMatch(calls[0], /app-region:(drag|no-drag)/);
   assert.doesNotMatch(calls[0], /-webkit-app-region:(drag|no-drag)/);
-  assert.equal(controller.codexLinuxWholeWindowInput, false);
+  assert.equal(controller.chatgptLinuxWholeWindowInput, false);
 });
 
 test("passive mode makes the overlay non-focusable", () => {
@@ -897,7 +897,7 @@ test("disabled window hints are actively applied as false", () => {
   };
   controller.window = window;
 
-  controller.codexPetOverlaySyncWindow(window);
+  controller.chatgptPetOverlaySyncWindow(window);
 
   assert.deepEqual(calls, [
     ["focusable", false],
@@ -910,7 +910,7 @@ test("disabled window hints are actively applied as false", () => {
 test("runtime lock override blocks drag start", () => {
   const patched = applyPetOverlayPatch(currentAvatarOverlayBundleFixture());
   const { controller } = controllerFromPatchedSource(patched, {
-    process: { env: { CODEX_PET_OVERLAY_LOCK_POSITION: "1" } },
+    process: { env: { CHATGPT_PET_OVERLAY_LOCK_POSITION: "1" } },
   });
   controller.window = { isDestroyed: () => false, webContents: { id: 1 } };
   controller.layoutMode = "legacy";
@@ -932,7 +932,7 @@ test("runtime unlock override permits drag on a locked build", () => {
     integration: { manifest: { petOverlay: { lockPosition: true } }, settings: {} },
   });
   const { controller } = controllerFromPatchedSource(patched, {
-    process: { env: { CODEX_PET_OVERLAY_LOCK_POSITION: "0" } },
+    process: { env: { CHATGPT_PET_OVERLAY_LOCK_POSITION: "0" } },
   });
   controller.window = { isDestroyed: () => false, webContents: { id: 1 } };
   controller.layoutMode = "legacy";
@@ -963,11 +963,11 @@ test("changed locked bounds reschedule Hyprland hints once per change", () => {
     windowBounds: { x: 0, y: 0, width: 356, height: 320 },
   };
   controller.window = window;
-  controller.codexPetOverlayScheduleHyprlandHints = (target) => scheduled.push(target);
+  controller.chatgptPetOverlayScheduleHyprlandHints = (target) => scheduled.push(target);
 
-  controller.codexPetOverlayLayoutForDisplay({ workArea: { x: 0, y: 0, width: 1200, height: 800 } }, layout, window);
-  controller.codexPetOverlayLayoutForDisplay({ workArea: { x: 0, y: 0, width: 1200, height: 800 } }, layout, window);
-  controller.codexPetOverlayLayoutForDisplay({ workArea: { x: 1200, y: 0, width: 1200, height: 800 } }, layout, window);
+  controller.chatgptPetOverlayLayoutForDisplay({ workArea: { x: 0, y: 0, width: 1200, height: 800 } }, layout, window);
+  controller.chatgptPetOverlayLayoutForDisplay({ workArea: { x: 0, y: 0, width: 1200, height: 800 } }, layout, window);
+  controller.chatgptPetOverlayLayoutForDisplay({ workArea: { x: 1200, y: 0, width: 1200, height: 800 } }, layout, window);
 
   assert.deepEqual(scheduled, [window, window]);
 });
@@ -999,7 +999,7 @@ function runHyprlandHintScenario({ clientsJson, execError = null, settings = {},
     isDestroyed: () => false,
   };
   controller.window = window;
-  controller.codexPetOverlayApplyHyprlandHints(window);
+  controller.chatgptPetOverlayApplyHyprlandHints(window);
 
   return calls;
 }
@@ -1039,9 +1039,9 @@ function runNiriHintScenario({
     isDestroyed: () => false,
   };
   controller.window = window;
-  controller.codexPetOverlayDesiredWindowBounds = desiredWindowBounds;
-  controller.codexPetOverlayDesiredDisplayBounds = desiredDisplayBounds;
-  controller.codexPetOverlayApplyNiriHints(window);
+  controller.chatgptPetOverlayDesiredWindowBounds = desiredWindowBounds;
+  controller.chatgptPetOverlayDesiredDisplayBounds = desiredDisplayBounds;
+  controller.chatgptPetOverlayApplyNiriHints(window);
 
   return calls;
 }
@@ -1076,8 +1076,8 @@ function createAsyncNiriDragScenario() {
     webContents: { id: 1 },
   };
   controller.window = window;
-  controller.codexPetOverlayDesiredDisplayBounds = { x: 0, y: 0, width: 1920, height: 1080 };
-  controller.codexPetOverlayDesiredWindowBounds = { x: 100, y: 100, width: 356, height: 320 };
+  controller.chatgptPetOverlayDesiredDisplayBounds = { x: 0, y: 0, width: 1920, height: 1080 };
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 100, y: 100, width: 356, height: 320 };
   return { calls, controller, pending, timers, window };
 }
 
@@ -1094,7 +1094,7 @@ function niriPetWindow(id, isFloating = true) {
     is_floating: isFloating,
     layout: { window_size: [356, 320] },
     pid: 4242,
-    title: "Codex Pet Overlay",
+    title: "ChatGPT Pet Overlay",
   }]);
 }
 
@@ -1104,24 +1104,24 @@ test("targets only the unambiguous Hyprland pet window address", () => {
       {
         address: "0x100",
         at: [0, 0],
-        class: "Codex",
+        class: "Other App",
         floating: false,
         fullscreen: 0,
         pid: 4242,
         pinned: false,
         size: [1920, 1080],
-        title: "Codex",
+        title: "Other App",
       },
       {
         address: "0x200",
         at: [1540, 736],
-        class: "Codex",
+        class: "Other App",
         floating: true,
         fullscreen: 0,
         pid: 4242,
         pinned: false,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1144,7 +1144,7 @@ test("Hyprland matching rejects foreign processes and malformed addresses", () =
         fullscreen: 0,
         pid: 9999,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         address: "$(not-safe)",
@@ -1153,7 +1153,7 @@ test("Hyprland matching rejects foreign processes and malformed addresses", () =
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         address: `0x${"a".repeat(128)}`,
@@ -1162,7 +1162,7 @@ test("Hyprland matching rejects foreign processes and malformed addresses", () =
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1180,7 +1180,7 @@ test("Hyprland matching uses a unique size when coordinate systems disagree", ()
         fullscreen: 0,
         pid: 4242,
         size: [640, 480],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         address: "0x202",
@@ -1189,7 +1189,7 @@ test("Hyprland matching uses a unique size when coordinate systems disagree", ()
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1216,7 +1216,7 @@ test("locked Hyprland overlays move to the final desired bounds", () => {
             fullscreen: 0,
             pid: 4242,
             size: [356, 320],
-            title: "Codex Pet Overlay",
+            title: "ChatGPT Pet Overlay",
           }]));
           return;
         }
@@ -1229,9 +1229,9 @@ test("locked Hyprland overlays move to the final desired bounds", () => {
     isDestroyed: () => false,
   };
   controller.window = window;
-  controller.codexPetOverlayDesiredWindowBounds = { x: -179, y: -134, width: 356, height: 320 };
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: -179, y: -134, width: 356, height: 320 };
 
-  controller.codexPetOverlayApplyHyprlandHints(window);
+  controller.chatgptPetOverlayApplyHyprlandHints(window);
 
   assert.ok(calls.some((args) =>
     args[0] === "dispatch" &&
@@ -1261,7 +1261,7 @@ test("legacy Hyprland fallbacks keep dispatcher arguments grouped", () => {
             pid: 4242,
             pinned: false,
             size: [356, 320],
-            title: "Codex Pet Overlay",
+            title: "ChatGPT Pet Overlay",
           }]));
           return;
         }
@@ -1278,9 +1278,9 @@ test("legacy Hyprland fallbacks keep dispatcher arguments grouped", () => {
     isDestroyed: () => false,
   };
   controller.window = window;
-  controller.codexPetOverlayDesiredWindowBounds = { x: -179, y: -134, width: 356, height: 320 };
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: -179, y: -134, width: 356, height: 320 };
 
-  controller.codexPetOverlayApplyHyprlandHints(window);
+  controller.chatgptPetOverlayApplyHyprlandHints(window);
 
   assert.ok(calls.some((args) => JSON.stringify(args) === JSON.stringify([
     "dispatch",
@@ -1299,7 +1299,7 @@ test("Hyprland Lua strings escape backslashes and quotes", () => {
   const { controller } = controllerFromPatchedSource(patched);
 
   assert.equal(
-    controller.codexPetOverlayLuaString('path\\to"pet'),
+    controller.chatgptPetOverlayLuaString('path\\to"pet'),
     'path\\\\to\\"pet',
   );
 });
@@ -1324,7 +1324,7 @@ test("Hyprland callbacks ignore stale overlay windows", () => {
     isDestroyed: () => false,
   };
   controller.window = oldWindow;
-  controller.codexPetOverlayApplyHyprlandHints(oldWindow);
+  controller.chatgptPetOverlayApplyHyprlandHints(oldWindow);
   controller.window = { isDestroyed: () => false };
 
   clientsCallback(null, JSON.stringify([{
@@ -1334,7 +1334,7 @@ test("Hyprland callbacks ignore stale overlay windows", () => {
     fullscreen: 0,
     pid: 4242,
     size: [356, 320],
-    title: "Codex Pet Overlay",
+    title: "ChatGPT Pet Overlay",
   }]));
 
   assert.equal(JSON.stringify(calls), JSON.stringify([["clients", "-j"]]));
@@ -1350,7 +1350,7 @@ test("Hyprland workspace and top-order actions respect disabled settings", () =>
       pid: 4242,
       pinned: false,
       size: [356, 320],
-      title: "Codex Pet Overlay",
+      title: "ChatGPT Pet Overlay",
     }]),
     settings: { petOverlay: { allWorkspaces: false, alwaysOnTop: false } },
   });
@@ -1381,8 +1381,8 @@ test("hyprctl stops retrying after ENOENT", () => {
   };
   controller.window = window;
 
-  controller.codexPetOverlayApplyHyprlandHints(window);
-  controller.codexPetOverlayApplyHyprlandHints(window);
+  controller.chatgptPetOverlayApplyHyprlandHints(window);
+  controller.chatgptPetOverlayApplyHyprlandHints(window);
 
   assert.equal(JSON.stringify(calls), JSON.stringify([["clients", "-j"]]));
 });
@@ -1403,7 +1403,7 @@ test("timed-out modern Hyprland dispatch does not run its legacy fallback", () =
     },
   });
 
-  controller.codexPetOverlayHyprlandDispatch(
+  controller.chatgptPetOverlayHyprlandDispatch(
     'hl.dsp.window.pin({ action = "on", window = "address:0xbee" })',
     ["pin", "address:0xbee"],
   );
@@ -1440,22 +1440,22 @@ test("multiple matching Hyprland clients are treated as ambiguous", () => {
       {
         address: "0x201",
         at: [1540, 736],
-        class: "Codex",
+        class: "Other App",
         floating: true,
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         address: "0x202",
         at: [1541, 736],
-        class: "Codex",
+        class: "Other App",
         floating: true,
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1488,12 +1488,12 @@ test("settings can turn Hyprland handling off", () => {
       {
         address: "0x200",
         at: [1540, 736],
-        class: "Codex",
+        class: "Other App",
         floating: true,
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
     settings: { petOverlay: { hyprland: false } },
@@ -1508,15 +1508,15 @@ test("environment overrides can turn Hyprland handling off", () => {
       {
         address: "0x200",
         at: [1540, 736],
-        class: "Codex",
+        class: "Other App",
         floating: true,
         fullscreen: 0,
         pid: 4242,
         size: [356, 320],
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
-    env: { XDG_CURRENT_DESKTOP: "Hyprland", CODEX_PET_OVERLAY_HYPRLAND: "0" },
+    env: { XDG_CURRENT_DESKTOP: "Hyprland", CHATGPT_PET_OVERLAY_HYPRLAND: "0" },
   });
 
   assert.deepEqual(calls, []);
@@ -1530,14 +1530,14 @@ test("targets a tiled Niri pet window by id and moves it without focus actions",
         is_floating: false,
         layout: { window_size: [1920, 1080] },
         pid: 4242,
-        title: "Codex",
+        title: "Other App",
       },
       {
         id: 9,
         is_floating: false,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1589,7 +1589,7 @@ test("Niri move coordinates are output-local to the remembered work area", () =>
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       }]),
     });
 
@@ -1615,7 +1615,7 @@ test("Niri movement stays fail-closed until a display work area is known", () =>
       is_floating: false,
       layout: { window_size: [356, 320] },
       pid: 4242,
-      title: "Codex Pet Overlay",
+      title: "ChatGPT Pet Overlay",
     }]),
   });
 
@@ -1640,13 +1640,13 @@ test("layout remembers the working area used for later Niri local moves", () => 
     windowBounds: { x: 2044, y: 84, width: 356, height: 320 },
   };
 
-  controller.codexPetOverlayLayoutForDisplay(
+  controller.chatgptPetOverlayLayoutForDisplay(
     { workArea: { x: 1920, y: 40, width: 1600, height: 860 } },
     layout,
     { isDestroyed: () => false },
   );
 
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.codexPetOverlayDesiredDisplayBounds)), {
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.chatgptPetOverlayDesiredDisplayBounds)), {
     x: 1920,
     y: 40,
     width: 1600,
@@ -1662,35 +1662,35 @@ test("Niri matching rejects foreign, malformed, and ambiguous pet candidates", (
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: 9999,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         id: "not-safe",
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         id: "13",
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         id: 14,
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: "4242",
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         id: 12,
         is_floating: "yes",
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1704,14 +1704,14 @@ test("Niri matching rejects foreign, malformed, and ambiguous pet candidates", (
         is_floating: true,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
       {
         id: 22,
         is_floating: false,
         layout: { window_size: [356, 320] },
         pid: 4242,
-        title: "Codex Pet Overlay",
+        title: "ChatGPT Pet Overlay",
       },
     ]),
   });
@@ -1739,8 +1739,8 @@ test("Niri callbacks ignore stale overlay windows", () => {
     isDestroyed: () => false,
   };
   controller.window = oldWindow;
-  controller.codexPetOverlayDesiredWindowBounds = { x: 100, y: 100, width: 356, height: 320 };
-  controller.codexPetOverlayApplyNiriHints(oldWindow);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 100, y: 100, width: 356, height: 320 };
+  controller.chatgptPetOverlayApplyNiriHints(oldWindow);
   controller.window = { isDestroyed: () => false };
 
   windowsCallback(null, JSON.stringify([{
@@ -1748,7 +1748,7 @@ test("Niri callbacks ignore stale overlay windows", () => {
     is_floating: false,
     layout: { window_size: [356, 320] },
     pid: 4242,
-    title: "Codex Pet Overlay",
+    title: "ChatGPT Pet Overlay",
   }]));
 
   assert.equal(JSON.stringify(calls), JSON.stringify([["msg", "--json", "windows"]]));
@@ -1774,8 +1774,8 @@ test("missing niri does not keep spawning compositor probes", () => {
   };
   controller.window = window;
 
-  controller.codexPetOverlayApplyNiriHints(window);
-  controller.codexPetOverlayApplyNiriHints(window);
+  controller.chatgptPetOverlayApplyNiriHints(window);
+  controller.chatgptPetOverlayApplyNiriHints(window);
 
   assert.equal(JSON.stringify(calls), JSON.stringify([["msg", "--json", "windows"]]));
 });
@@ -1787,7 +1787,7 @@ test("settings and environment can turn Niri handling off", () => {
       is_floating: true,
       layout: { window_size: [356, 320] },
       pid: 4242,
-      title: "Codex Pet Overlay",
+      title: "ChatGPT Pet Overlay",
     }]),
     settings: { petOverlay: { niri: false } },
   });
@@ -1797,9 +1797,9 @@ test("settings and environment can turn Niri handling off", () => {
       is_floating: true,
       layout: { window_size: [356, 320] },
       pid: 4242,
-      title: "Codex Pet Overlay",
+      title: "ChatGPT Pet Overlay",
     }]),
-    env: { XDG_CURRENT_DESKTOP: "niri", CODEX_PET_OVERLAY_NIRI: "0" },
+    env: { XDG_CURRENT_DESKTOP: "niri", CHATGPT_PET_OVERLAY_NIRI: "0" },
   });
 
   assert.deepEqual(settingsCalls, []);
@@ -1823,8 +1823,8 @@ test("Niri scheduling is coalesced when desired bounds change repeatedly", () =>
   });
   const window = { isDestroyed: () => false };
 
-  controller.codexPetOverlayScheduleNiriHints(window);
-  controller.codexPetOverlayScheduleNiriHints(window);
+  controller.chatgptPetOverlayScheduleNiriHints(window);
+  controller.chatgptPetOverlayScheduleNiriHints(window);
 
   assert.deepEqual(timers.map((timer) => timer.delay), [0, 80, 300, 1000, 0, 80, 300, 1000]);
   assert.deepEqual(cleared, timers.slice(0, 4));
@@ -1834,16 +1834,16 @@ test("Niri drag keeps one move in flight and emits only the latest queued target
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, window } = scenario;
 
-  controller.codexPetOverlayBeginNiriDrag(window);
+  controller.chatgptPetOverlayBeginNiriDrag(window);
   assert.equal(pending.length, 1);
   completePendingNiriCall(scenario, { stdout: niriPetWindow(9) });
   assert.equal(pending.length, 1);
   assert.equal(JSON.stringify(pending[0].args.slice(-4)), JSON.stringify(["-x", "100", "-y", "100"]));
 
-  controller.codexPetOverlayDesiredWindowBounds = { x: 600, y: 100, width: 356, height: 320 };
-  controller.codexPetOverlayQueueNiriDrag(window);
-  controller.codexPetOverlayDesiredWindowBounds = { x: 120, y: 100, width: 356, height: 320 };
-  controller.codexPetOverlayQueueNiriDrag(window);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 600, y: 100, width: 356, height: 320 };
+  controller.chatgptPetOverlayQueueNiriDrag(window);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 120, y: 100, width: 356, height: 320 };
+  controller.chatgptPetOverlayQueueNiriDrag(window);
 
   assert.equal(pending.length, 1, "a second compositor move must not overlap the first");
   completePendingNiriCall(scenario);
@@ -1856,9 +1856,9 @@ test("Niri drag waits for an already-running bootstrap compositor action", () =>
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, window } = scenario;
 
-  controller.codexPetOverlayNiri(["action", "move-floating-window", "--id", "9", "-x", "40", "-y", "40"]);
+  controller.chatgptPetOverlayNiri(["action", "move-floating-window", "--id", "9", "-x", "40", "-y", "40"]);
   assert.equal(pending.length, 1);
-  controller.codexPetOverlayBeginNiriDrag(window);
+  controller.chatgptPetOverlayBeginNiriDrag(window);
   assert.equal(pending.length, 1, "drag discovery must wait for the bootstrap action");
 
   completePendingNiriCall(scenario);
@@ -1870,7 +1870,7 @@ test("completed Niri processes do not schedule another hint batch without a pend
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, timers } = scenario;
 
-  controller.codexPetOverlayNiri(["--json", "windows"]);
+  controller.chatgptPetOverlayNiri(["--json", "windows"]);
   assert.equal(pending.length, 1);
   completePendingNiriCall(scenario, { stdout: "[]" });
 
@@ -1882,7 +1882,7 @@ test("Niri drag floats a tiled pet before its first move", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, window } = scenario;
 
-  controller.codexPetOverlayBeginNiriDrag(window);
+  controller.chatgptPetOverlayBeginNiriDrag(window);
   completePendingNiriCall(scenario, { stdout: niriPetWindow(9, false) });
 
   assert.equal(pending.length, 1);
@@ -1913,8 +1913,8 @@ test("Niri endDrag drains the final move before persisting and docking", () => {
     pointerWindowX: 20,
     pointerWindowY: 20,
   });
-  controller.codexPetOverlayDesiredWindowBounds = { x: 120, y: 100, width: 356, height: 320 };
-  controller.codexPetOverlayQueueNiriDrag(window);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 120, y: 100, width: 356, height: 320 };
+  controller.chatgptPetOverlayQueueNiriDrag(window);
   controller.endDrag(1, {});
 
   assert.deepEqual(completed, []);
@@ -1929,13 +1929,13 @@ test("Niri endDrag drains the final move before persisting and docking", () => {
   assert.equal(completed[0][1], window);
   assert.equal(completed[0][2]?.id, 1);
   assert.deepEqual(completed[1], ["dock", "dock-anchor", "dock-handler"]);
-  assert.equal(controller.codexPetOverlayNiriDragState, null);
+  assert.equal(controller.chatgptPetOverlayNiriDragState, null);
 });
 
 test("stale Niri callbacks clear drag state and reschedule hints for a replacement window", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, timers, window: oldWindow } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(oldWindow);
+  controller.chatgptPetOverlayBeginNiriDrag(oldWindow);
   assert.equal(pending.length, 1);
 
   const newWindow = {
@@ -1946,18 +1946,18 @@ test("stale Niri callbacks clear drag state and reschedule hints for a replaceme
   controller.window = newWindow;
   completePendingNiriCall(scenario, { stdout: niriPetWindow(41) });
 
-  assert.equal(controller.codexPetOverlayNiriDragState, null);
+  assert.equal(controller.chatgptPetOverlayNiriDragState, null);
   assert.deepEqual(timers.map((timer) => timer.delay), [0, 80, 300, 1000]);
 });
 
 test("Niri hint scheduling clears an idle drag state left by a replaced window", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, timers, window: oldWindow } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(oldWindow);
+  controller.chatgptPetOverlayBeginNiriDrag(oldWindow);
   completePendingNiriCall(scenario, { stdout: niriPetWindow(9) });
   completePendingNiriCall(scenario);
   assert.equal(pending.length, 0);
-  assert.notEqual(controller.codexPetOverlayNiriDragState, null);
+  assert.notEqual(controller.chatgptPetOverlayNiriDragState, null);
 
   const newWindow = {
     getBounds: () => ({ x: 300, y: 200, width: 356, height: 320 }),
@@ -1966,16 +1966,16 @@ test("Niri hint scheduling clears an idle drag state left by a replaced window",
   };
   controller.window = newWindow;
   controller.dragState = null;
-  controller.codexPetOverlayScheduleNiriHints(newWindow);
+  controller.chatgptPetOverlayScheduleNiriHints(newWindow);
 
-  assert.equal(controller.codexPetOverlayNiriDragState, null);
+  assert.equal(controller.chatgptPetOverlayNiriDragState, null);
   assert.deepEqual(timers.map((timer) => timer.delay), [0, 80, 300, 1000]);
 });
 
 test("stale Niri discovery callbacks cannot continue a replacement window drag", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, window: oldWindow } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(oldWindow);
+  controller.chatgptPetOverlayBeginNiriDrag(oldWindow);
 
   const newWindow = {
     getBounds: () => ({ x: 300, y: 200, width: 356, height: 320 }),
@@ -1983,8 +1983,8 @@ test("stale Niri discovery callbacks cannot continue a replacement window drag",
     webContents: { id: 2 },
   };
   controller.window = newWindow;
-  controller.codexPetOverlayDesiredWindowBounds = { x: 300, y: 200, width: 356, height: 320 };
-  controller.codexPetOverlayBeginNiriDrag(newWindow);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 300, y: 200, width: 356, height: 320 };
+  controller.chatgptPetOverlayBeginNiriDrag(newWindow);
   assert.equal(pending.length, 1, "replacement discovery must wait for the previous call");
 
   completePendingNiriCall(scenario, { stdout: niriPetWindow(41) });
@@ -1998,7 +1998,7 @@ test("stale Niri discovery callbacks cannot continue a replacement window drag",
 test("Niri drag discovery recovery is bounded and ENOENT aborts immediately", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, timers, window } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(window);
+  controller.chatgptPetOverlayBeginNiriDrag(window);
 
   completePendingNiriCall(scenario, { error: new Error("discovery failed"), stdout: "" });
   assert.deepEqual(timers.map((timer) => timer.delay), [80]);
@@ -2009,22 +2009,22 @@ test("Niri drag discovery recovery is bounded and ENOENT aborts immediately", ()
   completePendingNiriCall(scenario, { stdout: "[]" });
 
   assert.equal(scenario.calls.filter((args) => args.includes("windows")).length, 3);
-  assert.equal(controller.codexPetOverlayNiriDragState, null);
+  assert.equal(controller.chatgptPetOverlayNiriDragState, null);
   assert.equal(pending.length, 0);
 
   const missingScenario = createAsyncNiriDragScenario();
-  missingScenario.controller.codexPetOverlayBeginNiriDrag(missingScenario.window);
+  missingScenario.controller.chatgptPetOverlayBeginNiriDrag(missingScenario.window);
   const missingError = new Error("missing niri");
   missingError.code = "ENOENT";
   completePendingNiriCall(missingScenario, { error: missingError, stdout: "" });
-  assert.equal(missingScenario.controller.codexPetOverlayNiriDragState, null);
+  assert.equal(missingScenario.controller.chatgptPetOverlayNiriDragState, null);
   assert.deepEqual(missingScenario.timers, []);
 });
 
 test("Niri drag action failure invalidates the cached id and rediscovers once serialized", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, timers, window } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(window);
+  controller.chatgptPetOverlayBeginNiriDrag(window);
   completePendingNiriCall(scenario, { stdout: niriPetWindow(9) });
   assert.equal(pending.length, 1);
   assert.equal(pending[0].args.includes("move-floating-window"), true);
@@ -2045,7 +2045,7 @@ test("Niri drag action failure invalidates the cached id and rediscovers once se
 test("stale Niri action completion cannot continue a replacement drag", () => {
   const scenario = createAsyncNiriDragScenario();
   const { controller, pending, window: oldWindow } = scenario;
-  controller.codexPetOverlayBeginNiriDrag(oldWindow);
+  controller.chatgptPetOverlayBeginNiriDrag(oldWindow);
   completePendingNiriCall(scenario, { stdout: niriPetWindow(41) });
   assert.equal(pending.length, 1);
   assert.equal(pending[0].args.includes("41"), true);
@@ -2056,8 +2056,8 @@ test("stale Niri action completion cannot continue a replacement drag", () => {
     webContents: { id: 2 },
   };
   controller.window = newWindow;
-  controller.codexPetOverlayDesiredWindowBounds = { x: 300, y: 200, width: 356, height: 320 };
-  controller.codexPetOverlayBeginNiriDrag(newWindow);
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 300, y: 200, width: 356, height: 320 };
+  controller.chatgptPetOverlayBeginNiriDrag(newWindow);
   assert.equal(pending.length, 1, "replacement drag must not overlap the previous compositor action");
 
   completePendingNiriCall(scenario);
@@ -2094,11 +2094,11 @@ test("KWin Plasma bridge remains available with its runtime override and drag li
   const patched = applyPetOverlayPatch(currentAvatarOverlayBundleFixture());
 
   assert.equal(mergedPetOverlaySettings({}).kwin, true);
-  assert.match(patched, /CODEX_PET_OVERLAY_KWIN/);
-  assert.match(patched, /codexPetOverlayKWinQdbus\(/);
-  assert.match(patched, /codexPetOverlayKWinDragScript\(/);
-  assert.match(patched, /codexPetOverlayBeginKWinDrag\(/);
-  assert.match(patched, /codexPetOverlayEndKWinDrag\(/);
+  assert.match(patched, /CHATGPT_PET_OVERLAY_KWIN/);
+  assert.match(patched, /chatgptPetOverlayKWinQdbus\(/);
+  assert.match(patched, /chatgptPetOverlayKWinDragScript\(/);
+  assert.match(patched, /chatgptPetOverlayBeginKWinDrag\(/);
+  assert.match(patched, /chatgptPetOverlayEndKWinDrag\(/);
 });
 
 test("KWin hints target only the matching Plasma pet and apply its Wayland bounds", () => {
@@ -2123,16 +2123,16 @@ test("KWin hints target only the matching Plasma pet and apply its Wayland bound
   );
   const window = { isDestroyed: () => false };
   controller.window = window;
-  controller.codexPetOverlayDesiredWindowBounds = { x: 610, y: 330, width: 356, height: 320 };
+  controller.chatgptPetOverlayDesiredWindowBounds = { x: 610, y: 330, width: 356, height: 320 };
 
-  controller.codexPetOverlayApplyKWinHints(window);
+  controller.chatgptPetOverlayApplyKWinHints(window);
 
   assert.deepEqual(calls.map(([, args]) => args[2]), [
     "org.kde.kwin.Scripting.loadScript",
     "org.kde.kwin.Scripting.start",
     "org.kde.kwin.Scripting.unloadScript",
   ]);
-  const pet = { caption: "Codex Pet Overlay", frameGeometry: { x: 0, y: 0, width: 356, height: 320 }, pid: 4242 };
+  const pet = { caption: "ChatGPT Pet Overlay", frameGeometry: { x: 0, y: 0, width: 356, height: 320 }, pid: 4242 };
   const foreign = { caption: "ChatGPT", frameGeometry: {}, pid: 4242 };
   vm.runInNewContext(script, { workspace: { raiseWindow() {}, windowList: () => [foreign, pet] } });
   assert.equal(pet.keepAbove, true);
@@ -2162,8 +2162,8 @@ test("KWin drag uses qdbus, cleans up its temporary script, and honors its runti
   let persisted = false;
   controller.window = window;
 
-  controller.codexPetOverlayBeginKWinDrag(window);
-  const scriptPath = controller.codexPetOverlayKWinDragState.scriptPath;
+  controller.chatgptPetOverlayBeginKWinDrag(window);
+  const scriptPath = controller.chatgptPetOverlayKWinDragState.scriptPath;
   assert.deepEqual(calls.slice(0, 2).map(([, args]) => args[2]), [
     "org.kde.kwin.Scripting.loadScript",
     "org.kde.kwin.Scripting.start",
@@ -2177,7 +2177,7 @@ test("KWin drag uses qdbus, cleans up its temporary script, and honors its runti
   const cursorSignal = { callback: null, connect(callback) { this.callback = callback; }, disconnect() {} };
   const removedSignal = { connect() {} };
   const pet = {
-    caption: "Codex Pet Overlay",
+    caption: "ChatGPT Pet Overlay",
     frameGeometry: { x: 100, y: 200, width: 356, height: 320 },
     pid: 4242,
   };
@@ -2197,19 +2197,19 @@ test("KWin drag uses qdbus, cleans up its temporary script, and honors its runti
     { x: 270, y: 360, width: 356, height: 320 },
   );
 
-  controller.codexPetOverlayQueueKWinDrag(window);
+  controller.chatgptPetOverlayQueueKWinDrag(window);
   assert.equal(calls.length, 2, "pointer updates must not spawn compositor processes");
   assert.equal(fs.existsSync(scriptPath), true);
-  assert.equal(controller.codexPetOverlayEndKWinDrag(window, () => { persisted = true; }), true);
+  assert.equal(controller.chatgptPetOverlayEndKWinDrag(window, () => { persisted = true; }), true);
   assert.equal(calls[2][1][2], "org.kde.kwin.Scripting.unloadScript");
   assert.equal(fs.existsSync(scriptPath), false);
   assert.equal(persisted, true);
-  assert.equal(controller.codexPetOverlayKWinDragState, null);
+  assert.equal(controller.chatgptPetOverlayKWinDragState, null);
 
   const overridden = controllerFromPatchedSource(applyPetOverlayPatch(currentAvatarOverlayBundleFixture()), {
-    process: { env: { XDG_CURRENT_DESKTOP: "KDE", CODEX_PET_OVERLAY_KWIN: "0" } },
+    process: { env: { XDG_CURRENT_DESKTOP: "KDE", CHATGPT_PET_OVERLAY_KWIN: "0" } },
   }).controller;
-  assert.equal(overridden.codexPetOverlayShouldUseKWin(), false);
+  assert.equal(overridden.chatgptPetOverlayShouldUseKWin(), false);
 });
 
 test("KWin drag falls back without repeatedly probing missing qdbus commands", () => {
@@ -2229,12 +2229,12 @@ test("KWin drag falls back without repeatedly probing missing qdbus commands", (
   const window = { isDestroyed: () => false };
   controller.window = window;
 
-  controller.codexPetOverlayBeginKWinDrag(window);
+  controller.chatgptPetOverlayBeginKWinDrag(window);
 
   assert.equal(calls, 2);
-  assert.equal(controller.codexPetOverlayKWinDragState, undefined);
+  assert.equal(controller.chatgptPetOverlayKWinDragState, undefined);
   assert.equal(controller.windowServerDragActive, undefined);
 
-  controller.codexPetOverlayBeginKWinDrag(window);
+  controller.chatgptPetOverlayBeginKWinDrag(window);
   assert.equal(calls, 2);
 });

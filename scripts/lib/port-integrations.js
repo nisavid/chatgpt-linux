@@ -11,13 +11,10 @@ const RESERVED_TOP_LEVEL_NAMES = new Set([
   "README.md",
   "integrations.example.json",
   "integrations.json",
-  "features.example.json",
-  "features.json",
 ]);
-// Keep removed integration ids loadable so preserved update-builder configs still rebuild.
-const LEGACY_INTEGRATION_ID_ALIASES = new Map([
-  ["zed-opener", "open-target-discovery"],
-]);
+// Migrate removed integration ids in persisted configs without re-exposing
+// them as available integrations.
+const LEGACY_INTEGRATION_ID_ALIASES = new Map([["zed-opener", "open-target-discovery"]]);
 
 const RUNTIME_HOOK_DIRS = {
   env: { dir: "env.d", executable: false },
@@ -27,11 +24,11 @@ const RUNTIME_HOOK_DIRS = {
   coldStart: { dir: "cold-start.d", executable: true },
   afterExit: { dir: "after-exit.d", executable: true },
 };
-const STAGED_INTEGRATION_MANIFEST_RELATIVE_PATH = ".codex-linux/port-integrations-staged.json";
-const BUILD_INFO_RELATIVE_PATH = ".codex-linux/build-info.json";
+const STAGED_INTEGRATION_MANIFEST_RELATIVE_PATH = ".chatgpt-linux/port-integrations-staged.json";
+const BUILD_INFO_RELATIVE_PATH = ".chatgpt-linux/build-info.json";
 const SUPPORTED_PACKAGE_FORMATS = new Set(["deb", "rpm", "pacman"]);
 const PACKAGE_DEPENDENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9+._:@()=<>~\/-]*$/;
-const RPM_ELF_DEPENDENCY_SUFFIX = "%{codex_elf_suffix}";
+const RPM_ELF_DEPENDENCY_SUFFIX = "%{chatgpt_elf_suffix}";
 const PACKAGE_PATH_COMPONENT_PATTERN = /^(?!-)(?!\.\.?$)[A-Za-z0-9._+@:-]+$/;
 const PACMAN_RESERVED_PACKAGE_TARGETS = new Set([
   ".BUILDINFO",
@@ -49,14 +46,8 @@ function portIntegrationsRoot(options = {}) {
   if (options.integrationsRoot != null) {
     return path.resolve(options.integrationsRoot);
   }
-  if (options.featuresRoot != null) {
-    return path.resolve(options.featuresRoot);
-  }
-  if (process.env.CODEX_PORT_INTEGRATIONS_ROOT?.trim()) {
-    return path.resolve(process.env.CODEX_PORT_INTEGRATIONS_ROOT.trim());
-  }
-  if (process.env.CODEX_LINUX_FEATURES_ROOT?.trim()) {
-    return path.resolve(process.env.CODEX_LINUX_FEATURES_ROOT.trim());
+  if (process.env.CHATGPT_PORT_INTEGRATIONS_ROOT?.trim()) {
+    return path.resolve(process.env.CHATGPT_PORT_INTEGRATIONS_ROOT.trim());
   }
   return defaultPortIntegrationsRoot();
 }
@@ -65,69 +56,37 @@ function portIntegrationsConfigPath(integrationsRoot, options = {}) {
   if (options.integrationsConfigPath != null && String(options.integrationsConfigPath).trim() !== "") {
     return path.resolve(options.integrationsConfigPath);
   }
-  if (options.featuresConfigPath != null && String(options.featuresConfigPath).trim() !== "") {
-    return path.resolve(options.featuresConfigPath);
-  }
-  if (process.env.CODEX_PORT_INTEGRATIONS_CONFIG?.trim()) {
-    return path.resolve(process.env.CODEX_PORT_INTEGRATIONS_CONFIG.trim());
-  }
-  if (process.env.CODEX_LINUX_FEATURES_CONFIG?.trim()) {
-    return path.resolve(process.env.CODEX_LINUX_FEATURES_CONFIG.trim());
+  if (process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG?.trim()) {
+    return path.resolve(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG.trim());
   }
   const localConfig = path.join(integrationsRoot, "integrations.json");
   if (fs.existsSync(localConfig)) {
     return localConfig;
   }
-  const legacyLocalConfig = path.join(integrationsRoot, "features.json");
-  if (fs.existsSync(legacyLocalConfig)) {
-    return legacyLocalConfig;
-  }
-  const legacyCheckoutConfig = legacyCheckoutPortIntegrationsConfigPath(integrationsRoot);
-  if (legacyCheckoutConfig != null && fs.existsSync(legacyCheckoutConfig)) {
-    return legacyCheckoutConfig;
-  }
   const userConfig = isCheckoutPortIntegrationsRoot(integrationsRoot) ? null : portIntegrationsUserConfigPath();
   if (userConfig != null && fs.existsSync(userConfig)) {
     return userConfig;
-  }
-  const legacyUserConfig = isCheckoutPortIntegrationsRoot(integrationsRoot) ? null : legacyPortIntegrationsUserConfigPath();
-  if (legacyUserConfig != null && fs.existsSync(legacyUserConfig)) {
-    return legacyUserConfig;
-  }
-  const legacyExampleConfig = path.join(integrationsRoot, "features.example.json");
-  if (fs.existsSync(legacyExampleConfig)) {
-    return legacyExampleConfig;
   }
   return path.join(integrationsRoot, "integrations.example.json");
 }
 
 function portIntegrationsConfigAppId() {
-  for (const value of [process.env.CODEX_APP_ID, process.env.CODEX_LINUX_APP_ID]) {
+  for (const value of [process.env.CHATGPT_APP_ID, process.env.CHATGPT_LINUX_APP_ID]) {
     const configured = value?.trim();
     if (configured && APP_CONFIG_ID_PATTERN.test(configured)) {
       return configured;
     }
   }
-  return "codex-app";
+  return "chatgpt";
 }
 
 function isCheckoutPortIntegrationsRoot(integrationsRoot) {
   const resolvedRoot = path.resolve(integrationsRoot);
-  if (!["port-integrations", "linux-features"].includes(path.basename(resolvedRoot))) {
+  if (path.basename(resolvedRoot) !== "port-integrations") {
     return false;
   }
   const repoRoot = path.dirname(resolvedRoot);
   return fs.existsSync(path.join(repoRoot, ".git"));
-}
-
-function legacyCheckoutPortIntegrationsConfigPath(integrationsRoot) {
-  const resolvedRoot = path.resolve(integrationsRoot);
-  if (path.basename(resolvedRoot) !== "port-integrations") {
-    return null;
-  }
-  const repoRoot = path.dirname(resolvedRoot);
-  const legacyRoot = path.join(repoRoot, "linux-features");
-  return path.join(legacyRoot, "features.json");
 }
 
 function portIntegrationsUserConfigPath() {
@@ -142,20 +101,6 @@ function portIntegrationsUserConfigPath() {
     return null;
   }
   return path.join(configHome, portIntegrationsConfigAppId(), "port-integrations.json");
-}
-
-function legacyPortIntegrationsUserConfigPath() {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
-  let configHome = null;
-  if (xdgConfigHome && path.isAbsolute(xdgConfigHome)) {
-    configHome = xdgConfigHome;
-  } else if (process.env.HOME?.trim() && path.isAbsolute(process.env.HOME.trim())) {
-    configHome = path.join(process.env.HOME.trim(), ".config");
-  }
-  if (configHome == null) {
-    return null;
-  }
-  return path.join(configHome, portIntegrationsConfigAppId(), "linux-features.json");
 }
 
 function readJsonFile(filePath, label, options = {}) {
@@ -267,7 +212,7 @@ function enabledIntegrationIdsFromBuildInfo(appDir) {
   if (buildInfo == null || typeof buildInfo !== "object" || Array.isArray(buildInfo)) {
     throw new Error(`Packaged app build info at ${buildInfoPath} must be a JSON object`);
   }
-  const enabled = buildInfo.portIntegrations?.enabled ?? buildInfo.linuxFeatures?.enabled;
+  const enabled = buildInfo.portIntegrations?.enabled;
   if (!Array.isArray(enabled)) {
     throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations.enabled`);
   }
@@ -276,7 +221,7 @@ function enabledIntegrationIdsFromBuildInfo(appDir) {
   const ids = [];
   for (const rawId of enabled) {
     const configuredId = assertIntegrationId(rawId, `port integration id in ${buildInfoPath}`);
-    const id = LEGACY_INTEGRATION_ID_ALIASES.get(configuredId) ?? configuredId;
+    const id = configuredId;
     if (seen.has(id)) {
       throw new Error(`Duplicate port integration id in ${buildInfoPath}: ${rawId}`);
     }
@@ -838,7 +783,7 @@ function enabledPortIntegrationInstallPlan(options = {}) {
       }
       for (const [index, entry] of normalizeEntryList(hookSpec, `runtimeHooks.${hookKey}`, integration).entries()) {
         const name = `${integration.id}-${entry.name ?? path.basename(entry.source)}`;
-        const target = [".codex-linux", runtimeHook.dir, name].join("/");
+        const target = [".chatgpt-linux", runtimeHook.dir, name].join("/");
         claimInstallTarget(target, `runtimeHooks.${hookKey} ${index + 1} for integration '${integration.id}'`);
         runtimeHooks.push({
           id: integration.id,
@@ -1067,7 +1012,7 @@ function removeLegacyDeclarativeRuntimeHooks(installDir, options = {}) {
     return;
   }
   for (const runtimeHook of Object.values(RUNTIME_HOOK_DIRS)) {
-    const hookDirRelative = [".codex-linux", runtimeHook.dir].join("/");
+    const hookDirRelative = [".chatgpt-linux", runtimeHook.dir].join("/");
     const hookDir = path.join(installDir, hookDirRelative);
     if (!installRelativeDirectoryExists(installDir, hookDirRelative, "port integration runtime hook directory")) {
       continue;
@@ -1561,7 +1506,7 @@ function main() {
     }
     return;
   }
-  if (command === "--integrations-json" || command === "--features-json") {
+  if (command === "--integrations-json") {
     process.stdout.write(`${JSON.stringify(integrationsJsonSummary(), null, 2)}\n`);
     return;
   }
@@ -1569,7 +1514,7 @@ function main() {
     process.stdout.write(`${JSON.stringify(resolvedPortIntegrationsConfig(), null, 2)}\n`);
     return;
   }
-  if (command === "--integrations-root" || command === "--features-root") {
+  if (command === "--integrations-root") {
     process.stdout.write(`${portIntegrationsRoot()}\n`);
     return;
   }

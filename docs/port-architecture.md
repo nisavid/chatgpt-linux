@@ -1,6 +1,6 @@
 # Port Architecture
 
-This document explains how the Linux port turns the official OpenAI Codex DMG
+This document explains how the Linux port turns the official OpenAI ChatGPT DMG
 into a runnable Linux Electron app. It is an explanation, not a command
 reference. For build commands, use the [Build and Run Guide](usage/build-and-run.md).
 
@@ -18,15 +18,15 @@ graph.
 ```mermaid
 %%{init: {"flowchart": {"curve": "linear"}} }%%
 flowchart TD
-    dmg["Official OpenAI Codex<br/>DMG"]
-    app["Extract Codex.app<br/>read app/Electron versions"]
+    dmg["Official OpenAI ChatGPT<br/>DMG"]
+    app["Extract ChatGPT.app<br/>read app/Electron versions"]
     payload["Extract app.asar<br/>and unpacked resources"]
     native["Clean/rebuild native payload pieces<br/>remove Sparkle<br/>rebuild native addons"]
     patch["Patch payload assumptions<br/>main bundle, webview assets,<br/>metadata"]
     installPayload["Install patched payload<br/>app.asar and webview assets"]
     electron["Install matching<br/>Linux Electron runtime"]
     helpers["Stage Linux helpers<br/>webview server, plugins,<br/>launcher files"]
-    generated["Generated Linux app tree<br/>codex-app/"]
+    generated["Generated Linux app tree<br/>chatgpt/"]
     launch["Launcher orchestration<br/>webview server, CLI path,<br/>Electron flags"]
     package["Optional packages and updater builder<br/>.deb, .rpm, .pkg.tar.zst,<br/>AppImage"]
 
@@ -57,16 +57,16 @@ The diagram separates the three recurring adaptation layers:
 
 Three upstream or downstream boundaries matter when reading this repository:
 
-- **Official OpenAI Codex DMG:** the macOS app artifact used as the app-generation
+- **Official OpenAI ChatGPT DMG:** the macOS app artifact used as the app-generation
   input.
 - **Linux-port upstream:** `ilysenko/codex-desktop-linux`, which owns the primary
   Linux conversion work and much of the runtime enablement.
 - **This fork:** a local hardening and finishing fork that preserves the
-  `codex-app` identity, distro-shaped install layout, updater policy, validation
+  `chatgpt` identity, distro-shaped install layout, updater policy, validation
   gates, and packaging polish.
 
 These boundaries help route questions. App behavior that comes from the official
-Codex service or account policy belongs outside this repository. Broad Linux
+OpenAI-hosted service or account policy belongs outside this repository. Broad Linux
 conversion mechanics usually start with the Linux-port upstream. Package
 identity, local updater behavior, hardening, and distro layout belong here.
 
@@ -143,7 +143,7 @@ Orchestration makes the generated app behave like a Linux desktop app:
 - It chooses Linux Electron flags for sandboxing, Wayland or X11 behavior, GPU
   behavior, app identity, and side-by-side instances.
 - Native packages add distro integration, desktop files, icons, packaged runtime
-  helpers, and the `codex-app-updater` support path.
+  helpers, and the `chatgpt-updater` support path.
 
 Orchestration is intentionally separate from the app payload. The app payload
 contains upstream-derived behavior and Linux patches; the launcher and package
@@ -153,9 +153,9 @@ support decide how that payload starts and integrates with the host.
 
 The build sequence follows the same layers:
 
-1. Download or reuse the official OpenAI Codex DMG.
-2. Extract `Codex.app` from the DMG.
-3. Detect the Codex app version and Electron version from app metadata.
+1. Download or reuse the official OpenAI ChatGPT DMG.
+2. Extract `ChatGPT.app` from the DMG.
+3. Detect the ChatGPT app version and Electron version from app metadata.
 4. Extract `Contents/Resources/app.asar`.
 5. Copy unpacked resources from `app.asar.unpacked` when present.
 6. Remove macOS-only updater modules.
@@ -164,7 +164,7 @@ The build sequence follows the same layers:
 9. Repack the patched app payload as `app.asar`.
 10. Download or reuse a matching Linux Electron runtime.
 11. Copy the patched payload, webview assets, helper resources, and launcher into
-    the generated `codex-app/` tree.
+    the generated `chatgpt/` tree.
 12. Optionally package the generated tree as `.deb`, `.rpm`, `.pkg.tar.zst`, or
     AppImage output.
 
@@ -223,13 +223,13 @@ minified Electron module variable, then rewrite only that narrow expression.
 
 This approach keeps the port practical without hand-editing generated output.
 The durable fix always lives in the installer, patcher, launcher template,
-package templates, updater code, or shared helpers. The generated `codex-app/`
+package templates, updater code, or shared helpers. The generated `chatgpt/`
 tree is inspected for verification, not maintained as source.
 
 ## Runtime Launch
 
-The generated app starts through `codex-app/start.sh`. For native packages, the
-system launcher eventually execs `/opt/codex-app/start.sh`.
+The generated app starts through `chatgpt/start.sh`. For native packages, the
+system launcher eventually execs `/opt/chatgpt/start.sh`.
 
 At launch time, the script:
 
@@ -255,7 +255,7 @@ This port does not:
 - run macOS binaries on Linux through an ABI compatibility layer;
 - emulate AppKit, Mach-O loading, or macOS system services;
 - bypass OpenAI account, rollout, entitlement, MFA, or service-side controls;
-- make `codex-app/` the source of truth for durable fixes;
+- make `chatgpt/` the source of truth for durable fixes;
 - automatically turn every official app feature into a complete Linux-native
   feature.
 
@@ -299,4 +299,4 @@ Use these documents for deeper follow-up:
 | Launcher orchestration | `launcher/start.sh.template` |
 | Bundled plugin and helper staging | `scripts/lib/bundled-plugins.sh`, `plugins/openai-bundled/`, `computer-use-linux/` |
 | Native package payload | `scripts/lib/package-common.sh`, `packaging/linux/`, `packaging/appimage/` |
-| Local updater | `updater/`, `packaging/linux/codex-app-updater.service` |
+| Local updater | `updater/`, `packaging/linux/chatgpt-updater.service` |

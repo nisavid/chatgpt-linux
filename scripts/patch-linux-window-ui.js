@@ -75,7 +75,7 @@ function main() {
       }
       console.error(
         "Aborting: these patches are required for a working Linux app. " +
-          "Set CODEX_ENFORCE_CRITICAL_PATCHES=0 to bypass (emergency builds only).",
+          "Set CHATGPT_ENFORCE_CRITICAL_PATCHES=0 to bypass (emergency builds only).",
       );
       process.exit(1);
     }

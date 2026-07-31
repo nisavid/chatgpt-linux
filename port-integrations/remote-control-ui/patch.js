@@ -1,8 +1,8 @@
 "use strict";
 
 const LINUX_GATE = "navigator.userAgent.includes(`Linux`)";
-const REMOTE_MOBILE_VISIBILITY_MARKER = "codexLinuxRemoteControlVisibilityEnabled";
-const REMOTE_CONTROL_UI_VISIBILITY_MARKER = "codexLinuxRemoteControlUiVisibilityEnabled";
+const REMOTE_MOBILE_VISIBILITY_MARKER = "chatgptLinuxRemoteControlVisibilityEnabled";
+const REMOTE_CONTROL_UI_VISIBILITY_MARKER = "chatgptLinuxRemoteControlUiVisibilityEnabled";
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} — skipping ${patchName}`);

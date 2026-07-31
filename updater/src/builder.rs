@@ -18,7 +18,7 @@ use std::{
 use tokio::process::Command;
 use tracing::info;
 
-const UPDATE_BUILDER_MANIFEST: &str = ".codex-linux/update-builder-manifest.txt";
+const UPDATE_BUILDER_MANIFEST: &str = ".chatgpt-linux/update-builder-manifest.txt";
 
 const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
     ("Cargo.toml", "Cargo.toml"),
@@ -53,15 +53,15 @@ const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
     ),
     ("node-runtime", "node-runtime"),
     ("packaging/linux", "packaging/linux"),
-    ("assets/codex.png", "assets/codex.png"),
-    ("assets/codex-linux.png", "assets/codex-linux.png"),
+    ("assets/chatgpt.png", "assets/chatgpt.png"),
+    ("assets/chatgpt-linux.png", "assets/chatgpt-linux.png"),
     ("port-integrations", "port-integrations"),
 ];
 const OPTIONAL_BUNDLE_FILES: [(&str, &str); 5] = [
     ("CHANGELOG.md", "CHANGELOG.md"),
     (
-        ".codex-linux/source-info.json",
-        ".codex-linux/source-info.json",
+        ".chatgpt-linux/source-info.json",
+        ".chatgpt-linux/source-info.json",
     ),
     ("scripts/build-rpm.sh", "scripts/build-rpm.sh"),
     ("scripts/build-pacman.sh", "scripts/build-pacman.sh"),
@@ -148,17 +148,17 @@ pub async fn build_update_from(
     let mut install = Command::new(workspace.bundle_dir.join("install.sh"));
     install
         .arg(dmg_path)
-        .env("CODEX_INSTALL_DIR", &workspace.app_dir)
+        .env("CHATGPT_INSTALL_DIR", &workspace.app_dir)
         .env(
-            "CODEX_PATCH_REPORT_JSON",
+            "CHATGPT_PATCH_REPORT_JSON",
             workspace.reports_dir.join("patch-report.json"),
         )
         .env(
-            "CODEX_REBUILD_REPORT_JSON",
+            "CHATGPT_REBUILD_REPORT_JSON",
             workspace.reports_dir.join("rebuild-report.json"),
         )
-        .env("CODEX_ACCEPTANCE_OVERRIDE", "0")
-        .env("CODEX_MANAGED_NODE_SOURCE", managed_node_source)
+        .env("CHATGPT_ACCEPTANCE_OVERRIDE", "0")
+        .env("CHATGPT_MANAGED_NODE_SOURCE", managed_node_source)
         .env("PATH", &build_path)
         .current_dir(&workspace.bundle_dir);
     // Honor the user's saved integration selection (the in-app Update picker
@@ -166,7 +166,7 @@ pub async fn build_update_from(
     // integrations. Only set it when the file actually exists; an absent path
     // lets port-integrations.js use its bundled defaults.
     if let Some(integration_config) = &integration_config {
-        install.env("CODEX_PORT_INTEGRATIONS_CONFIG", integration_config);
+        install.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", integration_config);
     }
     run_and_log(&mut install, &workspace.install_log)
         .await
@@ -188,12 +188,12 @@ pub async fn build_update_from(
             "UPDATER_SERVICE_SOURCE",
             workspace
                 .bundle_dir
-                .join("packaging/linux/codex-app-updater.service"),
+                .join("packaging/linux/chatgpt-updater.service"),
         )
         .env("PATH", &build_path)
         .current_dir(&workspace.bundle_dir);
     if let Some(integration_config) = &integration_config {
-        package_build.env("CODEX_PORT_INTEGRATIONS_CONFIG", integration_config);
+        package_build.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", integration_config);
     }
     run_and_log(&mut package_build, &workspace.build_log)
         .await
@@ -238,7 +238,7 @@ impl BuilderWorkspace {
         let workspace_dir = workspace_root.join("workspaces").join(candidate_version);
         let bundle_dir = workspace_dir.join("builder");
         let dist_dir = workspace_dir.join("dist");
-        let app_dir = workspace_dir.join("codex-app");
+        let app_dir = workspace_dir.join("chatgpt");
         let logs_dir = workspace_dir.join("logs");
         let reports_dir = workspace_dir.join("reports");
         let install_log = logs_dir.join("install.log");
@@ -454,7 +454,7 @@ fn stage_git_source_info(source_root: &Path, destination_root: &Path) -> Result<
     let Some(source_info) = GitSourceInfo::capture(source_root) else {
         return Ok(());
     };
-    let info_path = destination_root.join(".codex-linux/source-info.json");
+    let info_path = destination_root.join(".chatgpt-linux/source-info.json");
     let info_dir = info_path
         .parent()
         .context("Source info path has no parent directory")?;
@@ -627,14 +627,14 @@ fn is_native_package_file(path: &Path) -> bool {
 }
 
 fn read_app_package_version(app_dir: &Path) -> Result<String> {
-    let version_file = app_dir.join("codex-app-version.env");
+    let version_file = app_dir.join("chatgpt-version.env");
     let contents = fs::read_to_string(&version_file)
         .with_context(|| format!("Failed to read {}", version_file.display()))?;
     let version = contents
         .lines()
-        .find_map(|line| line.strip_prefix("CODEX_APP_PACKAGE_VERSION="))
+        .find_map(|line| line.strip_prefix("CHATGPT_APP_PACKAGE_VERSION="))
         .map(|value| value.trim_matches(['"', '\'']))
-        .context("codex-app-version.env is missing CODEX_APP_PACKAGE_VERSION")?;
+        .context("chatgpt-version.env is missing CHATGPT_APP_PACKAGE_VERSION")?;
 
     if version
         .split('.')
@@ -643,7 +643,7 @@ fn read_app_package_version(app_dir: &Path) -> Result<String> {
     {
         Ok(version.to_string())
     } else {
-        anyhow::bail!("Invalid CODEX_APP_PACKAGE_VERSION: {version}")
+        anyhow::bail!("Invalid CHATGPT_APP_PACKAGE_VERSION: {version}")
     }
 }
 
@@ -843,7 +843,7 @@ case "$*" in
   "rev-parse HEAD") printf '%s\n' "$FAKE_GIT_COMMIT" ;;
   "status --porcelain --untracked-files=normal") printf '%s' "$FAKE_GIT_STATUS" ;;
   "branch --show-current") printf 'main\n' ;;
-  "remote get-url origin") printf 'https://builder:secret-token@github.com/example/codex-app-linux.git\n' ;;
+  "remote get-url origin") printf 'https://builder:secret-token@github.com/example/chatgpt-linux.git\n' ;;
   "describe --always --dirty --tags") printf '%s\n' "$FAKE_GIT_DESCRIBE" ;;
   *) exit 1 ;;
 esac
@@ -882,29 +882,29 @@ esac
             FakePackageOutput::Deb => {
                 r#"set -euo pipefail
 mkdir -p "${DIST_DIR_OVERRIDE}"
-cp .codex-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
-printf 'CODEX_PORT_INTEGRATIONS_CONFIG=%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}"
-printf '%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
-touch "${DIST_DIR_OVERRIDE}/codex-app_${PACKAGE_VERSION}_amd64.deb"
+cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
+printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
+printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
+touch "${DIST_DIR_OVERRIDE}/chatgpt_${PACKAGE_VERSION}_amd64.deb"
 "#
             }
             FakePackageOutput::Rpm => {
                 r#"set -euo pipefail
 mkdir -p "${DIST_DIR_OVERRIDE}"
-cp .codex-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
-printf 'CODEX_PORT_INTEGRATIONS_CONFIG=%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}"
-printf '%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
-touch "${DIST_DIR_OVERRIDE}/codex-app-${PACKAGE_VERSION}.x86_64.rpm"
+cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
+printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
+printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
+touch "${DIST_DIR_OVERRIDE}/chatgpt-${PACKAGE_VERSION}.x86_64.rpm"
 "#
             }
             FakePackageOutput::Pacman => {
                 r#"set -euo pipefail
 VER="${PACKAGE_VERSION%%+*}"
 mkdir -p "${DIST_DIR_OVERRIDE}"
-cp .codex-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
-printf 'CODEX_PORT_INTEGRATIONS_CONFIG=%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}"
-printf '%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
-touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
+cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
+printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
+printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
+touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
 "#
             }
         };
@@ -957,7 +957,7 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(root.join("computer-use-linux/src"))?;
         fs::write(
             root.join("computer-use-linux/Cargo.toml"),
-            b"[package]\nname = \"codex-computer-use-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            b"[package]\nname = \"chatgpt-computer-use-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )?;
         fs::write(
             root.join("computer-use-linux/src/main.rs"),
@@ -966,7 +966,7 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(root.join("notification-actions-linux/src"))?;
         fs::write(
             root.join("notification-actions-linux/Cargo.toml"),
-            b"[package]\nname = \"codex-notification-actions-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            b"[package]\nname = \"chatgpt-notification-actions-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )?;
         fs::write(
             root.join("notification-actions-linux/src/main.rs"),
@@ -975,13 +975,13 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(root.join("read-aloud-linux/src"))?;
         fs::write(
             root.join("read-aloud-linux/Cargo.toml"),
-            b"[package]\nname = \"codex-read-aloud-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            b"[package]\nname = \"chatgpt-read-aloud-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )?;
         fs::write(root.join("read-aloud-linux/src/main.rs"), b"fn main() {}\n")?;
         fs::create_dir_all(root.join("record-replay-linux/src"))?;
         fs::write(
             root.join("record-replay-linux/Cargo.toml"),
-            b"[package]\nname = \"codex-record-replay-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            b"[package]\nname = \"chatgpt-record-replay-linux\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )?;
         fs::write(
             root.join("record-replay-linux/src/main.rs"),
@@ -990,7 +990,7 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(root.join("updater/src"))?;
         fs::write(
             root.join("updater/Cargo.toml"),
-            b"[package]\nname = \"codex-app-updater\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            b"[package]\nname = \"chatgpt-updater\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )?;
         fs::write(root.join("updater/src/main.rs"), b"fn main() {}\n")?;
         fs::create_dir_all(root.join("plugins/openai-bundled/plugins/computer-use/.codex-plugin"))?;
@@ -1067,7 +1067,7 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
             "FAKE_GIT_COMMIT",
             "FAKE_GIT_DESCRIBE",
             "FAKE_GIT_STATUS",
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_LINUX_SETTINGS_FILE",
         ]);
         let runtime = tokio::runtime::Runtime::new()?;
         let temp = tempdir()?;
@@ -1079,7 +1079,7 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(bundle_root.join("packaging/linux"))?;
         fs::create_dir_all(bundle_root.join("assets"))?;
         fs::create_dir_all(bundle_root.join("node-runtime/bin"))?;
-        fs::create_dir_all(bundle_root.join(".codex-linux"))?;
+        fs::create_dir_all(bundle_root.join(".chatgpt-linux"))?;
         write_fake_computer_use_bundle(&bundle_root)?;
         write_fake_port_integrations_bundle(&bundle_root)?;
         write_fake_patch_bundle(&bundle_root)?;
@@ -1096,69 +1096,69 @@ touch "${DIST_DIR_OVERRIDE}/codex-app-${VER}-1-x86_64.pkg.tar.zst"
             bundle_root.join("launcher/webview-server.py"),
             b"# fake webview server\n",
         )?;
-        fs::write(bundle_root.join("assets/codex.png"), b"png")?;
-        fs::write(bundle_root.join("assets/codex-linux.png"), b"linux png")?;
+        fs::write(bundle_root.join("assets/chatgpt.png"), b"png")?;
+        fs::write(bundle_root.join("assets/chatgpt-linux.png"), b"linux png")?;
         fs::write(
             bundle_root.join("packaging/linux/control"),
-            "Package: codex",
+            "Package: chatgpt",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app.spec"),
-            "Name: codex",
+            bundle_root.join("packaging/linux/chatgpt.spec"),
+            "Name: chatgpt",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app.desktop"),
+            bundle_root.join("packaging/linux/chatgpt.desktop"),
             "[Desktop Entry]",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app-updater.service"),
-            "[Unit]\nDescription=Codex Update Manager\n",
+            bundle_root.join("packaging/linux/chatgpt-updater.service"),
+            "[Unit]\nDescription=ChatGPT Update Manager\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app-updater-user-service.sh"),
+            bundle_root.join("packaging/linux/chatgpt-updater-user-service.sh"),
             "#!/bin/bash\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app-updater.postinst"),
+            bundle_root.join("packaging/linux/chatgpt-updater.postinst"),
             "#!/bin/sh\nexit 0\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app-updater.prerm"),
+            bundle_root.join("packaging/linux/chatgpt-updater.prerm"),
             "#!/bin/sh\nexit 0\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app-updater.postrm"),
+            bundle_root.join("packaging/linux/chatgpt-updater.postrm"),
             "#!/bin/sh\nexit 0\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-packaged-runtime.sh"),
+            bundle_root.join("packaging/linux/chatgpt-packaged-runtime.sh"),
             "#!/bin/bash\n",
         )?;
         fs::write(
             bundle_root.join("packaging/linux/PKGBUILD.template"),
-            "pkgname=codex\n",
+            "pkgname=chatgpt\n",
         )?;
         fs::write(
-            bundle_root.join("packaging/linux/codex-app.install"),
+            bundle_root.join("packaging/linux/chatgpt.install"),
             "post_install() { :; }\n",
         )?;
         fs::write(
             bundle_root.join("install.sh"),
             host_bash_script(
                 r#"set -euo pipefail
-mkdir -p "${CODEX_INSTALL_DIR}"
-echo launcher > "${CODEX_INSTALL_DIR}/start.sh"
-chmod +x "${CODEX_INSTALL_DIR}/start.sh"
-echo CODEX_APP_PACKAGE_VERSION=26.429.20946 > "${CODEX_INSTALL_DIR}/codex-app-version.env"
-cp .codex-linux/source-info.json "${CODEX_INSTALL_DIR}/app-source-info.json"
-printf '%s\n' "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" > "${CODEX_INSTALL_DIR}/install-integration-config-path"
-if [ -n "${CODEX_PATCH_REPORT_JSON:-}" ]; then
-  mkdir -p "$(dirname "$CODEX_PATCH_REPORT_JSON")"
-  printf '{"patches":[]}\n' > "${CODEX_PATCH_REPORT_JSON}"
+mkdir -p "${CHATGPT_INSTALL_DIR}"
+echo launcher > "${CHATGPT_INSTALL_DIR}/start.sh"
+chmod +x "${CHATGPT_INSTALL_DIR}/start.sh"
+echo CHATGPT_APP_PACKAGE_VERSION=26.429.20946 > "${CHATGPT_INSTALL_DIR}/chatgpt-version.env"
+cp .chatgpt-linux/source-info.json "${CHATGPT_INSTALL_DIR}/app-source-info.json"
+printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${CHATGPT_INSTALL_DIR}/install-integration-config-path"
+if [ -n "${CHATGPT_PATCH_REPORT_JSON:-}" ]; then
+  mkdir -p "$(dirname "$CHATGPT_PATCH_REPORT_JSON")"
+  printf '{"patches":[]}\n' > "${CHATGPT_PATCH_REPORT_JSON}"
 fi
-if [ -n "${CODEX_REBUILD_REPORT_JSON:-}" ]; then
-  mkdir -p "$(dirname "$CODEX_REBUILD_REPORT_JSON")"
-  printf '{"appDir":"%s"}\n' "${CODEX_INSTALL_DIR}" > "${CODEX_REBUILD_REPORT_JSON}"
+if [ -n "${CHATGPT_REBUILD_REPORT_JSON:-}" ]; then
+  mkdir -p "$(dirname "$CHATGPT_REBUILD_REPORT_JSON")"
+  printf '{"appDir":"%s"}\n' "${CHATGPT_INSTALL_DIR}" > "${CHATGPT_REBUILD_REPORT_JSON}"
 fi
 "#,
             )?,
@@ -1228,7 +1228,7 @@ fi
         )?;
         let _settings_guard = crate::test_util::EnvVarGuard::set(
             &env_guard,
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_LINUX_SETTINGS_FILE",
             &settings_file,
         );
 
@@ -1241,7 +1241,7 @@ fi
             developer_mode: false,
             workspace_root: cache_root,
             builder_bundle_root: bundle_root,
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -1271,7 +1271,7 @@ fi
             .exists());
         assert!(artifacts
             .workspace_dir
-            .join("builder/assets/codex-linux.png")
+            .join("builder/assets/chatgpt-linux.png")
             .exists());
         assert!(artifacts
             .workspace_dir
@@ -1283,7 +1283,7 @@ fi
             .exists());
         assert!(!artifacts.workspace_dir.join("builder/.git").exists());
         for relative_path in [
-            "codex-app/app-source-info.json",
+            "chatgpt/app-source-info.json",
             "dist/package-source-info.json",
         ] {
             let source_info: serde_json::Value =
@@ -1293,14 +1293,14 @@ fi
             assert_eq!(source_info["branch"], "main");
             assert_eq!(
                 source_info["remote"],
-                "https://github.com/example/codex-app-linux.git"
+                "https://github.com/example/chatgpt-linux.git"
             );
             assert_eq!(source_info["describe"], expected_describe);
             assert_eq!(source_info["dirty"], false);
             assert_eq!(source_info["provenance"], "git");
         }
         for relative_path in [
-            "codex-app/install-integration-config-path",
+            "chatgpt/install-integration-config-path",
             "dist/package-integration-config-path",
         ] {
             assert_eq!(
@@ -1342,7 +1342,7 @@ fi
             .package_verification
             .as_ref()
             .expect("package verification should be recorded for updater-built packages");
-        assert_eq!(verification.package_name, "codex-app");
+        assert_eq!(verification.package_name, "chatgpt");
         assert_eq!(
             verification.package_version,
             crate::install::expected_package_version_from_source(
@@ -1364,7 +1364,7 @@ fi
         let package_build_log =
             fs::read_to_string(artifacts.workspace_dir.join("logs/build-package.log"))?;
         assert!(package_build_log.contains(&format!(
-            "CODEX_PORT_INTEGRATIONS_CONFIG={}",
+            "CHATGPT_PORT_INTEGRATIONS_CONFIG={}",
             saved_integration_config.display()
         )));
         Ok(())
@@ -1392,7 +1392,7 @@ fi
             developer_mode: false,
             workspace_root: temp.path().join("cache"),
             builder_bundle_root: temp.path().join("bundle"),
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
@@ -1439,7 +1439,7 @@ fi
         stage_git_source_info(&source_root, &destination_root)?;
 
         let source_info: serde_json::Value = serde_json::from_slice(&fs::read(
-            destination_root.join(".codex-linux/source-info.json"),
+            destination_root.join(".chatgpt-linux/source-info.json"),
         )?)?;
         assert_eq!(
             source_info["commit"],
@@ -1449,7 +1449,7 @@ fi
         assert_eq!(source_info["describe"], "v0.10.2-dirty");
         assert_eq!(
             source_info["remote"],
-            "https://github.com/example/codex-app-linux.git"
+            "https://github.com/example/chatgpt-linux.git"
         );
         assert_eq!(source_info["provenance"], "git");
         Ok(())
@@ -1475,7 +1475,7 @@ fi
         stage_git_source_info(&source_root, &destination_root)?;
 
         assert!(!destination_root
-            .join(".codex-linux/source-info.json")
+            .join(".chatgpt-linux/source-info.json")
             .exists());
         Ok(())
     }
@@ -1485,7 +1485,7 @@ fi
         let temp = tempdir()?;
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
-        let source_info = destination_root.join(".codex-linux/source-info.json");
+        let source_info = destination_root.join(".chatgpt-linux/source-info.json");
         fs::create_dir_all(&source_root)?;
         fs::create_dir_all(source_info.parent().unwrap())?;
         fs::write(&source_info, "{\"commit\":\"packaged\"}\n")?;
@@ -1503,28 +1503,28 @@ fi
     fn sanitizes_credential_bearing_network_remotes() {
         assert_eq!(
             sanitize_git_remote(Some(
-                "ssh://builder:secret-token@github.com/example/codex-app-linux.git".to_string()
+                "ssh://builder:secret-token@github.com/example/chatgpt-linux.git".to_string()
             )),
-            Some("ssh://github.com/example/codex-app-linux.git".to_string())
+            Some("ssh://github.com/example/chatgpt-linux.git".to_string())
         );
         assert_eq!(
             sanitize_git_remote(Some(
-                "private-user@github.com:example/codex-app-linux.git".to_string()
+                "private-user@github.com:example/chatgpt-linux.git".to_string()
             )),
-            Some("github.com:example/codex-app-linux.git".to_string())
+            Some("github.com:example/chatgpt-linux.git".to_string())
         );
     }
 
     #[test]
     fn rejects_local_and_custom_git_remotes() {
         for remote in [
-            "/home/builder/private/codex-app-linux",
-            "./private/codex-app-linux",
-            "../private/codex-app-linux",
-            "~/private/codex-app-linux",
-            "private/codex-app-linux",
-            "file:///home/builder/private/codex-app-linux",
-            "C:\\Users\\builder\\private\\codex-app-linux",
+            "/home/builder/private/chatgpt-linux",
+            "./private/chatgpt-linux",
+            "../private/chatgpt-linux",
+            "~/private/chatgpt-linux",
+            "private/chatgpt-linux",
+            "file:///home/builder/private/chatgpt-linux",
+            "C:\\Users\\builder\\private\\chatgpt-linux",
             "ext::ssh -i /home/builder/.ssh/private_key github.com %S",
             "custom://builder:secret@internal.example/private/repo.git",
         ] {
@@ -1549,7 +1549,7 @@ fi
         .enumerate()
         {
             let bundle_root = temp.path().join(format!("bundle-{index}"));
-            let source_info = bundle_root.join(".codex-linux/source-info.json");
+            let source_info = bundle_root.join(".chatgpt-linux/source-info.json");
             let script_path = bundle_root.join("build-package.sh");
             let dist_dir = bundle_root.join("dist");
             fs::create_dir_all(source_info.parent().unwrap())?;
@@ -1618,14 +1618,14 @@ fi
         fs::write(source_root.join("node-runtime/bin/node"), b"node")?;
         fs::write(
             source_root.join("packaging/linux/control"),
-            b"Package: codex\n",
+            b"Package: chatgpt\n",
         )?;
         fs::write(
-            source_root.join("packaging/linux/codex-app-updater.service"),
-            b"[Unit]\nDescription=Codex Update Manager\n",
+            source_root.join("packaging/linux/chatgpt-updater.service"),
+            b"[Unit]\nDescription=ChatGPT Update Manager\n",
         )?;
-        fs::write(source_root.join("assets/codex.png"), b"png")?;
-        fs::write(source_root.join("assets/codex-linux.png"), b"linux png")?;
+        fs::write(source_root.join("assets/chatgpt.png"), b"png")?;
+        fs::write(source_root.join("assets/chatgpt-linux.png"), b"linux png")?;
 
         copy_builder_bundle(&source_root, &destination_root)?;
 
@@ -1646,7 +1646,7 @@ fi
         assert!(destination_root.join("read-aloud-linux").exists());
         assert!(destination_root.join("record-replay-linux").exists());
         assert!(destination_root.join("updater").exists());
-        assert!(destination_root.join("assets/codex-linux.png").exists());
+        assert!(destination_root.join("assets/chatgpt-linux.png").exists());
         assert!(destination_root
             .join("plugins/openai-bundled/plugins/computer-use/.mcp.json")
             .exists());
@@ -1671,24 +1671,24 @@ fi
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
 
-        fs::create_dir_all(source_root.join(".codex-linux"))?;
+        fs::create_dir_all(source_root.join(".chatgpt-linux"))?;
         fs::create_dir_all(source_root.join("assets"))?;
         fs::create_dir_all(source_root.join("record-replay-linux"))?;
         fs::create_dir_all(source_root.join("scripts"))?;
-        fs::write(source_root.join("assets/codex-linux.png"), b"linux png")?;
+        fs::write(source_root.join("assets/chatgpt-linux.png"), b"linux png")?;
         fs::write(
             source_root.join("record-replay-linux/Cargo.toml"),
-            b"[package]\nname = \"codex-record-replay-linux\"\n",
+            b"[package]\nname = \"chatgpt-record-replay-linux\"\n",
         )?;
         fs::write(source_root.join("scripts/build-deb.sh"), b"#!/bin/bash\n")?;
         fs::write(
             source_root.join(UPDATE_BUILDER_MANIFEST),
-            b"# generated\nassets/codex-linux.png\nrecord-replay-linux/Cargo.toml\n",
+            b"# generated\nassets/chatgpt-linux.png\nrecord-replay-linux/Cargo.toml\n",
         )?;
 
         copy_builder_bundle(&source_root, &destination_root)?;
 
-        assert!(destination_root.join("assets/codex-linux.png").exists());
+        assert!(destination_root.join("assets/chatgpt-linux.png").exists());
         assert!(destination_root
             .join("record-replay-linux/Cargo.toml")
             .exists());
@@ -1703,7 +1703,7 @@ fi
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
 
-        fs::create_dir_all(source_root.join(".codex-linux"))?;
+        fs::create_dir_all(source_root.join(".chatgpt-linux"))?;
         fs::write(source_root.join(UPDATE_BUILDER_MANIFEST), b"../escape\n")?;
 
         let error = copy_builder_bundle(&source_root, &destination_root)
@@ -1720,7 +1720,7 @@ fi
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
 
-        fs::create_dir_all(source_root.join(".codex-linux"))?;
+        fs::create_dir_all(source_root.join(".chatgpt-linux"))?;
         fs::write(source_root.join(UPDATE_BUILDER_MANIFEST), b"/tmp/escape\n")?;
 
         let error = copy_builder_bundle(&source_root, &destination_root)
@@ -1748,7 +1748,7 @@ fi
         let temp = tempdir()?;
         let pkg_path = temp
             .path()
-            .join("codex-app-2026.03.30.120000-1-x86_64.pkg.tar.zst");
+            .join("chatgpt-2026.03.30.120000-1-x86_64.pkg.tar.zst");
         fs::write(&pkg_path, b"pkg")?;
 
         let found = find_package_in(temp.path())?;
@@ -1779,7 +1779,7 @@ fi
 
     #[test]
     fn build_command_path_includes_system_dirs() {
-        let path = build_command_path(Path::new("/tmp/missing-codex-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
 
         assert!(directories.iter().any(|dir| dir == Path::new("/usr/bin")));
@@ -1796,7 +1796,7 @@ fi
         let original_home = std::env::var_os("HOME");
         std::env::set_var("HOME", temp.path());
 
-        let path = build_command_path(Path::new("/tmp/missing-codex-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
 
         if let Some(home) = original_home {
             std::env::set_var("HOME", home);
@@ -1844,7 +1844,7 @@ fi
 
         let _home_guard = crate::test_util::EnvVarGuard::set(&_env_guard, "HOME", &home_dir);
 
-        let path = build_command_path(Path::new("/tmp/missing-codex-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
 
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
         assert!(directories.iter().any(|dir| dir == &cargo_bin));
@@ -1863,7 +1863,7 @@ fi
 
         let _home_guard = crate::test_util::EnvVarGuard::set(&_env_guard, "HOME", &home_dir);
 
-        let path = build_command_path(Path::new("/tmp/missing-codex-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
 
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
         assert!(!directories.iter().any(|dir| dir == &cargo_bin));

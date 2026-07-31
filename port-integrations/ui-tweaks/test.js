@@ -211,7 +211,7 @@ test("model picker opens advanced view and renders model choices inline", () => 
   assert.match(patchedState, ADVANCED_MENU_VIEW_PATTERN);
   assert.doesNotMatch(patchedState, SIMPLE_MENU_VIEW_PATTERN);
   assert.match(patchedMenu, new RegExp(INLINE_MODEL_LIST_RUNTIME_MARKER));
-  assert.match(patchedMenu, /children:\[ie,\/\*codex-linux-inline-model-list\*\//);
+  assert.match(patchedMenu, /children:\[ie,\/\*chatgpt-linux-inline-model-list\*\//);
   assert.equal(applyDefaultAdvancedViewPatch(patchedState), patchedState);
   assert.equal(applyInlineModelListPatch(patchedMenu), patchedMenu);
 });

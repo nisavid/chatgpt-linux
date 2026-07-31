@@ -30,16 +30,23 @@ function applyPatchTwice(patchFn, source) {
 }
 
 function modelCatalogFixture() {
-  return "function vbe({authMethod:e,availableModels:t,defaultModel:n,enabledReasoningEfforts:r,includeUltraReasoningEffort:i,models:a,useHiddenModels:o}){let s=[],c=null,l=o&&e!==`amazonBedrock`;return a.forEach(n=>{if(l?t.has(n.model):!n.hidden){s.push(n),n.isDefault&&(c=n)}}),c??=s.find(e=>e.model===n)??null,{models:s,defaultModel:c}}";
+  return [
+    "function Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:i}){return e?.has(r.model)===!0||(i&&t!==`amazonBedrock`?n.has(r.model):!r.hidden)}",
+    "function vbe({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,models:o,useHiddenModels:s}){let c=[],l=null;return o.forEach(r=>{if(Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:s})){c.push(r),r.isDefault&&(l=r)}}),l??=c.find(e=>e.model===r)??null,{models:c,defaultModel:l}}",
+  ].join("");
 }
 
 function serviceTierCompatibleFixture() {
-  return "function vbe({authMethod:e,availableModels:t,defaultModel:n,enabledReasoningEfforts:r,includeUltraReasoningEffort:i,models:a,useHiddenModels:o}){let s=[],c=null,l=o&&e!==`amazonBedrock`,u=a.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),d=i&&a.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return a.forEach(n=>{if(l?t.has(n.model):!n.hidden){let t=i?n.supportedReasoningEfforts:n.supportedReasoningEfforts.filter(({reasoningEffort:e})=>e!==`ultra`),a=(e===`copilot`?[t.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:t).filter(({reasoningEffort:e})=>Gx(e)&&r.has(e)),o={...n,supportedReasoningEfforts:a};s.push(o),n.isDefault&&(c=o)}}),c??=s.find(e=>e.model===n)??null,{models:s,defaultModel:c}}";
+  return [
+    "function Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:i}){return e?.has(r.model)===!0||(i&&t!==`amazonBedrock`?n.has(r.model):!r.hidden)}",
+    "function vbe({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,models:o,useHiddenModels:s}){let c=[],l=null,u=o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),d=a&&o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return o.forEach(r=>{if(Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:s})){let n=a?r.supportedReasoningEfforts:r.supportedReasoningEfforts.filter(({reasoningEffort:e})=>e!==`ultra`),o=(t===`copilot`?[n.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:n).filter(({reasoningEffort:e})=>Gx(e)&&i.has(e)),s={...r,supportedReasoningEfforts:o};c.push(s),r.isDefault&&(l=s)}}),l??=c.find(e=>e.model===r)??null,{models:c,defaultModel:l}}",
+  ].join("");
 }
 
-function evaluateCatalog(source, authMethod, useHiddenModels = true) {
+function evaluateCatalog(source, authMethod, useHiddenModels = true, additionalAvailableModels) {
   const catalog = Function(`${source};return vbe;`)();
   return catalog({
+    additionalAvailableModels,
     authMethod,
     availableModels: new Set(["gpt-5.5"]),
     defaultModel: "gpt-5.5",
@@ -80,18 +87,18 @@ function integrationSelection(integrationsRoot, enabled) {
 }
 
 function withFeatureConfig(enabled, callback) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   return withTempDir((tempDir) => {
     const configPath = path.join(tempDir, "integrations.json");
     fs.writeFileSync(configPath, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = configPath;
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     try {
       return callback(path.resolve(__dirname, ".."));
     } finally {
       if (originalConfig == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
       } else {
-        process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
       }
     }
   });
@@ -116,7 +123,7 @@ test("descriptor is optional and targets app main webview chunks", () => {
     descriptors.map((descriptor) => [descriptor.id, descriptor.phase, descriptor.ciPolicy]),
     [["api-key-model-visibility-ui", "webview-asset", "optional"]],
   );
-  assert.equal(descriptors[0].pattern.test("app-initial~app-main~onboarding-page-abc.js"), true);
+  assert.equal(descriptors[0].pattern.test("app-initial-DRyZ1Lin.js"), true);
   assert.equal(descriptors[0].pattern.test("settings-page-abc.js"), false);
 });
 
@@ -124,7 +131,7 @@ test("API-key hosts use visible CLI models instead of the desktop allowlist", ()
   const patched = applyPatchTwice(applyApiKeyModelVisibilityPatch, modelCatalogFixture());
   const catalog = evaluateCatalog(patched, "apikey");
 
-  assert.match(patched, /e!==`apikey`\/\*codexLinuxApiKeyModelVisibility\*\//);
+  assert.match(patched, /t!==`apikey`\/\*chatgptLinuxApiKeyModelVisibility\*\//);
   assert.deepEqual(modelNames(catalog), [
     "gpt-5.6-sol",
     "gpt-5.6-terra",
@@ -138,6 +145,18 @@ test("API-key hosts still exclude models marked hidden by the CLI", () => {
   const patched = applyApiKeyModelVisibilityPatch(modelCatalogFixture());
 
   assert.equal(modelNames(evaluateCatalog(patched, "apikey")).includes("codex-auto-review"), false);
+});
+
+test("explicit additional models retain the official helper override", () => {
+  const patched = applyApiKeyModelVisibilityPatch(modelCatalogFixture());
+  const catalog = evaluateCatalog(
+    patched,
+    "chatgpt",
+    true,
+    new Set(["codex-auto-review"]),
+  );
+
+  assert.deepEqual(modelNames(catalog), ["gpt-5.5", "codex-auto-review"]);
 });
 
 test("ChatGPT and existing no-allowlist paths keep their upstream behavior", () => {
@@ -169,15 +188,15 @@ test("model visibility composes with provider-authoritative API key service tier
 
   assert.equal(visibilityFirst, serviceTierFirst);
   for (const patched of [visibilityFirst, serviceTierFirst]) {
-    assert.match(patched, /codexLinuxApiKeyModelVisibility/);
-    assert.doesNotMatch(patched, /codexLinuxApiKeyServiceTierModel/);
+    assert.match(patched, /chatgptLinuxApiKeyModelVisibility/);
+    assert.doesNotMatch(patched, /chatgptLinuxApiKeyServiceTierModel/);
   }
 });
 
 test("extended upstream model gates fail soft instead of patching mid-expression", () => {
   const source = modelCatalogFixture().replace(
-    "l=o&&e!==`amazonBedrock`;",
-    "l=o&&e!==`amazonBedrock`&&featureGate;",
+    "i&&t!==`amazonBedrock`?",
+    "i&&t!==`amazonBedrock`&&featureGate?",
   );
 
   assert.equal(applyApiKeyModelVisibilityPatch(source), source);
@@ -187,7 +206,7 @@ test("enabled descriptor patches a matching extracted webview asset", () => {
   withFeatureConfig(["api-key-model-visibility"], (integrationsRoot) => {
     withTempDir((extractedDir) => {
       const assetsDir = path.join(extractedDir, "webview", "assets");
-      const assetPath = path.join(assetsDir, "app-initial~app-main~fixture.js");
+      const assetPath = path.join(assetsDir, "app-initial-fixture.js");
       fs.mkdirSync(assetsDir, { recursive: true });
       fs.writeFileSync(assetPath, modelCatalogFixture());
 
@@ -196,7 +215,7 @@ test("enabled descriptor patches a matching extracted webview asset", () => {
       );
       applyWebviewAssetPatchDescriptors(extractedDir, normalized, {}, null);
 
-      assert.match(fs.readFileSync(assetPath, "utf8"), /codexLinuxApiKeyModelVisibility/);
+      assert.match(fs.readFileSync(assetPath, "utf8"), /chatgptLinuxApiKeyModelVisibility/);
     });
   });
 });

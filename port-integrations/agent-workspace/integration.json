@@ -9,7 +9,7 @@
   "resources": [
     {
       "source": "skills/agent-workspace-linux/SKILL.md",
-      "target": ".codex-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md",
+      "target": ".chatgpt-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md",
       "mode": "0644"
     }
   ],

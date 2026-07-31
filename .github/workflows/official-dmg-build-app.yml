@@ -44,7 +44,7 @@ concurrency:
 
 env:
   OFFICIAL_DMG_URL: https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg
-  OFFICIAL_DMG_PATH: /tmp/codex-official-dmg-ci/ChatGPT.dmg
+  OFFICIAL_DMG_PATH: /tmp/chatgpt-official-dmg-ci/ChatGPT.dmg
   DMG_CACHE_SCHEMA_VERSION: v1
 
 jobs:
@@ -151,18 +151,18 @@ jobs:
         id: acceptance-build
         continue-on-error: true
         env:
-          CODEX_ACCEPTANCE_DECISION_JSON: ${{ github.workspace }}/official-dmg-decision.json
-          CODEX_ACCEPTANCE_OVERRIDE: '0'
-          CODEX_ACCEPTANCE_SOURCE: github-actions
-          CODEX_UPSTREAM_DMG_METADATA_JSON: ${{ github.workspace }}/official-dmg-metadata.json
+          CHATGPT_ACCEPTANCE_DECISION_JSON: ${{ github.workspace }}/official-dmg-decision.json
+          CHATGPT_ACCEPTANCE_OVERRIDE: '0'
+          CHATGPT_ACCEPTANCE_SOURCE: github-actions
+          CHATGPT_UPSTREAM_DMG_METADATA_JSON: ${{ github.workspace }}/official-dmg-metadata.json
           REBUILD_REPORT_DIR: ${{ github.workspace }}/official-acceptance
         run: make build-app DMG="$OFFICIAL_DMG_PATH"
 
       - name: Import staged Browser clients through node_repl
         if: steps.acceptance-build.outcome == 'success'
         env:
-          CODEX_NODE_REPL_PATH: ${{ github.workspace }}/codex-app/resources/node_repl
-          CODEX_STAGED_BUNDLED_PLUGINS_ROOT: ${{ github.workspace }}/codex-app/resources/plugins/openai-bundled/plugins
+          CODEX_NODE_REPL_PATH: ${{ github.workspace }}/chatgpt/resources/node_repl
+          CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT: ${{ github.workspace }}/chatgpt/resources/plugins/openai-bundled/plugins
         run: node --test scripts/lib/browser-client-node-repl-runtime.test.js
 
       - name: Upload official DMG metadata artifact

@@ -43,8 +43,8 @@ impl CliRepairProcessFixture {
     fn env(&self) -> Vec<(&'static str, &Path)> {
         vec![
             ("PATH", &self.bin_dir),
-            ("CODEX_APP_UPDATER_TEST_CLI_PATH", &self.cli_path),
-            ("CODEX_APP_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", &self.root),
+            ("CHATGPT_UPDATER_TEST_CLI_PATH", &self.cli_path),
+            ("CHATGPT_UPDATER_SKIP_SYSTEM_CLI_LOOKUP", &self.root),
             ("NPM_ACTIVE_PACKAGE", &self.active_package),
             ("NPM_RETIREMENT_PATH", &self.stale_directory),
             ("NPM_MANAGED_CLI", &self.cli_path),
@@ -167,7 +167,7 @@ fn waiting_status_revalidates_successful_cli_install_before_running_npm() -> Res
 
     let mut second_env = common_env.clone();
     second_env.push((
-        "CODEX_APP_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
+        "CHATGPT_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
         &lock_waiting,
     ));
     let second = spawn_process_test_child(temp.path(), "cli-status", &second_env, &[])?;
@@ -225,7 +225,7 @@ fn explicit_repair_preserves_concurrent_status_state_and_quarantine() -> Result<
     persisted.save(&fixture.paths.state_file)?;
     let mut status_env = common_env.clone();
     status_env.push((
-        "CODEX_APP_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
+        "CHATGPT_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
         &lock_waiting,
     ));
     let status = spawn_process_test_child(temp.path(), "cli-status", &status_env, &[])?;
@@ -287,7 +287,7 @@ fn missing_cli_waiter_uses_the_repair_completed_under_the_lock() -> Result<()> {
     let lock_waiting = temp.path().join("missing-cli-lock.waiting");
     let mut missing_env = fixture.env();
     missing_env.push((
-        "CODEX_APP_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
+        "CHATGPT_UPDATER_TEST_CLI_INSTALL_LOCK_WAITING",
         &lock_waiting,
     ));
     missing_env.push(("NPM_VIEW_RESULT", Path::new("failure")));
@@ -332,12 +332,9 @@ fn status_loaded_before_repair_cannot_restore_its_stale_cli_snapshot() -> Result
     let entrypoint_loaded = temp.path().join("entrypoint.loaded");
     let entrypoint_continue = temp.path().join("entrypoint.continue");
     let mut status_env = fixture.env();
+    status_env.push(("CHATGPT_UPDATER_TEST_ENTRYPOINT_LOADED", &entrypoint_loaded));
     status_env.push((
-        "CODEX_APP_UPDATER_TEST_ENTRYPOINT_LOADED",
-        &entrypoint_loaded,
-    ));
-    status_env.push((
-        "CODEX_APP_UPDATER_TEST_ENTRYPOINT_CONTINUE",
+        "CHATGPT_UPDATER_TEST_ENTRYPOINT_CONTINUE",
         &entrypoint_continue,
     ));
     status_env.push(("NPM_VIEW_RESULT", Path::new("failure")));
@@ -399,7 +396,7 @@ fn diagnose_subprocess_is_read_only_and_explains_pending_cli_repair() -> Result<
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("stale npm retirement directory"));
-    assert!(stdout.contains("codex-app-updater repair-cli"));
+    assert!(stdout.contains("chatgpt-updater repair-cli"));
     assert_eq!(std::fs::read(journal_path)?, before);
     assert!(!paths.log_file.exists());
     assert!(!paths.config_file.exists());

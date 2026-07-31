@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 : "${INSTALL_DIR:?INSTALL_DIR is required}"
 
-native_binary="$INSTALL_DIR/resources/native/codex-record-replay-linux"
+native_binary="$INSTALL_DIR/resources/native/chatgpt-record-replay-linux"
 plugin_dir="$INSTALL_DIR/resources/plugins/openai-bundled/plugins/record-and-replay"
 marketplace="$INSTALL_DIR/resources/plugins/openai-bundled/.agents/plugins/marketplace.json"
 

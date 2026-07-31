@@ -44,7 +44,7 @@ async fn run() -> Result<()> {
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<String> {
     let mut args = args.into_iter();
     let Some(command) = args.next() else {
-        bail!("usage: codex-global-dictation-linux portal --accelerator <shortcut>");
+        bail!("usage: chatgpt-global-dictation-linux portal --accelerator <shortcut>");
     };
     if command != "portal" {
         bail!("unknown command: {command}");

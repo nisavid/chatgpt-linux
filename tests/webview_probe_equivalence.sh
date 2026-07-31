@@ -118,10 +118,10 @@ load_new_impls() {
     unset -f webview_port_is_open verify_webview_origin
 }
 
-# webview_port_is_open__new reads the global $CODEX_LINUX_WEBVIEW_PORT.
+# webview_port_is_open__new reads the global $CHATGPT_LINUX_WEBVIEW_PORT.
 # Adapter so the test can target arbitrary ports without leaking state.
 webview_port_is_open_at__new() {
-    local CODEX_LINUX_WEBVIEW_PORT="$1"
+    local CHATGPT_LINUX_WEBVIEW_PORT="$1"
     webview_port_is_open__new
 }
 
@@ -196,7 +196,7 @@ PY
 # ─── Fixture server ────────────────────────────────────────────────────────
 setup_server() {
     FIXTURES=$(mktemp -d) || fail "mktemp -d failed"
-    mkdir -p "$FIXTURES/assets/nested" "$FIXTURES/.codex-linux"
+    mkdir -p "$FIXTURES/assets/nested" "$FIXTURES/.chatgpt-linux"
     cat >"$FIXTURES/index.html" <<'EOF'
 <!doctype html>
 <html>
@@ -204,7 +204,7 @@ setup_server() {
 <body>
 <div id="startup-loader">loading</div>
 <script type="module" src="./assets/app-test.js"></script>
-<script>console.log('Codex webview');</script>
+<script>console.log('ChatGPT webview');</script>
 </body>
 </html>
 EOF
@@ -220,7 +220,7 @@ EOF
 <html><head><title>Codex</title></head>
 <body>no loader marker</body></html>
 EOF
-    WEBVIEW_INTEGRITY_FILE="$FIXTURES/.codex-linux/webview-integrity.sha256"
+    WEBVIEW_INTEGRITY_FILE="$FIXTURES/.chatgpt-linux/webview-integrity.sha256"
     python3 - "$FIXTURES" > "$WEBVIEW_INTEGRITY_FILE" <<'PY'
 import hashlib
 import pathlib

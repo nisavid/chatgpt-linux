@@ -1,6 +1,6 @@
 # Pet Overlay
 
-This optional port integration makes the Codex avatar window behave more like a
+This optional port integration makes the ChatGPT avatar window behave more like a
 desktop pet overlay on compositors that support the required window hints. It
 is disabled by default and lives entirely under `port-integrations/`.
 
@@ -72,27 +72,27 @@ drag/input opt-in.
 Runtime overrides are also supported after restart:
 
 ```bash
-CODEX_PET_OVERLAY_MARGIN=16
-CODEX_PET_OVERLAY_GRAVITY=bottom-left
-CODEX_PET_OVERLAY_MODE=passive
-CODEX_PET_OVERLAY_LOCK_POSITION=1
-CODEX_PET_OVERLAY_HYPRLAND=0
-CODEX_PET_OVERLAY_KWIN=0
-CODEX_PET_OVERLAY_NIRI=0
+CHATGPT_PET_OVERLAY_MARGIN=16
+CHATGPT_PET_OVERLAY_GRAVITY=bottom-left
+CHATGPT_PET_OVERLAY_MODE=passive
+CHATGPT_PET_OVERLAY_LOCK_POSITION=1
+CHATGPT_PET_OVERLAY_HYPRLAND=0
+CHATGPT_PET_OVERLAY_KWIN=0
+CHATGPT_PET_OVERLAY_NIRI=0
 ```
 
 The integration keeps GPU compositing enabled by default so the transparent overlay
 can render correctly. An explicit user value takes precedence: launching with
-`CODEX_ELECTRON_DISABLE_GPU_COMPOSITING=1` still enables the documented Wayland
+`CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1` still enables the documented Wayland
 stability workaround if the main window flickers or leaves stale frame trails.
 
-The legacy `CODEX_PET_LINUX_*` names from the prototype are still accepted for
+The legacy `CHATGPT_PET_LINUX_*` names from the prototype are still accepted for
 local compatibility.
 
 ## Hyprland Notes
 
 When `hyprland` is enabled, the integration reads `hyprctl clients -j`, selects
-only an unambiguous floating window with the exact `Codex Pet Overlay` title,
+only an unambiguous floating window with the exact `ChatGPT Pet Overlay` title,
 the current process ID, and matching geometry, then applies targeted
 compositor actions to the matched `address:0x...` selector. When position
 locking is enabled, it also uses Hyprland's native window movement dispatch so
@@ -102,7 +102,7 @@ Workspace pinning and top-order changes follow `allWorkspaces` and
 `alwaysOnTop`; disabling either setting actively removes the corresponding
 Electron hint and stops issuing that Hyprland action.
 
-Hyprland command failures are ignored so launching Codex does not depend on
+Hyprland command failures are ignored so launching ChatGPT does not depend on
 `hyprctl` being present.
 
 ## KDE Plasma Notes
@@ -110,7 +110,7 @@ Hyprland command failures are ignored so launching Codex does not depend on
 On Plasma Wayland, Electron's client-side always-on-top and positioning calls
 are advisory and KWin may ignore them. When `kwin` is enabled, the integration uses
 KWin's session-bus scripting interface to match the one window with the exact
-`Codex Pet Overlay` title and current process id. It applies `keepAbove`,
+`ChatGPT Pet Overlay` title and current process id. It applies `keepAbove`,
 all-desktop, task-switcher, and border hints directly in KWin.
 
 Live dragging loads one short-lived KWin script at pointer-down. The script
@@ -126,7 +126,7 @@ normal behavior without blocking the app.
 ## Niri Notes
 
 When `niri` is enabled, the integration reads `niri msg --json windows`, selects
-only an unambiguous window with the exact `Codex Pet Overlay` title and the
+only an unambiguous window with the exact `ChatGPT Pet Overlay` title and the
 current process ID, then targets that numeric window id with
 `move-window-to-floating` and `move-floating-window`. Movement uses the
 output-local coordinates of the Electron working area, not global desktop
@@ -149,7 +149,7 @@ Niri, you can also add a window rule that matches the pet overlay:
 
 ```kdl
 window-rule {
-    match title="^Codex Pet Overlay$"
+    match title="^ChatGPT Pet Overlay$"
     open-floating true
     open-focused false
 }
@@ -173,7 +173,7 @@ For a manual check, enable the integration, rebuild, and launch the app:
   to move the window, and drag the mascot to reposition it inside the view.
   Tray controls should remain clickable, and the window position lasts only
   for the running session.
-- Selecting a different pet should update the open overlay without restarting Codex.
+- Selecting a different pet should update the open overlay without restarting ChatGPT.
 - On Hyprland, the pet should have no visible compositor border or shadow.
 - On Niri, the pet should open floating, avoid initial focus, and move by
   targeted window id.

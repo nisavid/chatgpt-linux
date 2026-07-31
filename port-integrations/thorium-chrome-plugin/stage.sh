@@ -3,7 +3,7 @@ set -euo pipefail
 
 chrome_plugin="$INSTALL_DIR/resources/plugins/openai-bundled/plugins/chrome"
 patcher="$SCRIPT_DIR/port-integrations/thorium-chrome-plugin/patch-chrome-plugin.js"
-manifest_paths_dir="$INSTALL_DIR/.codex-linux"
+manifest_paths_dir="$INSTALL_DIR/.chatgpt-linux"
 manifest_paths_file="$manifest_paths_dir/chrome-native-host-manifest-paths"
 
 if [ ! -d "$chrome_plugin" ]; then

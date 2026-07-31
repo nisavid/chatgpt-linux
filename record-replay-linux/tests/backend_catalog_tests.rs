@@ -1,5 +1,5 @@
-use codex_computer_use_linux::diagnostics::Check;
-use codex_record_replay_linux::{
+use chatgpt_computer_use_linux::diagnostics::Check;
+use chatgpt_record_replay_linux::{
     recording_backend_catalog_from_signals, recording_backend_observation_from_signals,
     RecordingBackendSignals, RecordingBackendStatus, RecordingBundleManifest,
 };
@@ -69,7 +69,7 @@ fn backend_catalog_is_emitted_as_timeline_observation() {
     let observation = recording_backend_observation_from_signals(&signals(true, Some("x11")));
 
     match observation {
-        codex_record_replay_linux::TimelineEvent::Observation { label, data } => {
+        chatgpt_record_replay_linux::TimelineEvent::Observation { label, data } => {
             assert_eq!(label, "backend_catalog");
             let backends = data.as_array().expect("backend array");
             assert!(backends

@@ -53,7 +53,7 @@ os_release_version_major() {
 }
 
 linux_target_is_atomic() {
-    local override="${CODEX_LINUX_TARGET_ATOMIC:-}"
+    local override="${CHATGPT_LINUX_TARGET_ATOMIC:-}"
     override="${override,,}"
     case "$override" in
         1|true|yes|on)

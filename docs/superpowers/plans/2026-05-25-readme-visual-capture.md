@@ -41,7 +41,7 @@ test("accepts the existing app icon and shields.io badges", () => {
   <img src="assets/codex.png" alt="Codex app icon" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
-    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
+    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/chatgpt-linux"></a>
   </p>
 </div>
 `;

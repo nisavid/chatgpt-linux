@@ -461,7 +461,7 @@ impl ComputerUseLinux {
     async fn ensure_abs_pointer(&self) -> bool {
         if env_flag_enabled_any(&[
             "CU_DISABLE_ABS_POINTER",
-            "CODEX_COMPUTER_USE_DISABLE_ABS_POINTER",
+            "CHATGPT_COMPUTER_USE_DISABLE_ABS_POINTER",
         ]) {
             return false;
         }
@@ -1310,7 +1310,7 @@ impl ComputerUseLinux {
 }
 
 #[tool_handler(
-    name = "codex-computer-use-linux",
+    name = "chatgpt-computer-use-linux",
     // NOTE: keep in lockstep with Cargo.toml + package.json on every release.
     // The rmcp tool_handler macro only accepts a string literal here, so this
     // can't be env!("CARGO_PKG_VERSION"); the MCP safety check (CI) fails the
@@ -1925,18 +1925,18 @@ impl ComputerUseLinux {
     // persist`), so the portal would otherwise re-prompt on every new session.
     // `COMPUTER_USE_LINUX_FORCE_YDOTOOL_*=1` always uses ydotool;
     // `COMPUTER_USE_LINUX_FORCE_PORTAL_*=1` always uses the portal. The
-    // `CODEX_COMPUTER_USE_*` names are accepted for the embedded Codex app
+    // `CHATGPT_COMPUTER_USE_*` names are accepted for the embedded ChatGPT app
     // bundle so downstream can share this source without local string patches.
     fn should_prefer_portal_pointer_backend(&self) -> bool {
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_YDOTOOL_POINTER",
-            "CODEX_COMPUTER_USE_FORCE_YDOTOOL_POINTER",
+            "CHATGPT_COMPUTER_USE_FORCE_YDOTOOL_POINTER",
         ]) {
             return false;
         }
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_PORTAL_POINTER",
-            "CODEX_COMPUTER_USE_FORCE_PORTAL_POINTER",
+            "CHATGPT_COMPUTER_USE_FORCE_PORTAL_POINTER",
         ]) {
             return self.is_wayland_session();
         }
@@ -1949,13 +1949,13 @@ impl ComputerUseLinux {
     fn should_prefer_portal_keyboard_backend(&self) -> bool {
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_YDOTOOL_KEYBOARD",
-            "CODEX_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
+            "CHATGPT_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
         ]) {
             return false;
         }
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_PORTAL_KEYBOARD",
-            "CODEX_COMPUTER_USE_FORCE_PORTAL_KEYBOARD",
+            "CHATGPT_COMPUTER_USE_FORCE_PORTAL_KEYBOARD",
         ]) {
             return self.is_wayland_session();
         }
@@ -1969,13 +1969,13 @@ impl ComputerUseLinux {
     fn should_prefer_kde_clipboard_text_backend(&self) -> bool {
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_PORTAL_KEYBOARD",
-            "CODEX_COMPUTER_USE_FORCE_PORTAL_KEYBOARD",
+            "CHATGPT_COMPUTER_USE_FORCE_PORTAL_KEYBOARD",
         ]) {
             return false;
         }
         !env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_YDOTOOL_KEYBOARD",
-            "CODEX_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
+            "CHATGPT_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
         ]) && self.is_kde_wayland_session()
     }
 
@@ -2029,7 +2029,7 @@ impl ComputerUseLinux {
     async fn ensure_portal_keyboard_session(&self) -> Result<Option<PortalKeyboardSession>> {
         if env_flag_enabled_any(&[
             "COMPUTER_USE_LINUX_FORCE_YDOTOOL_KEYBOARD",
-            "CODEX_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
+            "CHATGPT_COMPUTER_USE_FORCE_YDOTOOL_KEYBOARD",
         ]) || !self.is_wayland_session()
         {
             return Ok(None);
@@ -3256,7 +3256,7 @@ fn avatar_cursor_socket_path_from(
         .or(legacy_app_id)
         .map(str::trim)
         .filter(|value| valid_runtime_component(value))
-        .unwrap_or("codex-app");
+        .unwrap_or("chatgpt");
     let instance_id = instance_id.map(str::trim).filter(|value| !value.is_empty());
     if instance_id.is_some_and(|value| !valid_runtime_component(value)) {
         return None;
@@ -3273,9 +3273,9 @@ fn avatar_cursor_socket_path_from(
 
 fn avatar_cursor_socket_path() -> Option<PathBuf> {
     let runtime_dir = env::var("XDG_RUNTIME_DIR").ok();
-    let app_id = env::var("CODEX_LINUX_APP_ID").ok();
-    let legacy_app_id = env::var("CODEX_APP_ID").ok();
-    let instance_id = env::var("CODEX_LINUX_INSTANCE_ID").ok();
+    let app_id = env::var("CHATGPT_LINUX_APP_ID").ok();
+    let legacy_app_id = env::var("CHATGPT_APP_ID").ok();
+    let instance_id = env::var("CHATGPT_LINUX_INSTANCE_ID").ok();
     let parent_identity = (app_id.is_none() && legacy_app_id.is_none() || instance_id.is_none())
         .then(avatar_cursor_parent_identity)
         .unwrap_or_default();
@@ -4035,22 +4035,22 @@ mod tests {
         assert_eq!(
             avatar_cursor_socket_path_from(
                 Some("/run/user/1000"),
-                Some("codex-app"),
+                Some("chatgpt"),
                 None,
                 Some("secondary"),
             ),
             Some(PathBuf::from(
-                "/run/user/1000/codex-app/instances/secondary/computer-use-cursor.sock",
+                "/run/user/1000/chatgpt/instances/secondary/computer-use-cursor.sock",
             )),
         );
         assert_eq!(
-            avatar_cursor_socket_path_from(Some("relative"), Some("codex-app"), None, None,),
+            avatar_cursor_socket_path_from(Some("relative"), Some("chatgpt"), None, None,),
             None,
         );
         assert_eq!(
             avatar_cursor_socket_path_from(
                 Some("/run/user/1000"),
-                Some("codex-app"),
+                Some("chatgpt"),
                 None,
                 Some("../escape"),
             ),
@@ -4059,7 +4059,7 @@ mod tests {
         assert_eq!(
             avatar_cursor_socket_path_from(
                 Some(&format!("/run/user/1000/{}", "x".repeat(100))),
-                Some("codex-app"),
+                Some("chatgpt"),
                 None,
                 None,
             ),
@@ -4071,10 +4071,10 @@ mod tests {
     fn avatar_cursor_identity_uses_electron_app_and_instance_arguments() {
         assert_eq!(
             avatar_cursor_identity_from_cmdline(
-                b"/opt/codex/electron\0--app-id=codex-cua-lab\0--user-data-dir=/home/user/.local/state/codex-cua-lab/instances/port-5176/electron-user-data\0",
+                b"/opt/codex/electron\0--app-id=chatgpt-cua-lab\0--user-data-dir=/home/user/.local/state/chatgpt-cua-lab/instances/port-5176/electron-user-data\0",
             ),
             (
-                Some("codex-cua-lab".to_string()),
+                Some("chatgpt-cua-lab".to_string()),
                 Some("port-5176".to_string()),
             ),
         );
@@ -4085,14 +4085,14 @@ mod tests {
             (None, None),
         );
         assert_eq!(
-            avatar_cursor_identity_from_cmdline(b"/bin/bash\0--app-id=codex-app\0"),
+            avatar_cursor_identity_from_cmdline(b"/bin/bash\0--app-id=chatgpt\0"),
             (None, None),
         );
         assert_eq!(
             avatar_cursor_identity_from_cmdline(
-                b"/opt/codex/electron\0--app-id=codex-app\0--user-data-dir=/home/instances/alice/.local/state/codex-app/electron-user-data\0",
+                b"/opt/codex/electron\0--app-id=chatgpt\0--user-data-dir=/home/instances/alice/.local/state/chatgpt/electron-user-data\0",
             ),
-            (Some("codex-app".to_string()), None),
+            (Some("chatgpt".to_string()), None),
         );
     }
 
@@ -4942,8 +4942,10 @@ mod tests {
 
     #[test]
     fn ydotool_socket_selection_skips_unconnectable_candidates() {
-        let dir =
-            std::env::temp_dir().join(format!("codex-computer-use-server-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "chatgpt-computer-use-server-{}",
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp server dir");
         let stale_socket = dir.join("stale.sock");
@@ -4963,7 +4965,7 @@ mod tests {
     #[test]
     fn ydotool_socket_selection_accepts_datagram_socket() {
         let dir = std::env::temp_dir().join(format!(
-            "codex-computer-use-server-dgram-{}",
+            "chatgpt-computer-use-server-dgram-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);

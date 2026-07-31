@@ -1,12 +1,12 @@
 [package]
-name = "codex-mcp-helper-reaper"
+name = "chatgpt-mcp-helper-reaper"
 version = "0.1.0"
 edition = "2021"
 
 [workspace]
 
 [[bin]]
-name = "codex-mcp-helper-reaper"
+name = "chatgpt-mcp-helper-reaper"
 path = "src/main.rs"
 
 [dependencies]

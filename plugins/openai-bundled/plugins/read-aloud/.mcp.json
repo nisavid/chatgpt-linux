@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "read-aloud": {
-      "command": "./bin/codex-read-aloud-linux",
+      "command": "./bin/chatgpt-read-aloud-linux",
       "args": ["mcp"],
       "cwd": "."
     }

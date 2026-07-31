@@ -215,8 +215,8 @@ build_native_modules() {
         warn "Using better-sqlite3@$bs3_build_ver for Electron v$ELECTRON_VERSION compatibility (DMG has $bs3_ver)"
     fi
 
-    if [ -n "${CODEX_NATIVE_MODULES_SOURCE:-}" ]; then
-        install_native_modules_from_source "$app_extracted" "$CODEX_NATIVE_MODULES_SOURCE" "$bs3_build_ver" "$npty_ver"
+    if [ -n "${CHATGPT_NATIVE_MODULES_SOURCE:-}" ]; then
+        install_native_modules_from_source "$app_extracted" "$CHATGPT_NATIVE_MODULES_SOURCE" "$bs3_build_ver" "$npty_ver"
         return 0
     fi
 
@@ -357,10 +357,10 @@ download_electron() {
     esac
 
     local electron_zip="electron-v${ELECTRON_VERSION}-linux-${electron_arch}.zip"
-    if [ -n "${CODEX_ELECTRON_ZIP_SOURCE:-}" ]; then
-        [ -f "$CODEX_ELECTRON_ZIP_SOURCE" ] || error "CODEX_ELECTRON_ZIP_SOURCE does not exist: $CODEX_ELECTRON_ZIP_SOURCE"
-        info "Using Electron runtime archive: $CODEX_ELECTRON_ZIP_SOURCE"
-        cp "$CODEX_ELECTRON_ZIP_SOURCE" "$WORK_DIR/electron.zip"
+    if [ -n "${CHATGPT_ELECTRON_ZIP_SOURCE:-}" ]; then
+        [ -f "$CHATGPT_ELECTRON_ZIP_SOURCE" ] || error "CHATGPT_ELECTRON_ZIP_SOURCE does not exist: $CHATGPT_ELECTRON_ZIP_SOURCE"
+        info "Using Electron runtime archive: $CHATGPT_ELECTRON_ZIP_SOURCE"
+        cp "$CHATGPT_ELECTRON_ZIP_SOURCE" "$WORK_DIR/electron.zip"
         mkdir -p "$INSTALL_DIR"
         cd "$INSTALL_DIR" || error "Failed to change to install directory: $INSTALL_DIR"
         unzip -qo "$WORK_DIR/electron.zip"
@@ -375,7 +375,7 @@ download_electron() {
     else
         url="https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/${electron_zip}"
     fi
-    local electron_cache_dir="${CODEX_ELECTRON_CACHE_DIR:-$HOME/.cache/codex-app/electron}"
+    local electron_cache_dir="${CHATGPT_ELECTRON_CACHE_DIR:-$HOME/.cache/chatgpt/electron}"
     local cached_zip="$electron_cache_dir/$electron_zip"
     local partial_zip="$cached_zip.part"
 

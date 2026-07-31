@@ -54,31 +54,16 @@ function currentCopilotReasoningEffortSettingsFixture() {
   ].join("");
 }
 
-function copilotReasoningEffortModelListFixture() {
-  return "function Ge(){let s=`copilot`,d={};return e.forEach(e=>{let t=s===`copilot`?[e.supportedReasoningEfforts.find(Ue)??{reasoningEffort:`medium`,description:`medium effort`}]:[...e.supportedReasoningEfforts];d.models.push({...e,supportedReasoningEfforts:t})})}";
-}
-
-function legacyCurrentCopilotReasoningEffortModelListFixture() {
-  return "function Ge(){let t=`copilot`;return r.forEach(e=>{let n=t===`copilot`?[e.supportedReasoningEfforts.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:[...e.supportedReasoningEfforts];i.push({...e,supportedReasoningEfforts:n})})}";
-}
-
 function currentFilteredCopilotReasoningEffortModelListFixture() {
   return "function Jv({authMethod:e,availableModels:t,defaultModel:n,enabledReasoningEfforts:r,includeUltraReasoningEffort:i,models:a,useHiddenModels:o}){let s=[],c=null,l=o&&e!==`amazonBedrock`,u=a.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),d=i&&a.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return a.forEach(n=>{if(l?t.has(n.model):!n.hidden){let t=i?n.supportedReasoningEfforts:n.supportedReasoningEfforts.filter(({reasoningEffort:e})=>e!==`ultra`),a=(e===`copilot`?[t.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:t).filter(({reasoningEffort:e})=>vg(e)&&r.has(e)),o={...n,supportedReasoningEfforts:a};s.push(o),n.isDefault&&(c=o)}}),c??=s.find(e=>e.model===n)??null,{models:s,defaultModel:c,hasModelSupportingMaxReasoningEffort:u,hasModelSupportingUltraReasoningEffort:d}}";
 }
 
 function currentCopilotReasoningEffortUiFixture() {
   return [
-    "function dz(){let k=!Bm(u),A=a?.authMethod===`copilot`,j=!k&&!A,M=yh(d,m);return aO(`composer.increaseReasoningEffort`,()=>we(`increase`),{enabled:j}),(0,gz.jsx)(_m,{reasoningEffortDisabled:A})}",
+    "function DYs(){let F=!e1r(y)||m.isLoading||T===`pending`,I=u?.authMethod===`copilot`,L=Pqs(b,_),R=ECs(b),z=Fqs(m.reasoningEffort,L),B=!F&&!I&&!0,V=o!=null&&!F&&p&&!I&&y!==`error`;return TY(`composer.increaseReasoningEffort`,()=>Se(`increase`),{enabled:B}),TY(`composer.decreaseReasoningEffort`,()=>Se(`decrease`),{enabled:B}),(0,TZ.jsx)(QJs,{reasoningEffortDisabled:I})}",
     "function unrelatedGate(){let q=a&&b&&!0,c;return q}",
-    "function uU(){let p=o?.authMethod===`copilot`;let E=i.formatMessage({id:`composer.reasoningSlashCommand.title`});let O=s&&f&&!p&&!0,k;return{enabled:O,dependencies:k}}",
+    "function uU(){let h=o?.authMethod===`copilot`;let E=i.formatMessage({id:`composer.reasoningSlashCommand.title`});let M=l&&m&&!h&&!0,N;return{enabled:M,dependencies:N}}",
     "function permissionGate(){let A=O.length>0,j=!w&&!A;return{shouldAutoDenyPermissionRequest:j}}",
-  ].join("");
-}
-
-function copilotReasoningEffortUiFixture() {
-  return [
-    "function qU(){let E=o?.authMethod===`copilot`,D=ZH(T,f.model),O=QH(f.reasoningEffort,D),le=D.map(e=>{let{reasoningEffort:t}=e;return(0,$.jsx)(jm.Item,{\"data-reasoning-selected\":t===O?`true`:void 0,disabled:E,RightIcon:t===O?rg:void 0,onSelect:()=>{i.get(bh).log({eventName:`codex_composer_reasoning_effort_changed`,metadata:{reasoning_effort:t}}),p(f.model,t),H()},children:(0,$.jsx)(nM,{effort:t})},t)})}",
-    "function bY(e){let p=o?.authMethod===`copilot`;let w=s&&f&&!p,T;return{enabled:w,dependencies:T}}",
   ].join("");
 }
 
@@ -94,7 +79,7 @@ function withTempDir(fn) {
 const defaultEnabledIntegrationIds = [
   "agent-workspace",
   "appshots",
-  "codex-wrapper-updater",
+  "chatgpt-wrapper-updater",
   "conversation-mode",
   "copilot-reasoning-effort",
   "open-target-discovery",
@@ -105,23 +90,23 @@ const defaultEnabledIntegrationIds = [
 ];
 
 function withTempIntegrationConfig(enabled, fn, disabled = null) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   return withTempDir((tmp) => {
-    process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tmp, "integrations.json");
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tmp, "integrations.json");
     const enabledSet = new Set(enabled);
     const effectiveDisabled =
       disabled ?? defaultEnabledIntegrationIds.filter((id) => !enabledSet.has(id));
     fs.writeFileSync(
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG,
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
       JSON.stringify({ enabled, disabled: effectiveDisabled }, null, 2),
     );
     try {
       return fn();
     } finally {
       if (originalConfig == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
       } else {
-        process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
       }
     }
   });
@@ -176,18 +161,14 @@ test("persists Copilot reasoning effort through the current default writer", () 
 });
 
 test("current DMG descriptors target only the owning Copilot chunks", () => {
-  const settingsChunk =
+  const currentChunk = "app-initial-DRyZ1Lin.js";
+  const obsoleteSplitChunk =
     "app-initial~app-main~hotkey-window-thread-page~keyboard-shortcuts-settings~thread-app-shell~cf704xib-BpnUyB2R.js";
-  const uiChunk =
-    "app-initial~app-main~new-thread-panel-page~appgen-library-page~hotkey-window-thread-page~ho~iufn7mg3-DRU9Ekz0.js";
-  const adjacentChunk =
-    "app-initial~app-main~new-thread-panel-page~onboarding-page~appgen-library-page~hotkey-windo~d4kxte0o-BsjKAgmz.js";
   const loaded = require("./patch.js").descriptors;
 
-  assert.equal(loaded[0].pattern.test(settingsChunk), true);
-  assert.equal(loaded[1].pattern.test(settingsChunk), true);
-  assert.equal(loaded[2].pattern.test(uiChunk), true);
-  assert.ok(loaded.every((descriptor) => descriptor.pattern.test(adjacentChunk) === false));
+  assert.ok(loaded.every((descriptor) => descriptor.pattern.test(currentChunk) === true));
+  assert.ok(loaded.every((descriptor) => descriptor.pattern.test(obsoleteSplitChunk) === false));
+  assert.ok(loaded.every((descriptor) => descriptor.pattern.test("settings-page-current.js") === false));
 });
 
 test("keeps filtered current app reasoning efforts for Copilot auth", () => {
@@ -207,61 +188,27 @@ test("keeps filtered current app reasoning efforts for Copilot auth", () => {
   assert.deepEqual(warnings, []);
 });
 
-test("keeps all model reasoning efforts available for legacy Copilot auth shapes", () => {
-  const patched = applyPatchTwice(
-    applyCopilotReasoningEffortModelListPatch,
-    copilotReasoningEffortModelListFixture(),
-  );
-
-  assert.match(patched, /let t=\[\.\.\.e\.supportedReasoningEfforts\]/);
-  assert.doesNotMatch(patched, /s===`copilot`\?\[/);
-  assert.doesNotMatch(patched, /description:`medium effort`/);
-});
-
-test("keeps all model reasoning efforts for renamed legacy model query aliases", () => {
-  const patched = applyPatchTwice(
-    applyCopilotReasoningEffortModelListPatch,
-    legacyCurrentCopilotReasoningEffortModelListFixture(),
-  );
-
-  assert.match(patched, /let n=\[\.\.\.e\.supportedReasoningEfforts\]/);
-  assert.doesNotMatch(patched, /t===`copilot`\?\[/);
-  assert.doesNotMatch(patched, /description:`medium effort`/);
-});
-
 test("allows Copilot auth to use the current app effort controls", () => {
   const patched = applyPatchTwice(
     applyCopilotReasoningEffortUiPatch,
     currentCopilotReasoningEffortUiFixture(),
   );
 
-  assert.match(patched, /A=a\?\.authMethod===`copilot`,j=!k,M=/);
+  assert.match(patched, /I=u\?\.authMethod===`copilot`[\s\S]*B=!F&&!0\/\*chatgptLinuxCopilotReasoningEffort\*\//);
   assert.match(patched, /reasoningEffortDisabled:!1/);
-  assert.match(patched, /let E=i\.formatMessage\(\{id:`composer\.reasoningSlashCommand\.title`\}\);let O=s&&f&&!0,k;/);
-  assert.doesNotMatch(patched, /j=!k&&!A/);
-  assert.doesNotMatch(patched, /reasoningEffortDisabled:A/);
-  assert.doesNotMatch(patched, /O=s&&f&&!p&&!0/);
+  assert.match(patched, /let E=i\.formatMessage\(\{id:`composer\.reasoningSlashCommand\.title`\}\);let M=l&&m&&!0,N;/);
+  assert.doesNotMatch(patched, /B=!F&&!I&&!0/);
+  assert.doesNotMatch(patched, /reasoningEffortDisabled:I/);
+  assert.doesNotMatch(patched, /M=l&&m&&!h&&!0/);
   assert.match(patched, /let q=a&&b&&!0,c/);
   assert.match(patched, /A=O\.length>0,j=!w&&!A/);
 });
 
-test("allows Copilot auth to use legacy reasoning effort controls", () => {
-  const patched = applyPatchTwice(
-    applyCopilotReasoningEffortUiPatch,
-    copilotReasoningEffortUiFixture(),
-  );
-
-  assert.match(patched, /disabled:!1,RightIcon:t===O\?rg:void 0/);
-  assert.match(patched, /let w=s&&f,T;/);
-  assert.doesNotMatch(patched, /disabled:E,RightIcon:t===O\?rg:void 0/);
-  assert.doesNotMatch(patched, /let w=s&&f&&!p,T;/);
-});
-
 test("current app UI drift warns without touching adjacent gates", () => {
   const source = [
-    "function dz(){let k=!Bm(u),A=isCopilot(a),j=!k&&!A,M=yh(d,m);",
-    "return aO(`composer.increaseReasoningEffort`,()=>we(`increase`),{enabled:j}),",
-    "(0,gz.jsx)(_m,{reasoningEffortDisabled:A})}",
+    "function DYs(){let F=!e1r(y)||m.isLoading||T===`pending`,I=isCopilot(u),L=Pqs(b,_),R=ECs(b),z=Fqs(m.reasoningEffort,L),B=!F&&!I&&!0,V=o!=null&&!F;",
+    "return TY(`composer.increaseReasoningEffort`,()=>Se(`increase`),{enabled:B}),",
+    "(0,TZ.jsx)(QJs,{reasoningEffortDisabled:I})}",
     "function permissionGate(){let A=O.length>0,j=!w&&!A;return j}",
   ].join("");
   const { value, warnings } = withCapturedWarns(() =>
@@ -272,16 +219,6 @@ test("current app UI drift warns without touching adjacent gates", () => {
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /current Copilot reasoning effort shortcut gate/);
   assert.match(value, /A=O\.length>0,j=!w&&!A/);
-});
-
-test("recognizes Copilot reasoning effort UI patch with renamed scope aliases", () => {
-  const source = copilotReasoningEffortUiFixture().replace("i.get(bh).log", "scope.get(bh).log");
-  const { value: patched, warnings } = captureWarnings(() =>
-    applyPatchTwice(applyCopilotReasoningEffortUiPatch, source),
-  );
-
-  assert.match(patched, /disabled:!1,RightIcon:t===O\?rg:void 0/);
-  assert.deepEqual(warnings, []);
 });
 
 test("integration descriptor loader exposes the Copilot webview asset patches unless disabled", () => {
@@ -307,44 +244,35 @@ test("integration descriptor loader exposes the Copilot webview asset patches un
       ["webview-asset", "webview-asset", "webview-asset"],
     );
     assert.ok(descriptors.every((descriptor) => descriptor.ciPolicy === "optional"));
-    const currentSettingsChunk =
-      "app-initial~app-main~hotkey-window-thread-page~keyboard-shortcuts-settings~thread-app-shell~cf704xib-current.js";
-    const currentUiChunk =
-      "app-initial~app-main~new-thread-panel-page~appgen-library-page~hotkey-window-thread-page~ho~iufn7mg3-current.js";
-    assert.match(currentSettingsChunk, descriptors[0].pattern);
-    assert.match(currentSettingsChunk, descriptors[1].pattern);
-    assert.match(currentUiChunk, descriptors[2].pattern);
+    const currentChunk = "app-initial-current.js";
+    assert.ok(descriptors.every((descriptor) => descriptor.pattern.test(currentChunk)));
     assert.ok(descriptors.every((descriptor) => !descriptor.pattern.test("unrelated-bundle.js")));
   });
 });
 
 test("enabled integration descriptors patch the current app chunks", () => {
   const integrationsRoot = path.resolve(__dirname, "..");
-  const currentSettingsChunk =
-    "app-initial~app-main~hotkey-window-thread-page~keyboard-shortcuts-settings~thread-app-shell~cf704xib-BpnUyB2R.js";
-  const currentUiChunk =
-    "app-initial~app-main~new-thread-panel-page~appgen-library-page~hotkey-window-thread-page~ho~iufn7mg3-DRU9Ekz0.js";
+  const currentChunk = "app-initial-DRyZ1Lin.js";
 
   withTempIntegrationConfig(["copilot-reasoning-effort"], () => {
     withTempDir((extractedDir) => {
       writeAsset(
         extractedDir,
-        currentSettingsChunk,
-        `${currentCopilotReasoningEffortSettingsFixture()};${currentFilteredCopilotReasoningEffortModelListFixture()}`,
+        currentChunk,
+        `${currentCopilotReasoningEffortSettingsFixture()};${currentFilteredCopilotReasoningEffortModelListFixture()};${currentCopilotReasoningEffortUiFixture()}`,
       );
-      writeAsset(extractedDir, currentUiChunk, currentCopilotReasoningEffortUiFixture());
 
       const descriptors = normalizePatchDescriptors(
         loadCopilotIntegrationPatchDescriptors(integrationsRoot),
       );
       applyWebviewAssetPatchDescriptors(extractedDir, descriptors, {}, null);
-      const patched = readAsset(extractedDir, currentSettingsChunk);
+      const patched = readAsset(extractedDir, currentChunk);
 
       assert.match(patched, /copilot-default-reasoning-effort/);
       assert.match(patched, /a=\[\.\.\.t\]\.filter/);
       assert.doesNotMatch(patched, /e===`copilot`\?\[/);
-      assert.match(readAsset(extractedDir, currentUiChunk), /reasoningEffortDisabled:!1/);
-      assert.match(readAsset(extractedDir, currentUiChunk), /O=s&&f&&!0,k/);
+      assert.match(patched, /reasoningEffortDisabled:!1/);
+      assert.match(patched, /M=l&&m&&!0,N/);
     });
   });
 });

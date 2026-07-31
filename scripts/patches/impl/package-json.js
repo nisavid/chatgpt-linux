@@ -21,9 +21,9 @@ function patchPackageJson(extractedDir) {
 }
 
 function resolveDesktopName(env = process.env) {
-  const appId = env.CODEX_APP_ID || "codex-app";
+  const appId = env.CHATGPT_APP_ID || "chatgpt";
   if (!/^[A-Za-z0-9._-]+$/.test(appId)) {
-    throw new Error("CODEX_APP_ID must contain only letters, numbers, dots, underscores, and hyphens");
+    throw new Error("CHATGPT_APP_ID must contain only letters, numbers, dots, underscores, and hyphens");
   }
   return `${appId}.desktop`;
 }

@@ -54,7 +54,7 @@ The build pipeline loads enabled integrations in these phases:
 
 1. ASAR patching: patch descriptors modify extracted upstream app files.
 2. App staging: declarative resources and runtime hooks are copied into
-   `codex-app/`.
+   `chatgpt/`.
 3. Legacy staging: optional `stage.sh` hooks run for integrations that still need
    custom install-time logic.
 4. Native packaging: optional package hooks can mutate the `.deb`, `.rpm`, or
@@ -69,7 +69,7 @@ enabled ids. Local auto-updates therefore preserve configured integration
 choices.
 
 Declarative staged files are tracked in
-`.codex-linux/port-integrations-staged.json`. On the next install, the framework
+`.chatgpt-linux/port-integrations-staged.json`. On the next install, the framework
 removes the previously tracked declarative resources and runtime hooks before
 staging the currently enabled set, so disabling an integration removes its
 framework-owned runtime hooks. Legacy `stage.sh` hooks are not tracked by this
@@ -116,7 +116,7 @@ Use `resources` to copy files into the generated app directory:
   "resources": [
     {
       "source": "assets/tool.json",
-      "target": ".codex-linux/integrations/my-integration/tool.json",
+      "target": ".chatgpt-linux/integrations/my-integration/tool.json",
       "mode": "0644"
     }
   ]
@@ -147,26 +147,26 @@ Use `runtimeHooks` for launcher-visible hooks:
 
 The runtime hook types map to:
 
-- `env`: copied to `.codex-linux/env.d/`; each non-comment line is exported as
+- `env`: copied to `.chatgpt-linux/env.d/`; each non-comment line is exported as
   literal `KEY=VALUE` with no shell evaluation.
-- `prelaunch`: copied to `.codex-linux/prelaunch.d/`; executable hooks run
+- `prelaunch`: copied to `.chatgpt-linux/prelaunch.d/`; executable hooks run
   synchronously before the packaged runtime prelaunch and webview setup.
-- `electronArgs`: copied to `.codex-linux/electron-args.d/`; each non-comment
+- `electronArgs`: copied to `.chatgpt-linux/electron-args.d/`; each non-comment
   line is appended as one Electron argument.
-- `coldStart`: copied to `.codex-linux/cold-start.d/`; executable hooks run in
+- `coldStart`: copied to `.chatgpt-linux/cold-start.d/`; executable hooks run in
   the background during cold start, after bundled plugin cache sync.
-- `afterExit`: copied to `.codex-linux/after-exit.d/`; executable hooks run
+- `afterExit`: copied to `.chatgpt-linux/after-exit.d/`; executable hooks run
   after Electron exits. Hook failures are logged and the launcher preserves
   Electron's original exit status.
 
-Runtime hooks receive `CODEX_HOME`, `CODEX_LINUX_APP_DIR`,
-`CODEX_LINUX_APP_STATE_DIR`, `CODEX_PORT_INTEGRATIONS_DIR`, and
-`CODEX_LINUX_LAUNCHER_LOG`. Executable hooks also receive
-`CODEX_PORT_INTEGRATION_HOOK_PHASE`; `afterExit` additionally receives
-`CODEX_LINUX_ELECTRON_EXIT_STATUS`. Use this pattern for user-home artifacts
+Runtime hooks receive `CODEX_HOME`, `CHATGPT_LINUX_APP_DIR`,
+`CHATGPT_LINUX_APP_STATE_DIR`, `CHATGPT_PORT_INTEGRATIONS_DIR`, and
+`CHATGPT_LINUX_LAUNCHER_LOG`. Executable hooks also receive
+`CHATGPT_PORT_INTEGRATION_HOOK_PHASE`; `afterExit` additionally receives
+`CHATGPT_LINUX_ELECTRON_EXIT_STATUS`. Use this pattern for user-home artifacts
 such as Codex skills: stage the source file with `resources` under
-`.codex-linux/integrations/<integration-id>/...`, then copy it from
-`$CODEX_PORT_INTEGRATIONS_DIR/<integration-id>/...` to `$CODEX_HOME/skills/...`
+`.chatgpt-linux/integrations/<integration-id>/...`, then copy it from
+`$CHATGPT_PORT_INTEGRATIONS_DIR/<integration-id>/...` to `$CODEX_HOME/skills/...`
 in a `runtimeHooks.prelaunch` script. Do not write user-home files from
 `stage.sh`; install, package, and updater rebuilds may run outside the real
 user's session.
@@ -209,8 +209,8 @@ $EDITOR port-integrations/local/my-integration/integration.json
 Then enable it:
 
 ```bash
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/codex-app"
-$EDITOR "${XDG_CONFIG_HOME:-$HOME/.config}/codex-app/port-integrations.json"
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt"
+$EDITOR "${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json"
 make install-native
 ```
 

@@ -12,7 +12,7 @@ const { evaluateUpstreamDmg, httpIdentity } = require("../lib/upstream-dmg-accep
 function withFixture(fn) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "upstream-acceptance-"));
   try {
-    const dmg = path.join(root, "Codex.dmg");
+    const dmg = path.join(root, "ChatGPT.dmg");
     fs.writeFileSync(dmg, "dmg fixture");
     return fn({ root, dmg });
   } finally {
@@ -161,7 +161,7 @@ test("a structured rejection wins over incomplete checks", () => withFixture(({ 
 
 test("preserves packaged builder source metadata when a build fails before build info", () => withFixture(({ root, dmg }) => {
   const commit = "a".repeat(40);
-  writeJson(root, ".codex-linux/source-info.json", {
+  writeJson(root, ".chatgpt-linux/source-info.json", {
     commit,
     shortCommit: commit.slice(0, 12),
     version: "0.10.1",
@@ -211,7 +211,7 @@ test("official DMG workflow concurrency is isolated per PR or ref", () => {
 
 test("Nix refresh serializes campaigns and deduplicates refresh and exact-head CI", () => {
   const workflow = fs.readFileSync(
-    path.resolve(__dirname, "../../.github/workflows/update-codex-hash.yml"),
+    path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
     "utf8",
   );
 
@@ -242,7 +242,7 @@ test("Nix hash refresh accepts a validated focused output override", () => {
     "utf8",
   );
   const refreshWorkflow = fs.readFileSync(
-    path.resolve(__dirname, "../../.github/workflows/update-codex-hash.yml"),
+    path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
     "utf8",
   );
   const watchdogProfile = JSON.parse(fs.readFileSync(
@@ -253,7 +253,7 @@ test("Nix hash refresh accepts a validated focused output override", () => {
   assert.deepEqual(watchdogProfile.enabled, [
     "appshots",
     "codex-micro",
-    "codex-wrapper-updater",
+    "chatgpt-wrapper-updater",
     "directory-only-working-tree-watch",
     "frameless-titlebar",
     "global-dictation",

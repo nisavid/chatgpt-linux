@@ -1,19 +1,19 @@
 [package]
-name = "codex-computer-use-linux"
+name = "chatgpt-computer-use-linux"
 version = "0.3.1-linux-alpha1"
 edition = "2021"
 
 [[bin]]
-name = "codex-computer-use-linux"
+name = "chatgpt-computer-use-linux"
 path = "src/main.rs"
 
 [[bin]]
-name = "codex-chrome-extension-host"
-path = "src/bin/codex-chrome-extension-host.rs"
+name = "chatgpt-chrome-extension-host"
+path = "src/bin/chatgpt-chrome-extension-host.rs"
 
 [[bin]]
-name = "codex-computer-use-cosmic"
-path = "src/bin/codex-computer-use-cosmic.rs"
+name = "chatgpt-computer-use-cosmic"
+path = "src/bin/chatgpt-computer-use-cosmic.rs"
 
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }

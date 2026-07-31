@@ -21,7 +21,7 @@ const {
 } = require("../../scripts/patches/runner.js");
 
 function withTempIntegrationRoot(config, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-example-integration-test-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-example-integration-test-"));
   try {
     fs.writeFileSync(path.join(root, "integrations.example.json"), JSON.stringify({ enabled: [], disabled: [] }, null, 2));
     const integrationConfig = Array.isArray(config) ? { enabled: config } : config;
@@ -36,7 +36,7 @@ function withTempIntegrationRoot(config, fn) {
 }
 
 function withTempCheckoutIntegrationRoot(fn) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "codex-example-integration-checkout-"));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-example-integration-checkout-"));
   try {
     fs.writeFileSync(path.join(repo, ".git"), "gitdir: /tmp/fake-worktree\n");
     const root = path.join(repo, "port-integrations");
@@ -51,8 +51,8 @@ function withTempCheckoutIntegrationRoot(fn) {
 
 test("example integration patches only its synthetic marker", () => {
   assert.equal(
-    applyMainBundlePatch("before;codexLinuxExampleIntegrationDisabled();after"),
-    "before;codexLinuxExampleIntegrationEnabled();after",
+    applyMainBundlePatch("before;chatgptLinuxExampleIntegrationDisabled();after"),
+    "before;chatgptLinuxExampleIntegrationEnabled();after",
   );
 });
 
@@ -106,7 +106,7 @@ test("default-enabled integrations can be disabled from XDG user config", () => 
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     const configHome = path.join(root, "xdg-config");
-    const appConfigDir = path.join(configHome, "codex-app");
+    const appConfigDir = path.join(configHome, "chatgpt");
     fs.mkdirSync(appConfigDir, { recursive: true });
     fs.writeFileSync(
       path.join(appConfigDir, "port-integrations.json"),
@@ -115,15 +115,15 @@ test("default-enabled integrations can be disabled from XDG user config", () => 
 
     const originalConfigHome = process.env.XDG_CONFIG_HOME;
     const originalHome = process.env.HOME;
-    const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    const originalAppId = process.env.CODEX_APP_ID;
-    const originalLinuxAppId = process.env.CODEX_LINUX_APP_ID;
+    const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    const originalAppId = process.env.CHATGPT_APP_ID;
+    const originalLinuxAppId = process.env.CHATGPT_LINUX_APP_ID;
     try {
       process.env.XDG_CONFIG_HOME = configHome;
       process.env.HOME = path.join(root, "home");
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-      delete process.env.CODEX_APP_ID;
-      delete process.env.CODEX_LINUX_APP_ID;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_APP_ID;
+      delete process.env.CHATGPT_LINUX_APP_ID;
       assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), []);
     } finally {
       if (originalConfigHome == null) {
@@ -137,19 +137,19 @@ test("default-enabled integrations can be disabled from XDG user config", () => 
         process.env.HOME = originalHome;
       }
       if (originalConfig == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
       } else {
-        process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
       }
       if (originalAppId == null) {
-        delete process.env.CODEX_APP_ID;
+        delete process.env.CHATGPT_APP_ID;
       } else {
-        process.env.CODEX_APP_ID = originalAppId;
+        process.env.CHATGPT_APP_ID = originalAppId;
       }
       if (originalLinuxAppId == null) {
-        delete process.env.CODEX_LINUX_APP_ID;
+        delete process.env.CHATGPT_LINUX_APP_ID;
       } else {
-        process.env.CODEX_LINUX_APP_ID = originalLinuxAppId;
+        process.env.CHATGPT_LINUX_APP_ID = originalLinuxAppId;
       }
     }
   });
@@ -163,7 +163,7 @@ test("checkout integration roots ignore persistent XDG user config fallback", ()
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     const configHome = path.join(root, "xdg-config");
-    const appConfigDir = path.join(configHome, "codex-app");
+    const appConfigDir = path.join(configHome, "chatgpt");
     fs.mkdirSync(appConfigDir, { recursive: true });
     fs.writeFileSync(
       path.join(appConfigDir, "port-integrations.json"),
@@ -172,11 +172,11 @@ test("checkout integration roots ignore persistent XDG user config fallback", ()
 
     const originalConfigHome = process.env.XDG_CONFIG_HOME;
     const originalHome = process.env.HOME;
-    const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+    const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     try {
       process.env.XDG_CONFIG_HOME = configHome;
       process.env.HOME = path.join(root, "home");
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
 
       assert.equal(portIntegrationsConfigPath(root), path.join(root, "integrations.example.json"));
       assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), ["example-integration"]);
@@ -192,33 +192,33 @@ test("checkout integration roots ignore persistent XDG user config fallback", ()
         process.env.HOME = originalHome;
       }
       if (originalConfig == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
       } else {
-        process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
       }
     }
   });
 });
 
-test("empty CODEX_APP_ID does not block CODEX_LINUX_APP_ID config fallback", () => {
+test("empty CHATGPT_APP_ID does not block CHATGPT_LINUX_APP_ID config fallback", () => {
   withTempIntegrationRoot(null, (root) => {
     const configHome = path.join(root, "xdg-config");
-    const appConfigDir = path.join(configHome, "codex-cua-lab");
+    const appConfigDir = path.join(configHome, "chatgpt-cua-lab");
     const configPath = path.join(appConfigDir, "port-integrations.json");
     fs.mkdirSync(appConfigDir, { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify({ enabled: [] }, null, 2));
 
     const originalConfigHome = process.env.XDG_CONFIG_HOME;
     const originalHome = process.env.HOME;
-    const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    const originalAppId = process.env.CODEX_APP_ID;
-    const originalLinuxAppId = process.env.CODEX_LINUX_APP_ID;
+    const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    const originalAppId = process.env.CHATGPT_APP_ID;
+    const originalLinuxAppId = process.env.CHATGPT_LINUX_APP_ID;
     try {
       process.env.XDG_CONFIG_HOME = configHome;
       process.env.HOME = path.join(root, "home");
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-      process.env.CODEX_APP_ID = "  ";
-      process.env.CODEX_LINUX_APP_ID = "codex-cua-lab";
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+      process.env.CHATGPT_APP_ID = "  ";
+      process.env.CHATGPT_LINUX_APP_ID = "chatgpt-cua-lab";
 
       assert.equal(portIntegrationsConfigPath(root), configPath);
     } finally {
@@ -233,19 +233,19 @@ test("empty CODEX_APP_ID does not block CODEX_LINUX_APP_ID config fallback", () 
         process.env.HOME = originalHome;
       }
       if (originalConfig == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
       } else {
-        process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
       }
       if (originalAppId == null) {
-        delete process.env.CODEX_APP_ID;
+        delete process.env.CHATGPT_APP_ID;
       } else {
-        process.env.CODEX_APP_ID = originalAppId;
+        process.env.CHATGPT_APP_ID = originalAppId;
       }
       if (originalLinuxAppId == null) {
-        delete process.env.CODEX_LINUX_APP_ID;
+        delete process.env.CHATGPT_LINUX_APP_ID;
       } else {
-        process.env.CODEX_LINUX_APP_ID = originalLinuxAppId;
+        process.env.CHATGPT_LINUX_APP_ID = originalLinuxAppId;
       }
     }
   });
@@ -264,27 +264,27 @@ test("example integration exposes its patch and stage hook when enabled", () => 
     assert.equal(patches.length, 1);
     assert.equal(patches[0].name, "integration:example-integration:synthetic-marker");
     assert.equal(
-      patches[0].apply("codexLinuxExampleIntegrationDisabled()", {}),
-      "codexLinuxExampleIntegrationEnabled()",
+      patches[0].apply("chatgptLinuxExampleIntegrationDisabled()", {}),
+      "chatgptLinuxExampleIntegrationEnabled()",
     );
   });
 });
 
 test("example integration participates in main bundle patching and patch reports", () => {
   withTempIntegrationRoot(["example-integration"], (root) => {
-    const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-example-integration-app-"));
+    const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-example-integration-app-"));
     try {
       assert.equal(
-        patchMainBundleSource("codexLinuxExampleIntegrationDisabled()", null, {
+        patchMainBundleSource("chatgptLinuxExampleIntegrationDisabled()", null, {
           corePatchRoot: path.join(root, "core-patches"),
           integrationsRoot: root,
         }),
-        "codexLinuxExampleIntegrationEnabled()",
+        "chatgptLinuxExampleIntegrationEnabled()",
       );
 
       const buildDir = path.join(tempApp, ".vite", "build");
       fs.mkdirSync(buildDir, { recursive: true });
-      fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxExampleIntegrationDisabled()");
+      fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxExampleIntegrationDisabled()");
 
       const report = createPatchReport();
       patchExtractedApp(tempApp, {
@@ -293,7 +293,7 @@ test("example integration participates in main bundle patching and patch reports
         report,
       });
 
-      assert.match(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), /codexLinuxExampleIntegrationEnabled\(\)/);
+      assert.match(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), /chatgptLinuxExampleIntegrationEnabled\(\)/);
       assert.ok(report.patches.some((patch) =>
         patch.name === "integration:example-integration:synthetic-marker" &&
         patch.status === "applied"
@@ -331,8 +331,8 @@ test("example integration stage hook is runnable through the port integration sh
           REPO_ROOT: repoRoot,
           TMP_INSTALL_DIR: path.join(root, "install"),
           TMP_WORK_DIR: path.join(root, "work"),
-          CODEX_PORT_INTEGRATIONS_ROOT: root,
-          CODEX_EXAMPLE_INTEGRATION_STAGE_MARKER: marker,
+          CHATGPT_PORT_INTEGRATIONS_ROOT: root,
+          CHATGPT_EXAMPLE_INTEGRATION_STAGE_MARKER: marker,
         },
         encoding: "utf8",
       },
@@ -374,7 +374,7 @@ test("port integration shell runner fails when an enabled stage hook fails", () 
           REPO_ROOT: repoRoot,
           TMP_INSTALL_DIR: path.join(root, "install"),
           TMP_WORK_DIR: path.join(root, "work"),
-          CODEX_PORT_INTEGRATIONS_ROOT: root,
+          CHATGPT_PORT_INTEGRATIONS_ROOT: root,
         },
         encoding: "utf8",
       },

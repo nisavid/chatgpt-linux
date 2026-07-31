@@ -44,8 +44,8 @@ impl RecordReplayLinux {
         description = "Report Linux Record & Replay readiness, including Computer Use desktop capture diagnostics."
     )]
     fn doctor(&self) -> Json<ToolResponse> {
-        codex_computer_use_linux::diagnostics::hydrate_session_bus_env();
-        let diagnostics = codex_computer_use_linux::diagnostics::doctor_report();
+        chatgpt_computer_use_linux::diagnostics::hydrate_session_bus_env();
+        let diagnostics = chatgpt_computer_use_linux::diagnostics::doctor_report();
         let backend_catalog = recording_backend_catalog(&diagnostics);
         tool_json(json!({
             "ok": true,
@@ -737,7 +737,7 @@ struct StartParams {
     include_screenshot: Option<bool>,
     /// Capture an initial AT-SPI accessibility snapshot. Defaults to true.
     include_accessibility: Option<bool>,
-    /// Capture native Linux audio evidence when explicitly requested and CODEX_RECORD_REPLAY_AUDIO is enabled.
+    /// Capture native Linux audio evidence when explicitly requested and CHATGPT_RECORD_REPLAY_AUDIO is enabled.
     include_audio: Option<bool>,
 }
 
@@ -1020,9 +1020,9 @@ mod tests {
     fn status_value_includes_suppressed_events_path() {
         let temp = tempfile::tempdir().unwrap();
         let session_dir = temp.path().join("session");
-        let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
+        let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
         let status_path = temp.path().join("status.json");
-        std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+        std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
         let server = RecordReplayLinux::default();
         server.set_active_session(Some(session_dir.clone()));
@@ -1039,8 +1039,8 @@ mod tests {
         );
 
         match previous {
-            Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-            None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+            Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+            None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
         }
     }
 
@@ -1055,9 +1055,9 @@ mod tests {
         );
         crate::manifest::write_manifest(&session_dir, &manifest).unwrap();
         std::fs::write(session_dir.join(crate::manifest::TIMELINE_FILE_NAME), "").unwrap();
-        let previous = std::env::var_os("CODEX_RECORD_REPLAY_STATUS_PATH");
+        let previous = std::env::var_os("CHATGPT_RECORD_REPLAY_STATUS_PATH");
         let status_path = temp.path().join("status.json");
-        std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", &status_path);
+        std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", &status_path);
 
         let service = RecordReplayLinux::default();
         let response = service.stop_recording(
@@ -1079,8 +1079,8 @@ mod tests {
         );
 
         match previous {
-            Some(path) => std::env::set_var("CODEX_RECORD_REPLAY_STATUS_PATH", path),
-            None => std::env::remove_var("CODEX_RECORD_REPLAY_STATUS_PATH"),
+            Some(path) => std::env::set_var("CHATGPT_RECORD_REPLAY_STATUS_PATH", path),
+            None => std::env::remove_var("CHATGPT_RECORD_REPLAY_STATUS_PATH"),
         }
     }
 }

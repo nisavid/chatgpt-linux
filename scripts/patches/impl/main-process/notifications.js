@@ -1,18 +1,18 @@
 "use strict";
 
-const PATCH_MARKER = "codex-linux-notification-actions-v1";
+const PATCH_MARKER = "chatgpt-linux-notification-actions-v1";
 
-function codexLinuxNotificationActionsNativePath() {
+function chatgptLinuxNotificationActionsNativePath() {
   const fs = require("node:fs");
   const path = require("node:path");
   const candidates = [];
   if (process.resourcesPath) {
-    candidates.push(path.join(process.resourcesPath, "native", "codex-notification-actions-linux"));
+    candidates.push(path.join(process.resourcesPath, "native", "chatgpt-notification-actions-linux"));
   }
   try {
     const appPath = require("electron").app?.getAppPath?.();
     if (appPath) {
-      candidates.push(path.join(appPath, "native", "codex-notification-actions-linux"));
+      candidates.push(path.join(appPath, "native", "chatgpt-notification-actions-linux"));
     }
   } catch {}
   for (const candidate of candidates) {
@@ -24,7 +24,7 @@ function codexLinuxNotificationActionsNativePath() {
   return null;
 }
 
-function codexLinuxNotificationActionLines(stream, onLine) {
+function chatgptLinuxNotificationActionLines(stream, onLine) {
   let buffer = "";
   stream?.on("data", (chunk) => {
     buffer += chunk.toString("utf8");
@@ -42,8 +42,8 @@ function codexLinuxNotificationActionLines(stream, onLine) {
   });
 }
 
-function codexLinuxCreateActionNotification(options, fallbackFactory, runtime) {
-  const bridgePath = runtime?.bridgePath ?? codexLinuxNotificationActionsNativePath();
+function chatgptLinuxCreateActionNotification(options, fallbackFactory, runtime) {
+  const bridgePath = runtime?.bridgePath ?? chatgptLinuxNotificationActionsNativePath();
   if (bridgePath == null) return null;
 
   const handlers = new Map();
@@ -128,7 +128,7 @@ function codexLinuxCreateActionNotification(options, fallbackFactory, runtime) {
         startFallback();
         return;
       }
-      codexLinuxNotificationActionLines(child.stdout, handleLine);
+      chatgptLinuxNotificationActionLines(child.stdout, handleLine);
       // An EPIPE can arrive before the child stdout stream is fully drained.
       // Keep the listener to avoid an unhandled stream error, but let the
       // ChildProcess "close" event make the lifecycle decision after stdio closes.
@@ -188,10 +188,10 @@ function codexLinuxCreateActionNotification(options, fallbackFactory, runtime) {
 
 function bridgeSource() {
   return [
-    `var codexLinuxNotificationActionsPatch=${JSON.stringify(PATCH_MARKER)};`,
-    codexLinuxNotificationActionsNativePath,
-    codexLinuxNotificationActionLines,
-    codexLinuxCreateActionNotification,
+    `var chatgptLinuxNotificationActionsPatch=${JSON.stringify(PATCH_MARKER)};`,
+    chatgptLinuxNotificationActionsNativePath,
+    chatgptLinuxNotificationActionLines,
+    chatgptLinuxCreateActionNotification,
   ]
     .map(String)
     .join("");
@@ -215,14 +215,14 @@ function applyLinuxNotificationActionsPatch(source) {
   const fallbackBody = originalFactory.slice(originalFactory.indexOf("e=>") + 3);
   const replacement =
     "e.createNotification?this.createNotification=e.createNotification:this.createNotification=e=>{" +
-    `let codexLinuxNotificationFallback=()=>${fallbackBody};` +
+    `let chatgptLinuxNotificationFallback=()=>${fallbackBody};` +
     "if(process.platform===`linux`&&Array.isArray(e.actions)&&e.actions.length>0){" +
-    "let t=codexLinuxCreateActionNotification(e,codexLinuxNotificationFallback);if(t!=null)return t}" +
-    "return codexLinuxNotificationFallback()}";
+    "let t=chatgptLinuxCreateActionNotification(e,chatgptLinuxNotificationFallback);if(t!=null)return t}" +
+    "return chatgptLinuxNotificationFallback()}";
   const patched = `${bridgeSource()}${source.replace(factoryPattern, replacement)}`;
 
   if (
-    !patched.includes("codexLinuxCreateActionNotification(e,codexLinuxNotificationFallback)") ||
+    !patched.includes("chatgptLinuxCreateActionNotification(e,chatgptLinuxNotificationFallback)") ||
     !patched.includes(`new ${electronAlias}.Notification(e)`)
   ) {
     console.warn("WARN: Linux notification actions patch verification failed");
@@ -234,6 +234,6 @@ function applyLinuxNotificationActionsPatch(source) {
 module.exports = {
   PATCH_MARKER,
   applyLinuxNotificationActionsPatch,
-  codexLinuxCreateActionNotification,
-  codexLinuxNotificationActionLines,
+  chatgptLinuxCreateActionNotification,
+  chatgptLinuxNotificationActionLines,
 };

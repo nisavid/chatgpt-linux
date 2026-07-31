@@ -799,7 +799,7 @@ mod tests {
                 "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a".to_string(),
             ),
             manifest_path: Some(PathBuf::from(
-                "/usr/lib/codex-app/update-builder/updater/trusted-dmg-manifest.json",
+                "/usr/lib/chatgpt/update-builder/updater/trusted-dmg-manifest.json",
             )),
             verified_at: None,
             message: Some("Downloaded DMG matched repo-trusted metadata".to_string()),
@@ -835,11 +835,11 @@ mod tests {
 
     #[test]
     fn deserialises_legacy_deb_path_field() {
-        let json = r#"{"dmg_path":null,"workspace_dir":null,"deb_path":"/tmp/codex.deb"}"#;
+        let json = r#"{"dmg_path":null,"workspace_dir":null,"deb_path":"/tmp/chatgpt.deb"}"#;
         let paths: ArtifactPaths = serde_json::from_str(json).expect("should parse deb_path field");
         assert_eq!(
             paths.package_path.as_deref().and_then(|p| p.to_str()),
-            Some("/tmp/codex.deb")
+            Some("/tmp/chatgpt.deb")
         );
     }
 
@@ -848,7 +848,7 @@ mod tests {
         let paths = ArtifactPaths {
             dmg_path: None,
             workspace_dir: None,
-            package_path: Some(std::path::PathBuf::from("/tmp/codex.rpm")),
+            package_path: Some(std::path::PathBuf::from("/tmp/chatgpt.rpm")),
             rollback_package_path: None,
         };
         let json = serde_json::to_string(&paths).expect("should serialise");

@@ -432,6 +432,100 @@ dependencies = [
 ]
 
 [[package]]
+name = "chatgpt-computer-use-linux"
+version = "0.3.1-linux-alpha1"
+dependencies = [
+ "anyhow",
+ "atspi",
+ "atspi-connection",
+ "base64",
+ "cosmic-protocols",
+ "evdev",
+ "futures-util",
+ "getrandom 0.4.3",
+ "image",
+ "libc",
+ "mimalloc",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-tungstenite",
+ "wayland-client",
+ "wayland-protocols",
+ "xkeysym",
+ "zbus",
+]
+
+[[package]]
+name = "chatgpt-notification-actions-linux"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "zbus",
+]
+
+[[package]]
+name = "chatgpt-read-aloud-linux"
+version = "0.1.0-linux-alpha1"
+dependencies = [
+ "anyhow",
+ "libc",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "chatgpt-record-replay-linux"
+version = "0.1.0-linux-alpha1"
+dependencies = [
+ "anyhow",
+ "base64",
+ "chatgpt-computer-use-linux",
+ "chrono",
+ "clap",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "chatgpt-updater"
+version = "0.10.4"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "directories",
+ "futures-util",
+ "libc",
+ "notify-rust",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "wiremock",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -492,100 +586,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "codex-app-updater"
-version = "0.10.4"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "directories",
- "futures-util",
- "libc",
- "notify-rust",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "wiremock",
-]
-
-[[package]]
-name = "codex-computer-use-linux"
-version = "0.3.1-linux-alpha1"
-dependencies = [
- "anyhow",
- "atspi",
- "atspi-connection",
- "base64",
- "cosmic-protocols",
- "evdev",
- "futures-util",
- "getrandom 0.4.3",
- "image",
- "libc",
- "mimalloc",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-tungstenite",
- "wayland-client",
- "wayland-protocols",
- "xkeysym",
- "zbus",
-]
-
-[[package]]
-name = "codex-notification-actions-linux"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures-util",
- "serde",
- "serde_json",
- "tokio",
- "zbus",
-]
-
-[[package]]
-name = "codex-read-aloud-linux"
-version = "0.1.0-linux-alpha1"
-dependencies = [
- "anyhow",
- "libc",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "codex-record-replay-linux"
-version = "0.1.0-linux-alpha1"
-dependencies = [
- "anyhow",
- "base64",
- "chrono",
- "clap",
- "codex-computer-use-linux",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

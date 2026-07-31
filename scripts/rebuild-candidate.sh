@@ -9,12 +9,12 @@ usage() {
 Usage: scripts/rebuild-candidate.sh [--install] [path/to/ChatGPT.dmg]
 
 Runs the shared transactional install flow. The DMG is built and validated in
-a sibling candidate directory before either codex-app-next/ or codex-app/ is
+a sibling candidate directory before either chatgpt-next/ or chatgpt/ is
 changed.
 
 Environment:
-  CODEX_NEXT_APP_DIR   Accepted candidate destination (default: ./codex-app-next)
-  CODEX_FINAL_APP_DIR  Final app directory for --install (default: ./codex-app)
+  CHATGPT_NEXT_APP_DIR   Accepted candidate destination (default: ./chatgpt-next)
+  CHATGPT_FINAL_APP_DIR  Final app directory for --install (default: ./chatgpt)
   REBUILD_REPORT_DIR   Report directory (default: ./dist-next/rebuild)
 HELP
 }
@@ -39,8 +39,8 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-NEXT_APP_DIR="${CODEX_NEXT_APP_DIR:-$REPO_DIR/codex-app-next}"
-FINAL_APP_DIR="${CODEX_FINAL_APP_DIR:-$REPO_DIR/codex-app}"
+NEXT_APP_DIR="${CHATGPT_NEXT_APP_DIR:-$REPO_DIR/chatgpt-next}"
+FINAL_APP_DIR="${CHATGPT_FINAL_APP_DIR:-$REPO_DIR/chatgpt}"
 REPORT_DIR="${REBUILD_REPORT_DIR:-$REPO_DIR/dist-next/rebuild}"
 TARGET_APP_DIR="$NEXT_APP_DIR"
 if [ "$INSTALL_AFTER_BUILD" -eq 1 ]; then
@@ -57,9 +57,9 @@ else
 fi
 
 info "Building and validating transactional candidate"
-CODEX_INSTALL_DIR="$TARGET_APP_DIR" \
+CHATGPT_INSTALL_DIR="$TARGET_APP_DIR" \
 REBUILD_REPORT_DIR="$REPORT_DIR" \
-CODEX_ACCEPTANCE_DECISION_JSON="$REPORT_DIR/upstream-dmg-decision.json" \
+CHATGPT_ACCEPTANCE_DECISION_JSON="$REPORT_DIR/upstream-dmg-decision.json" \
     "$REPO_DIR/install.sh" "${args[@]}"
 
 cat <<EOF

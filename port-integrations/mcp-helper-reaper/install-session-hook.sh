@@ -4,9 +4,9 @@ set -euo pipefail
 app_dir="${1:?usage: install-session-hook <app-dir> <state-dir> <log-dir>}"
 state_dir="${2:-}"
 log_dir="${3:-}"
-reaper="$app_dir/.codex-linux/mcp-helper-reaper/codex-mcp-helper-reaper"
+reaper="$app_dir/.chatgpt-linux/mcp-helper-reaper/chatgpt-mcp-helper-reaper"
 
-[ "${CODEX_MCP_HELPER_REAPER_DISABLE_HOOK:-}" = "1" ] && exit 0
+[ "${CHATGPT_MCP_HELPER_REAPER_DISABLE_HOOK:-}" = "1" ] && exit 0
 [ -x "$reaper" ] || exit 0
 
 codex_home="${CODEX_HOME:-${HOME:-}/.codex}"
@@ -15,31 +15,31 @@ hooks_file="$codex_home/hooks.json"
 
 mkdir -p "$codex_home"
 
-CODEX_MCP_HELPER_REAPER_APP_DIR="$app_dir" \
-CODEX_MCP_HELPER_REAPER_BINARY="$reaper" \
-CODEX_MCP_HELPER_REAPER_HOOKS_FILE="$hooks_file" \
+CHATGPT_MCP_HELPER_REAPER_APP_DIR="$app_dir" \
+CHATGPT_MCP_HELPER_REAPER_BINARY="$reaper" \
+CHATGPT_MCP_HELPER_REAPER_HOOKS_FILE="$hooks_file" \
 python3 - <<'PY'
 import json
 import os
 import shlex
 from pathlib import Path
 
-marker = "codex-mcp-helper-reaper-session"
-hooks_file = Path(os.environ["CODEX_MCP_HELPER_REAPER_HOOKS_FILE"])
-reaper = Path(os.environ["CODEX_MCP_HELPER_REAPER_BINARY"])
-app_dir = Path(os.environ["CODEX_MCP_HELPER_REAPER_APP_DIR"])
+marker = "chatgpt-mcp-helper-reaper-session"
+hooks_file = Path(os.environ["CHATGPT_MCP_HELPER_REAPER_HOOKS_FILE"])
+reaper = Path(os.environ["CHATGPT_MCP_HELPER_REAPER_BINARY"])
+app_dir = Path(os.environ["CHATGPT_MCP_HELPER_REAPER_APP_DIR"])
 
 command = (
-    f'if [ "${{CODEX_MCP_HELPER_REAPER_DISABLE:-}}" != "1" ] '
+    f'if [ "${{CHATGPT_MCP_HELPER_REAPER_DISABLE:-}}" != "1" ] '
     f'&& [ -x {shlex.quote(str(reaper))} ]; then '
     f'{shlex.quote(str(reaper))} '
     f'--codex-parent "$PPID" '
     f'--include-orphans '
     f'--app-dir {shlex.quote(str(app_dir))} '
-    f'--delay "${{CODEX_MCP_HELPER_REAPER_DELAY:-3}}" '
-    f'--passes "${{CODEX_MCP_HELPER_REAPER_PASSES:-3}}" '
-    f'--interval "${{CODEX_MCP_HELPER_REAPER_INTERVAL:-2}}" '
-    f'--term-timeout "${{CODEX_MCP_HELPER_REAPER_TERM_TIMEOUT:-2}}" '
+    f'--delay "${{CHATGPT_MCP_HELPER_REAPER_DELAY:-3}}" '
+    f'--passes "${{CHATGPT_MCP_HELPER_REAPER_PASSES:-3}}" '
+    f'--interval "${{CHATGPT_MCP_HELPER_REAPER_INTERVAL:-2}}" '
+    f'--term-timeout "${{CHATGPT_MCP_HELPER_REAPER_TERM_TIMEOUT:-2}}" '
     f'--quiet >/dev/null 2>&1 & '
     f'fi # {marker}'
 )

@@ -59,7 +59,7 @@ elif len(sys.argv) != 2:
     usage()
 
 
-class CodexWebviewHandler(http.server.SimpleHTTPRequestHandler):
+class ChatGPTWebviewHandler(http.server.SimpleHTTPRequestHandler):
     def normalized_request_path(self):
         request_path = urllib.parse.urlsplit(self.path).path
         decoded_path = urllib.parse.unquote(request_path)
@@ -77,9 +77,9 @@ class CodexWebviewHandler(http.server.SimpleHTTPRequestHandler):
         return super().send_head()
 
     def user_stylesheet_path(self):
-        configured = os.environ.get("CODEX_LINUX_WEBVIEW_USER_STYLESHEET", "").strip()
+        configured = os.environ.get("CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET", "").strip()
         if not configured:
-            configured = os.environ.get("CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT", "").strip()
+            configured = os.environ.get("CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT", "").strip()
         if not configured:
             return None
         return os.path.expanduser(os.path.expandvars(configured))
@@ -116,6 +116,6 @@ class CodexWebviewHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-handler = functools.partial(CodexWebviewHandler, directory=".")
+handler = functools.partial(ChatGPTWebviewHandler, directory=".")
 with http.server.ThreadingHTTPServer((bind, port), handler) as httpd:
     httpd.serve_forever()

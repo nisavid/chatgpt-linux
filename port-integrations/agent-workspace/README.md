@@ -1,6 +1,6 @@
 # Agent Workspaces port integration
 
-`agent-workspace` is a default-enabled Codex App port integration that adds the
+`agent-workspace` is a default-enabled ChatGPT port integration that adds the
 `agent-workspace-linux` control surface to the app settings UI.
 
 Disable it in `port-integrations.json` before running the install/build
@@ -21,7 +21,7 @@ the agent-facing progressive routing entrypoint; the integration does not write
 `~/.codex/config.toml` or register a generic MCP server at startup.
 
 The integration adds a Linux-only settings section named **Agent Workspaces**. The
-page can point Codex App at an `agent-workspace-linux` binary, list and edit
+page can point ChatGPT at an `agent-workspace-linux` binary, list and edit
 saved profiles, validate profile JSON without saving, preview profile-backed
 workspace starts, require an explicit approval card before starting a hidden
 workspace, stop running workspaces, run stale workspace cleanup, and create a restricted Chrome
@@ -45,7 +45,7 @@ explicitly chooses a shell binary as the program.
 
 The launcher ignores an inherited `ELECTRON_RENDERER_URL` by default so the app
 always uses its own verified webview bundle. Set
-`CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1` only for explicit debugging.
+`CHATGPT_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1` only for explicit debugging.
 
 Install `agent-workspace-linux` (v0.1.1 or newer) from the **Agent Workspaces**
 page with **Install from npm**, or install it manually. v0.1.1 is the first
@@ -80,8 +80,8 @@ the bundled managed Node.js runtime or a system directory.
 It resolves the binary in this order (highest priority first):
 
 1. the settings-page command field, persisted as
-   `codex-linux-agent-workspace-command`
-2. `CODEX_AGENT_WORKSPACE_BIN=/absolute/path/to/agent-workspace-linux`
+   `chatgpt-linux-agent-workspace-command`
+2. `CHATGPT_AGENT_WORKSPACE_BIN=/absolute/path/to/agent-workspace-linux`
 3. an existing binary in Cargo's global bin dir (`$CARGO_HOME/bin` or
    `~/.cargo/bin`)
 4. npm global bin/package locations (`$NPM_CONFIG_PREFIX/bin`, common home
@@ -91,7 +91,7 @@ It resolves the binary in this order (highest priority first):
 7. a bare `agent-workspace-linux` (left for the OS to resolve, or to fail with a
    clear error)
 
-The settings command field and `CODEX_AGENT_WORKSPACE_BIN` both expand a leading
+The settings command field and `CHATGPT_AGENT_WORKSPACE_BIN` both expand a leading
 `~/`. The integration does not inspect generic Codex MCP config to locate or control
 the backend; published npm installs and already-present global binaries are the
 default path, with the command field kept as an explicit override.
@@ -101,7 +101,7 @@ default path, with the command field kept as an explicit override.
 The command field is stored in generated app global state and the
 main-process bridge currently gives it highest precedence before invoking
 `execFile`. Hardening that command-selection boundary is tracked in
-[#99](https://github.com/nisavid/codex-app-linux/issues/99).
+[#99](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 The **Agent Workspaces** settings page is the single user-facing place for this
 integration. The page owns the command path, optional permission file path,
@@ -169,7 +169,7 @@ required acknowledgements. The bridge sends `--ack-hidden-workspace` and any
 needed policy acknowledgement only after the user presses **Approve and start**.
 The current bridge accepts those acknowledgement params from renderer requests;
 main-process approval binding for direct bridge calls is tracked in
-[#99](https://github.com/nisavid/codex-app-linux/issues/99).
+[#99](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 Manual validation checklist for a build that includes this integration:
 

@@ -1,4 +1,4 @@
-use codex_computer_use_linux::diagnostics::{Check, DoctorReport};
+use chatgpt_computer_use_linux::diagnostics::{Check, DoctorReport};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

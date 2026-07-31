@@ -1,4 +1,4 @@
-use codex_record_replay_linux::{
+use chatgpt_record_replay_linux::{
     capture_skysight_snapshot, list_skysight_exclusions, pause_skysight, resume_skysight,
     skysight_status, stop_skysight, update_skysight_exclusion, SkysightExclusionUpdate,
     SkysightPaths,
@@ -28,21 +28,21 @@ fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
 fn skysight_paths_default_to_chronicle_resources_dir() {
     let _guard = env_guard();
     let old_code_home = env::var_os("CODEX_HOME");
-    let old_runtime_dir = env::var_os("CODEX_SKYSIGHT_RUNTIME_DIR");
-    let old_resources_dir = env::var_os("CODEX_SKYSIGHT_RESOURCES_DIR");
-    let old_memory_extension_dir = env::var_os("CODEX_SKYSIGHT_MEMORY_EXTENSION_DIR");
-    let old_chronicle_memory_extension_dir = env::var_os("CODEX_CHRONICLE_MEMORY_EXTENSION_DIR");
-    let old_exclusions_path = env::var_os("CODEX_SKYSIGHT_EXCLUSIONS_PATH");
+    let old_runtime_dir = env::var_os("CHATGPT_SKYSIGHT_RUNTIME_DIR");
+    let old_resources_dir = env::var_os("CHATGPT_SKYSIGHT_RESOURCES_DIR");
+    let old_memory_extension_dir = env::var_os("CHATGPT_SKYSIGHT_MEMORY_EXTENSION_DIR");
+    let old_chronicle_memory_extension_dir = env::var_os("CHATGPT_CHRONICLE_MEMORY_EXTENSION_DIR");
+    let old_exclusions_path = env::var_os("CHATGPT_SKYSIGHT_EXCLUSIONS_PATH");
 
     let temp = tempfile::tempdir().unwrap();
     let code_home = temp.path().join("codex-home");
     let runtime_dir = temp.path().join("runtime");
     env::set_var("CODEX_HOME", &code_home);
-    env::set_var("CODEX_SKYSIGHT_RUNTIME_DIR", &runtime_dir);
-    env::remove_var("CODEX_SKYSIGHT_RESOURCES_DIR");
-    env::remove_var("CODEX_SKYSIGHT_MEMORY_EXTENSION_DIR");
-    env::remove_var("CODEX_CHRONICLE_MEMORY_EXTENSION_DIR");
-    env::remove_var("CODEX_SKYSIGHT_EXCLUSIONS_PATH");
+    env::set_var("CHATGPT_SKYSIGHT_RUNTIME_DIR", &runtime_dir);
+    env::remove_var("CHATGPT_SKYSIGHT_RESOURCES_DIR");
+    env::remove_var("CHATGPT_SKYSIGHT_MEMORY_EXTENSION_DIR");
+    env::remove_var("CHATGPT_CHRONICLE_MEMORY_EXTENSION_DIR");
+    env::remove_var("CHATGPT_SKYSIGHT_EXCLUSIONS_PATH");
 
     let paths = SkysightPaths::from_env();
 
@@ -83,17 +83,17 @@ fn skysight_paths_default_to_chronicle_resources_dir() {
     assert!(legacy_exclusions_path.is_file());
 
     restore_env("CODEX_HOME", old_code_home);
-    restore_env("CODEX_SKYSIGHT_RUNTIME_DIR", old_runtime_dir);
-    restore_env("CODEX_SKYSIGHT_RESOURCES_DIR", old_resources_dir);
+    restore_env("CHATGPT_SKYSIGHT_RUNTIME_DIR", old_runtime_dir);
+    restore_env("CHATGPT_SKYSIGHT_RESOURCES_DIR", old_resources_dir);
     restore_env(
-        "CODEX_SKYSIGHT_MEMORY_EXTENSION_DIR",
+        "CHATGPT_SKYSIGHT_MEMORY_EXTENSION_DIR",
         old_memory_extension_dir,
     );
     restore_env(
-        "CODEX_CHRONICLE_MEMORY_EXTENSION_DIR",
+        "CHATGPT_CHRONICLE_MEMORY_EXTENSION_DIR",
         old_chronicle_memory_extension_dir,
     );
-    restore_env("CODEX_SKYSIGHT_EXCLUSIONS_PATH", old_exclusions_path);
+    restore_env("CHATGPT_SKYSIGHT_EXCLUSIONS_PATH", old_exclusions_path);
 }
 
 #[test]
@@ -275,18 +275,18 @@ fn skysight_snapshot_creates_segment_directory_and_rollup_resources() {
 #[test]
 fn skysight_status_reports_fake_tesseract_ocr_readiness() {
     let _guard = env_guard();
-    let old_ocr = env::var_os("CODEX_SKYSIGHT_OCR");
-    let old_backend = env::var_os("CODEX_SKYSIGHT_OCR_BACKEND");
-    let old_tesseract = env::var_os("CODEX_SKYSIGHT_TESSERACT_PATH");
-    let old_lang = env::var_os("CODEX_SKYSIGHT_OCR_LANG");
+    let old_ocr = env::var_os("CHATGPT_SKYSIGHT_OCR");
+    let old_backend = env::var_os("CHATGPT_SKYSIGHT_OCR_BACKEND");
+    let old_tesseract = env::var_os("CHATGPT_SKYSIGHT_TESSERACT_PATH");
+    let old_lang = env::var_os("CHATGPT_SKYSIGHT_OCR_LANG");
 
     let temp = tempfile::tempdir().unwrap();
     let fake_tesseract = temp.path().join("fake-tesseract");
     write_fake_tesseract(&fake_tesseract, "version-only");
-    env::set_var("CODEX_SKYSIGHT_OCR", "enabled");
-    env::set_var("CODEX_SKYSIGHT_OCR_BACKEND", "tesseract");
-    env::set_var("CODEX_SKYSIGHT_TESSERACT_PATH", &fake_tesseract);
-    env::set_var("CODEX_SKYSIGHT_OCR_LANG", "eng");
+    env::set_var("CHATGPT_SKYSIGHT_OCR", "enabled");
+    env::set_var("CHATGPT_SKYSIGHT_OCR_BACKEND", "tesseract");
+    env::set_var("CHATGPT_SKYSIGHT_TESSERACT_PATH", &fake_tesseract);
+    env::set_var("CHATGPT_SKYSIGHT_OCR_LANG", "eng");
 
     let paths = SkysightPaths::new(temp.path().join("runtime"), temp.path().join("resources"));
     let status = skysight_status(&paths).unwrap();
@@ -302,10 +302,10 @@ fn skysight_status_reports_fake_tesseract_ocr_readiness() {
         .as_str()
         .is_some_and(|version| version.contains("tesseract")));
 
-    restore_env("CODEX_SKYSIGHT_OCR", old_ocr);
-    restore_env("CODEX_SKYSIGHT_OCR_BACKEND", old_backend);
-    restore_env("CODEX_SKYSIGHT_TESSERACT_PATH", old_tesseract);
-    restore_env("CODEX_SKYSIGHT_OCR_LANG", old_lang);
+    restore_env("CHATGPT_SKYSIGHT_OCR", old_ocr);
+    restore_env("CHATGPT_SKYSIGHT_OCR_BACKEND", old_backend);
+    restore_env("CHATGPT_SKYSIGHT_TESSERACT_PATH", old_tesseract);
+    restore_env("CHATGPT_SKYSIGHT_OCR_LANG", old_lang);
 }
 
 #[test]

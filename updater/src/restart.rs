@@ -1,6 +1,6 @@
 //! Detects when the running updater binary has been replaced on disk.
 //!
-//! Package upgrades replace `/usr/bin/codex-app-updater` while the daemon
+//! Package upgrades replace `/usr/bin/chatgpt-updater` while the daemon
 //! keeps running the old, now-deleted image. The daemon polls this check and
 //! exits so systemd relaunches it on the new binary; a stale daemon would
 //! otherwise stage rebuild workspaces with outdated logic indefinitely.
@@ -53,23 +53,23 @@ mod tests {
     #[test]
     fn strips_deleted_suffix_from_replaced_binary_link() {
         assert_eq!(
-            strip_deleted_suffix(Path::new("/usr/bin/codex-app-updater (deleted)")),
-            PathBuf::from("/usr/bin/codex-app-updater")
+            strip_deleted_suffix(Path::new("/usr/bin/chatgpt-updater (deleted)")),
+            PathBuf::from("/usr/bin/chatgpt-updater")
         );
     }
 
     #[test]
     fn keeps_link_target_without_deleted_suffix() {
         assert_eq!(
-            strip_deleted_suffix(Path::new("/usr/bin/codex-app-updater")),
-            PathBuf::from("/usr/bin/codex-app-updater")
+            strip_deleted_suffix(Path::new("/usr/bin/chatgpt-updater")),
+            PathBuf::from("/usr/bin/chatgpt-updater")
         );
     }
 
     #[test]
     fn same_file_is_not_a_replacement() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let binary = temp.path().join("codex-app-updater");
+        let binary = temp.path().join("chatgpt-updater");
         fs::write(&binary, b"current")?;
 
         assert_eq!(replacement_at(&binary, &binary), None);
@@ -79,8 +79,8 @@ mod tests {
     #[test]
     fn different_inode_is_a_replacement() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let running = temp.path().join("codex-app-updater.old");
-        let installed = temp.path().join("codex-app-updater");
+        let running = temp.path().join("chatgpt-updater.old");
+        let installed = temp.path().join("chatgpt-updater");
         fs::write(&running, b"old")?;
         fs::write(&installed, b"new")?;
 
@@ -91,11 +91,11 @@ mod tests {
     #[test]
     fn missing_installed_binary_is_not_a_replacement() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let running = temp.path().join("codex-app-updater.old");
+        let running = temp.path().join("chatgpt-updater.old");
         fs::write(&running, b"old")?;
 
         assert_eq!(
-            replacement_at(&running, &temp.path().join("codex-app-updater")),
+            replacement_at(&running, &temp.path().join("chatgpt-updater")),
             None
         );
         Ok(())

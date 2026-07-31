@@ -9,7 +9,7 @@
   "resources": [
     {
       "source": "resources/70-codex-micro.rules",
-      "target": ".codex-linux/integrations/codex-micro/70-codex-micro.rules",
+      "target": ".chatgpt-linux/integrations/codex-micro/70-codex-micro.rules",
       "mode": "0644"
     }
   ],
@@ -31,8 +31,8 @@
       "libusb-1.0-0"
     ],
     "rpm": [
-      "libudev.so.1%{codex_elf_suffix}",
-      "libusb-1.0.so.0%{codex_elf_suffix}"
+      "libudev.so.1%{chatgpt_elf_suffix}",
+      "libusb-1.0.so.0%{chatgpt_elf_suffix}"
     ],
     "pacman": [
       "libusb",

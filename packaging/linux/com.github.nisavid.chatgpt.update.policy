@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>ChatGPT Linux</vendor>
+  <vendor_url>https://github.com/nisavid/chatgpt-linux</vendor_url>
+  <icon_name>chatgpt</icon_name>
+
+  <action id="com.github.nisavid.chatgpt.update.install-deb">
+    <description>Install a ChatGPT update</description>
+    <message>Authentication is required to install the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-deb</annotate>
+  </action>
+
+  <action id="com.github.nisavid.chatgpt.update.install-rpm">
+    <description>Install a ChatGPT update</description>
+    <message>Authentication is required to install the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-rpm</annotate>
+  </action>
+
+  <action id="com.github.nisavid.chatgpt.update.install-pacman">
+    <description>Install a ChatGPT update</description>
+    <message>Authentication is required to install the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-pacman</annotate>
+  </action>
+
+  <action id="com.github.nisavid.chatgpt.update.rollback-deb">
+    <description>Roll back a ChatGPT update</description>
+    <message>Authentication is required to roll back the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-rollback-deb</annotate>
+  </action>
+
+  <action id="com.github.nisavid.chatgpt.update.rollback-rpm">
+    <description>Roll back a ChatGPT update</description>
+    <message>Authentication is required to roll back the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-rollback-rpm</annotate>
+  </action>
+
+  <action id="com.github.nisavid.chatgpt.update.rollback-pacman">
+    <description>Roll back a ChatGPT update</description>
+    <message>Authentication is required to roll back the ChatGPT update.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/chatgpt-updater</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">install-rollback-pacman</annotate>
+  </action>
+</policyconfig>

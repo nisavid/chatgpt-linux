@@ -16,7 +16,7 @@ const {
 } = require("../port-integrations/pet-overlay/patch.js");
 
 // Pin the integration config so a developer's local gitignored integrations.json// cannot change which patch descriptors these core tests exercise.
-process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(
+process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(
   __dirname,
   "..",
   "port-integrations",
@@ -190,7 +190,7 @@ const {
   applyLinuxTooltipWindowControlsCollisionPatch,
   applyLinuxWindowControlsSafeAreaPatch,
   applySubagentNicknameMetadataPatch,
-  codexLinuxWatchBrowserWebviewAttachment,
+  chatgptLinuxWatchBrowserWebviewAttachment,
 } = require("./patches/impl/webview/index.js");
 const {
   findCodexRequestWebviewAsset,
@@ -293,7 +293,7 @@ test("automation schedule patch honors multiple BYHOUR values", () => {
     dtstart: new Date(2026, 4, 22, 16, 27, 0, 0),
   };
 
-  assert.match(patched, /function codexLinuxNormalizeRruleNumbers/);
+  assert.match(patched, /function chatgptLinuxNormalizeRruleNumbers/);
   assert.equal(
     evaluateAutomationSchedule(patched, new Date(2026, 4, 22, 16, 27, 0, 0).getTime(), options),
     new Date(2026, 4, 22, 17, 0, 0, 0).getTime(),
@@ -314,7 +314,7 @@ test("automation schedule asset patch updates workspace-root bundle", () => {
 
     assert.deepEqual(patchAutomationScheduleAssets(tempRoot), { matched: 1, changed: 1 });
     const patched = fs.readFileSync(bundlePath, "utf8");
-    assert.match(patched, /function codexLinuxRruleTimes/);
+    assert.match(patched, /function chatgptLinuxRruleTimes/);
     assert.deepEqual(patchAutomationScheduleAssets(tempRoot), { matched: 1, changed: 0 });
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -331,9 +331,9 @@ test("automation schedule asset patch updates current webview automation bundle"
 
     assert.deepEqual(patchAutomationScheduleAssets(tempRoot), { matched: 1, changed: 1 });
     const patched = fs.readFileSync(bundlePath, "utf8");
-    assert.match(patched, /function codexLinuxRruleTimes/);
-    assert.match(patched, /timeValues:codexLinuxRruleTimes/);
-    assert.match(patched, /codexLinuxAutomationTimeLabel/);
+    assert.match(patched, /function chatgptLinuxRruleTimes/);
+    assert.match(patched, /timeValues:chatgptLinuxRruleTimes/);
+    assert.match(patched, /chatgptLinuxAutomationTimeLabel/);
     assert.deepEqual(patchAutomationScheduleAssets(tempRoot), { matched: 1, changed: 0 });
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -346,9 +346,9 @@ test("automation schedule patch handles current dollar-prefixed helper names", (
     currentAutomationScheduleBundleWithDollarIdentifierFixture(),
   );
 
-  assert.match(patched, /function codexLinuxRruleTimes/);
-  assert.match(patched, /timeValues:codexLinuxRruleTimes/);
-  assert.match(patched, /codexLinuxAutomationTimeLabel/);
+  assert.match(patched, /function chatgptLinuxRruleTimes/);
+  assert.match(patched, /timeValues:chatgptLinuxRruleTimes/);
+  assert.match(patched, /chatgptLinuxAutomationTimeLabel/);
   assert.doesNotMatch(patched, /if\(!e\|\|e\.hasMultipleTimeValues\)return null/);
 });
 
@@ -480,24 +480,24 @@ test("Linux settings search hides controls that cannot render", () => {
 
   const patched = applyPatchTwice(applyLinuxSettingsSearchVisibilityPatch, source);
 
-  assert.match(patched, /function codexLinuxFilterSettingsSearchSection\(/);
+  assert.match(patched, /function chatgptLinuxFilterSettingsSearchSection\(/);
   assert.match(patched, /settings\.general\.appearance\.dockIcon\.label/);
   assert.match(
     patched,
-    /return m\.map\(codexLinuxFilterSettingsSearchSection\)/,
+    /return m\.map\(chatgptLinuxFilterSettingsSearchSection\)/,
   );
   assert.equal(
-    (patched.match(/function codexLinuxFilterSettingsSearchSection\(/g) || []).length,
+    (patched.match(/function chatgptLinuxFilterSettingsSearchSection\(/g) || []).length,
     1,
   );
 
   const helperStart = patched.indexOf(
-    "var codexLinuxDarwinOnlySettingsSearchMessageIds",
+    "var chatgptLinuxDarwinOnlySettingsSearchMessageIds",
   );
   const helperEnd = patched.indexOf("function qn", helperStart);
   const context = {};
   vm.runInNewContext(
-    `${patched.slice(helperStart, helperEnd)};globalThis.filter=codexLinuxFilterSettingsSearchSection`,
+    `${patched.slice(helperStart, helperEnd)};globalThis.filter=chatgptLinuxFilterSettingsSearchSection`,
     context,
   );
   const dockMessage = {
@@ -611,7 +611,7 @@ test("subagent metadata descriptor patches the current monolithic app bundle", (
   }});
 
 test("Linux target context parses distro, package, and desktop details", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-linux-target-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-linux-target-"));
   try {
     const osReleasePath = path.join(tempRoot, "os-release");
     fs.writeFileSync(
@@ -656,10 +656,10 @@ test("Linux target context parses distro, package, and desktop details", () => {
 
 test("build info captures DMG hash, integrations, distro profile, and source revision", () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-build-info-"));
-  const pinnedIntegrationsConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-  const pinnedFeaturesConfig = process.env.CODEX_LINUX_FEATURES_CONFIG;
-  delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-  delete process.env.CODEX_LINUX_FEATURES_CONFIG;
+  const pinnedIntegrationsConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const pinnedFeaturesConfig = process.env.CHATGPT_LINUX_FEATURES_CONFIG;
+  delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  delete process.env.CHATGPT_LINUX_FEATURES_CONFIG;
   try {
     const dmgPath = path.join(tempRoot, "ChatGPT.dmg");
     fs.writeFileSync(dmgPath, "fake dmg payload", "utf8");
@@ -689,13 +689,13 @@ test("build info captures DMG hash, integrations, distro profile, and source rev
       dmgPath,
       appDir,
       electronVersion: "41.3.0",
-      appId: "codex-app",
-      appDisplayName: "Codex App",
+      appId: "chatgpt",
+      appDisplayName: "ChatGPT",
       integrationsRoot,
       env: {
-        CODEX_LINUX_SOURCE_COMMIT: "abcdef1234567890",
-        CODEX_LINUX_SOURCE_BRANCH: "main",
-        CODEX_LINUX_SOURCE_REMOTE: "https://ghp_secret-token@github.com/example/codex-desktop-linux.git",
+        CHATGPT_LINUX_SOURCE_COMMIT: "abcdef1234567890",
+        CHATGPT_LINUX_SOURCE_BRANCH: "main",
+        CHATGPT_LINUX_SOURCE_REMOTE: "https://ghp_secret-token@github.com/example/codex-desktop-linux.git",
         SOURCE_DATE_EPOCH: "1710000000",
       },
       linuxTarget: detectLinuxTargetContext({
@@ -714,10 +714,10 @@ test("build info captures DMG hash, integrations, distro profile, and source rev
     assert.equal(info.packageProfile.packageManager, "apt");
     assert.deepEqual(info.portIntegrations.enabled, ["read-aloud", "open-target-discovery"]);
   } finally {
-    if (pinnedIntegrationsConfig == null) delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CODEX_PORT_INTEGRATIONS_CONFIG = pinnedIntegrationsConfig;
-    if (pinnedFeaturesConfig == null) delete process.env.CODEX_LINUX_FEATURES_CONFIG;
-    else process.env.CODEX_LINUX_FEATURES_CONFIG = pinnedFeaturesConfig;
+    if (pinnedIntegrationsConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = pinnedIntegrationsConfig;
+    if (pinnedFeaturesConfig == null) delete process.env.CHATGPT_LINUX_FEATURES_CONFIG;
+    else process.env.CHATGPT_LINUX_FEATURES_CONFIG = pinnedFeaturesConfig;
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
@@ -725,7 +725,7 @@ test("build info captures DMG hash, integrations, distro profile, and source rev
 test("build info sanitizes staged source metadata from packaged update-builder", () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-build-info-staged-source-"));
   try {
-    const sourceInfoDir = path.join(tempRoot, ".codex-linux");
+    const sourceInfoDir = path.join(tempRoot, ".chatgpt-linux");
     fs.mkdirSync(sourceInfoDir, { recursive: true });
     fs.writeFileSync(
       path.join(sourceInfoDir, "source-info.json"),
@@ -734,7 +734,7 @@ test("build info sanitizes staged source metadata from packaged update-builder",
         shortCommit: "0123456789ab",
         branch: "main",
         remote: "https://user:secret@example.com/org/repo.git",
-        sourceInfoPath: "/home/builder/codex/.codex-linux/source-info.json",
+        sourceInfoPath: "/home/builder/codex/.chatgpt-linux/source-info.json",
         provenance: "packaged-update-builder",
       }),
       "utf8",
@@ -819,7 +819,7 @@ test("package profile identifies Fedora Atomic hosts that use rpm-ostree", () =>
       },
       env: {
         PATH: binDir,
-        CODEX_LINUX_TARGET_ATOMIC: "maybe",
+        CHATGPT_LINUX_TARGET_ATOMIC: "maybe",
         OSTREE_BOOTED_FILE: ostreeBootedPath,
       },
     });
@@ -835,7 +835,7 @@ test("package profile identifies Fedora Atomic hosts that use rpm-ostree", () =>
       },
       env: {
         PATH: binDir,
-        CODEX_LINUX_TARGET_ATOMIC: "0",
+        CHATGPT_LINUX_TARGET_ATOMIC: "0",
         OSTREE_BOOTED_FILE: ostreeBootedPath,
       },
     });
@@ -880,7 +880,7 @@ test("auto-discovered core patches can target a specific Linux distro", () => {
         "  ciPolicy: \"required-official-dmg\",",
         "  order: 30000,",
         "  appliesTo: (context) => context.linux.matchesId(\"gentoo\"),",
-        "  apply: (source) => source.replace(\"codexLinuxGentooDisabled()\", \"codexLinuxGentooEnabled()\"),",
+        "  apply: (source) => source.replace(\"chatgptLinuxGentooDisabled()\", \"chatgptLinuxGentooEnabled()\"),",
         "};",
       ].join("\n"),
     );
@@ -891,43 +891,43 @@ test("auto-discovered core patches can target a specific Linux distro", () => {
 
     const gentoo = detectLinuxTargetContext({
       env: {
-        CODEX_LINUX_TARGET_ID: "gentoo",
-        CODEX_LINUX_TARGET_PACKAGE_FORMAT: "unknown",
+        CHATGPT_LINUX_TARGET_ID: "gentoo",
+        CHATGPT_LINUX_TARGET_PACKAGE_FORMAT: "unknown",
         PATH: "",
       },
     });
     const ubuntu = detectLinuxTargetContext({
       env: {
-        CODEX_LINUX_TARGET_ID: "ubuntu",
-        CODEX_LINUX_TARGET_ID_LIKE: "debian",
+        CHATGPT_LINUX_TARGET_ID: "ubuntu",
+        CHATGPT_LINUX_TARGET_ID_LIKE: "debian",
         PATH: "",
       },
     });
 
     assert.match(
       captureWarns(() =>
-        patchMainBundleSource("codexLinuxGentooDisabled()", null, {
+        patchMainBundleSource("chatgptLinuxGentooDisabled()", null, {
           corePatchRoot: tempRoot,
           linuxTarget: gentoo,
         }),
       ).value,
-      /codexLinuxGentooEnabled/,
+      /chatgptLinuxGentooEnabled/,
     );
     assert.doesNotMatch(
       captureWarns(() =>
-        patchMainBundleSource("codexLinuxGentooDisabled()", null, {
+        patchMainBundleSource("chatgptLinuxGentooDisabled()", null, {
           corePatchRoot: tempRoot,
           linuxTarget: ubuntu,
         }),
       ).value,
-      /codexLinuxGentooEnabled/,
+      /chatgptLinuxGentooEnabled/,
     );
 
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-skipped-target-report-"));
     try {
       const buildDir = path.join(tempApp, ".vite", "build");
       fs.mkdirSync(buildDir, { recursive: true });
-      fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxGentooDisabled()");
+      fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxGentooDisabled()");
       const report = createPatchReport();
       captureWarns(() =>
         patchExtractedApp(tempApp, {
@@ -1241,7 +1241,7 @@ test("optional webview descriptors follow the current monolithic app chunk", () 
   );
   assert.equal(
     automationUpdate.assetMatch(
-      ".map(e=>({type:`function`,...e,...Tc.has(e.name)?{}:{deferLoading:!0}}))",
+      ".map(e=>({type:`function`,...e,...x&&!Htl.has(e.name)?{deferLoading:!0}:{}}))",
     ),
     true,
   );
@@ -1351,10 +1351,10 @@ function trayBundleFixture() {
 
 function currentTrayLifecycleBundleFixture() {
   return [
-    "let codexLinuxQuitInProgress=!1,codexLinuxExplicitQuitApproved=!1,codexLinuxMarkQuitInProgress=()=>{codexLinuxQuitInProgress=!0},codexLinuxPrepareForExplicitQuit=()=>{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress()},codexLinuxShouldBypassQuitPrompt=()=>codexLinuxExplicitQuitApproved===!0,codexLinuxIsQuitInProgress=()=>codexLinuxQuitInProgress===!0;",
+    "let chatgptLinuxQuitInProgress=!1,chatgptLinuxExplicitQuitApproved=!1,chatgptLinuxMarkQuitInProgress=()=>{chatgptLinuxQuitInProgress=!0},chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()},chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0,chatgptLinuxIsQuitInProgress=()=>chatgptLinuxQuitInProgress===!0;",
     "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
     "async function gj(e){let t=e;if(typeof t.whenReady!=`function`)return!0;try{return await t.whenReady(),!0}catch{return!1}}function _j(e){let t=e;return typeof t.isReady==`function`?t.isReady():!0}",
-    "var H9=null,U9=null,G9=!1;async function fae(e){return G9=!0,U9??H9??(U9=(async()=>{let t={defaultIcon:e},r=typeof codexLinuxRegisterTray===`function`?codexLinuxRegisterTray(new c.Tray(t.defaultIcon)):new c.Tray(t.defaultIcon);if(!G9)return r.destroy(),null;r.setToolTip(c.app.getName());let i=new pb(r);return H9=i,!await i.waitForReady()||H9!==i?(H9===i&&(H9=null,i.destroy()),null):i})().finally(()=>{U9=null}),U9)}",
+    "var H9=null,U9=null,G9=!1;async function fae(e){return G9=!0,U9??H9??(U9=(async()=>{let t={defaultIcon:e},r=typeof chatgptLinuxRegisterTray===`function`?chatgptLinuxRegisterTray(new c.Tray(t.defaultIcon)):new c.Tray(t.defaultIcon);if(!G9)return r.destroy(),null;r.setToolTip(c.app.getName());let i=new pb(r);return H9=i,!await i.waitForReady()||H9!==i?(H9===i&&(H9=null,i.destroy()),null):i})().finally(()=>{U9=null}),U9)}",
     "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return _j(this.tray)}waitForReady(){return gj(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
   ].join("");
 }
@@ -1426,8 +1426,8 @@ async function runPatchedLinuxWillQuit(options = {}) {
     N5: 5,
     U5: options.contextDispose ?? (() => Promise.resolve()),
     c: lifecycleManager,
-    codexLinuxExplicitQuitDrainTimeoutMs: options.timeoutMs ?? 5,
-    codexLinuxIsQuitInProgress: () => true,
+    chatgptLinuxExplicitQuitDrainTimeoutMs: options.timeoutMs ?? 5,
+    chatgptLinuxIsQuitInProgress: () => true,
     console: {
       warn(...args) {
         state.warnings.push(args.map(String).join(" "));
@@ -1469,7 +1469,7 @@ async function runPatchedLinuxWillQuit(options = {}) {
     y: false,
   };
   if (options.omitQuitStateHelper === true) {
-    delete context.codexLinuxIsQuitInProgress;
+    delete context.chatgptLinuxIsQuitInProgress;
   }
 
   vm.runInNewContext(patched, context);
@@ -1552,7 +1552,7 @@ function currentBrowserUseTrustedHashesRuntimeBuilderFixture() {
 }
 
 const currentBrowserUseTrustedHashesInsertionRegex =
-  /trustedBrowserClientSha256s:h=\[\],shouldUseWslPaths:f\}\)\{h=codexLinuxTrustedBrowserClientSha256s\(h\);return h/;
+  /trustedBrowserClientSha256s:h=\[\],shouldUseWslPaths:f\}\)\{h=chatgptLinuxTrustedBrowserClientSha256s\(h\);return h/;
 
 function electron42BrowserUseRuntimeResolverBundleFixture() {
   return [
@@ -1593,11 +1593,11 @@ function currentChromePluginIsolatedAppServerRuntimeBundleFixture() {
 }
 
 function computerUseFeatureBundleFixture() {
-  return "function me(e,{env:t=process.env,platform:n=process.platform}={}){return n!==`win32`||t.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
+  return "function me(e,{env:t=process.env,platform:n=process.platform}={}){return n!==`win32`||t.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
 }
 
 function currentComputerUseFeatureBundleFixture() {
-  return "function ye(e,{buildFlavor:n=t.D.resolve(),env:r=d.default.env,platform:i=d.default.platform}={}){let a=i===`win32`&&r.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`?{...e,computerUse:!0,computerUseNodeRepl:!0}:e,o=n===t.D.Dev?be(r):null;return o==null?a:{...a,...o}}";
+  return "function ye(e,{buildFlavor:n=t.D.resolve(),env:r=d.default.env,platform:i=d.default.platform}={}){let a=i===`win32`&&r.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`?{...e,computerUse:!0,computerUseNodeRepl:!0}:e,o=n===t.D.Dev?be(r):null;return o==null?a:{...a,...o}}";
 }
 
 function currentLaunchActionBundleFixture() {
@@ -1614,30 +1614,20 @@ function currentLaunchActionBundleWithWindowApiDriftFixture() {
 function settingsPersistenceBundleFixture() {
   return [
     "let i=require(`node:path`),o=require(`node:fs`);",
-    "var s=`.codex-global-state.json`;",
-    "const h={\"set-global-state\":async({key:a,value:b,origin:c})=>(this.globalState.set(a,b),Promise.resolve())};",
+    "const h={\"get-global-state\":async({key:a})=>({value:this.getGlobalStateValue(a)}),\"set-global-state\":async({key:a,value:b})=>(this.setGlobalStateValue(a,b),{success:!0})};",
   ].join("");
 }
 
-function currentSettingsPersistenceBundleFixture() {
+function latestSettingsPersistenceBundleFixture() {
   return [
     "let i=require(`node:path`),o=require(`node:fs`);",
-    "var s=`.codex-global-state.json`,c=`config.toml`;",
-    "const h={\"set-global-state\":async({key:a,value:b,origin:c})=>(this.setGlobalStateValue(a,b,c),{success:!0})};",
-  ].join("");
-}
-
-function legacySettingsPersistenceBundleFixture() {
-  return [
-    "let i=require(`node:path`),o=require(`node:fs`);",
-    "var s=`.codex-global-state.json`;function codexLinuxSettingsPath(){let e=process.env.XDG_CONFIG_HOME||process.env.HOME&&i.join(process.env.HOME,`.config`);return e?i.join(e,`codex-desktop`,`settings.json`):null}function codexLinuxReadSettingsFile(){let e=codexLinuxSettingsPath();if(!e||!o.existsSync(e))return{};try{let t=o.readFileSync(e,`utf8`),n=JSON.parse(t);return n&&typeof n===`object`&&!Array.isArray(n)?n:{}}catch(e){return{}}}function codexLinuxPersistSettingsState(e,t){if(process.platform!==`linux`||![`codex-linux-prompt-window-enabled`,`codex-linux-system-tray-enabled`,`codex-linux-warm-start-enabled`].includes(e))return;try{let n=codexLinuxSettingsPath();if(!n)return;let r=codexLinuxReadSettingsFile();t===void 0?delete r[e]:r[e]=t,o.mkdirSync(i.dirname(n),{recursive:!0,mode:448}),o.writeFileSync(n,JSON.stringify(r,null,2)+`\\n`,`utf8`)}catch(e){}}",
-    "const h={\"set-global-state\":async({key:a,value:b,origin:c})=>(this.globalState.set(a,b),codexLinuxPersistSettingsState(a,b),Promise.resolve())};",
+    "const h={\"get-global-state\":async({key:a})=>({value:this.getGlobalStateValue(a)}),\"set-global-state\":async({key:a,value:b})=>(this.setGlobalStateValue(a,b),{success:!0})};",
   ].join("");
 }
 
 function runSettingsPersistence(patchedSource, env, key, value) {
   vm.runInNewContext(
-    `${patchedSource};codexLinuxPersistSettingsState(${JSON.stringify(key)},${JSON.stringify(value)});`,
+    `${patchedSource};chatgptLinuxPersistSettingsState(${JSON.stringify(key)},${JSON.stringify(value)});`,
     {
       console,
       JSON,
@@ -1986,7 +1976,7 @@ test("opens the project picker without a parent window on Linux X11", async () =
     "class T{async pickLocalWorkspaceRoots(e,t=!1){if(this.host.id!==`local`)throw Error(`local only`);let n=[`openDirectory`,`createDirectory`];t&&n.push(`multiSelections`),await this.shouldShowHiddenFilesInPicker()&&n.push(`showHiddenFiles`);let r={properties:n,title:`Select Project Root`},i=c.BrowserWindow.fromWebContents(e),a=i==null?await c.dialog.showOpenDialog(r):await c.dialog.showOpenDialog(i,r);return a.canceled?[]:(await Promise.all(a.filePaths.map(e=>this.resolveWorkspaceRoot(e)))).filter(e=>e!=null)}}";
   const patched = applyPatchTwice(applyLinuxX11ProjectPickerPatch, source);
 
-  assert.match(patched, /codexLinuxUseUnparentedX11ProjectPicker/);
+  assert.match(patched, /chatgptLinuxUseUnparentedX11ProjectPicker/);
 
   async function run(platform, env) {
     const calls = [];
@@ -2088,18 +2078,18 @@ test("restores inherited library paths only at known Linux host-process boundari
   const { context, patched } = evaluatePatchedHostProcessEnvironment({
     PATH: "/usr/bin",
     LD_LIBRARY_PATH: "/nix/app:/nix/runtime",
-    CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
-    CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
+    CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
+    CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
   });
 
-  assert.match(patched, /codexLinuxHostProcessEnv/);
+  assert.match(patched, /chatgptLinuxHostProcessEnv/);
   assert.doesNotMatch(patched, /PatchChildProcessEnvironment/);
   assert.doesNotMatch(patched, /require\(`node:child_process`\)/);
   assert.equal(Object.hasOwn(context.hostConfig.env, "LD_LIBRARY_PATH"), false);
 
   const shellResult = await context.loadShell();
   assert.equal(Object.hasOwn(shellResult.userEnv, "LD_LIBRARY_PATH"), false);
-  assert.equal(context.process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE, "unset");
+  assert.equal(context.process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE, "unset");
   assert.equal(
     context.process.env.LD_LIBRARY_PATH,
     "/nix/app:/nix/runtime",
@@ -2114,8 +2104,8 @@ test("preserves empty and non-empty user LD_LIBRARY_PATH values for inherited ho
   ]) {
     const { context } = evaluatePatchedHostProcessEnvironment({
       LD_LIBRARY_PATH: `/nix/app:${value}`,
-      CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: state,
-      CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: value,
+      CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: state,
+      CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: value,
     });
     assert.equal(context.hostConfig.env.LD_LIBRARY_PATH, value);
   }
@@ -2124,8 +2114,8 @@ test("preserves empty and non-empty user LD_LIBRARY_PATH values for inherited ho
 test("preserves a user LD_LIBRARY_PATH discovered by the login shell", async () => {
   const { context } = evaluatePatchedHostProcessEnvironment({
     LD_LIBRARY_PATH: "/nix/app:/nix/runtime",
-    CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
-    CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
+    CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
+    CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
   });
   context.shellUserEnv = {
     PATH: "/home/user/bin:/usr/bin",
@@ -2139,9 +2129,9 @@ test("preserves a user LD_LIBRARY_PATH discovered by the login shell", async () 
     "/nix/app:/nix/runtime",
     "shell discovery must leave the packaged Electron runtime intact",
   );
-  assert.equal(context.process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE, "value");
+  assert.equal(context.process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE, "value");
   assert.equal(
-    context.process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE,
+    context.process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE,
     "/home/user/profile-lib",
   );
   assert.equal(context.createHostConfig({}).env.LD_LIBRARY_PATH, "/home/user/profile-lib");
@@ -2150,18 +2140,18 @@ test("preserves a user LD_LIBRARY_PATH discovered by the login shell", async () 
 test("preserves development shell and CLI environments without launcher snapshot markers", async () => {
   const { context } = evaluatePatchedHostProcessEnvironment({
     LD_LIBRARY_PATH: "/developer/lib",
-    CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE: "unset",
-    CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE: "/stale/host/lib",
+    CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE: "unset",
+    CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE: "/stale/host/lib",
   });
   assert.equal(context.hostConfig.env.LD_LIBRARY_PATH, "/developer/lib");
   assert.equal(
-    Object.hasOwn(context.hostConfig.env, "CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE"),
+    Object.hasOwn(context.hostConfig.env, "CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE"),
     false,
   );
   const shellResult = await context.loadShell();
   assert.equal(shellResult.userEnv.LD_LIBRARY_PATH, "/developer/lib");
   assert.equal(
-    Object.hasOwn(shellResult.userEnv, "CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE"),
+    Object.hasOwn(shellResult.userEnv, "CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE"),
     false,
   );
   assert.equal(context.process.env.LD_LIBRARY_PATH, "/developer/lib");
@@ -2185,9 +2175,9 @@ test("patches startup shell and Codex CLI environments in separate Vite bundles"
     const mainSource = fs.readFileSync(path.join(buildDir, "main-current.js"), "utf8");
     const sharedSource = fs.readFileSync(path.join(buildDir, "src-current.js"), "utf8");
     assert.deepEqual(result, { matched: 2, changed: 2 });
-    assert.match(mainSource, /extraEnv:codexLinuxLoginShellExtraEnv/);
-    assert.match(mainSource, /codexLinuxShellEnvResult/);
-    assert.match(sharedSource, /let r=codexLinuxHostProcessEnv\(\{\.\.\.process\.env/);
+    assert.match(mainSource, /extraEnv:chatgptLinuxLoginShellExtraEnv/);
+    assert.match(mainSource, /chatgptLinuxShellEnvResult/);
+    assert.match(sharedSource, /let r=chatgptLinuxHostProcessEnv\(\{\.\.\.process\.env/);
     assert.deepEqual(patchLinuxHostProcessEnvironmentTargets(tempRoot), {
       matched: 2,
       changed: 0,
@@ -2202,31 +2192,31 @@ test("restores the user PATH for Linux local terminal sessions", () => {
 
   const patched = applyPatchTwice(applyLinuxTerminalUserPathPatch, source);
 
-  assert.match(patched, /function codexLinuxRestoreUserTerminalPath/);
-  assert.match(patched, /CODEX_LINUX_USER_PATH/);
+  assert.match(patched, /function chatgptLinuxRestoreUserTerminalPath/);
+  assert.match(patched, /CHATGPT_LINUX_USER_PATH/);
   assert.match(
     patched,
-    /process\.platform===`linux`&&this\.isLocalTerminalSession\(r\)&&codexLinuxRestoreUserTerminalPath\(i\)/,
+    /process\.platform===`linux`&&this\.isLocalTerminalSession\(r\)&&chatgptLinuxRestoreUserTerminalPath\(i\)/,
   );
-  assert.doesNotMatch(patched, /CODEX_LINUX_USER_PATH;n\(i\)/);
+  assert.doesNotMatch(patched, /CHATGPT_LINUX_USER_PATH;n\(i\)/);
 
   const helperSource = patched.match(
-    /function codexLinuxRestoreUserTerminalPath\(e\)\{[\s\S]*?return e\}/,
+    /function chatgptLinuxRestoreUserTerminalPath\(e\)\{[\s\S]*?return e\}/,
   )?.[0];
   assert.ok(helperSource);
 
-  const managedRuntime = "/opt/codex-desktop/resources/node-runtime";
+  const managedRuntime = "/opt/chatgpt/resources/node-runtime";
   const managedBin = `${managedRuntime}/bin`;
   const runHelper = (terminalPath, processPath = `${managedBin}:/usr/bin:/bin`) => {
     const terminalEnv = {
       PATH: terminalPath,
-      CODEX_LINUX_USER_PATH: "/usr/bin:/bin",
+      CHATGPT_LINUX_USER_PATH: "/usr/bin:/bin",
     };
-    vm.runInNewContext(`${helperSource};codexLinuxRestoreUserTerminalPath(terminalEnv);`, {
+    vm.runInNewContext(`${helperSource};chatgptLinuxRestoreUserTerminalPath(terminalEnv);`, {
       process: {
         env: {
-          CODEX_LINUX_USER_PATH: "/usr/bin:/bin",
-          CODEX_MANAGED_NODE_RUNTIME_DIR: managedRuntime,
+          CHATGPT_LINUX_USER_PATH: "/usr/bin:/bin",
+          CHATGPT_MANAGED_NODE_RUNTIME_DIR: managedRuntime,
           PATH: processPath,
         },
       },
@@ -2251,7 +2241,7 @@ test("rejects the obsolete 26.623 terminal sanitizer shape", () => {
   const patched = applyPatchTwice(applyLinuxTerminalUserPathPatch, source);
 
   assert.equal(patched, source);
-  assert.doesNotMatch(patched, /function codexLinuxRestoreUserTerminalPath/);
+  assert.doesNotMatch(patched, /function chatgptLinuxRestoreUserTerminalPath/);
 });
 
 test("sanitizes the terminal base before applying worktree environment overrides", async () => {
@@ -2265,8 +2255,8 @@ test("sanitizes the terminal base before applying worktree environment overrides
       env: {
         PATH: "/usr/bin",
         LD_LIBRARY_PATH: "/nix/app:/nix/runtime",
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
-        CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: "unset",
+        CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: "",
       },
     },
   };
@@ -2281,27 +2271,27 @@ test("sanitizes the terminal base before applying worktree environment overrides
 
   assert.equal(terminalEnv.LD_LIBRARY_PATH, "/project/lib");
   assert.equal(terminalEnv.PROJECT_ONLY, "1");
-  assert.equal(Object.hasOwn(terminalEnv, "CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE"), false);
+  assert.equal(Object.hasOwn(terminalEnv, "CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE"), false);
 
   backend.getWorktreeShellEnvironmentForCwd = async () => ({ exclude: [], set: {} });
   for (const [state, value] of [
     ["empty", ""],
     ["value", "/home/user/lib"],
   ]) {
-    context.process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE = state;
-    context.process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE = value;
+    context.process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE = state;
+    context.process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE = value;
     const inheritedEnv = await backend.buildTerminalEnv("/worktree", null, { type: "local" });
     assert.equal(inheritedEnv.LD_LIBRARY_PATH, value);
   }
 
-  delete context.process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE;
-  delete context.process.env.CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE;
-  context.process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE = "unset";
-  context.process.env.CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE = "/stale/host/lib";
+  delete context.process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE;
+  delete context.process.env.CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE;
+  context.process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE = "unset";
+  context.process.env.CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE = "/stale/host/lib";
   context.process.env.LD_LIBRARY_PATH = "/developer/lib";
   const developmentEnv = await backend.buildTerminalEnv("/worktree", null, { type: "local" });
   assert.equal(developmentEnv.LD_LIBRARY_PATH, "/developer/lib");
-  assert.equal(Object.hasOwn(developmentEnv, "CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE"), false);
+  assert.equal(Object.hasOwn(developmentEnv, "CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE"), false);
 });
 
 test("patchExtractedApp patches worker file manager support", () => {
@@ -2409,7 +2399,7 @@ test("uses XDG user documents directory for projectless Codex folders on Linux",
       context,
     );
 
-    assert.match(patched, /codexLinuxXdgDocumentsDir/);
+    assert.match(patched, /chatgptLinuxXdgDocumentsDir/);
     assert.match(patched, /`\$1`/);
     assert.equal(context.result, "/home/example/My Documents");
   } finally {
@@ -2443,7 +2433,7 @@ test("uses XDG user documents directory for generated projectless workspaces", (
       context,
     );
 
-    assert.match(patched, /codexLinuxProjectlessDocumentsDir/);
+    assert.match(patched, /chatgptLinuxProjectlessDocumentsDir/);
     assert.match(patched, /`\$1`/);
     assert.equal(context.result, "/home/example/My Documents/Codex");
   } finally {
@@ -2465,7 +2455,7 @@ test("projectless documents asset patch updates Vite build bundle", () => {
 
     assert.deepEqual(patchProjectlessDocumentsAssets(tempRoot), { matched: 1, changed: 1 });
     const patched = fs.readFileSync(bundlePath, "utf8");
-    assert.match(patched, /function codexLinuxProjectlessDocumentsDir/);
+    assert.match(patched, /function chatgptLinuxProjectlessDocumentsDir/);
     assert.deepEqual(patchProjectlessDocumentsAssets(tempRoot), { matched: 1, changed: 0 });
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -2532,7 +2522,7 @@ test("registers local app-server feature enablement in internal and Electron han
     "function create(){let f=new t.wn(this.options.messageChannel,{sharedObjectRepository:this.sharedObjectRepository});",
     "return f.registerInternalServerRequestHandler({methods:[`item/commandExecution/requestApproval`,`mcpServer/elicitation/request`],handler:t=>(this.messageHandler.revealWindowsReviewRequest(e,t),null)}),",
     "f.registerInternalServerRequestHandler({methods:[`attestation/generate`],handler:be({bundleIdentifier:n.k(this.options.buildFlavor),resourcesPath:l})}),f}",
-    "var oN=class{handlers={\"set-vs-context\":async()=>{throw new rN},\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e)};",
+    "var oN=class{handlers={\"set-vs-context\":async()=>{throw new rN},\"linux-read-aloud\":async(e)=>chatgptLinuxReadAloudHandle(e)};",
     "handleVSCodeRequest(e,n,r,i,a){let o=n,s=this.handlers[o];if(typeof s!=`function`)throw Error(`${n} not implemented in the current Electron process. Restart Codex to load the latest Electron handlers.`);return s({...r,origin:e,signal:a})}}",
   ].join("");
 
@@ -2559,12 +2549,12 @@ test("adds the Linux quit guard to the current comma-declared Electron prelude",
 
   const patched = applyPatchTwice(applyLinuxQuitGuardPatch, source);
 
-  assert.match(patched, /codexLinuxQuitInProgress=!1/);
-  assert.match(patched, /codexLinuxExplicitQuitApproved=!1/);
-  assert.match(patched, /codexLinuxMarkQuitInProgress=\(\)=>\{codexLinuxQuitInProgress=!0,codexLinuxDestroyTray\(\)\}/);
-  assert.match(patched, /codexLinuxPrepareForExplicitQuit=\(\)=>\{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress\(\)\}/);
-  assert.match(patched, /codexLinuxShouldBypassQuitPrompt=\(\)=>codexLinuxExplicitQuitApproved===!0/);
-  assert.match(patched, /codexLinuxIsQuitInProgress=\(\)=>codexLinuxQuitInProgress===!0/);
+  assert.match(patched, /chatgptLinuxQuitInProgress=!1/);
+  assert.match(patched, /chatgptLinuxExplicitQuitApproved=!1/);
+  assert.match(patched, /chatgptLinuxMarkQuitInProgress=\(\)=>\{chatgptLinuxQuitInProgress=!0,chatgptLinuxDestroyTray\(\)\}/);
+  assert.match(patched, /chatgptLinuxPrepareForExplicitQuit=\(\)=>\{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress\(\)\}/);
+  assert.match(patched, /chatgptLinuxShouldBypassQuitPrompt=\(\)=>chatgptLinuxExplicitQuitApproved===!0/);
+  assert.match(patched, /chatgptLinuxIsQuitInProgress=\(\)=>chatgptLinuxQuitInProgress===!0/);
 });
 
 test("keeps the current Linux quit guard module-scoped after helper declarations", () => {
@@ -2572,9 +2562,9 @@ test("keeps the current Linux quit guard module-scoped after helper declarations
 
   const patched = applyPatchTwice(applyLinuxQuitGuardPatch, source);
 
-  assert.match(patched, /p=e\.o\(p\);let codexLinuxTray=null/);  assert.match(patched, /codexLinuxExplicitQuitApproved=!1/);
-  assert.match(patched, /codexLinuxPrepareForExplicitQuit=\(\)=>\{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress\(\)\}/);
-  assert.equal((patched.match(/codexLinuxQuitInProgress=!1/g) ?? []).length, 1);
+  assert.match(patched, /p=e\.o\(p\);let chatgptLinuxTray=null/);  assert.match(patched, /chatgptLinuxExplicitQuitApproved=!1/);
+  assert.match(patched, /chatgptLinuxPrepareForExplicitQuit=\(\)=>\{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress\(\)\}/);
+  assert.equal((patched.match(/chatgptLinuxQuitInProgress=!1/g) ?? []).length, 1);
 });
 
 test("adds the Linux quit guard for the current interleaved bundler prelude", () => {
@@ -2583,10 +2573,10 @@ test("adds the Linux quit guard for the current interleaved bundler prelude", ()
   const patched = applyPatchTwice(applyLinuxQuitGuardPatch, source);
 
   assert.match(patched, /let m=require\(`node:fs\/promises`\);/);
-  assert.match(patched, /p=e\.o\(p\);let codexLinuxTray=null/);
-  assert.match(patched, /codexLinuxExplicitQuitApproved=!1/);
-  assert.match(patched, /codexLinuxPrepareForExplicitQuit=\(\)=>\{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress\(\)\}/);
-  assert.equal((patched.match(/codexLinuxQuitInProgress=!1/g) ?? []).length, 1);
+  assert.match(patched, /p=e\.o\(p\);let chatgptLinuxTray=null/);
+  assert.match(patched, /chatgptLinuxExplicitQuitApproved=!1/);
+  assert.match(patched, /chatgptLinuxPrepareForExplicitQuit=\(\)=>\{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress\(\)\}/);
+  assert.equal((patched.match(/chatgptLinuxQuitInProgress=!1/g) ?? []).length, 1);
 });
 
 test("destroys the registered Linux tray before the app exits", () => {
@@ -2598,20 +2588,20 @@ test("destroys the registered Linux tray before the app exits", () => {
     iconPathExpression,
   );
 
-  assert.match(patched, /codexLinuxRegisterTray=e=>\(codexLinuxTray=e,e\)/);
-  assert.match(patched, /codexLinuxDestroyTray=\(\)=>\{if\(process\.platform!==`linux`\)return;/);
-  assert.match(patched, /codexLinuxTray=null;try\{e\?\.destroy\(\)\}catch\{\}/);
-  assert.match(patched, /codexLinuxMarkQuitInProgress=\(\)=>\{codexLinuxQuitInProgress=!0,codexLinuxDestroyTray\(\)\}/);
-  assert.match(patched, /c\.app\.on\(`before-quit`,\(\)=>codexLinuxDestroyTray\(\)\)/);
-  assert.match(patched, /r=codexLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
-  assert.doesNotMatch(patched, /codexLinuxTrayQuitDelayMs/);
+  assert.match(patched, /chatgptLinuxRegisterTray=e=>\(chatgptLinuxTray=e,e\)/);
+  assert.match(patched, /chatgptLinuxDestroyTray=\(\)=>\{if\(process\.platform!==`linux`\)return;/);
+  assert.match(patched, /chatgptLinuxTray=null;try\{e\?\.destroy\(\)\}catch\{\}/);
+  assert.match(patched, /chatgptLinuxMarkQuitInProgress=\(\)=>\{chatgptLinuxQuitInProgress=!0,chatgptLinuxDestroyTray\(\)\}/);
+  assert.match(patched, /c\.app\.on\(`before-quit`,\(\)=>chatgptLinuxDestroyTray\(\)\)/);
+  assert.match(patched, /r=chatgptLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
+  assert.doesNotMatch(patched, /chatgptLinuxTrayQuitDelayMs/);
 
-  const helperStart = patched.indexOf("let codexLinuxTray=null");
+  const helperStart = patched.indexOf("let chatgptLinuxTray=null");
   const helperEnd = patched.indexOf(";c.app.on(`before-quit`", helperStart) + 1;
   const helperSource = patched.slice(helperStart, helperEnd);
   const runDestroy = new Function(
     "process",
-    `${helperSource}let calls=0;codexLinuxRegisterTray({destroy(){calls+=1}});codexLinuxMarkQuitInProgress();codexLinuxMarkQuitInProgress();return calls;`,
+    `${helperSource}let calls=0;chatgptLinuxRegisterTray({destroy(){calls+=1}});chatgptLinuxMarkQuitInProgress();chatgptLinuxMarkQuitInProgress();return calls;`,
   );
   assert.equal(runDestroy({ platform: "linux" }), 1);
 });
@@ -2632,12 +2622,12 @@ test("accepts stock Electron tray readiness and falls back to the Linux app icon
   assert.match(
     patched,
     new RegExp(
-      `let __codexLinuxTrayFallbackIcon=c\\.nativeImage\\.createFromPath\\(${escapeRegExp(iconPathExpression)}\\)`,
+      `let __chatgptLinuxTrayFallbackIcon=c\\.nativeImage\\.createFromPath\\(${escapeRegExp(iconPathExpression)}\\)`,
     ),
   );
   assert.match(
     patched,
-    /if\(!__codexLinuxTrayFallbackIcon\.isEmpty\(\)\)i=__codexLinuxTrayFallbackIcon/,
+    /if\(!__chatgptLinuxTrayFallbackIcon\.isEmpty\(\)\)i=__chatgptLinuxTrayFallbackIcon/,
   );
 
   const readinessHelpers = patched.match(
@@ -2721,10 +2711,10 @@ test("retains the current native Linux tray when quit-state helpers already exis
     null,
   );
 
-  assert.equal((patched.match(/codexLinuxRegisterTray=e=>/g) ?? []).length, 1);
-  assert.match(patched, /let codexLinuxTray=null,codexLinuxRegisterTray=e=>/);
-  assert.match(patched, /r=codexLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
-  assert.doesNotMatch(patched, /typeof codexLinuxRegisterTray===`function`/);
+  assert.equal((patched.match(/chatgptLinuxRegisterTray=e=>/g) ?? []).length, 1);
+  assert.match(patched, /let chatgptLinuxTray=null,chatgptLinuxRegisterTray=e=>/);
+  assert.match(patched, /r=chatgptLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
+  assert.doesNotMatch(patched, /typeof chatgptLinuxRegisterTray===`function`/);
 });
 
 test("bypasses the upstream before-quit confirmation after a Linux explicit quit", () => {
@@ -2736,11 +2726,11 @@ test("bypasses the upstream before-quit confirmation after a Linux explicit quit
 
   assert.match(
     patched,
-    /if\(\(typeof codexLinuxShouldBypassQuitPrompt===`function`&&codexLinuxShouldBypassQuitPrompt\(\)\)\|\|e\|\|i\.canQuitWithoutPrompt\(\)\|\|r\|\|!s&&!c\)\{process\.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),g=!0,a\.markAppQuitting\(\);return\}/,
+    /if\(\(typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt\(\)\)\|\|e\|\|i\.canQuitWithoutPrompt\(\)\|\|r\|\|!s&&!c\)\{process\.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),g=!0,a\.markAppQuitting\(\);return\}/,
   );
   assert.match(
     patched,
-    /process\.platform===`linux`&&typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),i\.markQuitApproved\(\),g=!0,a\.markAppQuitting\(\)/,
+    /process\.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),i\.markQuitApproved\(\),g=!0,a\.markAppQuitting\(\)/,
   );
 });
 
@@ -2751,12 +2741,12 @@ test("adds a bounded will-quit drain fallback on Linux", () => {
     applyLinuxQuitGuardPatch(source),
   );
 
-  assert.match(patched, /codexLinuxExplicitQuitDrainTimeoutMs=3e3/);
+  assert.match(patched, /chatgptLinuxExplicitQuitDrainTimeoutMs=3e3/);
   assert.match(
     patched,
-    /codexLinuxLogQuitDrainResults=e=>\{for\(let t of e\)if\(t\.status===`rejected`\)try\{console\.warn\(`WARN: Linux quit drain cleanup failed`,t\.reason\)\}catch\{\};return e\}/,
+    /chatgptLinuxLogQuitDrainResults=e=>\{for\(let t of e\)if\(t\.status===`rejected`\)try\{console\.warn\(`WARN: Linux quit drain cleanup failed`,t\.reason\)\}catch\{\};return e\}/,
   );
-  assert.doesNotMatch(patched, /codexLinuxQuitFinalized/);
+  assert.doesNotMatch(patched, /chatgptLinuxQuitFinalized/);
   assert.match(
     patched,
     /Promise\.resolve\(\)\.then\(\(\)=>U5\(h,N5\)\)\.catch\(e=>\{try\{console\.warn\(`WARN: Linux quit context cleanup failed`,e\)\}catch\{\}\}\)/,
@@ -2767,18 +2757,18 @@ test("adds a bounded will-quit drain fallback on Linux", () => {
   );
   assert.match(
     patched,
-    /Promise\.race\(\[Promise\.resolve\(\)\.then\(e\)\.then\(codexLinuxLogQuitDrainResults\),new Promise\(\(_,e\)=>setTimeout\(\(\)=>e\(Error\(`Linux quit drain timed out`\)\),typeof codexLinuxExplicitQuitDrainTimeoutMs===`number`\?codexLinuxExplicitQuitDrainTimeoutMs:3e3\)\)\]\)\.catch\(e=>\{try\{console\.warn\(`WARN: Linux quit drain cleanup failed`,e\)\}catch\{\}\}\)\.then\(codexLinuxFinalizeQuit\)/,
+    /Promise\.race\(\[Promise\.resolve\(\)\.then\(e\)\.then\(chatgptLinuxLogQuitDrainResults\),new Promise\(\(_,e\)=>setTimeout\(\(\)=>e\(Error\(`Linux quit drain timed out`\)\),typeof chatgptLinuxExplicitQuitDrainTimeoutMs===`number`\?chatgptLinuxExplicitQuitDrainTimeoutMs:3e3\)\)\]\)\.catch\(e=>\{try\{console\.warn\(`WARN: Linux quit drain cleanup failed`,e\)\}catch\{\}\}\)\.then\(chatgptLinuxFinalizeQuit\)/,
   );
   assert.match(
     patched,
-    /codexLinuxRunQuitDrain=e=>\{if\(process\.platform===`linux`\)\{/,
+    /chatgptLinuxRunQuitDrain=e=>\{if\(process\.platform===`linux`\)\{/,
   );
   assert.equal(
-    (patched.match(/codexLinuxRunQuitDrain\(\(\)=>\{/g) ?? []).length,
+    (patched.match(/chatgptLinuxRunQuitDrain\(\(\)=>\{/g) ?? []).length,
     2,
   );
   assert.equal(
-    (patched.match(/\.then\(codexLinuxLogQuitDrainResults\)/g) ?? []).length,
+    (patched.match(/\.then\(chatgptLinuxLogQuitDrainResults\)/g) ?? []).length,
     1,
   );  assert.doesNotMatch(patched, /\\`number\\`/);
   assert.match(patched, /e\(\)\.then\(t\)\}/);
@@ -3008,7 +2998,7 @@ test("marks Linux quit-in-progress for the tray quit path", () => {
 
   assert.match(
     patched,
-    /\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}/,
+    /\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}/,
   );
 });
 
@@ -3021,7 +3011,7 @@ test("marks Linux quit-in-progress for the quit-app IPC path", () => {
 
   assert.match(
     patched,
-    /if\(o\.type===`quit-app`\)\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/,
+    /if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/,
   );
 });
 
@@ -3032,13 +3022,13 @@ test("supports explicit IPC quit patching when minified aliases drift", () => {
 
   assert.match(
     patched,
-    /if\(m\.type===`quit-app`\)\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),x\.app\.quit\(\);return\}/,
+    /if\(m\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),x\.app\.quit\(\);return\}/,
   );
 });
 
 test("patches remaining explicit quit handlers when another copy is already patched", () => {
   const quitMarkerExpression =
-    "typeof codexLinuxPrepareForExplicitQuit===`function`?codexLinuxPrepareForExplicitQuit():typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress(),";
+    "typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),";
   const patchedTrayQuit = `{label:this.systemQuitMenuItemLabel,click:()=>{${quitMarkerExpression}n.app.quit()}}`;
   const unpatchedTrayQuit = "{label:this.systemQuitMenuItemLabel,click:()=>{n.app.quit()}}";
   const patchedIpcQuit = `if(o.type===\`quit-app\`){${quitMarkerExpression}n.app.quit();return}`;
@@ -3053,15 +3043,15 @@ test("patches remaining explicit quit handlers when another copy is already patc
     `${patchedIpcQuit}function createSecondIpc(){${unpatchedIpcQuit}}`,
   );
 
-  assert.equal((patchedTray.match(/codexLinuxPrepareForExplicitQuit\(\)/g) ?? []).length, 2);
+  assert.equal((patchedTray.match(/chatgptLinuxPrepareForExplicitQuit\(\)/g) ?? []).length, 2);
   assert.match(
     patchedTray,
-    /function createSecondTray\(\)\{return \{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}\}/,
+    /function createSecondTray\(\)\{return \{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}\}/,
   );
-  assert.equal((patchedIpc.match(/codexLinuxPrepareForExplicitQuit\(\)/g) ?? []).length, 2);
+  assert.equal((patchedIpc.match(/chatgptLinuxPrepareForExplicitQuit\(\)/g) ?? []).length, 2);
   assert.match(
     patchedIpc,
-    /function createSecondIpc\(\)\{if\(o\.type===`quit-app`\)\{typeof codexLinuxPrepareForExplicitQuit===`function`\?codexLinuxPrepareForExplicitQuit\(\):typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}\}/,
+    /function createSecondIpc\(\)\{if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}\}/,
   );
 });
 
@@ -3076,11 +3066,11 @@ test("uses the frameless native Codex titlebar for primary Linux windows", () =>
 
   assert.match(
     patched,
-    /function codexLinuxTitleBarOverlay\(e=1\)\{return\{color:a\.nativeTheme\.shouldUseDarkColors\?`#111111`:o2,symbolColor:a\.nativeTheme\.shouldUseDarkColors\?v2:_2,height:Math\.round\(30\*e\)\}\}/,
+    /function chatgptLinuxTitleBarOverlay\(e=1\)\{return\{color:a\.nativeTheme\.shouldUseDarkColors\?`#111111`:o2,symbolColor:a\.nativeTheme\.shouldUseDarkColors\?v2:_2,height:Math\.round\(30\*e\)\}\}/,
   );
   assert.match(
     patched,
-    /titleBarOverlay:n===`linux`\?codexLinuxTitleBarOverlay\(r\):b2\(r\),\.\.\.e===`quickChat`/,
+    /titleBarOverlay:n===`linux`\?chatgptLinuxTitleBarOverlay\(r\):b2\(r\),\.\.\.e===`quickChat`/,
   );
   assert.match(patched, /\.\.\.t\?\{\}:\{vibrancy:`menu`\}/);
   assert.doesNotMatch(patched, /titleBarOverlay:b2\(r\),\.\.\.e===`quickChat`/);
@@ -3099,11 +3089,11 @@ test("uses a module-scoped Linux native titlebar helper when aliases shadow Elec
 
   assert.match(
     value,
-    /function codexLinuxTitleBarOverlay\(e=1\)\{return\{color:r\.nativeTheme\.shouldUseDarkColors\?`#111111`:K4,symbolColor:r\.nativeTheme\.shouldUseDarkColors\?i3:r3,height:Math\.round\(30\*e\)\}\}/,
+    /function chatgptLinuxTitleBarOverlay\(e=1\)\{return\{color:r\.nativeTheme\.shouldUseDarkColors\?`#111111`:K4,symbolColor:r\.nativeTheme\.shouldUseDarkColors\?i3:r3,height:Math\.round\(30\*e\)\}\}/,
   );
   assert.match(
     value,
-    /titleBarOverlay:n===`linux`\?codexLinuxTitleBarOverlay\(r\):o3\(r\),\.\.\.e===`quickChat`/,
+    /titleBarOverlay:n===`linux`\?chatgptLinuxTitleBarOverlay\(r\):o3\(r\),\.\.\.e===`quickChat`/,
   );
   assert.doesNotMatch(value, /titleBarOverlay:\{color:r\.nativeTheme\.shouldUseDarkColors/);
   assert.deepEqual(warnings, []);
@@ -3125,7 +3115,7 @@ test("updates the Linux native titlebar overlay when nativeTheme changes", () =>
   );
   assert.match(
     patched,
-    /e\.setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay\(this\.windowZooms\.get\(e\.id\)\):b2\(this\.windowZooms\.get\(e\.id\)\)\)/,
+    /e\.setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay\(this\.windowZooms\.get\(e\.id\)\):b2\(this\.windowZooms\.get\(e\.id\)\)\)/,
   );
   assert.doesNotMatch(patched, /webContents\.executeJavaScript\(/);
   assert.doesNotMatch(patched, /data-codex-window-type/);
@@ -3146,7 +3136,7 @@ test("redirects the renamed Linux-aware titlebar overlay sync away from the tran
 
   assert.match(
     patched,
-    /titleBarOverlay:n===`linux`\?codexLinuxTitleBarOverlay\(r\):b2\(r\),\.\.\.e===`quickChat`/,
+    /titleBarOverlay:n===`linux`\?chatgptLinuxTitleBarOverlay\(r\):b2\(r\),\.\.\.e===`quickChat`/,
   );
   assert.match(
     patched,
@@ -3154,11 +3144,11 @@ test("redirects the renamed Linux-aware titlebar overlay sync away from the tran
   );
   assert.match(
     patched,
-    /e\.setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay\(this\.windowZooms\.get\(e\.id\)\):b2\(this\.windowZooms\.get\(e\.id\)\)\)/,
+    /e\.setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay\(this\.windowZooms\.get\(e\.id\)\):b2\(this\.windowZooms\.get\(e\.id\)\)\)/,
   );
   assert.match(
     patched,
-    /n\.setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay\(t\):b2\(t\)\)/,
+    /n\.setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay\(t\):b2\(t\)\)/,
   );
   assert.doesNotMatch(patched, /setTitleBarOverlay\(b2\(/);
   assert.deepEqual(warnings, []);
@@ -3178,7 +3168,7 @@ test("updates every Linux zoom titlebar overlay refresh call site", () => {
   const patched = applyPatchTwice(applyLinuxNativeTitlebarPatch, source);
 
   assert.equal(
-    (patched.match(/setTitleBarOverlay\(process\.platform===`linux`\?codexLinuxTitleBarOverlay/g) ?? []).length,
+    (patched.match(/setTitleBarOverlay\(process\.platform===`linux`\?chatgptLinuxTitleBarOverlay/g) ?? []).length,
     3,
   );
   assert.doesNotMatch(
@@ -3211,27 +3201,27 @@ test("uses the Linux window-controls safe area only when the app header shares t
   );
   assert.match(
     patched,
-    /codexLinuxUseWindowControlsSafeArea:!t,side:`end`/,
+    /chatgptLinuxUseWindowControlsSafeArea:!t,side:`end`/,
   );
   assert.match(
     patched,
-    /function sl\(\{entries:e,fitWidth:t,side:n,slotWidth:r,codexLinuxUseWindowControlsSafeArea\}\)/,
+    /function sl\(\{entries:e,fitWidth:t,side:n,slotWidth:r,chatgptLinuxUseWindowControlsSafeArea\}\)/,
   );
   assert.match(
     patched,
-    /"pe-2":n===`start`&&i\|\|n===`end`&&!codexLinuxUseWindowControlsSafeArea,"pe-\(--spacing-token-safe-header-right\)":n===`end`&&codexLinuxUseWindowControlsSafeArea/,
+    /"pe-2":n===`start`&&i\|\|n===`end`&&!chatgptLinuxUseWindowControlsSafeArea,"pe-\(--spacing-token-safe-header-right\)":n===`end`&&chatgptLinuxUseWindowControlsSafeArea/,
   );
   assert.doesNotMatch(patched, /"pe-2":n===`start`&&i\|\|n===`end`(?=[,}])/);
 
   const classRulesSource = patched.match(
-    /o=a\((\{[^{}]*codexLinuxUseWindowControlsSafeArea[^{}]*\})\),s=vr/,
+    /o=a\((\{[^{}]*chatgptLinuxUseWindowControlsSafeArea[^{}]*\})\),s=vr/,
   )?.[1];
   assert.ok(classRulesSource);
   const resolveClassRules = (side, hasEndEntries, useWindowControlsSafeArea) =>
     vm.runInNewContext(`(${classRulesSource})`, {
       n: side,
       i: hasEndEntries,
-      codexLinuxUseWindowControlsSafeArea: useWindowControlsSafeArea,
+      chatgptLinuxUseWindowControlsSafeArea: useWindowControlsSafeArea,
     });
   const separateRowClasses = resolveClassRules("end", true, false);
   assert.equal(separateRowClasses["pe-2"], true);
@@ -3256,7 +3246,7 @@ test("patches remaining Linux window controls safe areas when another copy is al
   );
   assert.match(
     patched,
-    /codexLinuxUseWindowControlsSafeArea:!t,side:`end`/,
+    /chatgptLinuxUseWindowControlsSafeArea:!t,side:`end`/,
   );
 });
 
@@ -3267,7 +3257,7 @@ test("patches remaining Linux header safe-area padding when the menu inset is al
 
   assert.match(
     patched,
-    /"pe-2":n===`start`&&i\|\|n===`end`&&!codexLinuxUseWindowControlsSafeArea,"pe-\(--spacing-token-safe-header-right\)":n===`end`&&codexLinuxUseWindowControlsSafeArea/,
+    /"pe-2":n===`start`&&i\|\|n===`end`&&!chatgptLinuxUseWindowControlsSafeArea,"pe-\(--spacing-token-safe-header-right\)":n===`end`&&chatgptLinuxUseWindowControlsSafeArea/,
   );
   assert.doesNotMatch(patched, /"pe-2":n===`start`&&i\|\|n===`end`(?=[,}])/);
 });
@@ -3508,7 +3498,7 @@ test("patches the current dotted webContents provider shape", async () => {
   await context.runReload(true);
 
   assert.deepEqual(reloads, ["reload", "hard-reload"]);
-  assert.match(patched, /codexLinuxReloadAppWindow/);
+  assert.match(patched, /chatgptLinuxReloadAppWindow/);
 });
 
 test("fails soft when multiple semantic native reload handlers are present", () => {
@@ -3730,24 +3720,23 @@ test("patches current webview opaque window default bundle shapes", () => {
 
 test("patches the current comment preload screenshot anchor shape", () => {
   const source = [
-    "let mt=Te;M?.kind===`comment`?mt=pt?[M.annotation]:Te:pt||P?mt=[]:ft!=null&&(mt=Te.filter(e=>e.id!==ft.id));",
-    "let ht=mt.flatMap(e=>[e]),kt=null,At=`hover-box`,jt,Mt=0,I=[];",
-    "if(P&&M?.annotation.anchor.kind===`element`){Mt=xt[0]??0;let e=bt==null?null:hs(bt),t=e?.rect??Ss(M.annotation.anchor);jt=e?.borderRadius,At=Vs(M.annotation.anchor,t,C.width,C.height),kt=Is(M.annotation.anchor,t,bt),I=bc(F,C,{clipToVisibleArea:!0})}",
+    "let Nt=Mt==null?[]:Pl(Mt),Pt=F==null?Nt:[],Ft=null,It=`hover-box`,Lt,Rt=[];",
+    "if(pt&&N?.annotation.anchor.kind===`element`){let e=Dt==null?null:as(Dt),t=e?.rect??fs(N.annotation.anchor);Lt=e?.borderRadius,It=js(N.annotation.anchor,t,w.width,w.height),Ft=Es(N.annotation.anchor,t,Dt),Rt=uc(Ot,w,{clipToVisibleArea:!0})}",
   ].join("");
 
   const patched = applyPatchTwice(applyBrowserAnnotationScreenshotPatch, source);
 
   assert.match(
     patched,
-    /if\(P&&M\?\.annotation\.anchor\.kind===`element`\)\{Mt=xt\[0\]\?\?0;let t=Ss\(M\.annotation\.anchor\);jt=void 0,At=Vs/,
+    /if\(pt&&N\?\.annotation\.anchor\.kind===`element`\)\{let t=fs\(N\.annotation\.anchor\);Lt=void 0,It=js/,
   );
-  assert.match(patched, /M\?\.kind===`comment`\?mt=pt\?\[M\.annotation\]:Te/);
-  assert.doesNotMatch(patched, /e\?\.rect\?\?Ss/);
+  assert.doesNotMatch(patched, /e\?\.rect\?\?fs/);
+  assert.doesNotMatch(patched, /Lt=e\?\.borderRadius/);
 });
 
 test("keeps the current stored annotation anchor shape unchanged", () => {
   const source =
-    "if(P&&M?.annotation.anchor.kind===`element`){Mt=xt[0]??0;let t=Ss(M.annotation.anchor);jt=void 0,At=Vs(M.annotation.anchor,t,C.width,C.height)}";
+    "if(pt&&N?.annotation.anchor.kind===`element`){let t=fs(N.annotation.anchor);Lt=void 0,It=js(N.annotation.anchor,t,w.width,w.height)}";
 
   assert.equal(applyPatchTwice(applyBrowserAnnotationScreenshotPatch, source), source);
 });
@@ -3829,8 +3818,8 @@ test("dedupes flattened skills lists across repeated cwd buckets", () => {
 
   const patched = applyPatchTwice(applyLinuxSkillsListDedupePatch, source);
 
-  assert.match(patched, /function codexLinuxDedupeSkills/);
-  assert.match(patched, /b=codexLinuxDedupeSkills\(y\.flatMap\(IJ\)\)/);
+  assert.match(patched, /function chatgptLinuxDedupeSkills/);
+  assert.match(patched, /b=chatgptLinuxDedupeSkills\(y\.flatMap\(IJ\)\)/);
 
   const result = vm.runInNewContext(`${patched};FJ();`);
   const names = Array.from(result, (skill) => skill.name);
@@ -3861,16 +3850,16 @@ test("adds Linux avatar overlay mouse passthrough recovery", () => {
     latestAvatarOverlayBundleFixture(),
   );
 
-  assert.match(patched, /codexLinuxAvatarPassthroughRecoveryTimer/);
-  assert.match(patched, /codexLinuxStartAvatarPassthroughRecovery\(\)/);
-  assert.match(patched, /codexLinuxStopAvatarPassthroughRecovery\(\)/);
-  assert.match(patched, /codexLinuxSyncAvatarPointerInteractivity\(e\)/);
-  assert.match(patched, /codexLinuxBuildAvatarInputShape\(e\)/);
-  assert.match(patched, /codexLinuxApplyAvatarInputShape\(e\)/);
-  assert.match(patched, /codexLinuxShouldUseWholeWindowInput\(\)\{return this\.codexLinuxWholeWindowInput===!0\}/);
-  assert.match(patched, /codexLinuxIsI3Session\(\)/);
+  assert.match(patched, /chatgptLinuxAvatarPassthroughRecoveryTimer/);
+  assert.match(patched, /chatgptLinuxStartAvatarPassthroughRecovery\(\)/);
+  assert.match(patched, /chatgptLinuxStopAvatarPassthroughRecovery\(\)/);
+  assert.match(patched, /chatgptLinuxSyncAvatarPointerInteractivity\(e\)/);
+  assert.match(patched, /chatgptLinuxBuildAvatarInputShape\(e\)/);
+  assert.match(patched, /chatgptLinuxApplyAvatarInputShape\(e\)/);
+  assert.match(patched, /chatgptLinuxShouldUseWholeWindowInput\(\)\{return this\.chatgptLinuxWholeWindowInput===!0\}/);
+  assert.match(patched, /chatgptLinuxIsI3Session\(\)/);
   assert.match(patched, /process\.env\.I3SOCK/);
-  assert.match(patched, /codexLinuxApplyAvatarCompositorHints\(e\)/);
+  assert.match(patched, /chatgptLinuxApplyAvatarCompositorHints\(e\)/);
   assert.match(patched, /getNativeWindowHandle\?\.\(\)/);
   assert.match(patched, /h\.execFile\(`xdotool`,\[`search`,`--pid`,String\(process\.pid\)\]/);
   assert.match(patched, /h\.execFile\(`xwininfo`,\[`-id`,e\]/);
@@ -3883,25 +3872,25 @@ test("adds Linux avatar overlay mouse passthrough recovery", () => {
   assert.match(patched, /Number\(__codexAvatarWidth\)!==t\.width/);
   assert.match(patched, /Number\(__codexAvatarHeight\)!==t\.height/);
   assert.doesNotMatch(patched, /let\[,l,h,d,f\]=c/);
-  assert.doesNotMatch(patched, /this\.codexLinuxIsI3Session\(\)\)\{this\.codexLinuxStopAvatarPassthroughRecovery\(\),this\.codexLinuxAvatarInputShapeKey=null,this\.pointerInteractive=!0,this\.mousePassthroughEnabled&&\(this\.mousePassthroughEnabled=!1\),e\.setIgnoreMouseEvents\(!1\);return\}/);
-  assert.match(patched, /if\(this\.codexLinuxIsAvatarShapeBackend\(\)&&typeof e\.setShape==`function`\)\{/);
-  assert.match(patched, /if\(this\.codexLinuxIsAvatarShapeBackend\(\)&&typeof e\.setShape==`function`\)\{this\.codexLinuxStartAvatarPassthroughRecovery\(\),/);
-  assert.match(patched, /codexLinuxIsAvatarShapeBackend\(\)\{/);
+  assert.doesNotMatch(patched, /this\.chatgptLinuxIsI3Session\(\)\)\{this\.chatgptLinuxStopAvatarPassthroughRecovery\(\),this\.chatgptLinuxAvatarInputShapeKey=null,this\.pointerInteractive=!0,this\.mousePassthroughEnabled&&\(this\.mousePassthroughEnabled=!1\),e\.setIgnoreMouseEvents\(!1\);return\}/);
+  assert.match(patched, /if\(this\.chatgptLinuxIsAvatarShapeBackend\(\)&&typeof e\.setShape==`function`\)\{/);
+  assert.match(patched, /if\(this\.chatgptLinuxIsAvatarShapeBackend\(\)&&typeof e\.setShape==`function`\)\{this\.chatgptLinuxStartAvatarPassthroughRecovery\(\),/);
+  assert.match(patched, /chatgptLinuxIsAvatarShapeBackend\(\)\{/);
   assert.match(patched, /getSwitchValue\(`ozone-platform`\)/);
   assert.match(patched, /return e===`x11`\|\|e===``&&!process\.env\.WAYLAND_DISPLAY/);
   assert.doesNotMatch(patched, /XDG_SESSION_TYPE/);
-  assert.doesNotMatch(patched, /if\(process\.platform===`linux`&&typeof e\.setShape==`function`\)\{this\.codexLinuxStopAvatarPassthroughRecovery\(\),/);
-  assert.doesNotMatch(patched, /typeof e\.setShape==`function`&&!this\.codexLinuxIsI3Session\(\)/);
+  assert.doesNotMatch(patched, /if\(process\.platform===`linux`&&typeof e\.setShape==`function`\)\{this\.chatgptLinuxStopAvatarPassthroughRecovery\(\),/);
+  assert.doesNotMatch(patched, /typeof e\.setShape==`function`&&!this\.chatgptLinuxIsI3Session\(\)/);
   assert.match(patched, /if\(t==null\)return null/);
-  assert.match(patched, /try\{let t=this\.codexLinuxBuildAvatarInputShape\(e\);if\(t==null\)return!1;let n=JSON\.stringify\(t\)/);
-  assert.match(patched, /e\.setShape\(t\),this\.codexLinuxAvatarInputShapeKey=n;return!0/);
+  assert.match(patched, /try\{let t=this\.chatgptLinuxBuildAvatarInputShape\(e\);if\(t==null\)return!1;let n=JSON\.stringify\(t\)/);
+  assert.match(patched, /e\.setShape\(t\),this\.chatgptLinuxAvatarInputShapeKey=n;return!0/);
   assert.match(patched, /return\[i\(t\.mascot\),i\(t\.tray\)\]\.filter\(Boolean\)/);
   assert.match(patched, /process\.platform!==`linux`/);
   assert.match(patched, /setInterval\(\(\)=>\{let e=this\.window/);
   assert.match(patched, /\},32\)/);
-  assert.doesNotMatch(patched, /typeof e\.setShape==`function`\)return;this\.codexLinuxAvatarPassthroughRecoveryTimer=setInterval/);
+  assert.doesNotMatch(patched, /typeof e\.setShape==`function`\)return;this\.chatgptLinuxAvatarPassthroughRecoveryTimer=setInterval/);
   assert.match(patched, /this\.dragState!=null/);
-  assert.match(patched, /this\.codexLinuxIsCursorInAvatarInteractiveRegion\(e\)/);
+  assert.match(patched, /this\.chatgptLinuxIsCursorInAvatarInteractiveRegion\(e\)/);
   assert.match(patched, /__codexWindowHit=__codexX>=0&&__codexY>=0&&__codexX<=__codexBounds\.width&&__codexY<=__codexBounds\.height/);
   assert.match(patched, /return __codexHit\(t\.mascot\)\|\|__codexHit\(t\.tray\)/);
   assert.doesNotMatch(patched, /return __codexHit\(t\.mascot\)\|\|__codexHit\(t\.tray\)\|\|__codexWindowHit/);
@@ -3911,12 +3900,12 @@ test("adds Linux avatar overlay mouse passthrough recovery", () => {
   assert.match(patched, /this\.windowServerDragActive\|\|\(this\.windowServerDragWindowX=null\),process\.platform===`linux`&&\(this\.pointerInteractive=!0,this\.applyPointerInteractivityPolicy\(\)\)\}endDrag\(e,t\)/);
   assert.match(patched, /this\.dockPresentation\(o\.anchor,o\.onDock\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)\}setElementSize/);
   assert.match(patched, /this\.applyLatestElementSizes\(o\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)/);
-  assert.match(patched, /this\.codexLinuxAvatarCompositorHintsApplied=!1,this\.codexLinuxAvatarCompositorHintsApplying=!1,this\.compositionHost\.setOverlayWindow\(e\)/);
-  assert.match(patched, /traySize:process\.platform===`linux`&&typeof this\.codexLinuxIsI3Session==`function`&&this\.codexLinuxIsI3Session\(\)\?this\.traySize:this\.traySize\?\?\(this\.layoutMode===`native`\?y5:v5\)/);
+  assert.match(patched, /this\.chatgptLinuxAvatarCompositorHintsApplied=!1,this\.chatgptLinuxAvatarCompositorHintsApplying=!1,this\.compositionHost\.setOverlayWindow\(e\)/);
+  assert.match(patched, /traySize:process\.platform===`linux`&&typeof this\.chatgptLinuxIsI3Session==`function`&&this\.chatgptLinuxIsI3Session\(\)\?this\.traySize:this\.traySize\?\?\(this\.layoutMode===`native`\?y5:v5\)/);
   assert.match(patched, /this\.sendComputerUseCursorLocationToRenderer\(e\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)\}showWindow/);
-  assert.match(patched, /e\.moveTop\(\),e\.showInactive\(\),process\.platform===`linux`&&this\.codexLinuxApplyAvatarCompositorHints\(e\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)/);
-  assert.doesNotMatch(patched, /codexLinuxRecoverAvatarPointerInteractivity/);
-  assert.match(patched, /if\(this\.window!==e\)return;let t=this\.presentationVisibility!=null;this\.codexLinuxStopAvatarPassthroughRecovery\(\),this\.codexLinuxAvatarInputShapeKey=null,this\.codexLinuxAvatarCompositorHintsApplied=!1,this\.codexLinuxAvatarCompositorHintsApplying=!1,this\.cancelMomentum\(\)/);
+  assert.match(patched, /e\.moveTop\(\),e\.showInactive\(\),process\.platform===`linux`&&this\.chatgptLinuxApplyAvatarCompositorHints\(e\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)/);
+  assert.doesNotMatch(patched, /chatgptLinuxRecoverAvatarPointerInteractivity/);
+  assert.match(patched, /if\(this\.window!==e\)return;let t=this\.presentationVisibility!=null;this\.chatgptLinuxStopAvatarPassthroughRecovery\(\),this\.chatgptLinuxAvatarInputShapeKey=null,this\.chatgptLinuxAvatarCompositorHintsApplied=!1,this\.chatgptLinuxAvatarCompositorHintsApplying=!1,this\.cancelMomentum\(\)/);
 });
 
 test("keeps the avatar overlay core patch idempotent after pet overlay composition", () => {
@@ -3977,19 +3966,19 @@ test("pet overlay opts into full-window input on X11 and Wayland", () => {
     setShape() {},
   };
 
-  controller.codexPetOverlaySyncWindow(window);
-  assert.equal(controller.codexLinuxWholeWindowInput, true);
+  controller.chatgptPetOverlaySyncWindow(window);
+  assert.equal(controller.chatgptLinuxWholeWindowInput, true);
 
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.codexLinuxBuildAvatarInputShape(window))), [
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.chatgptLinuxBuildAvatarInputShape(window))), [
     { x: 0, y: 0, width: 356, height: 320 },
   ]);
   cursor.x = 10;
   cursor.y = 300;
-  assert.equal(controller.codexLinuxIsCursorInAvatarInteractiveRegion(window), true);
+  assert.equal(controller.chatgptLinuxIsCursorInAvatarInteractiveRegion(window), true);
   ozonePlatform = "wayland";
   controller.pointerInteractive = false;
-  assert.equal(controller.codexLinuxIsAvatarShapeBackend(), false);
-  assert.equal(controller.codexLinuxSyncAvatarPointerInteractivity(window), true);
+  assert.equal(controller.chatgptLinuxIsAvatarShapeBackend(), false);
+  assert.equal(controller.chatgptLinuxSyncAvatarPointerInteractivity(window), true);
   assert.equal(controller.pointerInteractive, true);
 });
 
@@ -4038,9 +4027,9 @@ test("locked pet overlay keeps only mascot and tray interactive on X11 and Wayla
     setShape() {},
   };
 
-  controller.codexPetOverlaySyncWindow(window);
-  assert.equal(controller.codexLinuxWholeWindowInput, false);
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.codexLinuxBuildAvatarInputShape(window))), [
+  controller.chatgptPetOverlaySyncWindow(window);
+  assert.equal(controller.chatgptLinuxWholeWindowInput, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.chatgptLinuxBuildAvatarInputShape(window))), [
     { x: 220, y: 190, width: 113, height: 122 },
     { x: 57, y: 55, width: 276, height: 131 },
   ]);
@@ -4048,8 +4037,8 @@ test("locked pet overlay keeps only mascot and tray interactive on X11 and Wayla
   ozonePlatform = "wayland";
   controller.window = window;
   controller.pointerInteractive = true;
-  assert.equal(controller.codexLinuxIsAvatarShapeBackend(), false);
-  assert.equal(controller.codexLinuxIsCursorInAvatarInteractiveRegion(window), false);
+  assert.equal(controller.chatgptLinuxIsAvatarShapeBackend(), false);
+  assert.equal(controller.chatgptLinuxIsCursorInAvatarInteractiveRegion(window), false);
   controller.applyPointerInteractivityPolicy();
   assert.deepEqual(JSON.parse(JSON.stringify(ignored)), [[true, { forward: true }]]);
 });
@@ -4116,7 +4105,7 @@ test("Linux avatar overlay interactivity is bounded to avatar regions", () => {
   };
 
   assert.equal(
-    controller.codexLinuxIsCursorInAvatarInteractiveRegion({
+    controller.chatgptLinuxIsCursorInAvatarInteractiveRegion({
       getContentBounds: () => ({ x: 5743, y: 936, width: 356, height: 320 }),
     }),
     true,
@@ -4124,13 +4113,13 @@ test("Linux avatar overlay interactivity is bounded to avatar regions", () => {
   cursor.x = 5765;
   cursor.y = 1088;
   assert.equal(
-    controller.codexLinuxIsCursorInAvatarInteractiveRegion({
+    controller.chatgptLinuxIsCursorInAvatarInteractiveRegion({
       getContentBounds: () => ({ x: 5743, y: 936, width: 356, height: 320 }),
     }),
     false,
   );
   assert.equal(
-    controller.codexLinuxIsCursorInAvatarInteractiveRegion({
+    controller.chatgptLinuxIsCursorInAvatarInteractiveRegion({
       getContentBounds: () => ({ x: 6000, y: 936, width: 100, height: 100 }),
     }),
     false,
@@ -4142,40 +4131,40 @@ test("Linux avatar overlay interactivity is bounded to avatar regions", () => {
     setShape() {},
   };
   const serializeShape = (shape) => JSON.parse(JSON.stringify(shape));
-  assert.deepEqual(serializeShape(controller.codexLinuxBuildAvatarInputShape(overlayWindow)), [
+  assert.deepEqual(serializeShape(controller.chatgptLinuxBuildAvatarInputShape(overlayWindow)), [
     { x: 220, y: 190, width: 113, height: 122 },
     { x: 57, y: 55, width: 276, height: 131 },
   ]);
   controller.pointerInteractive = true;
-  assert.deepEqual(serializeShape(controller.codexLinuxBuildAvatarInputShape(overlayWindow)), [
+  assert.deepEqual(serializeShape(controller.chatgptLinuxBuildAvatarInputShape(overlayWindow)), [
     { x: 220, y: 190, width: 113, height: 122 },
     { x: 57, y: 55, width: 276, height: 131 },
   ]);
   controller.dragState = {};
-  assert.deepEqual(serializeShape(controller.codexLinuxBuildAvatarInputShape(overlayWindow)), [
+  assert.deepEqual(serializeShape(controller.chatgptLinuxBuildAvatarInputShape(overlayWindow)), [
     { x: 0, y: 0, width: 356, height: 320 },
   ]);
   controller.dragState = null;
-  assert.equal(controller.codexLinuxShouldUseWholeWindowInput(), false);
-  controller.codexLinuxWholeWindowInput = true;
-  assert.deepEqual(serializeShape(controller.codexLinuxBuildAvatarInputShape(overlayWindow)), [
+  assert.equal(controller.chatgptLinuxShouldUseWholeWindowInput(), false);
+  controller.chatgptLinuxWholeWindowInput = true;
+  assert.deepEqual(serializeShape(controller.chatgptLinuxBuildAvatarInputShape(overlayWindow)), [
     { x: 0, y: 0, width: 356, height: 320 },
   ]);
   assert.equal(
-    controller.codexLinuxIsCursorInAvatarInteractiveRegion({
+    controller.chatgptLinuxIsCursorInAvatarInteractiveRegion({
       getContentBounds: () => ({ x: 5743, y: 936, width: 356, height: 320 }),
     }),
     true,
   );
-  controller.codexLinuxWholeWindowInput = false;
+  controller.chatgptLinuxWholeWindowInput = false;
   context.process.env.WAYLAND_DISPLAY = "wayland-0";
-  assert.equal(controller.codexLinuxIsAvatarShapeBackend(), false);
-  assert.equal(controller.codexLinuxApplyAvatarInputShape(overlayWindow), false);
+  assert.equal(controller.chatgptLinuxIsAvatarShapeBackend(), false);
+  assert.equal(controller.chatgptLinuxApplyAvatarInputShape(overlayWindow), false);
   let setShapeCalls = 0;
   ozonePlatform = "x11";
-  assert.equal(controller.codexLinuxIsAvatarShapeBackend(), true);
+  assert.equal(controller.chatgptLinuxIsAvatarShapeBackend(), true);
   assert.equal(
-    controller.codexLinuxApplyAvatarInputShape({
+    controller.chatgptLinuxApplyAvatarInputShape({
       ...overlayWindow,
       setShape() {
         setShapeCalls += 1;
@@ -4185,11 +4174,11 @@ test("Linux avatar overlay interactivity is bounded to avatar regions", () => {
   );
   assert.equal(setShapeCalls, 1);
   ozonePlatform = "wayland";
-  assert.equal(controller.codexLinuxIsAvatarShapeBackend(), false);
+  assert.equal(controller.chatgptLinuxIsAvatarShapeBackend(), false);
   ozonePlatform = "x11";
   let failingBoundsCalls = 0;
   assert.equal(
-    controller.codexLinuxApplyAvatarInputShape({
+    controller.chatgptLinuxApplyAvatarInputShape({
       isDestroyed: () => false,
       getContentBounds: () => {
         failingBoundsCalls += 1;
@@ -4200,10 +4189,10 @@ test("Linux avatar overlay interactivity is bounded to avatar regions", () => {
     false,
   );
   assert.equal(failingBoundsCalls, 1);
-  controller.codexLinuxAvatarInputShapeKey = null;
+  controller.chatgptLinuxAvatarInputShapeKey = null;
   let failingSetShapeCalls = 0;
   assert.equal(
-    controller.codexLinuxApplyAvatarInputShape({
+    controller.chatgptLinuxApplyAvatarInputShape({
       isDestroyed: () => false,
       getContentBounds: () => ({ x: 5743, y: 936, width: 356, height: 320 }),
       setShape() {
@@ -4225,14 +4214,14 @@ test("patches the latest avatar overlay class without depending on adjacent meth
   );
 
   assert.deepEqual(warnings, []);
-  assert.match(patched, /codexLinuxIsI3Session\(\)/);
+  assert.match(patched, /chatgptLinuxIsI3Session\(\)/);
   assert.match(patched, /setComputerUseCursorLocation\(e\)\{this\.computerUseCursorLocation=e/);
   assert.match(patched, /sendComputerUseCursorLocationToRenderer\(e\)\{this\.windowManager\.sendMessageToWebContents/);
   assert.match(patched, /this\.windowServerDragActive=!1[\s\S]*?process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)\}setElementSize/);
   assert.match(patched, /this\.applyLatestElementSizes\(o\),process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)/);
   assert.match(patched, /this\.compositionHost\.updateMascotRect\(a\.mascot\)[\s\S]*?process\.platform===`linux`&&this\.applyPointerInteractivityPolicy\(\)\}showWindow/);
-  assert.match(patched, /if\(this\.window!==e\)return;let t=this\.presentationVisibility!=null;this\.codexLinuxStopAvatarPassthroughRecovery\(\)/);
-  assert.match(patched, /traySize:process\.platform===`linux`&&typeof this\.codexLinuxIsI3Session==`function`/);
+  assert.match(patched, /if\(this\.window!==e\)return;let t=this\.presentationVisibility!=null;this\.chatgptLinuxStopAvatarPassthroughRecovery\(\)/);
+  assert.match(patched, /traySize:process\.platform===`linux`&&typeof this\.chatgptLinuxIsI3Session==`function`/);
 });
 
 test("registers a private Linux Computer Use cursor bridge without changing Darwin", () => {
@@ -4241,13 +4230,13 @@ test("registers a private Linux Computer Use cursor bridge without changing Darw
 
   assert.match(
     patched,
-    /if\(r===`linux`\)return codexLinuxRegisterComputerUseCursorHandler\(e\);if\(r!==`darwin`\)return!1/,
+    /if\(r===`linux`\)return chatgptLinuxRegisterComputerUseCursorHandler\(e\);if\(r!==`darwin`\)return!1/,
   );
   assert.match(patched, /Buffer\.byteLength\(i,`utf8`\)<=100/);
   assert.match(patched, /i\.chmodSync\(n,384\)/);
   assert.match(patched, /r\.dev===e\.dev&&r\.ino===e\.ino&&r\.isSocket\(\)/);
   assert.equal(
-    (patched.match(/function codexLinuxRegisterComputerUseCursorHandler/g) ?? []).length,
+    (patched.match(/function chatgptLinuxRegisterComputerUseCursorHandler/g) ?? []).length,
     1,
   );
 });
@@ -4300,8 +4289,8 @@ test("Linux Computer Use cursor bridge is local, bounded, and returns to idle", 
     process: {
       env: {
         XDG_RUNTIME_DIR: root,
-        CODEX_LINUX_APP_ID: "codex-desktop-test",
-        CODEX_LINUX_INSTANCE_ID: "secondary",
+        CHATGPT_LINUX_APP_ID: "chatgpt-test",
+        CHATGPT_LINUX_INSTANCE_ID: "secondary",
       },
       getuid: process.getuid.bind(process),
     },
@@ -4317,13 +4306,13 @@ test("Linux Computer Use cursor bridge is local, bounded, and returns to idle", 
     setTimeout: scheduleTimer,
   };
   vm.runInNewContext(
-    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.bridge={path:codexLinuxComputerUseCursorSocketPath,register:codexLinuxRegisterComputerUseCursorHandler}`,
+    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.bridge={path:chatgptLinuxComputerUseCursorSocketPath,register:chatgptLinuxRegisterComputerUseCursorHandler}`,
     context,
   );
 
-  context.process.env.CODEX_LINUX_INSTANCE_ID = "..";
+  context.process.env.CHATGPT_LINUX_INSTANCE_ID = "..";
   assert.equal(context.bridge.path(), null);
-  context.process.env.CODEX_LINUX_INSTANCE_ID = "secondary";
+  context.process.env.CHATGPT_LINUX_INSTANCE_ID = "secondary";
 
   assert.equal(context.bridge.register((event) => cursorEvents.push({ ...event })), true);
   const socketPath = context.bridge.path();
@@ -4383,7 +4372,7 @@ test("Linux Computer Use cursor bridge is local, bounded, and returns to idle", 
 
 test("Linux Computer Use cursor bridge refuses to replace a regular file", () => {
   const root = fs.mkdtempSync("/tmp/cu-cursor-file-");
-  const socketDir = path.join(root, "codex-desktop-test");
+  const socketDir = path.join(root, "chatgpt-test");
   const socketPath = path.join(socketDir, "computer-use-cursor.sock");
   fs.mkdirSync(socketDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(socketPath, "preserve");
@@ -4391,7 +4380,7 @@ test("Linux Computer Use cursor bridge refuses to replace a regular file", () =>
     Buffer,
     clearTimeout,
     process: {
-      env: { XDG_RUNTIME_DIR: root, CODEX_LINUX_APP_ID: "codex-desktop-test" },
+      env: { XDG_RUNTIME_DIR: root, CHATGPT_LINUX_APP_ID: "chatgpt-test" },
       getuid: process.getuid.bind(process),
     },
     require(name) {
@@ -4403,7 +4392,7 @@ test("Linux Computer Use cursor bridge refuses to replace a regular file", () =>
     setTimeout,
   };
   vm.runInNewContext(
-    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.register=codexLinuxRegisterComputerUseCursorHandler`,
+    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.register=chatgptLinuxRegisterComputerUseCursorHandler`,
     context,
   );
 
@@ -4419,7 +4408,7 @@ test("Linux Computer Use cursor bridge rejects an unsafe runtime directory", () 
     Buffer,
     clearTimeout,
     process: {
-      env: { XDG_RUNTIME_DIR: root, CODEX_LINUX_APP_ID: "codex-desktop-test" },
+      env: { XDG_RUNTIME_DIR: root, CHATGPT_LINUX_APP_ID: "chatgpt-test" },
       getuid: process.getuid.bind(process),
     },
     require(name) {
@@ -4431,12 +4420,12 @@ test("Linux Computer Use cursor bridge rejects an unsafe runtime directory", () 
     setTimeout,
   };
   vm.runInNewContext(
-    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.register=codexLinuxRegisterComputerUseCursorHandler`,
+    `${linuxComputerUseCursorBridgeRuntimeSource()};globalThis.register=chatgptLinuxRegisterComputerUseCursorHandler`,
     context,
   );
 
   assert.equal(context.register(() => {}), false);
-  assert.equal(fs.existsSync(path.join(root, "codex-desktop-test")), false);
+  assert.equal(fs.existsSync(path.join(root, "chatgpt-test")), false);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -4735,24 +4724,24 @@ test("lets ready-to-show icon insertion cover current window options drift", () 
 
 test("adds Linux build information request handlers for renderer settings", () => {
   const source =
-    "let n=require(`electron`),o=require(`node:fs`),i=require(`node:path`),e={bn:{help:`help`}};const h={\"get-global-state\":async({key:a})=>({value:this.globalState.get(a)}),\"set-global-state\":async({key:a,value:b,origin:c})=>(this.setGlobalStateValue(a,b,c),{success:!0})};let $e=[{role:`help`,id:e.bn.help,submenu:[{label:`Codex Documentation`,click:()=>{n.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=n.Menu.buildFromTemplate($e);n.Menu.setApplicationMenu(et);";
+    "let n=require(`electron`),o=require(`node:fs`),i=require(`node:path`),Xe={help:`help`};const h={\"get-global-state\":async({key:a})=>({value:this.getGlobalStateValue(a)}),\"set-global-state\":async({key:a,value:b})=>(this.setGlobalStateValue(a,b),{success:!0})};let $e=[{role:`help`,id:Xe.help,submenu:[{label:`Codex Documentation`,click:()=>{n.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=n.Menu.buildFromTemplate($e);n.Menu.setApplicationMenu(et);";
   const patched = applyPatchTwice(applyLinuxBuildInfoTrayPatch, source);
 
-  assert.match(patched, /function codexLinuxGetBuildInfo\(\)/);
-  assert.match(patched, /"codex-linux-get-build-info":async\(\)=>codexLinuxGetBuildInfo\(\)/);
+  assert.match(patched, /function chatgptLinuxGetBuildInfo\(\)/);
+  assert.match(patched, /"chatgpt-linux-get-build-info":async\(\)=>chatgptLinuxGetBuildInfo\(\)/);
   assert.match(
     patched,
-    /"codex-linux-open-build-info-commit":async\(\)=>codexLinuxOpenBuildInfoCommit\(\)/,
+    /"chatgpt-linux-open-build-info-commit":async\(\)=>chatgptLinuxOpenBuildInfoCommit\(\)/,
   );
   assert.match(
     patched,
-    /"codex-linux-show-build-info":async\(\)=>\{await codexLinuxShowBuildInfo\(\);return\{success:!0\}\}/,
+    /"chatgpt-linux-show-build-info":async\(\)=>\{await chatgptLinuxShowBuildInfo\(\);return\{success:!0\}\}/,
   );
 });
 
 test("Linux build information helper locals do not shadow minified module bindings", () => {
   const source =
-    "let a=require(`electron`),l=require(`node:fs`),s=require(`node:path`),e={bn:{help:`help`}};const h={\"get-global-state\":async({key:a})=>({value:this.globalState.get(a)}),\"set-global-state\":async({key:a,value:b,origin:c})=>(this.setGlobalStateValue(a,b,c),{success:!0})};let $e=[{role:`help`,id:e.bn.help,submenu:[{label:`Codex Documentation`,click:()=>{a.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=a.Menu.buildFromTemplate($e);a.Menu.setApplicationMenu(et);";
+    "let a=require(`electron`),l=require(`node:fs`),s=require(`node:path`),Xe={help:`help`};const h={\"get-global-state\":async({key:a})=>({value:this.getGlobalStateValue(a)}),\"set-global-state\":async({key:a,value:b})=>(this.setGlobalStateValue(a,b),{success:!0})};let $e=[{role:`help`,id:Xe.help,submenu:[{label:`Codex Documentation`,click:()=>{a.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=a.Menu.buildFromTemplate($e);a.Menu.setApplicationMenu(et);";
   const patched = applyPatchTwice(applyLinuxBuildInfoTrayPatch, source);
 
   assert.match(patched, /await a\.dialog\?\.showMessageBox/);
@@ -4764,36 +4753,51 @@ test("Linux build information helper locals do not shadow minified module bindin
 
 test("Linux build information request handlers are inserted into the handler table", () => {
   const source =
-    "let a=require(`electron`),l=require(`node:fs`),s=require(`node:path`),e={bn:{help:`help`}};const h={\"is-copilot-api-available\":async()=>({available:!1}),\"get-global-state\":async({key:e})=>({value:this.globalState.get(e)}),\"set-global-state\":async({key:e,value:t,origin:n})=>(this.setGlobalStateValue(e,t,n),{success:!0})};let $e=[{role:`help`,id:e.bn.help,submenu:[{label:`Codex Documentation`,click:()=>{a.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=a.Menu.buildFromTemplate($e);a.Menu.setApplicationMenu(et);";
+    "let a=require(`electron`),l=require(`node:fs`),s=require(`node:path`),Xe={help:`help`};const h={\"is-copilot-api-available\":async()=>({available:!1}),\"get-global-state\":async({key:e})=>({value:this.getGlobalStateValue(e)}),\"set-global-state\":async({key:e,value:t})=>(this.setGlobalStateValue(e,t),{success:!0})};let $e=[{role:`help`,id:Xe.help,submenu:[{label:`Codex Documentation`,click:()=>{a.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=a.Menu.buildFromTemplate($e);a.Menu.setApplicationMenu(et);";
   const patched = applyPatchTwice(applyLinuxBuildInfoTrayPatch, source);
 
   assert.match(
     patched,
-    /"is-copilot-api-available":async\(\)=>\(\{available:!1\}\),"codex-linux-get-build-info":async\(\)=>codexLinuxGetBuildInfo\(\),"codex-linux-open-build-info-commit"/,
+    /"is-copilot-api-available":async\(\)=>\(\{available:!1\}\),"chatgpt-linux-get-build-info":async\(\)=>chatgptLinuxGetBuildInfo\(\),"chatgpt-linux-open-build-info-commit"/,
   );
-  assert.doesNotMatch(patched, /"is-copilot-api-available":async\(\)=>\(\{"codex-linux-get-build-info"/);
+  assert.doesNotMatch(patched, /"is-copilot-api-available":async\(\)=>\(\{"chatgpt-linux-get-build-info"/);
 });
 
 test("adds Linux build information to current tray menu shape", () => {
   const patched = applyPatchTwice(applyLinuxBuildInfoTrayPatch, `${mainBundlePrefix}${currentTrayMenuBundleFixture()}`);
 
-  assert.match(patched, /function codexLinuxShowBuildInfo\(\)/);
+  assert.match(patched, /function chatgptLinuxShowBuildInfo\(\)/);
   assert.match(
     patched,
-    /getNativeTrayMenuItems\(\)\{let\{pinnedThreads:e,[^]*?;return\[\.\.\.process\.platform===`linux`\?\[\{label:`Build Information`,click:\(\)=>\{codexLinuxShowBuildInfo\(\)\}\},\{type:`separator`\}\]:\[\],\.\.\.h/,
+    /getNativeTrayMenuItems\(\)\{let\{pinnedThreads:e,[^]*?;return\[\.\.\.process\.platform===`linux`\?\[\{label:`Build Information`,click:\(\)=>\{chatgptLinuxShowBuildInfo\(\)\}\},\{type:`separator`\}\]:\[\],\.\.\.h/,
   );
 });
 
 test("adds Linux build information to the app Help menu", () => {
   const source =
-    "let n=require(`electron`),o=require(`node:fs`),i=require(`node:path`),e={bn:{help:`help`}};let $e=[{role:`help`,id:e.bn.help,submenu:[{label:`Codex Documentation`,click:()=>{n.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=n.Menu.buildFromTemplate($e);n.Menu.setApplicationMenu(et);";
+    "let n=require(`electron`),o=require(`node:fs`),i=require(`node:path`),Xe={help:`help`};let $e=[{role:`help`,id:Xe.help,submenu:[{label:`Codex Documentation`,click:()=>{n.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],et=n.Menu.buildFromTemplate($e);n.Menu.setApplicationMenu(et);";
   const patched = applyPatchTwice(applyLinuxBuildInfoTrayPatch, source);
 
-  assert.match(patched, /function codexLinuxShowBuildInfo\(\)/);
+  assert.match(patched, /function chatgptLinuxShowBuildInfo\(\)/);
   assert.doesNotThrow(() => new Function(patched));
   assert.match(
     patched,
-    /\{role:`help`,id:e\.bn\.help,submenu:\[\.\.\.process\.platform===`linux`\?\[\{label:`Build Information`,click:\(\)=>\{codexLinuxShowBuildInfo\(\)\}\},\{type:`separator`\}\]:\[\],\{label:`Codex Documentation`/,
+    /\{role:`help`,id:Xe\.help,submenu:\[\.\.\.process\.platform===`linux`\?\[\{label:`Build Information`,click:\(\)=>\{chatgptLinuxShowBuildInfo\(\)\}\},\{type:`separator`\}\]:\[\],\{label:`Codex Documentation`/,
+  );
+});
+test("adds Linux build information to the latest localized Help menu shape", () => {
+  const source =
+    "let l=require(`electron`),o=require(`node:fs`),i=require(`node:path`),y={formatMessage:e=>e.defaultMessage},Xe={help:`help`};let Ht=[{label:y.formatMessage({messageId:`windowsMenuBar.help`,defaultMessage:`Help`}),role:`help`,id:Xe.help,submenu:[{label:y.formatMessage({messageId:`loadingPage.documentationLink`,defaultMessage:`Documentation`}),click:()=>{l.shell.openExternal(`https://developers.openai.com/codex/app`)}}]}],Ut=l.Menu.buildFromTemplate(Ht);";
+  const { value: patched, warnings } = captureWarns(() =>
+    applyPatchTwice(applyLinuxBuildInfoTrayPatch, source),
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.match(patched, /function chatgptLinuxShowBuildInfo\(\)/);
+  assert.doesNotThrow(() => new Function(patched));
+  assert.match(
+    patched,
+    /role:`help`,id:Xe\.help,submenu:\[\.\.\.process\.platform===`linux`\?\[\{label:`Build Information`,click:\(\)=>\{chatgptLinuxShowBuildInfo\(\)\}\},\{type:`separator`\}\]:\[\],\{label:y\.formatMessage/,
   );
 });
 
@@ -4802,15 +4806,15 @@ test("adds Linux single-instance lock and second-instance handoff", () => {
 
   assert.match(
     patched,
-    /process\.platform===`linux`&&process\.env\.CODEX_LINUX_MULTI_LAUNCH!==`1`&&!n\.app\.requestSingleInstanceLock\(\)/,
+    /process\.platform===`linux`&&process\.env\.CHATGPT_LINUX_MULTI_LAUNCH!==`1`&&!n\.app\.requestSingleInstanceLock\(\)/,
   );
   assert.match(patched, /n\.app\.quit\(\);return/);
-  assert.match(patched, /codexLinuxBeforeQuitHandler=\(\)=>\{typeof codexLinuxMarkQuitInProgress===`function`&&codexLinuxMarkQuitInProgress\(\)\}/);
-  assert.match(patched, /n\.app\.on\(`before-quit`,codexLinuxBeforeQuitHandler\)/);
-  assert.match(patched, /n\.app\.off\(`before-quit`,codexLinuxBeforeQuitHandler\)/);
-  assert.match(patched, /codexLinuxSecondInstanceHandler/);
-  assert.match(patched, /n\.app\.on\(`second-instance`,codexLinuxSecondInstanceHandler\)/);
-  assert.match(patched, /n\.app\.off\(`second-instance`,codexLinuxSecondInstanceHandler\)/);
+  assert.match(patched, /chatgptLinuxBeforeQuitHandler=\(\)=>\{typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\)\}/);
+  assert.match(patched, /n\.app\.on\(`before-quit`,chatgptLinuxBeforeQuitHandler\)/);
+  assert.match(patched, /n\.app\.off\(`before-quit`,chatgptLinuxBeforeQuitHandler\)/);
+  assert.match(patched, /chatgptLinuxSecondInstanceHandler/);
+  assert.match(patched, /n\.app\.on\(`second-instance`,chatgptLinuxSecondInstanceHandler\)/);
+  assert.match(patched, /n\.app\.off\(`second-instance`,chatgptLinuxSecondInstanceHandler\)/);
 });
 
 test("forces the bootstrap single-instance lock on Linux even when upstream disables it", () => {
@@ -4820,21 +4824,21 @@ test("forces the bootstrap single-instance lock on Linux even when upstream disa
 
   assert.match(
     patched,
-    /if\(!\(process\.platform===`linux`\?process\.env\.CODEX_LINUX_MULTI_LAUNCH===`1`\|\|n\.app\.requestSingleInstanceLock\(\):!S\|\|n\.app\.requestSingleInstanceLock\(\)\)\)/,
+    /if\(!\(process\.platform===`linux`\?process\.env\.CHATGPT_LINUX_MULTI_LAUNCH===`1`\|\|n\.app\.requestSingleInstanceLock\(\):!S\|\|n\.app\.requestSingleInstanceLock\(\)\)\)/,
   );
   assert.match(patched, /Exiting second desktop instance/);
 });
 
 test("upgrades the legacy guarded bootstrap single-instance lock to the enforced form", () => {
   const source =
-    "var $=r.D({isMacOS:Z,isPackaged:e.app.isPackaged});if(!(!$||process.platform===`linux`&&process.env.CODEX_LINUX_MULTI_LAUNCH===`1`||e.app.requestSingleInstanceLock()))t.Vr().info(`Exiting second desktop instance`,{}),e.app.exit(0);";
+    "var $=r.D({isMacOS:Z,isPackaged:e.app.isPackaged});if(!(!$||process.platform===`linux`&&process.env.CHATGPT_LINUX_MULTI_LAUNCH===`1`||e.app.requestSingleInstanceLock()))t.Vr().info(`Exiting second desktop instance`,{}),e.app.exit(0);";
   const patched = applyPatchTwice(applyLinuxMultiInstanceBootstrapPatch, source);
 
   assert.match(
     patched,
-    /if\(!\(process\.platform===`linux`\?process\.env\.CODEX_LINUX_MULTI_LAUNCH===`1`\|\|e\.app\.requestSingleInstanceLock\(\):!\$\|\|e\.app\.requestSingleInstanceLock\(\)\)\)/,
+    /if\(!\(process\.platform===`linux`\?process\.env\.CHATGPT_LINUX_MULTI_LAUNCH===`1`\|\|e\.app\.requestSingleInstanceLock\(\):!\$\|\|e\.app\.requestSingleInstanceLock\(\)\)\)/,
   );
-  assert.ok(!patched.includes("&&process.env.CODEX_LINUX_MULTI_LAUNCH"));
+  assert.ok(!patched.includes("&&process.env.CHATGPT_LINUX_MULTI_LAUNCH"));
 });
 
 function bootstrapFailureBundleFixture() {
@@ -4880,7 +4884,7 @@ test("patches the hashed bootstrap bundle loaded by the production entrypoint", 
 
     const firstReport = applyBootstrapDescriptors(tempRoot);
     const patched = fs.readFileSync(bundlePath, "utf8");
-    assert.match(patched, /CODEX_LINUX_MULTI_LAUNCH/);
+    assert.match(patched, /CHATGPT_LINUX_MULTI_LAUNCH/);
     assert.match(patched, /process\.platform===`linux`&&i\.app\.exit\(1\)/);
     assert.deepEqual(
       firstReport.patches.map(({ name, status }) => ({ name, status })),
@@ -5061,9 +5065,9 @@ test("enforced bootstrap lock takes the Linux lock with upstream flag off and ex
     };
     const env = { ...process.env };
     if (multiLaunch) {
-      env.CODEX_LINUX_MULTI_LAUNCH = "1";
+      env.CHATGPT_LINUX_MULTI_LAUNCH = "1";
     } else {
-      delete env.CODEX_LINUX_MULTI_LAUNCH;
+      delete env.CHATGPT_LINUX_MULTI_LAUNCH;
     }
     new Function("t", "n", "b", "process", patched)(t, n, false, {
       env,
@@ -5095,23 +5099,23 @@ test("recognizes bootstrap-owned single-instance handoff in current bundles", ()
 test("persists Linux settings to the launcher-provided settings file", () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-settings-path-"));
   try {
-    const settingsFile = path.join(tempRoot, "config", "codex-cua-lab", "settings.json");
+    const settingsFile = path.join(tempRoot, "config", "chatgpt-cua-lab", "settings.json");
     const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, settingsPersistenceBundleFixture());
 
-    assert.match(patched, /process\.env\.CODEX_LINUX_SETTINGS_FILE/);
+    assert.match(patched, /process\.env\.CHATGPT_LINUX_SETTINGS_FILE/);
     runSettingsPersistence(
       patched,
       {
-        CODEX_LINUX_APP_ID: "codex-cua-lab",
-        CODEX_LINUX_SETTINGS_FILE: settingsFile,
+        CHATGPT_LINUX_APP_ID: "chatgpt-cua-lab",
+        CHATGPT_LINUX_SETTINGS_FILE: settingsFile,
         HOME: path.join(tempRoot, "home"),
       },
-      "codex-linux-warm-start-enabled",
+      "chatgpt-linux-warm-start-enabled",
       false,
     );
 
     assert.equal(
-      JSON.parse(fs.readFileSync(settingsFile, "utf8"))["codex-linux-warm-start-enabled"],
+      JSON.parse(fs.readFileSync(settingsFile, "utf8"))["chatgpt-linux-warm-start-enabled"],
       false,
     );
     assert.equal(fs.existsSync(path.join(tempRoot, "home", ".config", "codex-desktop", "settings.json")), false);
@@ -5121,24 +5125,24 @@ test("persists Linux settings to the launcher-provided settings file", () => {
 });
 
 test("persists Linux settings under the effective side-by-side app id", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-settings-app-id-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-settings-app-id-"));
   try {
     const xdgConfig = path.join(tempRoot, "xdg-config");
     const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, settingsPersistenceBundleFixture());
 
-    assert.match(patched, /process\.env\.CODEX_LINUX_APP_ID\|\|process\.env\.CODEX_APP_ID/);
+    assert.match(patched, /process\.env\.CHATGPT_LINUX_APP_ID\|\|process\.env\.CHATGPT_APP_ID/);
     runSettingsPersistence(
       patched,
       {
-        CODEX_LINUX_APP_ID: "codex-cua-lab",
+        CHATGPT_LINUX_APP_ID: "chatgpt-cua-lab",
         XDG_CONFIG_HOME: xdgConfig,
       },
-      "codex-linux-system-tray-enabled",
+      "chatgpt-linux-system-tray-enabled",
       false,
     );
 
     assert.equal(
-      JSON.parse(fs.readFileSync(path.join(xdgConfig, "codex-cua-lab", "settings.json"), "utf8"))["codex-linux-system-tray-enabled"],
+      JSON.parse(fs.readFileSync(path.join(xdgConfig, "chatgpt-cua-lab", "settings.json"), "utf8"))["chatgpt-linux-system-tray-enabled"],
       false,
     );
     assert.equal(fs.existsSync(path.join(xdgConfig, "codex-desktop", "settings.json")), false);
@@ -5147,114 +5151,74 @@ test("persists Linux settings under the effective side-by-side app id", () => {
   }
 });
 
-test("persists Linux settings with current setGlobalStateValue handler shape", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-settings-current-shape-"));
+test("persists all Linux setting keys with the latest global-state handler", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-settings-current-shape-"));
   try {
-    const settingsFile = path.join(tempRoot, "config", "codex-desktop", "settings.json");
-    const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, currentSettingsPersistenceBundleFixture());
+    const settingsFile = path.join(tempRoot, "config", "chatgpt", "settings.json");
+    const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, latestSettingsPersistenceBundleFixture());
 
-    assert.match(patched, /var s=`\.codex-global-state\.json`;function codexLinuxSettingsAppId/);
-    assert.match(patched, /var c=`config\.toml`/);
-    assert.match(patched, /this\.setGlobalStateValue\(a,b,c\),codexLinuxPersistSettingsState\(a,b\)/);
+    assert.match(patched, /function chatgptLinuxSettingsAppId/);
+    assert.match(patched, /this\.setGlobalStateValue\(a,b\),chatgptLinuxPersistSettingsState\(a,b\)/);
     runSettingsPersistence(
       patched,
       {
-        CODEX_LINUX_SETTINGS_FILE: settingsFile,
+        CHATGPT_LINUX_SETTINGS_FILE: settingsFile,
         HOME: path.join(tempRoot, "home"),
       },
-      "codex-linux-read-aloud-enabled",
+      "chatgpt-linux-read-aloud-enabled",
       true,
     );
     runSettingsPersistence(
       patched,
       {
-        CODEX_LINUX_SETTINGS_FILE: settingsFile,
+        CHATGPT_LINUX_SETTINGS_FILE: settingsFile,
         HOME: path.join(tempRoot, "home"),
       },
-      "codex-linux-read-aloud-kokoro-speed",
+      "chatgpt-linux-read-aloud-kokoro-speed",
       1.15,
     );
 
     const settings = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
-    assert.equal(settings["codex-linux-read-aloud-enabled"], true);
-    assert.equal(settings["codex-linux-read-aloud-kokoro-speed"], 1.15);
+    assert.equal(settings["chatgpt-linux-read-aloud-enabled"], true);
+    assert.equal(settings["chatgpt-linux-read-aloud-kokoro-speed"], 1.15);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
-test("migrates already-patched Linux settings persistence away from codex-desktop", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-settings-migrate-"));
+test("adds Linux settings persistence to the latest two-argument global-state handler", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-settings-latest-shape-"));
   try {
-    const xdgConfig = path.join(tempRoot, "xdg-config");
-    const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, legacySettingsPersistenceBundleFixture());
-
-    assert.match(patched, /process\.env\.CODEX_LINUX_SETTINGS_FILE/);
-    assert.doesNotMatch(patched, /join\(e,`codex-desktop`,`settings\.json`\)/);
-    runSettingsPersistence(
-      patched,
-      {
-        CODEX_LINUX_APP_ID: "codex-cua-lab",
-        XDG_CONFIG_HOME: xdgConfig,
-      },
-      "codex-linux-prompt-window-enabled",
-      false,
+    const settingsFile = path.join(tempRoot, "config", "chatgpt", "settings.json");
+    const { value: patched, warnings } = captureWarns(() =>
+      applyPatchTwice(
+        applyLinuxSettingsPersistencePatch,
+        latestSettingsPersistenceBundleFixture(),
+      ),
     );
 
-    assert.equal(
-      JSON.parse(fs.readFileSync(path.join(xdgConfig, "codex-cua-lab", "settings.json"), "utf8"))["codex-linux-prompt-window-enabled"],
-      false,
+    assert.deepEqual(warnings, []);
+    assert.match(
+      patched,
+      /"set-global-state":async\(\{key:a,value:b\}\)=>\(this\.setGlobalStateValue\(a,b\),chatgptLinuxPersistSettingsState\(a,b\),\{success:!0\}\)/,
     );
     runSettingsPersistence(
       patched,
       {
-        CODEX_LINUX_APP_ID: "codex-cua-lab",
-        XDG_CONFIG_HOME: xdgConfig,
+        CHATGPT_LINUX_SETTINGS_FILE: settingsFile,
+        HOME: path.join(tempRoot, "home"),
       },
-      "codex-linux-read-aloud-enabled",
-      true,
+      "chatgpt-linux-warm-start-enabled",
+      false,
     );
-
     assert.equal(
-      JSON.parse(fs.readFileSync(path.join(xdgConfig, "codex-cua-lab", "settings.json"), "utf8"))["codex-linux-read-aloud-enabled"],
-      true,
+      JSON.parse(fs.readFileSync(settingsFile, "utf8"))["chatgpt-linux-warm-start-enabled"],
+      false,
     );
-    assert.equal(fs.existsSync(path.join(xdgConfig, "codex-desktop", "settings.json")), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
-
-test("adds Linux settings persistence after current global-state handler drift", () => {
-  const patched = applyPatchTwice(
-    applyLinuxSettingsPersistencePatch,
-    currentSettingsPersistenceBundleFixture(),
-  );
-
-  assert.match(patched, /function codexLinuxSettingsAppId\(\)/);
-  assert.match(patched, /var c=`config\.toml`;/);
-  assert.match(
-    patched,
-    /"set-global-state":async\(\{key:a,value:b,origin:c\}\)=>\(this\.setGlobalStateValue\(a,b,c\),codexLinuxPersistSettingsState\(a,b\),\{success:!0\}\)/,
-  );
-});
-
-test("adds Linux settings persistence when upstream removed the state-file marker", () => {
-  const source = [
-    "\"use strict\";",
-    "let i=require(`node:path`),o=require(`node:fs`);",
-    "const h={\"set-global-state\":async({key:a,value:b,origin:c})=>(this.setGlobalStateValue(a,b,c),{success:!0})};",
-  ].join("");
-
-  const patched = applyPatchTwice(applyLinuxSettingsPersistencePatch, source);
-
-  assert.match(patched, /^"use strict";function codexLinuxSettingsAppId\(\)/);
-  assert.match(
-    patched,
-    /"set-global-state":async\(\{key:a,value:b,origin:c\}\)=>\(this\.setGlobalStateValue\(a,b,c\),codexLinuxPersistSettingsState\(a,b\),\{success:!0\}\)/,
-  );
-});
-
 test("adds Linux launch actions through current setSecondInstanceArgsHandler bundles", () => {
   const launchPatched = applyPatchTwice(
     applyLinuxLaunchActionArgsPatch,
@@ -5262,27 +5226,27 @@ test("adds Linux launch actions through current setSecondInstanceArgsHandler bun
   );
   const prewarmPatched = applyPatchTwice(applyLinuxHotkeyWindowPrewarmPatch, launchPatched);
 
-  assert.match(launchPatched, /codexLinuxGetSetting=e=>process\.platform!==`linux`\|\|j\.globalState\.get\(e\)!==!1/);
-  assert.match(launchPatched, /codexLinuxStartLaunchActionSocket=\(\)=>/);
-  assert.match(launchPatched, /codexLinuxDefaultLaunchActionSocket=\(\)=>/);
-  assert.match(launchPatched, /process\.env\.CODEX_APP_LAUNCH_ACTION_SOCKET\?\.trim\(\)\|\|process\.env\.CODEX_DESKTOP_LAUNCH_ACTION_SOCKET\?\.trim\(\)\|\|codexLinuxDefaultLaunchActionSocket\(\)/);
-  assert.match(launchPatched, /process\.env\.CODEX_LINUX_INSTANCE_ID\?\.trim\(\)/);
+  assert.match(launchPatched, /chatgptLinuxGetSetting=e=>process\.platform!==`linux`\|\|j\.globalState\.get\(e\)!==!1/);
+  assert.match(launchPatched, /chatgptLinuxStartLaunchActionSocket=\(\)=>/);
+  assert.match(launchPatched, /chatgptLinuxDefaultLaunchActionSocket=\(\)=>/);
+  assert.match(launchPatched, /process\.env\.CHATGPT_APP_LAUNCH_ACTION_SOCKET\?\.trim\(\)\|\|process\.env\.CHATGPT_DESKTOP_LAUNCH_ACTION_SOCKET\?\.trim\(\)\|\|chatgptLinuxDefaultLaunchActionSocket\(\)/);
+  assert.match(launchPatched, /process\.env\.CHATGPT_LINUX_INSTANCE_ID\?\.trim\(\)/);
   assert.match(launchPatched, /let n=require\(`node:path`\),r=require\(`node:fs`\),i=require\(`node:net`\);r\.mkdirSync\(n\.dirname\(e\)/);
   assert.match(launchPatched, /let a=i\.createServer/);
-  assert.match(launchPatched, /t\.write\?\.\(`ok\\n`\),codexLinuxHandleLaunchActionArgs\(i\)/);
+  assert.match(launchPatched, /t\.write\?\.\(`ok\\n`\),chatgptLinuxHandleLaunchActionArgs\(i\)/);
   assert.doesNotMatch(launchPatched, /then\(\(\)=>\{t\.end\?\.\(`ok\\n`\)\}\)/);
   assert.doesNotMatch(launchPatched, /f\.default\.createServer/);
   assert.doesNotMatch(launchPatched, /o\.mkdirSync\(i\.default\.dirname\(e\)/);
   assert.match(launchPatched, /R\.desktopNotificationManager\.dismissByNavigationPath\(e\)/);
-  assert.match(launchPatched, /codexLinuxHasDeepLink\(e\)&&z\.deepLinks\.queueProcessArgs\(e\)/);
+  assert.match(launchPatched, /chatgptLinuxHasDeepLink\(e\)&&z\.deepLinks\.queueProcessArgs\(e\)/);
   assert.match(launchPatched, /e\.includes\(`--prompt-chat`\)/);
   assert.match(launchPatched, /e\.includes\(`--quick-chat`\)/);
   assert.match(launchPatched, /e\.includes\(`--new-chat`\)/);
-  assert.match(launchPatched, /process\.platform===`linux`&&codexLinuxStartLaunchActionSocket\(\);l\(e=>/);
+  assert.match(launchPatched, /process\.platform===`linux`&&chatgptLinuxStartLaunchActionSocket\(\);l\(e=>/);
   assert.doesNotMatch(launchPatched, /l\(e=>\{z\.deepLinks\.queueProcessArgs\(e\)\|\|oe\(\)\}\)/);
   assert.match(
     prewarmPatched,
-    /process\.platform===`linux`&&codexLinuxPrewarmHotkeyWindow\(\),A=Date\.now\(\),await z\.deepLinks\.flushPendingDeepLinks\(\)/,
+    /process\.platform===`linux`&&chatgptLinuxPrewarmHotkeyWindow\(\),A=Date\.now\(\),await z\.deepLinks\.flushPendingDeepLinks\(\)/,
   );
 });
 
@@ -5300,7 +5264,7 @@ test("uses collision-safe modules for launch-action socket in shadowed startup s
 
   const patched = applyPatchTwice(applyLinuxLaunchActionArgsPatch, source);
 
-  assert.match(patched, /codexLinuxStartLaunchActionSocket=\(\)=>\{if\(process\.platform!==`linux`\)return;try\{/);
+  assert.match(patched, /chatgptLinuxStartLaunchActionSocket=\(\)=>\{if\(process\.platform!==`linux`\)return;try\{/);
   assert.match(patched, /let n=require\(`node:path`\),r=require\(`node:fs`\),i=require\(`node:net`\);r\.mkdirSync\(n\.dirname\(e\)/);
   assert.match(patched, /let a=i\.createServer/);
   assert.match(patched, /t\.on\(`error`,e=>\{g\.reportNonFatal\(e instanceof Error\?e:`Failed Linux launch action socket client`,\{kind:`linux-launch-action-socket-client-error`\}\)\}\)/);
@@ -5316,21 +5280,21 @@ test("adds Linux launch actions when captured window identifiers contain dollar 
 
   const patched = applyPatchTwice(applyLinuxLaunchActionArgsPatch, source);
 
-  assert.match(patched, /codexLinuxHandleLaunchActionArgs/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgs/);
   assert.match(patched, /z\.navigateToRoute\(r\$,e\),ae\(r\$\)/);
-  assert.match(patched, /codexLinuxQuitInProgress=!1/);
-  assert.match(patched, /codexLinuxExplicitQuitApproved=!1/);
-  assert.match(patched, /codexLinuxMarkQuitInProgress=\(\)=>\{codexLinuxQuitInProgress=!0\}/);
-  assert.match(patched, /codexLinuxPrepareForExplicitQuit=\(\)=>\{codexLinuxExplicitQuitApproved=!0,codexLinuxMarkQuitInProgress\(\)\}/);
-  assert.match(patched, /codexLinuxShouldBypassQuitPrompt=\(\)=>codexLinuxExplicitQuitApproved===!0/);
-  assert.match(patched, /codexLinuxIsQuitInProgress=\(\)=>codexLinuxQuitInProgress===!0/);
-  assert.match(patched, /codexLinuxGetSetting=e=>/);
-  assert.match(patched, /codexLinuxHandleLaunchActionArgs=async e=>/);
-  assert.match(patched, /codexLinuxHandleLaunchActionArgs=async e=>\(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress\(\)\)\?!0:/);
-  assert.match(patched, /codexLinuxHandleLaunchActionArgsFallback=\(e,t\)=>\{if\(typeof codexLinuxIsQuitInProgress===`function`&&codexLinuxIsQuitInProgress\(\)\)return;/);
-  assert.match(patched, /codexLinuxStartLaunchActionSocket=\(\)=>/);
-  assert.match(patched, /codexLinuxDefaultLaunchActionSocket=\(\)=>/);
-  assert.match(patched, /codexLinuxPrewarmHotkeyWindow=\(\)=>/);
+  assert.match(patched, /chatgptLinuxQuitInProgress=!1/);
+  assert.match(patched, /chatgptLinuxExplicitQuitApproved=!1/);
+  assert.match(patched, /chatgptLinuxMarkQuitInProgress=\(\)=>\{chatgptLinuxQuitInProgress=!0\}/);
+  assert.match(patched, /chatgptLinuxPrepareForExplicitQuit=\(\)=>\{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress\(\)\}/);
+  assert.match(patched, /chatgptLinuxShouldBypassQuitPrompt=\(\)=>chatgptLinuxExplicitQuitApproved===!0/);
+  assert.match(patched, /chatgptLinuxIsQuitInProgress=\(\)=>chatgptLinuxQuitInProgress===!0/);
+  assert.match(patched, /chatgptLinuxGetSetting=e=>/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgs=async e=>/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgs=async e=>\(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress\(\)\)\?!0:/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgsFallback=\(e,t\)=>\{if\(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress\(\)\)return;/);
+  assert.match(patched, /chatgptLinuxStartLaunchActionSocket=\(\)=>/);
+  assert.match(patched, /chatgptLinuxDefaultLaunchActionSocket=\(\)=>/);
+  assert.match(patched, /chatgptLinuxPrewarmHotkeyWindow=\(\)=>/);
   assert.match(patched, /e\.includes\(`--new-chat`\)/);
   assert.match(patched, /e\.includes\(`--quick-chat`\)/);
   assert.match(patched, /e\.includes\(`--prompt-chat`\)/);
@@ -5343,7 +5307,7 @@ test("adds Linux launch actions after current window API drift", () => {
 
   const patched = applyPatchTwice(applyLinuxLaunchActionArgsPatch, source);
 
-  assert.match(patched, /codexLinuxHandleLaunchActionArgs/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgs/);
   assert.match(patched, /let n=M\.getPrimaryWindow\(B\),r=n\?\?await M\.createFreshWindow\(e\);/);
   assert.match(patched, /let e=M\.getPrimaryWindow\(B\),t=e\?\?await M\.createFreshWindow\(`/);
 });
@@ -5360,7 +5324,7 @@ test("adds Linux launch actions when current upstream wraps fresh window creatio
 
   const patched = applyPatchTwice(applyLinuxLaunchActionArgsPatch, source);
 
-  assert.match(patched, /codexLinuxHandleLaunchActionArgs/);
+  assert.match(patched, /chatgptLinuxHandleLaunchActionArgs/);
   assert.match(patched, /let n=M\.getPrimaryWindow\(B\),r=n\?\?await ee\(e\);/);
   assert.match(patched, /let e=M\.getPrimaryWindow\(B\),t=e\?\?await ee\(`\/`\);/);
 });
@@ -5380,7 +5344,7 @@ test("prewarms the hotkey window after startup marker drift", () => {
 
   assert.match(
     prewarmPatched,
-    /w\(`window ensured`,A,\{windowVisible:be\?\.isVisible\(\)\?\?!1\}\),process\.platform===`linux`&&codexLinuxPrewarmHotkeyWindow\(\),A=Date\.now\(\),await z\.deepLinks\.flushPendingDeepLinks\(\)/,
+    /w\(`window ensured`,A,\{windowVisible:be\?\.isVisible\(\)\?\?!1\}\),process\.platform===`linux`&&chatgptLinuxPrewarmHotkeyWindow\(\),A=Date\.now\(\),await z\.deepLinks\.flushPendingDeepLinks\(\)/,
   );
 });
 
@@ -5416,14 +5380,14 @@ test("installs Linux resize repaint hook without ungating ready-to-show maximize
     applyLinuxReadyToShowWindowStatePatch(source),
   );
 
-  assert.match(patched, /function codexLinuxInstallResizeRepaintHook\(e\)/);
+  assert.match(patched, /function chatgptLinuxInstallResizeRepaintHook\(e\)/);
   assert.match(
     patched,
-    /process\.platform===`linux`&&codexLinuxInstallResizeRepaintHook\(D\),E&&D\.once\(`ready-to-show`,\(\)=>\{D\.isDestroyed\(\)\|\|D\.maximize\(\)\}\);/,
+    /process\.platform===`linux`&&chatgptLinuxInstallResizeRepaintHook\(D\),E&&D\.once\(`ready-to-show`,\(\)=>\{D\.isDestroyed\(\)\|\|D\.maximize\(\)\}\);/,
   );
   assert.match(
     patched,
-    /process\.platform===`linux`&&codexLinuxInstallResizeRepaintHook\(F\),F\.once\(`ready-to-show`,\(\)=>\{\}\);/,
+    /process\.platform===`linux`&&chatgptLinuxInstallResizeRepaintHook\(F\),F\.once\(`ready-to-show`,\(\)=>\{\}\);/,
   );
   assert.match(
     patched,
@@ -5440,7 +5404,7 @@ test("installs Linux resize repaint hook without ungating ready-to-show maximize
   };
   context.globalThis = context;
   vm.runInNewContext(
-    `${patched};codexLinuxInstallResizeRepaintHook(globalThis.__resizeRepaintWindow);globalThis.__resizeRepaintWindow.handlers.resize();`,
+    `${patched};chatgptLinuxInstallResizeRepaintHook(globalThis.__resizeRepaintWindow);globalThis.__resizeRepaintWindow.handlers.resize();`,
     context,
   );
   assert.equal(context.__resizeRepaintCalls, 1);
@@ -5485,9 +5449,9 @@ test("registers bundled Computer Use on Linux while preserving the macOS rollout
 });
 
 test("returns Linux native desktop apps from the Computer Use backend", async () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-linux-native-apps-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-linux-native-apps-"));
   try {
-    const backendPath = path.join(tempRoot, "codex-computer-use-linux");
+    const backendPath = path.join(tempRoot, "chatgpt-computer-use-linux");
     const dataHome = path.join(tempRoot, "share");
     const desktopDir = path.join(dataHome, "applications");
     const iconDir = path.join(dataHome, "icons", "hicolor", "scalable", "apps");
@@ -5542,7 +5506,7 @@ test("returns Linux native desktop apps from the Computer Use backend", async ()
       console,
       process: {
         env: {
-          CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE: backendPath,
+          CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE: backendPath,
           HOME: tempRoot,
           PATH: process.env.PATH,
           XDG_DATA_HOME: dataHome,
@@ -5584,11 +5548,11 @@ test("returns Linux native desktop apps from the Computer Use backend", async ()
 });
 
 test("does not resolve the native desktop apps backend from relative PATH entries", async () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-linux-native-apps-path-"));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-linux-native-apps-path-"));
   const originalCwd = process.cwd();
   try {
     const relativeBin = path.join(tempRoot, "relative-bin");
-    const backendPath = path.join(relativeBin, "codex-computer-use-linux");
+    const backendPath = path.join(relativeBin, "chatgpt-computer-use-linux");
     const markerPath = path.join(tempRoot, "backend-ran");
     fs.mkdirSync(relativeBin, { recursive: true });
     fs.writeFileSync(
@@ -5649,7 +5613,7 @@ test("keeps native desktop apps delegated to upstream outside Linux", async () =
       Buffer,
       require,
       console,
-      process: { env: {}, platform: "darwin", resourcesPath: "/Applications/Codex.app/Contents/Resources" },
+      process: { env: {}, platform: "darwin", resourcesPath: "/Applications/ChatGPT.app/Contents/Resources" },
     },
   );
 
@@ -5678,7 +5642,7 @@ test("inserts native desktop app icon handler before a final native apps handler
       Buffer,
       require,
       console,
-      process: { env: {}, platform: "darwin", resourcesPath: "/Applications/Codex.app/Contents/Resources" },
+      process: { env: {}, platform: "darwin", resourcesPath: "/Applications/ChatGPT.app/Contents/Resources" },
     },
   );
   assert.deepEqual(JSON.parse(JSON.stringify(darwinResult)), {
@@ -5772,7 +5736,7 @@ test("patches physical-key fallback through native Keyboard Shortcuts asset scan
     assert.deepEqual(warnings, []);
 
     const patchedSource = fs.readFileSync(shortcutRuntimeAsset, "utf8");
-    assert.match(patchedSource, /codexLinuxShortcutPhysicalKeyFallbackEvent/);
+    assert.match(patchedSource, /chatgptLinuxShortcutPhysicalKeyFallbackEvent/);
 
     const sandbox = {};
     vm.runInNewContext(
@@ -5968,11 +5932,11 @@ test("renders the generated Linux desktop settings page with working switches", 
     );
     assert.match(
       routeSettingsSource,
-      /RouteReact as codexLinuxReact,RouteJsx as codexLinuxJsx/,
+      /RouteReact as chatgptLinuxReact,RouteJsx as chatgptLinuxJsx/,
     );
     assert.doesNotMatch(
       routeSettingsSource,
-      /DecoyReact as codexLinuxReact|DecoyJsx as codexLinuxJsx/,
+      /DecoyReact as chatgptLinuxReact|DecoyJsx as chatgptLinuxJsx/,
     );
     const nativeRuntime = { React, $: jsxRuntime };
     assert.equal(nativeRuntime.React, React);
@@ -6661,14 +6625,14 @@ test("keeps local environment action modal inputs editable inside stored modal c
 
   const patched = applyPatchTwice(applyLocalEnvironmentActionModalDraftPatch, source);
 
-  assert.match(patched, /\[codexLinuxActionDraft,codexLinuxSetActionDraft\]=\(0,Q\.useState\)\(\(\)=>n\)/);
-  assert.match(patched, /t\[0\]!==codexLinuxActionDraft\|\|t\[0\]!==n/);
-  assert.match(patched, /codexLinuxActionDraft\.name\.trim\(\)/);
-  assert.match(patched, /codexLinuxActionDraft\.command\.trim\(\)/);
-  assert.match(patched, /\{\.\.\.codexLinuxActionDraft,command:I,name:P\}/);
-  assert.match(patched, /codexLinuxUpdateActionDraft\(\{name:e\.target\.value\}\)/);
-  assert.match(patched, /codexLinuxUpdateActionDraft\(\{command:e\}\)/);
-  assert.match(patched, /t\[67\]!==codexLinuxActionDraft\.name/);
+  assert.match(patched, /\[chatgptLinuxActionDraft,chatgptLinuxSetActionDraft\]=\(0,Q\.useState\)\(\(\)=>n\)/);
+  assert.match(patched, /t\[0\]!==chatgptLinuxActionDraft\|\|t\[0\]!==n/);
+  assert.match(patched, /chatgptLinuxActionDraft\.name\.trim\(\)/);
+  assert.match(patched, /chatgptLinuxActionDraft\.command\.trim\(\)/);
+  assert.match(patched, /\{\.\.\.chatgptLinuxActionDraft,command:I,name:P\}/);
+  assert.match(patched, /chatgptLinuxUpdateActionDraft\(\{name:e\.target\.value\}\)/);
+  assert.match(patched, /chatgptLinuxUpdateActionDraft\(\{command:e\}\)/);
+  assert.match(patched, /t\[67\]!==chatgptLinuxActionDraft\.name/);
   assert.match(patched, /var _d=_t\(`local-env-recent-actions-by-key`,\{\}\);function Ml\(\)\{return n\.name\+n\.command\+n\.icon\}/);
 });
 
@@ -6683,10 +6647,10 @@ test("keeps local environment action modal inputs editable after component alias
   );
 
   assert.deepEqual(warnings, []);
-  assert.match(patched, /\[codexLinuxActionDraft,codexLinuxSetActionDraft\]=\(0,Z\.useState\)\(\(\)=>n\)/);
-  assert.match(patched, /\{\.\.\.codexLinuxActionDraft,command:L,name:F\}/);
-  assert.match(patched, /codexLinuxActionDraft\.name\.trim\(\)/);
-  assert.match(patched, /codexLinuxUpdateActionDraft\(\{command:e\}\)/);
+  assert.match(patched, /\[chatgptLinuxActionDraft,chatgptLinuxSetActionDraft\]=\(0,Z\.useState\)\(\(\)=>n\)/);
+  assert.match(patched, /\{\.\.\.chatgptLinuxActionDraft,command:L,name:F\}/);
+  assert.match(patched, /chatgptLinuxActionDraft\.name\.trim\(\)/);
+  assert.match(patched, /chatgptLinuxUpdateActionDraft\(\{command:e\}\)/);
 });
 
 test("skips local environment action modal patch when a critical replacement needle drifts", () => {
@@ -6789,13 +6753,13 @@ test("recognizes current settings language row i18n gate as already patched", ()
 
 test("keeps automation_update eager in dynamic tools built during thread start", () => {
   const source =
-    "async function pUt(){return[{type:`namespace`,name:cX,description:`Tools provided by the Codex app.`,tools:[...h?[_ee()]:[],...[],...i?.open_in_codex===!0?[TBt]:[],...h&&d?[SBt]:[],lu,...h&&y?[Ra]:[],...[],...g?AHt({availableHandoffHosts:e,availableModels:b,crossHostHandoffEnabled:n,forkThreadEnabled:!0}):[],...h&&_?[PBt,FBt]:[],...m===`conversational_onboarding`?[yoe]:[],...v&&m!==`conversational_onboarding`?[...vee,bu]:[]].map(e=>({type:`function`,...e,..._Ut.has(e.name)?{}:{deferLoading:!0}}))}]}async sendRequest(e,t,n){if(e===`config/read`)return this.sendConfigReadRequest(t,n);let{request:r,promise:i}=this.createRequest(e,t,n);return i}";
+    "function nZn(){return zZn?LZn:RZn}async function Rtl({supportsDynamicToolNamespaces:x=!0}){let A=[nZn(),gmn,HZn].map(e=>({type:`function`,...e,...x&&!Htl.has(e.name)?{deferLoading:!0}:{}}));return x?[{type:`namespace`,name:R2,description:`Tools provided by the Codex app.`,tools:A}]:A}var PZn=`automation_update`,Htl=new Set([gmn.name,HZn.name])";
 
   const patched = applyPatchTwice(applyAutomationUpdateEagerToolPatch, source);
 
   assert.match(patched, /e\.name===`automation_update`&&delete t\.deferLoading/);
   assert.match(patched, /\{deferLoading:!0\}/);
-  assert.doesNotMatch(patched, /codex-linux-automation-dynamic-tools-diagnostics/);
+  assert.doesNotMatch(patched, /chatgpt-linux-automation-dynamic-tools-diagnostics/);
 });
 
 test("removes unsupported features from default app-server feature sync", () => {
@@ -6974,7 +6938,7 @@ test("extends app-server startup waits while state db backfill is running", () =
     "var Js=`Please continue this conversation on the window where it was started.`,Ys=3e4,Xs=2e3;",
     "class RequestClient{createRequest(e,t,n){let r=P(B()),i=n?.timeoutMs??0,a=Da(t),o=this.requestPromises.size,s=Date.now();return{request:{id:r,method:e,params:t},conversationId:a,pending:o,startedAtMs:s,timeoutMs:i}}}",
     "function za(e){let t=La.safeParse(e);return t.success?new Ba(t.data):e}",
-    "function Np(e){if(e.startsWith(`Parse Error`))return{code:`restart-required`};let t=Mp(e);return t==null?e.startsWith(`codex-app-server-version-unsupported:`)?{code:`update-required`,minRequiredVersion:Dp,currentVersion:e.slice(37)}:{code:`connection-failed`,message:e}:{code:`restart-required`,currentVersion:t.currentVersion,installedVersion:t.installedVersion}}",
+    "function Np(e){if(e.startsWith(`Parse Error`))return{code:`restart-required`};let t=Mp(e);return t==null?e.startsWith(`chatgpt-server-version-unsupported:`)?{code:`update-required`,minRequiredVersion:Dp,currentVersion:e.slice(37)}:{code:`connection-failed`,message:e}:{code:`restart-required`,currentVersion:t.currentVersion,installedVersion:t.installedVersion}}",
   ].join("");
 
   const { value: patched, warnings } = captureWarns(() =>
@@ -6982,17 +6946,17 @@ test("extends app-server startup waits while state db backfill is running", () =
   );
 
   assert.deepEqual(warnings, []);
-  assert.match(patched, /function codexLinuxIsStateDbBackfillMessage\(e\)/);
-  assert.match(patched, /function codexLinuxAppServerBackfillTimeoutMs\(e,t\)/);
-  assert.match(patched, /i=codexLinuxAppServerBackfillTimeoutMs\(e,i\);let a=Da\(t\)/);
+  assert.match(patched, /function chatgptLinuxIsStateDbBackfillMessage\(e\)/);
+  assert.match(patched, /function chatgptLinuxAppServerBackfillTimeoutMs\(e,t\)/);
+  assert.match(patched, /i=chatgptLinuxAppServerBackfillTimeoutMs\(e,i\);let a=Da\(t\)/);
   assert.match(
     patched,
-    /if\(codexLinuxIsStateDbBackfillMessage\(e\)\)return\{code:`connection-failed`,message:codexLinuxStateDbBackfillMessage\(e\)\}/,
+    /if\(chatgptLinuxIsStateDbBackfillMessage\(e\)\)return\{code:`connection-failed`,message:chatgptLinuxStateDbBackfillMessage\(e\)\}/,
   );
 
   const context = {};
   vm.runInNewContext(
-    `${patched};result=Np("state db backfill is running at /home/user/.codex");startupTimeout=codexLinuxAppServerBackfillTimeoutMs("thread/start",3e4);turnTimeout=codexLinuxAppServerBackfillTimeoutMs("turn/start",3e4);`,
+    `${patched};result=Np("state db backfill is running at /home/user/.codex");startupTimeout=chatgptLinuxAppServerBackfillTimeoutMs("thread/start",3e4);turnTimeout=chatgptLinuxAppServerBackfillTimeoutMs("turn/start",3e4);`,
     context,
   );
   assert.equal(context.result.code, "connection-failed");
@@ -7012,9 +6976,9 @@ test("extends app-server startup waits in current manager signals bundle", () =>
   assert.deepEqual(warnings, []);
   assert.match(
     patched,
-    /function codexLinuxIsStateDbBackfillMessage\(e\)[\s\S]*var gi=e\(oi\(\),1\),_i=z/,
+    /function chatgptLinuxIsStateDbBackfillMessage\(e\)[\s\S]*var gi=e\(oi\(\),1\),_i=z/,
   );
-  assert.match(patched, /i=codexLinuxAppServerBackfillTimeoutMs\(e,i\);let a=si\(t\)/);
+  assert.match(patched, /i=chatgptLinuxAppServerBackfillTimeoutMs\(e,i\);let a=si\(t\)/);
 });
 
 test("keeps current app-server backfill helpers visible outside the Sentry handler", () => {
@@ -7028,18 +6992,18 @@ test("keeps current app-server backfill helpers visible outside the Sentry handl
   assert.deepEqual(warnings, []);
   assert.match(
     patched,
-    /^function codexLinuxIsStateDbBackfillMessage\(e\)[\s\S]*function fi\(e,t\)\{let n=hi\(t\.originalException\);/,
+    /^function chatgptLinuxIsStateDbBackfillMessage\(e\)[\s\S]*function fi\(e,t\)\{let n=hi\(t\.originalException\);/,
   );
   assert.doesNotMatch(
     patched,
-    /function fi\(e,t\)\{let n=hi\(t\.originalException\);function codexLinuxIsStateDbBackfillMessage/,
+    /function fi\(e,t\)\{let n=hi\(t\.originalException\);function chatgptLinuxIsStateDbBackfillMessage/,
   );
-  assert.match(patched, /i=codexLinuxAppServerBackfillTimeoutMs\(e,i\);let a=si\(t\)/);
+  assert.match(patched, /i=chatgptLinuxAppServerBackfillTimeoutMs\(e,i\);let a=si\(t\)/);
 
   const helperPrefix = patched.slice(0, patched.indexOf("function fi("));
   const context = {};
   vm.runInNewContext(
-    `${helperPrefix};startupTimeout=codexLinuxAppServerBackfillTimeoutMs("thread/start",3e4);turnTimeout=codexLinuxAppServerBackfillTimeoutMs("turn/start",3e4);`,
+    `${helperPrefix};startupTimeout=chatgptLinuxAppServerBackfillTimeoutMs("thread/start",3e4);turnTimeout=chatgptLinuxAppServerBackfillTimeoutMs("turn/start",3e4);`,
     context,
   );
   assert.equal(context.startupTimeout, 3e5);
@@ -7073,19 +7037,19 @@ test("skips app-server timeout rewrite when the helper insertion anchor drifts",
 
   assert.equal(patched, source);
   assert.match(warnings.join("\n"), /Could not insert app-server backfill wait helper/);
-  assert.doesNotMatch(patched, /codexLinuxAppServerBackfillTimeoutMs\(/);
+  assert.doesNotMatch(patched, /chatgptLinuxAppServerBackfillTimeoutMs\(/);
 });
 
 test("restores host LD_LIBRARY_PATH for Electron updater bridge commands", () => {
   const patched = applyLinuxAppUpdaterBridgePatch(currentBootstrapUpdaterBundleFixture());
   const helperSource = patched.match(
-    /function codexLinuxUpdateManagerEnv\(\)\{[\s\S]*?return e\}/,
+    /function chatgptLinuxUpdateManagerEnv\(\)\{[\s\S]*?return e\}/,
   )?.[0];
   assert.ok(helperSource);
 
   const runHelper = (env) => {
     const context = { process: { env: { ...env } } };
-    vm.runInNewContext(`${helperSource};globalThis.result=codexLinuxUpdateManagerEnv()`, context);
+    vm.runInNewContext(`${helperSource};globalThis.result=chatgptLinuxUpdateManagerEnv()`, context);
     return context.result;
   };
   for (const [state, value, expected] of [
@@ -7095,40 +7059,40 @@ test("restores host LD_LIBRARY_PATH for Electron updater bridge commands", () =>
   ]) {
     const result = runHelper({
       LD_LIBRARY_PATH: "/nix/app:/nix/runtime",
-      CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: state,
-      CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: value,
+      CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE: state,
+      CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_VALUE: value,
     });
     assert.equal(result.LD_LIBRARY_PATH, expected);
-    assert.equal(Object.hasOwn(result, "CODEX_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE"), false);
+    assert.equal(Object.hasOwn(result, "CHATGPT_LINUX_ORIGINAL_LD_LIBRARY_PATH_STATE"), false);
   }
 
   const developmentResult = runHelper({
     LD_LIBRARY_PATH: "/developer/lib",
-    CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE: "unset",
+    CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE: "unset",
   });
   assert.equal(developmentResult.LD_LIBRARY_PATH, "/developer/lib");
-  assert.equal(Object.hasOwn(developmentResult, "CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE"), false);});
+  assert.equal(Object.hasOwn(developmentResult, "CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE"), false);});
 
 test("adds Linux package updater to current bootstrap updater wiring", () => {
   const patched = applyPatchTwice(applyLinuxAppUpdaterBridgePatch, currentBootstrapUpdaterBundleFixture());
 
-  assert.match(patched, /function codexLinuxCreatePackageAppUpdater\(/);
-  assert.match(patched, /codexLinuxPackageUpdateBridge=process\.platform===`linux`/);
+  assert.match(patched, /function chatgptLinuxCreatePackageAppUpdater\(/);
+  assert.match(patched, /chatgptLinuxPackageUpdateBridge=process\.platform===`linux`/);
   assert.match(patched, /send:\(\)=>se\.broadcastAppUpdateState\(\)/);
   assert.doesNotMatch(patched, /send:e=>[A-Za-z_$][\w$]*\.sendMessageToAllRegisteredWindows/);
-  assert.match(patched, /s=codexLinuxPackageUpdateBridge\.manager/);
-  assert.match(patched, /te=codexLinuxPackageUpdateBridge\.quitForUpdate/);
-  assert.match(patched, /async function codexLinuxProbeAppUpdater\(\)/);
-  assert.match(patched, /codexLinuxRunAppUpdater\(\[`--help`\]\)/);
-  assert.match(patched, /async function codexLinuxRefreshUpdateState\(\)\{return codexLinuxReadUpdateState\(\)\}/);
-  assert.match(patched, /codexLinuxProbeAppUpdater\(\)\.then\(\(\)=>\{s=!0,i\(\),a\(\);return!0\}\)/);
+  assert.match(patched, /s=chatgptLinuxPackageUpdateBridge\.manager/);
+  assert.match(patched, /te=chatgptLinuxPackageUpdateBridge\.quitForUpdate/);
+  assert.match(patched, /async function chatgptLinuxProbeAppUpdater\(\)/);
+  assert.match(patched, /chatgptLinuxRunAppUpdater\(\[`--help`\]\)/);
+  assert.match(patched, /async function chatgptLinuxRefreshUpdateState\(\)\{return chatgptLinuxReadUpdateState\(\)\}/);
+  assert.match(patched, /chatgptLinuxProbeAppUpdater\(\)\.then\(\(\)=>\{s=!0,i\(\),a\(\);return!0\}\)/);
   assert.match(patched, /manager:\{setAutomaticBackgroundDownloadsEnabled:\(\)=>\{\}/);
   assert.match(patched, /getIsUpdateReady:\(\)=>s&&t/);
   assert.match(patched, /checkForUpdates:async\(\)=>\{if\(!await c\)return;n=`checking`/);
   assert.match(patched, /installUpdatesIfAvailable:async\(\)=>\{if\(!await c\)\{a\(\);return\}i\(\);if\(!t\)\{a\(\);return\}/);
-  assert.match(patched, /e\.stdout\?\.includes\(`Manual install required:`\)\?await codexLinuxShowUpdateMessage/);
-  assert.match(patched, /refresh:async\(\)=>\{if\(await c\)\{try\{await codexLinuxRefreshUpdateState\(\)\}/);
-  assert.doesNotMatch(patched, /codexLinuxRunAppUpdater\(\[`status`,`--json`\]\)/);
+  assert.match(patched, /e\.stdout\?\.includes\(`Manual install required:`\)\?await chatgptLinuxShowUpdateMessage/);
+  assert.match(patched, /refresh:async\(\)=>\{if\(await c\)\{try\{await chatgptLinuxRefreshUpdateState\(\)\}/);
+  assert.doesNotMatch(patched, /chatgptLinuxRunAppUpdater\(\[`status`,`--json`\]\)/);
 });
 
 test("implements the current Sparkle AppView, menu, and RPC contract on Linux", () => {
@@ -7195,7 +7159,7 @@ test("keeps the current Sparkle menu contract callable across Linux updater prob
       setTimeout,
     };
     vm.runInNewContext(
-      `${patched.slice(0, bridgeEnd)};globalThis.createManager=codexLinuxCreatePackageAppUpdater`,
+      `${patched.slice(0, bridgeEnd)};globalThis.createManager=chatgptLinuxCreatePackageAppUpdater`,
       context,
     );
     return { calls, manager: context.createManager({ send() {} }).manager };
@@ -7217,8 +7181,8 @@ test("keeps the current Sparkle menu contract callable across Linux updater prob
   assert.equal(available.manager.getUnavailableReason(), null);
   await available.manager.checkForUpdates();
   assert.deepEqual(available.calls, [
-    ["codex-app-updater", "--help"],
-    ["codex-app-updater", "check-now"],
+    ["chatgpt-updater", "--help"],
+    ["chatgpt-updater", "check-now"],
   ]);
 
   const unavailable = createManager(new Error("probe failed"));
@@ -7229,7 +7193,7 @@ test("keeps the current Sparkle menu contract callable across Linux updater prob
     "Linux package update manager unavailable",
   );
   await unavailable.manager.checkForUpdates();
-  assert.deepEqual(unavailable.calls, [["codex-app-updater", "--help"]]);
+  assert.deepEqual(unavailable.calls, [["chatgpt-updater", "--help"]]);
 });
 
 test("fails soft when the current updater callback bridge drifts", () => {
@@ -7275,7 +7239,7 @@ test("patchLinuxAppUpdaterBridge scans build bundles and stays idempotent", () =
 
     assert.deepEqual(first, { matched: 1, changed: 1 });
     assert.deepEqual(second, { matched: 1, changed: 0 });
-    assert.match(main, /function codexLinuxCreatePackageAppUpdater\(/);
+    assert.match(main, /function chatgptLinuxCreatePackageAppUpdater\(/);
     assert.match(main, /\|\|process\.platform===`linux`/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -7493,8 +7457,8 @@ test("materializes trusted Linux bundled plugins through a private staging root"
     const targetManifest = path.join(targetPlugin, ".codex-plugin", "plugin.json");
     fs.appendFileSync(targetManifest, "\n");
 
-    assert.match(patched, /async function codexLinuxValidateBundledPluginSource/);
-    assert.match(patched, /async function codexLinuxPrepareBundledPluginStage/);
+    assert.match(patched, /async function chatgptLinuxValidateBundledPluginSource/);
+    assert.match(patched, /async function chatgptLinuxPrepareBundledPluginStage/);
     assert.equal(fs.statSync(stagingRoot).mode & 0o777, 0o700);
     assert.equal(fs.statSync(path.dirname(targetPlugin)).mode & 0o777, 0o700);
     assert.equal(fs.statSync(targetPlugin).mode & 0o200, 0o200);
@@ -7641,7 +7605,7 @@ test("skips a queued bundled plugin reconcile that captured a stale feature snap
     { externalBrowserUse: true, inAppBrowserUse: true },
   ]);
   assert.equal(
-    (patched.match(/codex-linux-skip-stale-bundled-plugin-reconcile/g) || []).length,
+    (patched.match(/chatgpt-linux-skip-stale-bundled-plugin-reconcile/g) || []).length,
     1,
   );
 });
@@ -7692,7 +7656,7 @@ test("escapes dollar-prefixed bundled plugin reconcile identifiers", async () =>
     { externalBrowserUse: true, inAppBrowserUse: true },
   ]);
   assert.equal(
-    (patched.match(/codex-linux-skip-stale-bundled-plugin-reconcile/g) || []).length,
+    (patched.match(/chatgpt-linux-skip-stale-bundled-plugin-reconcile/g) || []).length,
     1,
   );
 });
@@ -7820,15 +7784,15 @@ test("uses Linux managed runtime paths for Electron 42 Browser Use runtime resol
 
   assert.match(
     patched,
-    /codexLinuxChromeNativeHostRuntimeEntry\(codexLinuxChromeNativeHostRuntimePath\(`codex`\),`linux-path`\)\?\?Wn/,
+    /chatgptLinuxChromeNativeHostRuntimeEntry\(chatgptLinuxChromeNativeHostRuntimePath\(`codex`\),`linux-path`\)\?\?Wn/,
   );
   assert.match(
     patched,
-    /codexLinuxChromeNativeHostRuntimeFile\(u,\[\[`node-runtime`,`bin`,r===`win32`\?`node\.exe`:`node`\]\]\)/,
+    /chatgptLinuxChromeNativeHostRuntimeFile\(u,\[\[`node-runtime`,`bin`,r===`win32`\?`node\.exe`:`node`\]\]\)/,
   );
   assert.match(
     patched,
-    /codexLinuxChromeNativeHostRuntimeFile\(u,\[\[r===`win32`\?`node_repl\.exe`:`node_repl`\]\]\)/,
+    /chatgptLinuxChromeNativeHostRuntimeFile\(u,\[\[r===`win32`\?`node_repl\.exe`:`node_repl`\]\]\)/,
   );
 });
 
@@ -7838,10 +7802,10 @@ test("uses Linux managed runtime paths for current Chrome plugin app-server sync
     currentChromePluginAppServerRuntimeBundleFixture(),
   );
 
-  assert.match(patched, /ZB\(e\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?codexLinuxChromeNativeHostRuntimePath\(`codex`\)/);
-  assert.match(patched, /NM\(e\.resourcesPath\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_BROWSER_USE_NODE_PATH`\)/);
-  assert.match(patched, /codexLinuxChromeNativeHostRuntimeFile\(e\.resourcesPath,\[\[`node-runtime`,`bin`,process\.platform===`win32`\?`node\.exe`:`node`\]\]\)/);
-  assert.match(patched, /MM\(e\.resourcesPath\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_NODE_REPL_PATH`\)/);
+  assert.match(patched, /ZB\(e\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?chatgptLinuxChromeNativeHostRuntimePath\(`codex`\)/);
+  assert.match(patched, /NM\(e\.resourcesPath\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_BROWSER_USE_NODE_PATH`\)/);
+  assert.match(patched, /chatgptLinuxChromeNativeHostRuntimeFile\(e\.resourcesPath,\[\[`node-runtime`,`bin`,process\.platform===`win32`\?`node\.exe`:`node`\]\]\)/);
+  assert.match(patched, /MM\(e\.resourcesPath\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_NODE_REPL_PATH`\)/);
 });
 
 test("uses Linux Codex CLI path for Chrome plugin app-server sync", async () => {
@@ -7972,12 +7936,12 @@ test("patches multiple Chrome runtime resolvers in one Electron 42 bundle", () =
 
   assert.match(
     patched,
-    /codexLinuxChromeNativeHostRuntimeEntry\(codexLinuxChromeNativeHostRuntimePath\(`codex`\),`linux-path`\)\?\?Wn/,
+    /chatgptLinuxChromeNativeHostRuntimeEntry\(chatgptLinuxChromeNativeHostRuntimePath\(`codex`\),`linux-path`\)\?\?Wn/,
   );
-  assert.match(patched, /_U\(e\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?codexLinuxChromeNativeHostRuntimePath\(`codex`\)/);
-  assert.match(patched, /ZB\(e\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?codexLinuxChromeNativeHostRuntimePath\(`codex`\)/);
-  assert.match(patched, /NM\(e\.resourcesPath\)\?\?codexLinuxChromeNativeHostRuntimeEnv\(`CODEX_BROWSER_USE_NODE_PATH`\)/);
-  assert.equal((patched.match(/function codexLinuxChromeNativeHostRuntimeFile/g) || []).length, 1);
+  assert.match(patched, /_U\(e\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?chatgptLinuxChromeNativeHostRuntimePath\(`codex`\)/);
+  assert.match(patched, /ZB\(e\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_CLI_PATH`\)\?\?chatgptLinuxChromeNativeHostRuntimePath\(`codex`\)/);
+  assert.match(patched, /NM\(e\.resourcesPath\)\?\?chatgptLinuxChromeNativeHostRuntimeEnv\(`CODEX_BROWSER_USE_NODE_PATH`\)/);
+  assert.equal((patched.match(/function chatgptLinuxChromeNativeHostRuntimeFile/g) || []).length, 1);
 });
 
 test("reports drifted Chrome native host runtime resolver as optional drift", () => {
@@ -8119,9 +8083,9 @@ test("enables Computer Use desktop features on Linux", () => {
 
   assert.match(
     patched,
-    /return n===`linux`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:n!==`win32`\|\|t\.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`\?e:\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}/,
+    /return n===`linux`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:n!==`win32`\|\|t\.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`\?e:\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}/,
   );
-  assert.match(patched, /CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE/);
+  assert.match(patched, /CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE/);
 });
 
 test("enables current Computer Use desktop features on Linux", () => {
@@ -8132,20 +8096,20 @@ test("enables current Computer Use desktop features on Linux", () => {
 
   assert.match(
     patched,
-    /let a=i===`linux`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:i===`win32`&&r\.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:e,o=n===t\.D\.Dev\?be\(r\):null;return o==null\?a:\{\.\.\.a,\.\.\.o\}/,
+    /let a=i===`linux`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:i===`win32`&&r\.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`\?\{\.\.\.e,computerUse:!0,computerUseNodeRepl:!0\}:e,o=n===t\.D\.Dev\?be\(r\):null;return o==null\?a:\{\.\.\.a,\.\.\.o\}/,
   );
-  assert.match(patched, /CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE/);
+  assert.match(patched, /CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE/);
 });
 
 test("enables nested current Computer Use desktop features on Linux", () => {
   const source =
-    "function Ve(e,{buildFlavor:t=n.F.resolve(),env:r=p.default.env,platform:i=p.default.platform}={}){let a=i===`darwin`&&!n.F.isInternal(t)&&e.computerUseNodeRepl!=null?{...e,computerUseNodeRepl:!1}:e,o=i===`win32`&&e.computerUse===!0?{...a,computerUseNodeRepl:!0}:a,s=i===`win32`&&r.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`?{...o,computerUse:!0,computerUseNodeRepl:!0}:o,c=t===n.F.Dev?He(r):null;return c==null?{...s,deviceAttestation:ve({platform:i})}:{...s,...c,deviceAttestation:ve({platform:i})}}";
+    "function Ve(e,{buildFlavor:t=n.F.resolve(),env:r=p.default.env,platform:i=p.default.platform}={}){let a=i===`darwin`&&!n.F.isInternal(t)&&e.computerUseNodeRepl!=null?{...e,computerUseNodeRepl:!1}:e,o=i===`win32`&&e.computerUse===!0?{...a,computerUseNodeRepl:!0}:a,s=i===`win32`&&r.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`?{...o,computerUse:!0,computerUseNodeRepl:!0}:o,c=t===n.F.Dev?He(r):null;return c==null?{...s,deviceAttestation:ve({platform:i})}:{...s,...c,deviceAttestation:ve({platform:i})}}";
 
   const patched = applyPatchTwice(applyLinuxComputerUseFeaturePatch, source);
 
   assert.match(
     patched,
-    /,s=i===`linux`\?\{\.\.\.o,computerUse:!0,computerUseNodeRepl:!0\}:i===`win32`&&r\.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`\?\{\.\.\.o,computerUse:!0,computerUseNodeRepl:!0\}:o,/,
+    /,s=i===`linux`\?\{\.\.\.o,computerUse:!0,computerUseNodeRepl:!0\}:i===`win32`&&r\.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE===`1`\?\{\.\.\.o,computerUse:!0,computerUseNodeRepl:!0\}:o,/,
   );
   assert.match(patched, /i===`darwin`&&!n\.F\.isInternal\(t\)/);
   assert.match(patched, /i===`win32`&&e\.computerUse===!0/);
@@ -8153,9 +8117,9 @@ test("enables nested current Computer Use desktop features on Linux", () => {
 
 test("patches all Computer Use desktop feature gates in one pass", () => {
   const patchedFeature =
-    "function A(e,{env:t=process.env,platform:n=process.platform}={}){return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}:n!==`win32`||t.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
+    "function A(e,{env:t=process.env,platform:n=process.platform}={}){return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}:n!==`win32`||t.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
   const unpatchedFeature =
-    "function B(e,{env:r=process.env,platform:i=process.platform}={}){return i!==`win32`||r.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
+    "function B(e,{env:r=process.env,platform:i=process.platform}={}){return i!==`win32`||r.CHATGPT_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE!==`1`?e:{...e,computerUse:!0,computerUseNodeRepl:!0}}";
 
   const patched = applyLinuxComputerUseFeaturePatch(`${patchedFeature}${unpatchedFeature}`);
 
@@ -8283,7 +8247,7 @@ test("remounts a delayed active Browser webview exactly once and preserves its l
   };
   const firstHost = createHost();
 
-  const inactiveCleanup = codexLinuxWatchBrowserWebviewAttachment({
+  const inactiveCleanup = chatgptLinuxWatchBrowserWebviewAttachment({
     active: false,
     browserTabId: logicalTab.browserTabId,
     conversationId: logicalTab.conversationId,
@@ -8296,7 +8260,7 @@ test("remounts a delayed active Browser webview exactly once and preserves its l
   inactiveCleanup();
   assert.equal(timers.length, 0);
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: logicalTab.browserTabId,
     conversationId: logicalTab.conversationId,
@@ -8319,7 +8283,7 @@ test("remounts a delayed active Browser webview exactly once and preserves its l
   assert.equal(recoveryRef.current.attempt, 1);
   assert.equal(warnings.length, 1);
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: logicalTab.browserTabId,
     conversationId: logicalTab.conversationId,
@@ -8346,7 +8310,7 @@ test("does not remount a retained Browser webview that is already attached", () 
   let listenerCount = 0;
   let remounts = 0;
   let completions = 0;
-  const cleanup = codexLinuxWatchBrowserWebviewAttachment({
+  const cleanup = chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     completeRecovery: () => {
@@ -8384,7 +8348,7 @@ test("does not remount a retained Browser webview that is already attached", () 
   assert.equal(completions, 1);
   assert.equal(recoveryRef.current.attempt, 2);
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     completeRecovery: () => {
@@ -8413,7 +8377,7 @@ test("closes the attachment race after registering the Browser webview listener"
     isConnected: true,
   };
   let removed = 0;
-  const cleanup = codexLinuxWatchBrowserWebviewAttachment({
+  const cleanup = chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8455,7 +8419,7 @@ test("watches a replacement Browser webview host for the same logical tab", () =
     },
   };
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8473,7 +8437,7 @@ test("watches a replacement Browser webview host for the same logical tab", () =
   assert.equal(recoveryRef.current.attempt, 2);
 
   const replacementHost = { listenForDidAttach: () => () => {} };
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8520,7 +8484,7 @@ test("keeps Browser webview attachment deadlines bounded across effect restarts"
     browserTabId = "tab-1",
     watchedHost = host,
   ) =>
-    codexLinuxWatchBrowserWebviewAttachment({
+    chatgptLinuxWatchBrowserWebviewAttachment({
       active: true,
       browserTabId,
       conversationId,
@@ -8569,7 +8533,7 @@ test("starts a fresh Browser recovery window for a different logical tab", () =>
   };
   const timers = [];
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-2",
     conversationId: "conversation-1",
@@ -8598,7 +8562,7 @@ test("inherits the initial Browser recovery deadline in a fresh component", () =
   const recoveryRef = { current: null };
   const recoveryState = { attempt: 0, deadlineAt: 11_000 };
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-2",
     conversationId: "conversation-2",
@@ -8642,7 +8606,7 @@ test("fails Browser webview attachment deterministically after one remount", () 
   const createHost = () => ({ listenForDidAttach: () => () => {} });
   let remounts = 0;
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8656,7 +8620,7 @@ test("fails Browser webview attachment deterministically after one remount", () 
     timerApi,
   });
   timers[0].callback();
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8690,7 +8654,7 @@ test("fails Browser webview attachment deterministically when remount is rejecte
   const recoveryRef = { current: { attempt: 0, key: "conversation-2\0tab-2" } };
   let remounts = 0;
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-2",
     conversationId: "conversation-2",
@@ -8743,7 +8707,7 @@ test("keeps shared Browser recovery active when another watcher wins remount", (
     return { started: true, state: sharedState };
   };
   const watch = (recoveryRef, recoveryState = { attempt: 0, deadlineAt: 5_000 }) =>
-    codexLinuxWatchBrowserWebviewAttachment({
+    chatgptLinuxWatchBrowserWebviewAttachment({
       active: true,
       browserTabId: "tab-1",
       conversationId: "conversation-1",
@@ -8791,7 +8755,7 @@ test("does not poison shared Browser recovery when a stale host timer fires", ()
   const timers = [];
   const recoveryRef = { current: null };
 
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-1",
     conversationId: "conversation-1",
@@ -8824,11 +8788,11 @@ test("does not poison shared Browser recovery when a stale host timer fires", ()
 });
 
 const browserUseRecoveryStoreSource =
-  "function Af(e,t){return t??e}function Ef(e,t){return`${e}\\0${t}`}var Pf=class{webviews=new Map;snapshots=new Map;tabPersistenceStates=new Map;browserUseActiveTabKeys=new Set;browserUseViewportSizes=new Map;transferredWebviewKeys=new Set;registrationAttempts=new WeakMap;nextHostGeneration=0;getSnapshot(e,t){return this.snapshots.get(Ef(e,t))??null}setBrowserUseActive(e,...t){let n=typeof t[0]==`boolean`?Af(e,void 0):t[0],r=typeof t[0]==`boolean`?t[0]:t[1],i=Ef(e,n),a=this.browserUseActiveTabKeys.has(i);if(r){let t=`${e}\\0`;for(let e of Array.from(this.browserUseActiveTabKeys)){if(e===i||!e.startsWith(t))continue;this.browserUseActiveTabKeys.delete(e);let n=null}this.browserUseActiveTabKeys.add(i)}else this.browserUseActiveTabKeys.delete(i);return a}releaseBrowserUseTab(e,t){let n=Ef(e,t),r=this.browserUseActiveTabKeys.delete(n);return r}removeTab(e,t){let n=Ef(e,t),r=this.webviews.get(n);this.webviews.delete(n)}registerWebviewHost(e,t){return true}removeConversationTabs(e){let t=`${e}\\0`;for(let e of this.snapshots.keys())e.startsWith(t)&&this.snapshots.delete(e)}reassociateTabState(e,...t){let n=t[0],r=t[1],i=t[2],o=`transfer`,s=Ef(e,n),c=Ef(r,i);if(s===c||this.transferredWebviewKeys.has(o))return;if(this.webviews.has(c))return;let m=this.browserUseViewportSizes.get(s)??null,h=this.browserUseActiveTabKeys.delete(s);h&&this.browserUseActiveTabKeys.add(c);return m}disposeAll(){this.electronPageHandoff.disposeAll(),this.webviews.clear()}disposeWebviewHost(e,t,n,r){this.webviews.delete(n)}emitChange(){for(let e of this.listeners)e()}}";
+  "function Ef(e,t){return`${e}\\0${t}`}var Pf=class{listeners=new Set;browserUseCursorStates=new Map;snapshots=new Map;ownerRoutePathsByConversation=new Map;browserUseActiveTabKeys=new Set;browserUseTabKeys=new Set;browserUseTabIdsKeysByConversation=new Map;browserUseViewportSizes=new Map;browserUseCaptureSurfaceSizes=new Map;tabCaptureActiveKeys=new Set;deviceToolbarTabStates=new Map;tabPersistenceStates=new Map;webviews=new Map;transferredWebviewKeys=new Set;pendingElectronTransfers=new Map;mountStates=new Map;registrationAttempts=new WeakMap;electronPageHandoff={disposeAll(){},disposeHost(){},removeTab(){},transferRoute(){}};getSnapshot(e,t){return this.snapshots.get(Ef(e,t))??null}syncBrowserUseTabKeys(){}refreshBrowserUseTabs(){}setBrowserUseActive(e,t,n){let r=Ef(e,t),i=this.browserUseActiveTabKeys.has(r),a=this.browserUseTabKeys.has(r),o=this.browserUseCursorStates.get(r)??null;n?(this.browserUseTabKeys.add(r),a||this.syncBrowserUseTabKeys(e),this.browserUseActiveTabKeys.add(r),i||this.browserUseCursorStates.delete(r)):(this.browserUseActiveTabKeys.delete(r),o!=null&&this.browserUseCursorStates.set(r,{visible:!1,x:o.x,y:o.y}));return i!==n||o!=null}releaseBrowserUseTab(e,t){let n=Ef(e,t),r=this.browserUseActiveTabKeys.delete(n),i=this.browserUseTabKeys.delete(n),a=this.browserUseCursorStates.delete(n),o=this.browserUseCaptureSurfaceSizes.delete(n),s=this.browserUseViewportSizes.delete(n),c=this.deviceToolbarTabStates.delete(n),l=r||i||a||o||s||c;this.webviews.get(n)?.releaseBrowserUse?.();return l}removeTab(e,t){let n=Ef(e,t),r=this.webviews.get(n);r!=null&&this.electronPageHandoff.removeTab(r),this.pendingElectronTransfers.delete(n),this.snapshots.delete(n),this.tabPersistenceStates.delete(n);let i=this.browserUseTabKeys.delete(n);this.browserUseActiveTabKeys.delete(n),this.browserUseCursorStates.delete(n),this.browserUseCaptureSurfaceSizes.delete(n),this.browserUseViewportSizes.delete(n),this.tabCaptureActiveKeys.delete(n),this.deviceToolbarTabStates.delete(n),this.mountStates.delete(n),this.webviews.delete(n)}registerWebviewHost(e,t){return true}removeConversationTabs(e){let t=`${e}\\0`;this.electronPageHandoff.removeConversation?.(e);for(let e of this.snapshots.keys())e.startsWith(t)&&this.snapshots.delete(e);for(let[e,n]of this.webviews.entries())e.startsWith(t)&&(this.webviews.delete(e),n.dispose?.());this.browserUseTabIdsKeysByConversation.delete(e),this.ownerRoutePathsByConversation.delete(e)}reassociateTabState(e,t,n,r,i){let a=`transfer`,o=Ef(e,t),s=Ef(n,r);if(o===s||this.transferredWebviewKeys.has(a))return;let c=this.webviews.get(o)??null,l=this.webviews.get(s)??null,u=this.tabPersistenceStates.get(o)??null,d=this.tabPersistenceStates.get(s)??null,f=this.snapshots.get(o)??null;if(l!=null||this.pendingElectronTransfers.has(s)||this.snapshots.has(s)||d!=null&&d.mode!==`ephemeral`){this.removeTab(e,t);return}c!=null&&this.electronPageHandoff.transferRoute(c),this.pendingElectronTransfers.delete(o),this.pendingElectronTransfers.delete(s),c!=null&&(this.webviews.delete(o),c.transfer?.({browserTabId:r,conversationId:n}),this.webviews.set(s,c));let p=this.browserUseViewportSizes.get(o)??null,m=this.browserUseTabKeys.has(o),h=this.tabCaptureActiveKeys.delete(o),g=this.mountStates.get(o)??null,_=this.browserUseActiveTabKeys.delete(o);this.browserUseCaptureSurfaceSizes.delete(o),this.browserUseCursorStates.delete(o),this.browserUseTabKeys.delete(o),this.browserUseViewportSizes.delete(o),this.mountStates.delete(o),this.tabPersistenceStates.delete(o),u!=null&&this.tabPersistenceStates.set(s,u),c!=null&&this.registerWebviewHost(c),_&&this.browserUseActiveTabKeys.add(s),p!=null&&this.browserUseViewportSizes.set(s,p),h&&c!=null&&this.tabCaptureActiveKeys.add(s),g!=null&&this.mountStates.set(s,g);let y=this.deviceToolbarTabStates.get(o);f!=null&&(this.snapshots.delete(o),this.snapshots.set(s,f)),y!=null&&(this.deviceToolbarTabStates.delete(o),this.deviceToolbarTabStates.set(s,y))}disposeAll(){this.electronPageHandoff.disposeAll(),this.snapshots.clear(),this.ownerRoutePathsByConversation.clear(),this.browserUseCursorStates.clear(),this.browserUseActiveTabKeys.clear(),this.browserUseTabKeys.clear(),this.browserUseTabIdsKeysByConversation.clear(),this.refreshBrowserUseTabs(),this.browserUseCaptureSurfaceSizes.clear(),this.browserUseViewportSizes.clear(),this.tabCaptureActiveKeys.clear(),this.deviceToolbarTabStates.clear(),this.tabPersistenceStates.clear(),this.pendingElectronTransfers.clear(),this.mountStates.clear();for(let e of this.webviews.values())e.dispose?.();this.webviews.clear(),this.transferredWebviewKeys.clear()}disposeWebviewHost(e,t,n,r){let i=this.webviews.get(n)??null;this.webviews.delete(n),i!=null&&(this.electronPageHandoff.disposeHost(i),i.dispose?.())}emitChange(){for(let e of this.listeners)e()}}";
 const browserUseRecoveryHostSource =
   "function K({adoptionLease:e,adoptedWebContentsId:t,bounds:n,browserTabId:r,children:i,conversationId:a,hostKind:o=`right-panel`,initialUrl:s,isVisible:c,scale:l,shouldBootstrapWhenHidden:u,shouldPaint:d,webviewRef:f,windowZoom:p}){let m=(0,q.useRef)(null),h=(0,q.useId)(),g=(0,q.useRef)(!1),_=(0,q.useRef)(!1),v=(0,q.useRef)(P.getMountGeneration(a,r)),y=(0,q.useRef)(ae(a,r)),b=(0,q.useSyncExternalStore)(P.subscribe,()=>P.getCursorOverlayHost(a,r),()=>null);y.current=ae(a,r),(0,q.useLayoutEffect)(()=>(_.current=!0,()=>{_.current=!1}),[]);let x=c&&n!=null;return(0,q.useLayoutEffect)(()=>{let e=ae(a,r);if(ie({hasManagedWebview:m.current!=null,isPresented:x,shouldBootstrapWhenHidden:u})===`skip`){g.current=!1,v.current=P.getMountGeneration(a,r);return}let t=P.claimMountGeneration(a,r,h);return v.current=t,g.current=!0,()=>{g.current=!1,queueMicrotask(()=>{if(_.current&&y.current===e&&g.current)return;let n=P.releaseMountGeneration(a,r,h,t);v.current===t&&(v.current=n)})}},[r,a,x,h,u]),(0,q.useLayoutEffect)(()=>{let e=ae(a,r);return()=>{let t=m.current,n=v.current;queueMicrotask(()=>{let i=y.current;_.current&&i===e||P.hasOtherMountGenerationClaim(a,r,h,n)||t!=null&&(P.detachElectronWebview(t,f,o,n),m.current===t&&(m.current=null))})}},[r,a,o,h,f]),(0,q.useLayoutEffect)(()=>{m.current?.disposed&&(m.current=null);let i=m.current,c=ie({hasManagedWebview:i!=null,isPresented:x,shouldBootstrapWhenHidden:u});if(c===`skip`){if(i!=null){let e=v.current;P.hasOtherMountGenerationClaim(a,r,h,e)||P.detachElectronWebview(i,f,o,e)}m.current===i&&(m.current=null);return}let g=P.getWebview(a,r,s,{adoptionLease:e,adoptedWebContentsId:t,hostKind:o});m.current=g,P.syncElectronWebview(g,{bounds:n,isVisible:x,mountGeneration:v.current,scale:l,shouldBootstrap:c===`bootstrap`,shouldPaint:d,windowZoom:p},f,o)},[r,a,o,s,e,t,n,x,h,l,d,u,f,p]),b==null||i==null?null:(0,oe.createPortal)(i,b)}";
 const browserUseHiddenHostSource =
-  "function f(e){return e}function A(e){let{browserUseTabIdsKey:n,conversationId:r}=e,c=e.isRouteOwner,B=e.visibleTabs;if(!c&&B.size>0)return null;let H=Symbol.for(`react.early_return_sentinel`);bb0:{let e=e=>!B.has(e);let a=n.split(`\\0`).map(f).filter(e);if(a.length===0){H=null;break bb0}return a}if(H!==Symbol.for(`react.early_return_sentinel`))return H}";
+  "function f(e){return e}function D(e){let{browserUseTabIdsKey:n}=e,I=e.visibleTabs,R=Symbol.for(`react.early_return_sentinel`);bb0:{let e=e=>!I.has(e);let i=n.split(`\\0`).map(f).filter(e);if(i.length===0){R=null;break bb0}return i}if(R!==Symbol.for(`react.early_return_sentinel`))return R}function A(){return{hostKind:`hidden-browser-use`,shouldBootstrapWhenHidden:!0}}";
 
 test("patches the current monolithic Browser webview store and host contracts", () => {
   const patchedStore = applyPatchTwice(
@@ -8852,7 +8816,7 @@ test("patches the current monolithic Browser webview store and host contracts", 
   assert.match(patched, /linuxFailWebviewRecovery\(e,t,n\)/);
   assert.match(
     patched,
-    /r\|\|this\.linuxBrowserUseRecoveryStates\.delete\(Ef\(e,n\)\)/,
+    /n\|\|this\.linuxBrowserUseRecoveryStates\.delete\(r\)/,
   );
   assert.match(
     patched,
@@ -8860,7 +8824,7 @@ test("patches the current monolithic Browser webview store and host contracts", 
   );
   assert.match(
     patched,
-    /removeConversationTabs\(e\)\{let t=`\$\{e\}\\0`;for\(let e of this\.linuxBrowserUseRecoveryStates\.keys\(\)\)/,
+    /removeConversationTabs\(e\)\{let t=`\$\{e\}\\0`;for\(let chatgptLinuxRecoveryKey of this\.linuxBrowserUseRecoveryStates\.keys\(\)\)/,
   );
   assert.match(
     patched,
@@ -8868,17 +8832,13 @@ test("patches the current monolithic Browser webview store and host contracts", 
   );
   assert.match(
     patched,
-    /browserUseActiveTabKeys\.delete\(e\);this\.linuxBrowserUseRecoveryStates\.delete\(e\);let n=/,
-  );
-  assert.match(
-    patched,
-    /linuxBrowserUseRecoveryStates\.delete\(s\),this\.linuxBrowserUseRecoveryStates\.set\(c,codexLinuxRecoveryState\)/,
+    /linuxBrowserUseRecoveryStates\.delete\(o\),this\.linuxBrowserUseRecoveryStates\.set\(s,chatgptLinuxRecoveryState\)/,
   );
   assert.match(patched, /disposeAll\(\)\{this\.electronPageHandoff\.disposeAll\(\),this\.linuxBrowserUseRecoveryStates\.clear\(\),/);
-  assert.match(patched, /function codexLinuxWatchBrowserWebviewAttachment/);
+  assert.match(patched, /function chatgptLinuxWatchBrowserWebviewAttachment/);
   assert.match(
     patched,
-    /P\.linuxRemountWebview\(a,r,g,codexLinuxRemountDeadline\)/,
+    /P\.linuxRemountWebview\(a,r,g,chatgptLinuxRemountDeadline\)/,
   );
   assert.match(patched, /typeof P\.linuxRemountWebview==`function`/);
   assert.match(patched, /P\.linuxStartWebviewRecovery\(a,r,Date\.now\(\)\+5e3\)/);
@@ -8892,10 +8852,10 @@ test("patches the current monolithic Browser webview store and host contracts", 
     patched,
     /useSyncExternalStore\)\(P\.subscribe,\(\)=>P\.isBrowserUseActive\(a,r\),\(\)=>!1\)/,
   );
-  assert.match(patched, /codexLinuxBrowserUseActive,b\]\)/);
+  assert.match(patched, /chatgptLinuxBrowserUseActive,b\]\)/);
   assert.match(
     patched,
-    /useEffect\)\(\(\)=>\{codexLinuxBrowserUseActive\|\|\(codexLinuxBrowserWebviewRecoveryRef\.current=\{attempt:0,deadlineAt:null,host:null,key:a\+`\\0`\+r\}\)\},\[codexLinuxBrowserUseActive,a,r\]\)/,
+    /useEffect\)\(\(\)=>\{chatgptLinuxBrowserUseActive\|\|\(chatgptLinuxBrowserWebviewRecoveryRef\.current=\{attempt:0,deadlineAt:null,host:null,key:a\+`\\0`\+r\}\)\},\[chatgptLinuxBrowserUseActive,a,r\]\)/,
   );
   assert.doesNotThrow(() => new vm.Script(patched));
 
@@ -8965,14 +8925,6 @@ test("patches the current monolithic Browser webview store and host contracts", 
     true,
   );
   store.webviews.set("conversation-1\0tab-1", secondHost);
-  store.browserUseActiveTabKeys.add("conversation-1\0tab-1");
-  store.setBrowserUseActive("conversation-1", "tab-2", true);
-  store.webviews.set("conversation-1\0tab-1", secondHost);
-  assert.equal(
-    store.linuxRemountWebview("conversation-1", "tab-1", secondHost).started,
-    true,
-  );
-  store.webviews.set("conversation-1\0tab-1", secondHost);
   store.releaseBrowserUseTab("conversation-1", "tab-1");
   store.webviews.set("conversation-1\0tab-1", secondHost);
   assert.equal(
@@ -8999,7 +8951,7 @@ test("patches the current monolithic Browser webview store and host contracts", 
   const reassociatedRecoveryRef = { current: null };
   let reassociatedClock = 9_000;
   store.webviews.set("conversation-2\0tab-2", reassociatedHost);
-  codexLinuxWatchBrowserWebviewAttachment({
+  chatgptLinuxWatchBrowserWebviewAttachment({
     active: true,
     browserTabId: "tab-2",
     conversationId: "conversation-2",
@@ -9135,7 +9087,6 @@ test("current monolithic Browser webview asset applies all recovery descriptors 
     for (const patchName of [
       "linux-browser-use-webview-attach-recovery-store",
       "linux-browser-use-webview-attach-recovery-host",
-      "linux-browser-use-hidden-host-ownership",
     ]) {
       assert.equal(
         report.patches.find((patch) => patch.name === patchName)?.status,
@@ -9143,6 +9094,12 @@ test("current monolithic Browser webview asset applies all recovery descriptors 
       );
       assert.ok(!optionalDriftFromReport(report).some((patch) => patch.name === patchName));
     }
+    assert.equal(
+      report.patches.find(
+        (patch) => patch.name === "linux-browser-use-hidden-host-ownership",
+      )?.status,
+      "already-applied",
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -9219,24 +9176,19 @@ test("Browser webview host recovery rejects current-DMG drift byte-identically",
   assert.ok(warnings.some((message) => message.includes("host lifecycle seams")));
 });
 
-test("mounts inactive Browser Use hosts when another conversation owns the visible panel", () => {
-  const patched = applyPatchTwice(
-    applyLinuxBrowserUseHiddenHostOwnershipPatch,
-    browserUseHiddenHostSource,
+test("recognizes current native hidden Browser Use host ownership", () => {
+  const { value: verified, warnings } = captureWarns(() =>
+    applyLinuxBrowserUseHiddenHostOwnershipPatch(browserUseHiddenHostSource),
   );
 
-  assert.match(
-    patched,
-    /if\(!c&&B\.size>0&&n\.split\(`\\0`\)\.map\(f\)\.every\(codexLinuxBrowserUseTabId=>B\.has\(codexLinuxBrowserUseTabId\)\)\)return null/,
-  );
-  assert.doesNotThrow(() => new vm.Script(patched));
+  assert.equal(verified, browserUseHiddenHostSource);
+  assert.deepEqual(warnings, []);
 
-  const mount = vm.runInNewContext(`${patched};A`);
+  const mount = vm.runInNewContext(browserUseHiddenHostSource + ";D");
   assert.deepEqual(
     Array.from(
       mount({
         browserUseTabIdsKey: "target-tab",
-        isRouteOwner: false,
         visibleTabs: new Set(["other-conversation-tab"]),
       }),
     ),
@@ -9245,7 +9197,6 @@ test("mounts inactive Browser Use hosts when another conversation owns the visib
   assert.equal(
     mount({
       browserUseTabIdsKey: "target-tab",
-      isRouteOwner: false,
       visibleTabs: new Set(["target-tab"]),
     }),
     null,
@@ -9254,7 +9205,6 @@ test("mounts inactive Browser Use hosts when another conversation owns the visib
     Array.from(
       mount({
         browserUseTabIdsKey: "visible-tab\0hidden-tab",
-        isRouteOwner: false,
         visibleTabs: new Set(["visible-tab"]),
       }),
     ),
@@ -9274,18 +9224,18 @@ test("hydrates local chat search results before navigating", () => {
 
   const patched = applyPatchTwice(applyLinuxChatSearchHydrationPatch, source);
 
-  assert.match(patched, /function codexLinuxHydrateSearchConversation/);
+  assert.match(patched, /function chatgptLinuxHydrateSearchConversation/);
   assert.match(
     patched,
     /nt\(`load-recent-conversation-ids-for-host`,\{hostId:n,conversationIds:\[t\]\}\)/,
   );
   assert.match(
     patched,
-    /async function FS\(e,t,n\)\{let codexLinuxRouteKey=codexLinuxSearchThreadKey\(e\),r=A\(codexLinuxRouteKey\);if\(r!=null\)\{await codexLinuxHydrateSearchConversation\(e,r\);t\(r\);return\}n\(L\(codexLinuxRouteKey\)\)\}/,
+    /async function FS\(e,t,n\)\{let chatgptLinuxRouteKey=chatgptLinuxSearchThreadKey\(e\),r=A\(chatgptLinuxRouteKey\);if\(r!=null\)\{await chatgptLinuxHydrateSearchConversation\(e,r\);t\(r\);return\}n\(L\(chatgptLinuxRouteKey\)\)\}/,
   );
   assert.match(
     patched,
-    /nt\(`search-threads-for-host`,\{hostId:e,query:C,limit:T\}\)\.then\(codexLinuxSearchResults=>codexLinuxSearchResults\.map\(codexLinuxSearchResult=>\(\{\.\.\.codexLinuxSearchResult,hostId:e\}\)\)\)/,
+    /nt\(`search-threads-for-host`,\{hostId:e,query:C,limit:T\}\)\.then\(chatgptLinuxSearchResults=>chatgptLinuxSearchResults\.map\(chatgptLinuxSearchResult=>\(\{\.\.\.chatgptLinuxSearchResult,hostId:e\}\)\)\)/,
   );
   assert.match(patched, /return\[\{kind:`local`,hostId:e\.hostId\?\?`local`,threadKey:/);
   assert.match(patched, /return\{kind:`local`,hostId:e\.hostId\?\?`local`,threadKey:/);
@@ -9306,14 +9256,14 @@ test("hydrates current local chat search route helper before navigating", () => 
 
   const patched = applyPatchTwice(applyLinuxChatSearchHydrationPatch, source);
 
-  assert.match(patched, /function codexLinuxHydrateSearchConversation/);
+  assert.match(patched, /function chatgptLinuxHydrateSearchConversation/);
   assert.match(
     patched,
-    /_\(`search-threads-for-host`,\{hostId:e,query:b,limit:S\}\)\.then\(codexLinuxSearchResults=>codexLinuxSearchResults\.map\(codexLinuxSearchResult=>\(\{\.\.\.codexLinuxSearchResult,hostId:e\}\)\)\)/,
+    /_\(`search-threads-for-host`,\{hostId:e,query:b,limit:S\}\)\.then\(chatgptLinuxSearchResults=>chatgptLinuxSearchResults\.map\(chatgptLinuxSearchResult=>\(\{\.\.\.chatgptLinuxSearchResult,hostId:e\}\)\)\)/,
   );
   assert.match(
     patched,
-    /async function MI\(e,t,n,r\)\{switch\(e\.kind\)\{case`local`:await codexLinuxHydrateSearchConversation\(e,e\.threadKey\);Yh\(e\.threadKey,t,n\);return;case`remote`:Yh\(e\.threadKey,t,n\);return;case`chatgpt`:return\}\}/,
+    /async function MI\(e,t,n,r\)\{switch\(e\.kind\)\{case`local`:await chatgptLinuxHydrateSearchConversation\(e,e\.threadKey\);Yh\(e\.threadKey,t,n\);return;case`remote`:Yh\(e\.threadKey,t,n\);return;case`chatgpt`:return\}\}/,
   );});
 
 test("resolves the requested live Linux Browser Use route window by id", () => {
@@ -9323,9 +9273,9 @@ test("resolves the requested live Linux Browser Use route window by id", () => {
 
   const patched = applyPatchTwice(applyLinuxBrowserUseRouteLivenessPatch, source);
 
-  assert.match(patched, /function codexLinuxResolveLiveBrowserUseRouteWindow/);
-  assert.match(patched, /i==null&&\(i=codexLinuxResolveLiveBrowserUseRouteWindow\(e,t,n,r\)\);return/);
-  assert.equal((patched.match(/codexLinuxResolveLiveBrowserUseRouteWindow/g) || []).length, 2);
+  assert.match(patched, /function chatgptLinuxResolveLiveBrowserUseRouteWindow/);
+  assert.match(patched, /i==null&&\(i=chatgptLinuxResolveLiveBrowserUseRouteWindow\(e,t,n,r\)\);return/);
+  assert.equal((patched.match(/chatgptLinuxResolveLiveBrowserUseRouteWindow/g) || []).length, 2);
 
   const requestedWebContents = { isDestroyed: () => false };
   const unrelatedWebContents = { isDestroyed: () => false };
@@ -9917,7 +9867,7 @@ test("sanitizes Linux external-open environment before xdg-open", async () => {
     LD_LIBRARY_PATH: "/tmp/bad",
     LD_PRELOAD: "/tmp/preload.so",
     NODE_OPTIONS: "--require /tmp/hook.js",
-    CODEX_LINUX_WEBVIEW_PORT: "1234",
+    CHATGPT_LINUX_WEBVIEW_PORT: "1234",
   };
   const { openExternal, originalCalls } = evaluatePatchedExternalOpen({
     env,
@@ -9941,7 +9891,7 @@ test("sanitizes Linux external-open environment before xdg-open", async () => {
     "LD_LIBRARY_PATH",
     "LD_PRELOAD",
     "NODE_OPTIONS",
-    "CODEX_LINUX_WEBVIEW_PORT",
+    "CHATGPT_LINUX_WEBVIEW_PORT",
   ]) {
     assert.equal(Object.hasOwn(spawnCalls[0].options.env, key), false);
   }
@@ -9990,7 +9940,7 @@ test("keeps already-applied Linux external-open patch quiet", () => {
 
 test("warns when Linux external-open helper exists without wrapped Electron require", () => {
   const source =
-    "\"use strict\";function codexLinuxPatchExternalOpen(e){return e}let {shell:e}=require(`electron`);";
+    "\"use strict\";function chatgptLinuxPatchExternalOpen(e){return e}let {shell:e}=require(`electron`);";
   const { value, warnings } = captureWarns(() => applyLinuxExternalOpenEnvPatch(source));
 
   assert.equal(value, source);
@@ -9999,10 +9949,10 @@ test("warns when Linux external-open helper exists without wrapped Electron requ
   ]);
 });
 
-test("disables xdg-open path when CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH=1", async () => {
+test("disables xdg-open path when CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH=1", async () => {
   const spawnCalls = [];
   const { openExternal, originalCalls } = evaluatePatchedExternalOpen({
-    env: { CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH: "1" },
+    env: { CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH: "1" },
     spawn(command, args, options) {
       spawnCalls.push({ command, args, options });
       return externalOpenChildClosingWith(0);
@@ -10014,12 +9964,12 @@ test("disables xdg-open path when CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH=1", as
   assert.deepEqual(originalCalls, [{ url: "https://example.test/docs", options: undefined }]);
 });
 
-test("uses xdg-open path when CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH is not 1", async () => {
+test("uses xdg-open path when CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH is not 1", async () => {
   const spawnCalls = [];
   const env = {
     PATH: "/usr/bin",
     DISPLAY: ":1",
-    CODEX_LINUX_DISABLE_EXTERNAL_OPEN_PATCH: "0",
+    CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH: "0",
   };
   const { openExternal, originalCalls } = evaluatePatchedExternalOpen({
     env,
@@ -10047,7 +9997,7 @@ test("trusts the current direct Browser Use node_repl runtime config builder", (
   assert.doesNotMatch(patched, /tools:\{js:\{approval_mode:`approve`\}\}/);
   assert.match(patched, currentBrowserUseTrustedHashesInsertionRegex);
   assert.equal(
-    (patched.match(/function codexLinuxTrustedBrowserClientSha256s/g) || []).length,
+    (patched.match(/function chatgptLinuxTrustedBrowserClientSha256s/g) || []).length,
     1,
   );
 });
@@ -10097,7 +10047,7 @@ test("patches re-chunked Browser Use trust hash and approval assets", () => {
     assert.deepEqual(result, { matched: 2, changed: 2 });
     const patchedMain = fs.readFileSync(mainChunk, "utf8");
     const patchedSrc = fs.readFileSync(srcChunk, "utf8");
-    assert.match(patchedMain, /function codexLinuxTrustedBrowserClientSha256s/);
+    assert.match(patchedMain, /function chatgptLinuxTrustedBrowserClientSha256s/);
     assert.match(patchedMain, currentBrowserUseTrustedHashesInsertionRegex);
     assert.match(patchedSrc, /tools:\{js:\{approval_mode:`approve`\}\}/);
   } finally {
@@ -10136,11 +10086,11 @@ test("trusts Linux patched bundled Browser Use clients through the current direc
 
     const patched = applyPatchTwice(applyBrowserUseNodeReplApprovalPatch, source);
 
-    assert.match(patched, /^"use strict";function codexLinuxTrustedBrowserClientSha256s/);
+    assert.match(patched, /^"use strict";function chatgptLinuxTrustedBrowserClientSha256s/);
     assert.doesNotMatch(patched, /tools:\{js:\{approval_mode:`approve`\}\}/);
     assert.match(patched, currentBrowserUseTrustedHashesInsertionRegex);
     assert.equal(
-      (patched.match(/function codexLinuxTrustedBrowserClientSha256s/g) || []).length,
+      (patched.match(/function chatgptLinuxTrustedBrowserClientSha256s/g) || []).length,
       1,
     );
     const linuxHashes = await vm.runInNewContext(
@@ -10164,22 +10114,22 @@ test("patchMainBundleSource does not force the in-app browser panel visible", ()
 
   assert.equal(patched, source);
   assert.doesNotMatch(patched, /setBrowserVisibleForBrowserUse/);
-  assert.doesNotMatch(patched, /codexLinuxBrowserUseAutoVisible/);
+  assert.doesNotMatch(patched, /chatgptLinuxBrowserUseAutoVisible/);
 });
 
 function withIsolatedHome(body) {
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-cu-ui-test-"));
   const previousHome = process.env.HOME;
   const previousXdg = process.env.XDG_CONFIG_HOME;
-  const previousAppId = process.env.CODEX_APP_ID;
-  const previousLinuxAppId = process.env.CODEX_LINUX_APP_ID;
-  const previousSettingsFile = process.env.CODEX_LINUX_SETTINGS_FILE;
+  const previousAppId = process.env.CHATGPT_APP_ID;
+  const previousLinuxAppId = process.env.CHATGPT_LINUX_APP_ID;
+  const previousSettingsFile = process.env.CHATGPT_LINUX_SETTINGS_FILE;
   const previousFlag = process.env[COMPUTER_USE_UI_ENV_VAR];
   process.env.HOME = tempHome;
   delete process.env.XDG_CONFIG_HOME;
-  delete process.env.CODEX_APP_ID;
-  delete process.env.CODEX_LINUX_APP_ID;
-  delete process.env.CODEX_LINUX_SETTINGS_FILE;
+  delete process.env.CHATGPT_APP_ID;
+  delete process.env.CHATGPT_LINUX_APP_ID;
+  delete process.env.CHATGPT_LINUX_SETTINGS_FILE;
   delete process.env[COMPUTER_USE_UI_ENV_VAR];
   try {
     return body(tempHome);
@@ -10195,19 +10145,19 @@ function withIsolatedHome(body) {
       process.env.XDG_CONFIG_HOME = previousXdg;
     }
     if (previousAppId == null) {
-      delete process.env.CODEX_APP_ID;
+      delete process.env.CHATGPT_APP_ID;
     } else {
-      process.env.CODEX_APP_ID = previousAppId;
+      process.env.CHATGPT_APP_ID = previousAppId;
     }
     if (previousLinuxAppId == null) {
-      delete process.env.CODEX_LINUX_APP_ID;
+      delete process.env.CHATGPT_LINUX_APP_ID;
     } else {
-      process.env.CODEX_LINUX_APP_ID = previousLinuxAppId;
+      process.env.CHATGPT_LINUX_APP_ID = previousLinuxAppId;
     }
     if (previousSettingsFile == null) {
-      delete process.env.CODEX_LINUX_SETTINGS_FILE;
+      delete process.env.CHATGPT_LINUX_SETTINGS_FILE;
     } else {
-      process.env.CODEX_LINUX_SETTINGS_FILE = previousSettingsFile;
+      process.env.CHATGPT_LINUX_SETTINGS_FILE = previousSettingsFile;
     }
     if (previousFlag == null) {
       delete process.env[COMPUTER_USE_UI_ENV_VAR];
@@ -10218,7 +10168,7 @@ function withIsolatedHome(body) {
   }
 }
 
-function writeSettingsFile(home, content, appId = "codex-app") {
+function writeSettingsFile(home, content, appId = "chatgpt") {
   const dir = path.join(home, ".config", appId);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "settings.json"), content, "utf8");
@@ -10246,28 +10196,28 @@ test("isComputerUseUiEnabled honours the persisted settings flag", () => {
   });
 });
 
-test("isComputerUseUiEnabled honours side-by-side CODEX_APP_ID settings", () => {
+test("isComputerUseUiEnabled honours side-by-side CHATGPT_APP_ID settings", () => {
   withIsolatedHome((home) => {
-    process.env.CODEX_APP_ID = "codex-cua-lab";
-    writeSettingsFile(home, JSON.stringify({ [COMPUTER_USE_UI_SETTINGS_KEY]: true }), "codex-cua-lab");
+    process.env.CHATGPT_APP_ID = "chatgpt-cua-lab";
+    writeSettingsFile(home, JSON.stringify({ [COMPUTER_USE_UI_SETTINGS_KEY]: true }), "chatgpt-cua-lab");
     assert.equal(isComputerUseUiEnabled(), true);
   });
 });
 
-test("isComputerUseUiEnabled prefers CODEX_LINUX_APP_ID settings", () => {
+test("isComputerUseUiEnabled prefers CHATGPT_LINUX_APP_ID settings", () => {
   withIsolatedHome((home) => {
-    process.env.CODEX_LINUX_APP_ID = "codex-cua-lab";
-    process.env.CODEX_APP_ID = "codex-desktop";
-    writeSettingsFile(home, JSON.stringify({ [COMPUTER_USE_UI_SETTINGS_KEY]: true }), "codex-cua-lab");
+    process.env.CHATGPT_LINUX_APP_ID = "chatgpt-cua-lab";
+    process.env.CHATGPT_APP_ID = "chatgpt-fallback";
+    writeSettingsFile(home, JSON.stringify({ [COMPUTER_USE_UI_SETTINGS_KEY]: true }), "chatgpt-cua-lab");
     assert.equal(isComputerUseUiEnabled(), true);
   });
 });
 
-test("isComputerUseUiEnabled honours CODEX_LINUX_SETTINGS_FILE", () => {
+test("isComputerUseUiEnabled honours CHATGPT_LINUX_SETTINGS_FILE", () => {
   withIsolatedHome((home) => {
     const settingsFile = path.join(home, "custom-settings.json");
     fs.writeFileSync(settingsFile, JSON.stringify({ [COMPUTER_USE_UI_SETTINGS_KEY]: true }), "utf8");
-    process.env.CODEX_LINUX_SETTINGS_FILE = settingsFile;
+    process.env.CHATGPT_LINUX_SETTINGS_FILE = settingsFile;
     assert.equal(isComputerUseUiEnabled(), true);
   });
 });
@@ -10343,31 +10293,31 @@ test("patchMainBundleSource applies Computer Use feature patch when settings.jso
   });
 });
 
-test("uses CODEX_APP_ID for Electron desktopName", () => {
-  assert.equal(resolveDesktopName({}), "codex-app.desktop");
-  assert.equal(resolveDesktopName({ CODEX_APP_ID: "codex-cua-lab" }), "codex-cua-lab.desktop");
+test("uses CHATGPT_APP_ID for Electron desktopName", () => {
+  assert.equal(resolveDesktopName({}), "chatgpt.desktop");
+  assert.equal(resolveDesktopName({ CHATGPT_APP_ID: "chatgpt-cua-lab" }), "chatgpt-cua-lab.desktop");
   assert.throws(
-    () => resolveDesktopName({ CODEX_APP_ID: "bad/app" }),
-    /CODEX_APP_ID must contain only/,
+    () => resolveDesktopName({ CHATGPT_APP_ID: "bad/app" }),
+    /CHATGPT_APP_ID must contain only/,
   );
 
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-desktop-name-test-"));
-  const previousAppId = process.env.CODEX_APP_ID;
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-name-test-"));
+  const previousAppId = process.env.CHATGPT_APP_ID;
   try {
     fs.writeFileSync(path.join(tempRoot, "package.json"), JSON.stringify({ name: "codex" }));
-    process.env.CODEX_APP_ID = "codex-cua-lab";
+    process.env.CHATGPT_APP_ID = "chatgpt-cua-lab";
 
-    assert.equal(patchPackageJson(tempRoot), "codex-cua-lab.desktop");
-    assert.equal(patchPackageJson(tempRoot), "codex-cua-lab.desktop");
+    assert.equal(patchPackageJson(tempRoot), "chatgpt-cua-lab.desktop");
+    assert.equal(patchPackageJson(tempRoot), "chatgpt-cua-lab.desktop");
     assert.equal(
       JSON.parse(fs.readFileSync(path.join(tempRoot, "package.json"), "utf8")).desktopName,
-      "codex-cua-lab.desktop",
+      "chatgpt-cua-lab.desktop",
     );
   } finally {
     if (previousAppId == null) {
-      delete process.env.CODEX_APP_ID;
+      delete process.env.CHATGPT_APP_ID;
     } else {
-      process.env.CODEX_APP_ID = previousAppId;
+      process.env.CHATGPT_APP_ID = previousAppId;
     }
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -10387,11 +10337,11 @@ test("patchMainBundleSource keeps non-icon patches active without an icon asset"
 
   const patched = applyPatchTwice(patchMainBundleSource, source, null);
 
-  assert.match(patched, /codexLinuxQuitInProgress=!1/);
-  assert.match(patched, /codexLinuxExplicitQuitApproved=!1/);
-  assert.match(patched, /codexLinuxIsQuitInProgress=\(\)=>codexLinuxQuitInProgress===!0/);
-  assert.match(patched, /codexLinuxShouldBypassQuitPrompt=\(\)=>codexLinuxExplicitQuitApproved===!0/);
-  assert.match(patched, /n\.app\.on\(`before-quit`,codexLinuxBeforeQuitHandler\)/);
+  assert.match(patched, /chatgptLinuxQuitInProgress=!1/);
+  assert.match(patched, /chatgptLinuxExplicitQuitApproved=!1/);
+  assert.match(patched, /chatgptLinuxIsQuitInProgress=\(\)=>chatgptLinuxQuitInProgress===!0/);
+  assert.match(patched, /chatgptLinuxShouldBypassQuitPrompt=\(\)=>chatgptLinuxExplicitQuitApproved===!0/);
+  assert.match(patched, /n\.app\.on\(`before-quit`,chatgptLinuxBeforeQuitHandler\)/);
   assert.match(
     patched,
     /process\.platform===`linux`&&\(k\.on\(`system-context-menu`,e=>e\.preventDefault\(\)\),k\.removeMenu\(\)\)/,
@@ -10399,11 +10349,11 @@ test("patchMainBundleSource keeps non-icon patches active without an icon asset"
   assert.match(patched, /linux:\{label:`File Manager`/);
   assert.match(
     patched,
-    /r=codexLinuxRegisterTray\(new [A-Za-z_$][\w$]*\.Tray\(t\.defaultIcon\)\)/,
+    /r=chatgptLinuxRegisterTray\(new [A-Za-z_$][\w$]*\.Tray\(t\.defaultIcon\)\)/,
   );
   assert.match(
     patched,
-    /process\.platform===`linux`&&process\.env\.CODEX_LINUX_MULTI_LAUNCH!==`1`&&!n\.app\.requestSingleInstanceLock\(\)/,
+    /process\.platform===`linux`&&process\.env\.CHATGPT_LINUX_MULTI_LAUNCH!==`1`&&!n\.app\.requestSingleInstanceLock\(\)/,
   );
   assert.match(patched, /t===`linux`\|\|t===`darwin`&&e\.computerUse/);
   assert.doesNotMatch(patched, /setIcon\(process\.resourcesPath\+`\/\.\.\/content\/webview\/assets\//);
@@ -10422,7 +10372,7 @@ test("patchMainBundleSource stays idempotent after wrapping the Electron require
   const patched = patchMainBundleSource(source, "app-test.png");
 
   assert.equal(patchMainBundleSource(patched, "app-test.png"), patched);
-  assert.match(patched, /codexLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
+  assert.match(patched, /chatgptLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon\)\)/);
   assert.match(patched, /updatePersistentTrayMenu\(\)\{process\.platform===`linux`/);
 });
 
@@ -10552,7 +10502,7 @@ test("missing icon asset skips only icon patches", () => {
 
     assert.match(patchedMain, /linux:\{label:`File Manager`/);
     assert.match(patchedTheme, /includes\(`Linux`\)/);
-    assert.equal(patchedPackage.desktopName, "codex-app.desktop");    assert.equal(fs.readFileSync(patchedMainPath, "utf8"), patchedMain);
+    assert.equal(patchedPackage.desktopName, "chatgpt.desktop");    assert.equal(fs.readFileSync(patchedMainPath, "utf8"), patchedMain);
     assert.equal(fs.readFileSync(patchedThemePath, "utf8"), patchedTheme);
     assert.equal(fs.readFileSync(patchedPackagePath, "utf8"), patchedPackageRaw);
   } finally {
@@ -10696,7 +10646,7 @@ test("patchExtractedApp records a structured patch report", () => {
 
     assert.equal(report.mainBundle, "main.js");
     assert.equal(report.iconAsset, "app-test.png");
-    assert.equal(report.desktopName, "codex-app.desktop");
+    assert.equal(report.desktopName, "chatgpt.desktop");
     assert.deepEqual(report.enabledIntegrations, enabledPortIntegrationIds());
     // Browser/Computer Use integration drift is optional, but window-shell
     // drift is critical: this partial fixture lacks the titlebar shape.
@@ -10991,13 +10941,13 @@ test("persistent rate limit footer skips current footer group when conversation 
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\{conversationId:e\}\)/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\{conversationId:e\}\)/);
   assert.match(patched, /catch\(e\)\{return null\}/);
   assert.match(patched, /\{activeMode:n\}=Bi\(e\),r=n\?\.settings\.model\?\?null,\{data:i\}=ci\(jn\)/);
-  assert.doesNotMatch(patched, /codexLinuxRateLimitFooter,\{conversationId:z\}/);
+  assert.doesNotMatch(patched, /chatgptLinuxRateLimitFooter,\{conversationId:z\}/);
   assert.match(patched, /children:\[Ut,Wt,Gt\]/);
   assert.match(patched, /\(0,Q\.jsx\)\(H_,\{minutes:e\.bucket\.windowDurationMins,variant:`summary`\}\)/);
-  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(codexLinuxRateLimitFooter/);
+  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter/);
   assert.doesNotMatch(patched, /rateLimitEntries:ye/);
 });
 
@@ -11012,11 +10962,11 @@ test("persistent rate limit footer adapts to current composer conversation id sy
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\{conversationId:e\}\)/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\{conversationId:e\}\)/);
   assert.match(patched, /catch\(e\)\{return null\}/);
-  assert.match(patched, /codexLinuxRateLimitFooter,\{conversationId:z\}/);
-  assert.match(patched, /Kt=\(0,Q\.jsxs\)\(`div`,\{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:\[Ut,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:z\}\),Wt,Gt\]\}\)/);
-  assert.doesNotMatch(patched, /t\[131\]!==Ut\|\|t\[132\]!==Wt\|\|t\[133\]!==Gt\?\(Kt=.*codexLinuxRateLimitFooter/);
+  assert.match(patched, /chatgptLinuxRateLimitFooter,\{conversationId:z\}/);
+  assert.match(patched, /Kt=\(0,Q\.jsxs\)\(`div`,\{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:\[Ut,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:z\}\),Wt,Gt\]\}\)/);
+  assert.doesNotMatch(patched, /t\[131\]!==Ut\|\|t\[132\]!==Wt\|\|t\[133\]!==Gt\?\(Kt=.*chatgptLinuxRateLimitFooter/);
   assert.doesNotMatch(patched, /children:\[Ut,Wt,Gt\]/);
 });
 
@@ -11026,55 +10976,55 @@ test("persistent rate limit footer migrates broken current composer calls", () =
     "function H_(e){let t=(0,Z.c)(6),{minutes:n,variant:r}=e,i=$i(),a;t[0]!==i||t[1]!==n||t[2]!==r?(a=Uo({intl:i,minutes:n,variant:r}),t[0]=i,t[1]=n,t[2]=r,t[3]=a):a=t[3];let o;return t[4]===a?o=t[5]:(o=(0,Q.jsx)(Q.Fragment,{children:a}),t[4]=a,t[5]=o),o}",
     "function U_(e){let t=(0,Z.c)(75),{rateLimits:n,activeLimitName:r,planType:i,suppressUpsell:a,selectedModel:o}=e;return null}",
     "function IG({activeCollaborationMode:t}){let z=ci(Zt),le=t?.settings.model??null,{data:ue}=Oc(),{data:de}=ci(jn),fe=Qo(de),pe=Bo(de,le),me=de?.rate_limit_reached_type?.type,he=me!=null&&me!==`rate_limit_reached`,ge=ue?.structure===`workspace`&&Io(de)&&!es(de)&&!he,_e=fe&&!ge,ve=pe&&!ge,ye=Ro(de),be=Zo(de),xe=Ko(ye,{activeLimitName:be,selectedModel:le}),Se=Lo(ye,{activeLimitName:be,selectedModel:le});",
-    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,w===`home`?(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:z}):null,Wt,Gt]});return Kt}",
+    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,w===`home`?(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:z}):null,Wt,Gt]});return Kt}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter/);
   assert.match(patched, /catch\(e\)\{return null\}/);
-  assert.match(patched, /codexLinuxRateLimitFooter,\{conversationId:z\}/);
-  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(codexLinuxRateLimitFooter/);
-  assert.doesNotMatch(patched, /codexLinuxRateLimitFooter,\{rateLimitEntries:/);
+  assert.match(patched, /chatgptLinuxRateLimitFooter,\{conversationId:z\}/);
+  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter/);
+  assert.doesNotMatch(patched, /chatgptLinuxRateLimitFooter,\{rateLimitEntries:/);
 });
 
 test("persistent rate limit footer upgrades existing current helper to guarded helper", () => {
   const oldHelper =
-    "function codexLinuxRateLimitFooter({conversationId:e}){let t=(0,Z.c)(22),{activeMode:n}=Bi(e),r=n?.settings.model??null,{data:i}=ci(jn);return null}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){let t=(0,Z.c)(22),{activeMode:n}=Bi(e),r=n?.settings.model??null,{data:i}=ci(jn);return null}";
   const source = [
     "var Z=Ai();var Q=Hr();",
     "function H_(e){let t=(0,Z.c)(6),{minutes:n,variant:r}=e,i=$i(),a;t[0]!==i||t[1]!==n||t[2]!==r?(a=Uo({intl:i,minutes:n,variant:r}),t[0]=i,t[1]=n,t[2]=r,t[3]=a):a=t[3];let o;return t[4]===a?o=t[5]:(o=(0,Q.jsx)(Q.Fragment,{children:a}),t[4]=a,t[5]=o),o}",
     oldHelper,
     "function U_(e){let t=(0,Z.c)(75),{rateLimits:n,activeLimitName:r,planType:i,suppressUpsell:a,selectedModel:o}=e;return null}",
     "function IG({activeCollaborationMode:t}){let z=ci(Zt),le=t?.settings.model??null,{data:ue}=Oc(),{data:de}=ci(jn),fe=Qo(de),pe=Bo(de,le),me=de?.rate_limit_reached_type?.type,he=me!=null&&me!==`rate_limit_reached`,ge=ue?.structure===`workspace`&&Io(de)&&!es(de)&&!he,_e=fe&&!ge,ve=pe&&!ge,ye=Ro(de),be=Zo(de),xe=Ko(ye,{activeLimitName:be,selectedModel:le}),Se=Lo(ye,{activeLimitName:be,selectedModel:le});",
-    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:z}),Wt,Gt]});return Kt}",
+    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:z}),Wt,Gt]});return Kt}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.equal((patched.match(/function codexLinuxRateLimitFooter/g) || []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxRateLimitFooter/g) || []).length, 1);
   assert.match(patched, /catch\(e\)\{return null\}/);
   assert.match(patched, /\{activeMode:n\}=Bi\(e\),r=n\?\.settings\.model\?\?null,\{data:i\}=ci\(jn\)/);
-  assert.doesNotMatch(patched, /function codexLinuxRateLimitFooter\(\{conversationId:e\}\)\{let t=/);
+  assert.doesNotMatch(patched, /function chatgptLinuxRateLimitFooter\(\{conversationId:e\}\)\{let t=/);
 });
 
 test("persistent rate limit footer repairs incorrectly adapted current composer calls", () => {
   const brokenHelper =
-    "function codexLinuxRateLimitFooter({rateLimitEntries:e,activeLimitName:t,selectedModel:n}){let r=(0,Z.c)(20),i=Jo(e,{activeLimitName:t,selectedModel:n}),a=Xo(i).slice(0,2);if(a.length===0)return null;return a}";
+    "function chatgptLinuxRateLimitFooter({rateLimitEntries:e,activeLimitName:t,selectedModel:n}){let r=(0,Z.c)(20),i=Jo(e,{activeLimitName:t,selectedModel:n}),a=Xo(i).slice(0,2);if(a.length===0)return null;return a}";
   const source = [
     "var Z=Ai();var Q=Hr();",
     "function H_(e){let t=(0,Z.c)(6),{minutes:n,variant:r}=e,i=$i(),a;t[0]!==i||t[1]!==n||t[2]!==r?(a=Uo({intl:i,minutes:n,variant:r}),t[0]=i,t[1]=n,t[2]=r,t[3]=a):a=t[3];let o;return t[4]===a?o=t[5]:(o=(0,Q.jsx)(Q.Fragment,{children:a}),t[4]=a,t[5]=o),o}",
     brokenHelper,
     "function U_(e){let t=(0,Z.c)(75),{rateLimits:n,activeLimitName:r,planType:i,suppressUpsell:a,selectedModel:o}=e;return null}",
     "function IG({activeCollaborationMode:t}){let z=ci(Zt),le=t?.settings.model??null,{data:ue}=Oc(),{data:de}=ci(jn),fe=Qo(de),pe=Bo(de,le),me=de?.rate_limit_reached_type?.type,he=me!=null&&me!==`rate_limit_reached`,ge=ue?.structure===`workspace`&&Io(de)&&!es(de)&&!he,_e=fe&&!ge,ve=pe&&!ge,ye=Ro(de),be=Zo(de),xe=Ko(ye,{activeLimitName:be,selectedModel:le}),Se=Lo(ye,{activeLimitName:be,selectedModel:le});",
-    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,w===`home`?(0,Q.jsx)(codexLinuxRateLimitFooter,{rateLimitEntries:ye,activeLimitName:be,selectedModel:le}):null,Wt,Gt]});return Kt}",
+    "let Ut=xt,Wt=null,Gt=yt,Kt;Kt=(0,Q.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-nowrap items-center gap-1`,children:[Ut,w===`home`?(0,Q.jsx)(chatgptLinuxRateLimitFooter,{rateLimitEntries:ye,activeLimitName:be,selectedModel:le}):null,Wt,Gt]});return Kt}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\{conversationId:e\}\)/);
-  assert.match(patched, /codexLinuxRateLimitFooter,\{conversationId:z\}/);
-  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(codexLinuxRateLimitFooter/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\{conversationId:e\}\)/);
+  assert.match(patched, /chatgptLinuxRateLimitFooter,\{conversationId:z\}/);
+  assert.doesNotMatch(patched, /w===`home`\?\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter/);
   assert.doesNotMatch(patched, /rateLimitEntries:e/);
   assert.doesNotMatch(patched, /rateLimitEntries:ye/);
 });
@@ -11089,11 +11039,11 @@ test("persistent rate limit footer adapts to current composer status toolbar sha
 
   assert.match(
     patched,
-    /function codexLinuxRateLimitFooter\(\{conversationId:e,rateLimit:t\}\)\{try\{let n=Et\(\),\{activeMode:r\}=or\(e\),i=r\?\.settings\.model\?\?null,a=sa\(t\),o=ta\(t\),s=da\(a,\{activeLimitName:o,selectedModel:i\}\),c=s\.filter\(kg\)\.slice\(0,2\);/,
+    /function chatgptLinuxRateLimitFooter\(\{conversationId:e,rateLimit:t\}\)\{try\{let n=Et\(\),\{activeMode:r\}=or\(e\),i=r\?\.settings\.model\?\?null,a=sa\(t\),o=ta\(t\),s=da\(a,\{activeLimitName:o,selectedModel:i\}\),c=s\.filter\(kg\)\.slice\(0,2\);/,
   );
   assert.match(
     patched,
-    /children:\[ue,de,W,fe,pe,me,G,he,_e,ve,ye,xe,Se,Ce,we,Te,Ee,De==null\?null:\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:x,rateLimit:De\}\),Oe,Ae,je,Me\]/,
+    /children:\[ue,de,W,fe,pe,me,G,he,_e,ve,ye,xe,Se,Ce,we,Te,Ee,De==null\?null:\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:x,rateLimit:De\}\),Oe,Ae,je,Me\]/,
   );
 });
 
@@ -11107,7 +11057,7 @@ test("persistent rate limit footer skips composer patch when helper cannot be in
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
   assert.equal(patched, source);
-  assert.doesNotMatch(patched, /codexLinuxRateLimitFooter/);
+  assert.doesNotMatch(patched, /chatgptLinuxRateLimitFooter/);
 });
 
 test("persistent rate limit footer adapts to current composer permissions footer shape", () => {
@@ -11121,14 +11071,14 @@ test("persistent rate limit footer adapts to current composer permissions footer
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\{conversationId:e\}\)/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\{conversationId:e\}\)/);
   assert.match(
     patched,
     /\{data:n\}=Y\(de\),r=_a\(n\),i=da\(n\),a=ya\(r,\{activeLimitName:i,selectedModel:t\}\)/,
   );
   assert.match(
     patched,
-    /\(0,Q\.jsx\)\(Sm,\{conversationId:f,hostId:C,cwdOverride:w\}\),\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:f\}\),\(0,Q\.jsx\)\(Rm,\{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0\}\)/,
+    /\(0,Q\.jsx\)\(Sm,\{conversationId:f,hostId:C,cwdOverride:w\}\),\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:f\}\),\(0,Q\.jsx\)\(Rm,\{conversationId:f,hasGoal:y,isGoalActionAvailable:b,onClearGoal:x,showDivider:!0\}\)/,
   );
 });
 
@@ -11140,7 +11090,7 @@ test("persistent rate limit footer adapts to latest composer footer controls wit
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\)/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\)/);
   assert.doesNotMatch(patched, /selectedModel:r/);
   assert.doesNotMatch(patched, /\.filter\(og\)/);
   assert.match(patched, /t=f\(Ae\)\?\.data,n=t\?\.rate_limit,r=\[n\?\.primary_window,n\?\.secondary_window\]\.filter/);
@@ -11151,9 +11101,9 @@ test("persistent rate limit footer adapts to latest composer footer controls wit
   assert.match(patched, /className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1\.5 rounded-full border border-token-border-light bg-transparent px-2 py-1 text-xs text-token-text-secondary dark:border-white\/10`/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
-  assert.doesNotMatch(patched, /s==null\?null:\(0,Q\.jsx\)\(codexLinuxRateLimitFooter/);
+  assert.doesNotMatch(patched, /s==null\?null:\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter/);
 });
 
 test("persistent rate limit footer detects latest rate-limit query symbols", () => {
@@ -11169,7 +11119,7 @@ test("persistent rate limit footer detects latest rate-limit query symbols", () 
   assert.doesNotMatch(patched, /t=f\(Ae\)\?\.data/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
 });
 
@@ -11178,7 +11128,7 @@ test("persistent rate limit footer removes broad inline controls patch without a
     "var $=qt();var Q=Hr();",
     "function ef(e){let t=(0,$.c)(23),{selectedModel:n}=e,{data:r}=wr(),{data:i}=Dr(Qk),a=ru(),o;if(t[0]!==i){o=go({rateLimitStatus:i,isWorkspaceAccount:!0}),t[0]=i,t[1]=o}else o=t[1];return o}",
     "var Pp=Object.assign(Fp,{FooterInlineControls:Wp});",
-    "function Wp(e){let r=(0,$.c)(6),{children:n,gap:i,ref:a}=e,o=(i===void 0?`compact`:i)===`compact`?`gap-1`:`gap-[5px]`,s;r[0]===o?s=r[1]:(s=J(`flex min-w-0 items-center`,o),r[0]=o,r[1]=s);let c;return c=(0,Q.jsxs)(`div`,{ref:a,className:s,children:[n,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:null})]}),c}",
+    "function Wp(e){let r=(0,$.c)(6),{children:n,gap:i,ref:a}=e,o=(i===void 0?`compact`:i)===`compact`?`gap-1`:`gap-[5px]`,s;r[0]===o?s=r[1]:(s=J(`flex min-w-0 items-center`,o),r[0]=o,r[1]=s);let c;return c=(0,Q.jsxs)(`div`,{ref:a,className:s,children:[n,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:null})]}),c}",
     "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
   ].join("");
 
@@ -11192,22 +11142,22 @@ test("persistent rate limit footer removes broad inline controls patch without a
   assert.doesNotMatch(patched, /conversationId:null/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
 });
 
 test("persistent rate limit footer migrates latest composer footer away from conversation guard", () => {
   const oldHelper =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
   const source = [
     "var $=qt();var Q=Hr();",
     oldHelper,
-    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,s==null?null:(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
+    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,s==null?null:(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.equal((patched.match(/function codexLinuxRateLimitFooter/g) || []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxRateLimitFooter/g) || []).length, 1);
   assert.doesNotMatch(patched, /selectedModel:null/);
   assert.doesNotMatch(patched, /a=ma\(i\)/);
   assert.match(patched, /t=f\(Ae\)\?\.data,n=t\?\.rate_limit,r=\[n\?\.primary_window,n\?\.secondary_window\]\.filter/);
@@ -11217,45 +11167,45 @@ test("persistent rate limit footer migrates latest composer footer away from con
   assert.match(patched, /className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1\.5 rounded-full border border-token-border-light bg-transparent px-2 py-1 text-xs text-token-text-secondary dark:border-white\/10`/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
-  assert.doesNotMatch(patched, /s==null\?null:\(0,Q\.jsx\)\(codexLinuxRateLimitFooter/);
+  assert.doesNotMatch(patched, /s==null\?null:\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter/);
 });
 
 test("persistent rate limit footer preserves intervening latest composer functions when replacing helper", () => {
   const oldHelper =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{return e}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{return e}catch(e){return null}}";
   const source = [
     "var $=qt();var Q=Hr();",
     oldHelper,
     "function lh(){return `keep me`}",
-    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
+    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.equal((patched.match(/function codexLinuxRateLimitFooter/g) || []).length, 1);
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\)/);
+  assert.equal((patched.match(/function chatgptLinuxRateLimitFooter/g) || []).length, 1);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\)/);
   assert.match(patched, /function lh\(\)\{return `keep me`\}/);
   assert.doesNotMatch(patched, /try\{return e\}/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
 });
 
 test("persistent rate limit footer keeps latest model fallback numeric-only", () => {
   const oldHelper =
-    "function codexLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
+    "function chatgptLinuxRateLimitFooter({conversationId:e}){try{let t=(0,$.c)(8),{activeMode:n}=or(e),r=n?.settings.model??null,{data:i}=St(ue),a=ma(i),o=la(i),s=da(a,{activeLimitName:o,selectedModel:r}).filter(og).slice(0,2);s.length===0&&(s=da(a,{activeLimitName:o,selectedModel:null}).filter(og).slice(0,2));if(s.length===0)return null;let c=ht(),l;if(t[0]!==s||t[1]!==c){l=s.map(e=>`${Xh(e.bucket.windowDurationMins??null,c)} ${c.formatNumber(Sa(e.bucket.usedPercent??0),{maximumFractionDigits:0})}%`).join(` / `),t[0]=s,t[1]=c,t[2]=l}else l=t[2];let u;return t[3]!==l?(u=(0,Q.jsx)(`span`,{className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1.5 rounded-full border border-token-border-light bg-token-main-surface-primary/80 px-2 py-1 text-xs text-token-text-secondary shadow-sm dark:border-white/10`,children:l}),t[3]=l,t[4]=u):u=t[4],u}catch(e){return null}}";
   const source = [
     "var $=qt();var Q=Hr();",
     oldHelper,
-    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,(0,Q.jsx)(codexLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
+    "function Mm(e){let t=(0,$.c)(12),{addContextButton:n,conversationId:s}=e,Ke=null,qe;t[0]!==n||t[1]!==Ke?(qe=(0,Q.jsxs)(Pp.FooterInlineControls,{gap:`normal`,children:[n,(0,Q.jsx)(chatgptLinuxRateLimitFooter,{conversationId:s}),Ke]}),t[0]=n,t[1]=Ke,t[2]=qe):qe=t[2];return qe}",
   ].join("");
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.equal((patched.match(/function codexLinuxRateLimitFooter/g) || []).length, 1);
+  assert.equal((patched.match(/function chatgptLinuxRateLimitFooter/g) || []).length, 1);
   assert.doesNotMatch(patched, /a=ma\(i\)/);
   assert.match(patched, /t=f\(Ae\)\?\.data,n=t\?\.rate_limit,r=\[n\?\.primary_window,n\?\.secondary_window\]\.filter/);
   assert.match(patched, /Math\.max\(0,100-\(e\.used_percent\?\?0\)\)/);
@@ -11265,7 +11215,7 @@ test("persistent rate limit footer keeps latest model fallback numeric-only", ()
   assert.match(patched, /className:`composer-footer__label--sm inline-flex shrink-0 items-center gap-1\.5 rounded-full border border-token-border-light bg-transparent px-2 py-1 text-xs text-token-text-secondary dark:border-white\/10`/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[n,Ke,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:s\}\)\]\}/,
   );
 });
 
@@ -11291,7 +11241,7 @@ test("patcher CLI writes --report-json output", () => {
     fs.writeFileSync(path.join(tempRoot, "package.json"), JSON.stringify({ name: "codex" }));
     fs.writeFileSync(
       path.join(assetsDir, "settings-page-bad-linux-patch.js"),
-      'var icons={"agent-workspaces":codexLinuxAgentWorkspaceSettingsIcon,worktrees:WorktreesIcon};',
+      'var icons={"agent-workspaces":chatgptLinuxAgentWorkspaceSettingsIcon,worktrees:WorktreesIcon};',
     );
 
     const result = spawnSync(
@@ -11305,7 +11255,7 @@ test("patcher CLI writes --report-json output", () => {
     assert.equal(report.mainBundle, "main.js");
     assert.ok(report.patches.some((patch) => patch.name === "main-process-ui"));
     assert.equal(report.postPatchIntegrity.findingCount, 1);
-    assert.match(report.postPatchIntegrity.findings[0].symbol, /codexLinuxAgentWorkspaceSettingsIcon/);
+    assert.match(report.postPatchIntegrity.findings[0].symbol, /chatgptLinuxAgentWorkspaceSettingsIcon/);
     assert.match(report.postPatchIntegrity.findings[0].path, /settings-page-bad-linux-patch\.js$/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -11339,13 +11289,13 @@ test("engine catches a throwing optional patch and continues with later patches"
       "  phase: \"main-bundle\",",
       "  ciPolicy: \"optional\",",
       "  order: 200,",
-      "  apply: (source) => source.replace(\"codexLinuxFollowUp()\", \"codexLinuxFollowedUp()\"),",
+      "  apply: (source) => source.replace(\"chatgptLinuxFollowUp()\", \"chatgptLinuxFollowedUp()\"),",
       "};",
     ].join("\n"));
 
     const buildDir = path.join(tempApp, ".vite", "build");
     fs.mkdirSync(buildDir, { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxFollowUp()");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxFollowUp()");
 
     const report = createPatchReport();
     captureWarns(() => patchExtractedApp(tempApp, { report, corePatchRoot: coreRoot }));
@@ -11357,7 +11307,7 @@ test("engine catches a throwing optional patch and continues with later patches"
 
     const following = report.patches.find((patch) => patch.name === "following-optional-sample");
     assert.equal(following?.status, "applied", "engine must continue after an optional patch throws");
-    assert.match(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), /codexLinuxFollowedUp/);
+    assert.match(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), /chatgptLinuxFollowedUp/);
 
     assert.ok(
       !criticalFailuresFromReport(report).some((failure) => failure.name === "throwing-optional-sample"),
@@ -11390,7 +11340,7 @@ test("engine records a throwing critical patch as failed-required without aborti
 
     const buildDir = path.join(tempApp, ".vite", "build");
     fs.mkdirSync(buildDir, { recursive: true });
-    const originalSource = "codexLinuxCriticalFixture()";
+    const originalSource = "chatgptLinuxCriticalFixture()";
     fs.writeFileSync(path.join(buildDir, "main.js"), originalSource);
 
     const report = createPatchReport();
@@ -11443,7 +11393,7 @@ test("a throwing webview-asset patch leaves no partially patched assets", () => 
     const assetsDir = path.join(tempApp, "webview", "assets");
     fs.mkdirSync(buildDir, { recursive: true });
     fs.mkdirSync(assetsDir, { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxAssetFixture()");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxAssetFixture()");
     fs.writeFileSync(path.join(assetsDir, "demo-a.js"), "first asset");
     fs.writeFileSync(path.join(assetsDir, "demo-b.js"), "second asset");
 
@@ -11543,7 +11493,7 @@ test("patchMainBundleSource survives a throwing optional patch without a report"
       "};",
     ].join("\n"));
 
-    const source = "codexLinuxNoReportFixture()";
+    const source = "chatgptLinuxNoReportFixture()";
     const { value: patched } = captureWarns(() =>
       patchMainBundleSource(source, null, { corePatchRoot: coreRoot }),
     );
@@ -11659,7 +11609,7 @@ test("a disabled patch is recorded as skipped-disabled and never counts as a cri
 
     const buildDir = path.join(tempApp, ".vite", "build");
     fs.mkdirSync(buildDir, { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxDisabledFixture()");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxDisabledFixture()");
 
     const report = createPatchReport();
     captureWarns(() => patchExtractedApp(tempApp, { report, corePatchRoot: coreRoot }));
@@ -11691,14 +11641,14 @@ test("strategy telemetry recorded during apply lands on the patch report entry",
       "  order: 100,",
       "  apply: (source) => {",
       "    recordStrategy(\"sample-group\", \"upstream-alt-shape\");",
-      "    return source.replace(\"codexLinuxStrategyFixture()\", \"codexLinuxStrategyPatched()\");",
+      "    return source.replace(\"chatgptLinuxStrategyFixture()\", \"chatgptLinuxStrategyPatched()\");",
       "  },",
       "};",
     ].join("\n"));
 
     const buildDir = path.join(tempApp, ".vite", "build");
     fs.mkdirSync(buildDir, { recursive: true });
-    fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxStrategyFixture()");
+    fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxStrategyFixture()");
 
     const report = createPatchReport();
     captureWarns(() => patchExtractedApp(tempApp, { report, corePatchRoot: coreRoot }));
@@ -11721,13 +11671,13 @@ test("persistent rate limit footer adapts to the latest composer footer controls
 
   const patched = applyPatchTwice(applyPersistentRateLimitFooterPatch, source);
 
-  assert.match(patched, /function codexLinuxRateLimitFooter\(\)/);
+  assert.match(patched, /function chatgptLinuxRateLimitFooter\(\)/);
   assert.match(patched, /t=f\(Ae\)\?\.data,n=t\?\.rate_limit/);
   assert.match(
     patched,
-    /FooterInlineControls,\{gap:`normal`,children:\[Ab,Cb,\(0,Q\.jsx\)\(codexLinuxRateLimitFooter,\{conversationId:n\}\)\]\}/,
+    /FooterInlineControls,\{gap:`normal`,children:\[Ab,Cb,\(0,Q\.jsx\)\(chatgptLinuxRateLimitFooter,\{conversationId:n\}\)\]\}/,
   );
-  assert.equal((patched.match(/codexLinuxRateLimitFooter,\{conversationId:n\}/g) || []).length, 1);
+  assert.equal((patched.match(/chatgptLinuxRateLimitFooter,\{conversationId:n\}/g) || []).length, 1);
 });
 
 test("persistent rate limit footer warns when composer footer controls drift", () => {

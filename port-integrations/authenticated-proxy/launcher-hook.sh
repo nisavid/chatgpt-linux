@@ -100,11 +100,11 @@ PY
 populate_proxy_bypass_from_standard_env() {
     local no_proxy_value
 
-    [ -z "${CODEX_LINUX_PROXY_BYPASS_LIST:-}" ] || return 0
+    [ -z "${CHATGPT_LINUX_PROXY_BYPASS_LIST:-}" ] || return 0
     no_proxy_value="$(standard_no_proxy_env_value)" || return 0
     [ -n "$no_proxy_value" ] || return 0
 
-    CODEX_LINUX_PROXY_BYPASS_LIST="${no_proxy_value//,/;}"
+    CHATGPT_LINUX_PROXY_BYPASS_LIST="${no_proxy_value//,/;}"
 }
 
 populate_codex_proxy_env_from_standard_env() {
@@ -113,7 +113,7 @@ populate_codex_proxy_env_from_standard_env() {
     local username
     local password
 
-    if [ -n "${CODEX_LINUX_PROXY_SERVER:-}" ]; then
+    if [ -n "${CHATGPT_LINUX_PROXY_SERVER:-}" ]; then
         populate_proxy_bypass_from_standard_env
         return 0
     fi
@@ -127,16 +127,16 @@ populate_codex_proxy_env_from_standard_env() {
     IFS=$'\t' read -r server username password <<< "$parsed"
     [ -n "$server" ] || return 0
 
-    CODEX_LINUX_PROXY_SERVER="$server"
-    if [ -z "${CODEX_LINUX_PROXY_USERNAME:-}" ] && [ -n "$username" ]; then
-        CODEX_LINUX_PROXY_USERNAME="$username"
+    CHATGPT_LINUX_PROXY_SERVER="$server"
+    if [ -z "${CHATGPT_LINUX_PROXY_USERNAME:-}" ] && [ -n "$username" ]; then
+        CHATGPT_LINUX_PROXY_USERNAME="$username"
     fi
-    if [ -z "${CODEX_LINUX_PROXY_PASSWORD:-}" ] && [ -n "$password" ]; then
-        CODEX_LINUX_PROXY_PASSWORD="$password"
+    if [ -z "${CHATGPT_LINUX_PROXY_PASSWORD:-}" ] && [ -n "$password" ]; then
+        CHATGPT_LINUX_PROXY_PASSWORD="$password"
     fi
     populate_proxy_bypass_from_standard_env
 
-    diagnose "Derived CODEX_LINUX_PROXY_SERVER from $STANDARD_PROXY_ENV_NAME."
+    diagnose "Derived CHATGPT_LINUX_PROXY_SERVER from $STANDARD_PROXY_ENV_NAME."
 }
 
 extract_proxy_auth_endpoint() {
@@ -150,7 +150,7 @@ extract_proxy_auth_endpoint() {
     endpoint="$server"
     case "$endpoint" in
         *";"*|*=*)
-            diagnose "Ignoring proxy auth env: CODEX_LINUX_PROXY_SERVER must be a single proxy endpoint, not a proxy list."
+            diagnose "Ignoring proxy auth env: CHATGPT_LINUX_PROXY_SERVER must be a single proxy endpoint, not a proxy list."
             return 1
             ;;
     esac
@@ -164,7 +164,7 @@ extract_proxy_auth_endpoint() {
 
     case "$endpoint" in
         *@*)
-            diagnose "Ignoring credentials embedded in CODEX_LINUX_PROXY_SERVER; use CODEX_LINUX_PROXY_USERNAME and CODEX_LINUX_PROXY_PASSWORD instead."
+            diagnose "Ignoring credentials embedded in CHATGPT_LINUX_PROXY_SERVER; use CHATGPT_LINUX_PROXY_USERNAME and CHATGPT_LINUX_PROXY_PASSWORD instead."
             endpoint="${endpoint#*@}"
             ;;
     esac
@@ -187,7 +187,7 @@ extract_proxy_auth_endpoint() {
     esac
 
     if [ -z "$PROXY_AUTH_HOST" ]; then
-        diagnose "Ignoring proxy auth env: could not parse CODEX_LINUX_PROXY_SERVER host."
+        diagnose "Ignoring proxy auth env: could not parse CHATGPT_LINUX_PROXY_SERVER host."
         return 1
     fi
 
@@ -196,42 +196,42 @@ extract_proxy_auth_endpoint() {
 }
 
 emit_proxy_configuration() {
-    emit_env CODEX_LINUX_PROXY_AUTH_HOST ""
-    emit_env CODEX_LINUX_PROXY_AUTH_PORT ""
+    emit_env CHATGPT_LINUX_PROXY_AUTH_HOST ""
+    emit_env CHATGPT_LINUX_PROXY_AUTH_PORT ""
 
     if electron_proxy_server_arg_present "$@"; then
-        if [ -n "${CODEX_LINUX_PROXY_SERVER:-}" ] ||
-            [ -n "${CODEX_LINUX_PROXY_USERNAME:-}" ] ||
-            [ -n "${CODEX_LINUX_PROXY_PASSWORD:-}" ] ||
-            [ -n "${CODEX_LINUX_PROXY_BYPASS_LIST:-}" ]; then
-            diagnose "Ignoring CODEX_LINUX_PROXY_* env because --proxy-server was provided explicitly."
+        if [ -n "${CHATGPT_LINUX_PROXY_SERVER:-}" ] ||
+            [ -n "${CHATGPT_LINUX_PROXY_USERNAME:-}" ] ||
+            [ -n "${CHATGPT_LINUX_PROXY_PASSWORD:-}" ] ||
+            [ -n "${CHATGPT_LINUX_PROXY_BYPASS_LIST:-}" ]; then
+            diagnose "Ignoring CHATGPT_LINUX_PROXY_* env because --proxy-server was provided explicitly."
         fi
         return 0
     fi
 
     populate_codex_proxy_env_from_standard_env
-    [ -n "${CODEX_LINUX_PROXY_SERVER:-}" ] || return 0
+    [ -n "${CHATGPT_LINUX_PROXY_SERVER:-}" ] || return 0
 
-    emit_env CODEX_LINUX_PROXY_SERVER "$CODEX_LINUX_PROXY_SERVER"
-    emit_electron_arg "--proxy-server=$CODEX_LINUX_PROXY_SERVER"
+    emit_env CHATGPT_LINUX_PROXY_SERVER "$CHATGPT_LINUX_PROXY_SERVER"
+    emit_electron_arg "--proxy-server=$CHATGPT_LINUX_PROXY_SERVER"
 
-    if [ -n "${CODEX_LINUX_PROXY_BYPASS_LIST:-}" ]; then
-        emit_env CODEX_LINUX_PROXY_BYPASS_LIST "$CODEX_LINUX_PROXY_BYPASS_LIST"
-        emit_electron_arg "--proxy-bypass-list=$CODEX_LINUX_PROXY_BYPASS_LIST"
+    if [ -n "${CHATGPT_LINUX_PROXY_BYPASS_LIST:-}" ]; then
+        emit_env CHATGPT_LINUX_PROXY_BYPASS_LIST "$CHATGPT_LINUX_PROXY_BYPASS_LIST"
+        emit_electron_arg "--proxy-bypass-list=$CHATGPT_LINUX_PROXY_BYPASS_LIST"
     fi
 
-    if [ -n "${CODEX_LINUX_PROXY_USERNAME:-}" ]; then
-        if extract_proxy_auth_endpoint "$CODEX_LINUX_PROXY_SERVER"; then
-            emit_env CODEX_LINUX_PROXY_AUTH_HOST "$PROXY_AUTH_HOST"
-            emit_env CODEX_LINUX_PROXY_AUTH_PORT "$PROXY_AUTH_PORT"
-            emit_env CODEX_LINUX_PROXY_USERNAME "$CODEX_LINUX_PROXY_USERNAME"
-            emit_env CODEX_LINUX_PROXY_PASSWORD "${CODEX_LINUX_PROXY_PASSWORD:-}"
-            diagnose "Configured Electron proxy from CODEX_LINUX_PROXY_SERVER with proxy authentication."
+    if [ -n "${CHATGPT_LINUX_PROXY_USERNAME:-}" ]; then
+        if extract_proxy_auth_endpoint "$CHATGPT_LINUX_PROXY_SERVER"; then
+            emit_env CHATGPT_LINUX_PROXY_AUTH_HOST "$PROXY_AUTH_HOST"
+            emit_env CHATGPT_LINUX_PROXY_AUTH_PORT "$PROXY_AUTH_PORT"
+            emit_env CHATGPT_LINUX_PROXY_USERNAME "$CHATGPT_LINUX_PROXY_USERNAME"
+            emit_env CHATGPT_LINUX_PROXY_PASSWORD "${CHATGPT_LINUX_PROXY_PASSWORD:-}"
+            diagnose "Configured Electron proxy from CHATGPT_LINUX_PROXY_SERVER with proxy authentication."
         fi
-    elif [ -n "${CODEX_LINUX_PROXY_PASSWORD:-}" ]; then
-        diagnose "Ignoring CODEX_LINUX_PROXY_PASSWORD because CODEX_LINUX_PROXY_USERNAME is empty."
+    elif [ -n "${CHATGPT_LINUX_PROXY_PASSWORD:-}" ]; then
+        diagnose "Ignoring CHATGPT_LINUX_PROXY_PASSWORD because CHATGPT_LINUX_PROXY_USERNAME is empty."
     else
-        diagnose "Configured Electron proxy from CODEX_LINUX_PROXY_SERVER."
+        diagnose "Configured Electron proxy from CHATGPT_LINUX_PROXY_SERVER."
     fi
 }
 
