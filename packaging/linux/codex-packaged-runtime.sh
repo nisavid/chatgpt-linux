@@ -43,14 +43,11 @@ codex_packaged_runtime_prelaunch_background() {
 
     systemctl --user disable --now codex-update-manager.service >/dev/null 2>&1 || true
 
-    if systemctl --user is-enabled codex-app-updater.service >/dev/null 2>&1; then
-        if ! systemctl --user is-active codex-app-updater.service >/dev/null 2>&1; then
-            systemctl --user start codex-app-updater.service >/dev/null 2>&1 || true
-        fi
-    else
-        systemctl --user enable --now codex-app-updater.service >/dev/null 2>&1 || true
+    if ! systemctl --user is-enabled codex-app-updater.service >/dev/null 2>&1; then
+        return 0
     fi
 
+    systemctl --user start codex-app-updater.service >/dev/null 2>&1 || true
     codex_packaged_runtime_trigger_update_check
 }
 

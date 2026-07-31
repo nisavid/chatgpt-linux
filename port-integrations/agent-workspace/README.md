@@ -1,6 +1,6 @@
 # Agent Workspaces port integration
 
-`agent-workspace` is a default-enabled Codex Desktop port integration that adds the
+`agent-workspace` is a default-enabled Codex App port integration that adds the
 `agent-workspace-linux` control surface to the app settings UI.
 
 Disable it in `port-integrations.json` before running the install/build
@@ -21,7 +21,7 @@ the agent-facing progressive routing entrypoint; the integration does not write
 `~/.codex/config.toml` or register a generic MCP server at startup.
 
 The integration adds a Linux-only settings section named **Agent Workspaces**. The
-page can point Codex Desktop at an `agent-workspace-linux` binary, list and edit
+page can point Codex App at an `agent-workspace-linux` binary, list and edit
 saved profiles, validate profile JSON without saving, preview profile-backed
 workspace starts, require an explicit approval card before starting a hidden
 workspace, stop running workspaces, run stale workspace cleanup, and create a restricted Chrome
@@ -43,9 +43,8 @@ editor are also parsed into an argv array directly; shell syntax such as
 redirection, pipes, or environment assignment is not interpreted unless the user
 explicitly chooses a shell binary as the program.
 
-When this integration is enabled, it also sets `CODEX_LINUX_PIN_RENDERER_URL=1` for
-the launcher so Electron keeps using the managed local webview origin even if
-the environment contains an inherited `ELECTRON_RENDERER_URL`. Set
+The launcher ignores an inherited `ELECTRON_RENDERER_URL` by default so the app
+always uses its own verified webview bundle. Set
 `CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1` only for explicit debugging.
 
 Install `agent-workspace-linux` (v0.1.1 or newer) from the **Agent Workspaces**

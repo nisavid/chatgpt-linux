@@ -4,7 +4,7 @@
   "description": "Linux read-aloud button for assistant responses.",
   "defaultEnabled": true,
   "entrypoints": {
-    "patches": "./patch.js",
+    "patchDescriptors": "./patch.js",
     "stageHook": "./stage.sh"
   }
 }

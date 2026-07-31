@@ -9,7 +9,6 @@ SPEC_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.spec"
 DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
 SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
 USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-ICON_SOURCE="$REPO_DIR/assets/codex.png"
 PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
 
 # Keep the installed update-builder payload aligned with the other package formats.
@@ -23,6 +22,7 @@ RPM_BINARY_PAYLOAD="${RPM_BINARY_PAYLOAD:-}"
 UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
 PACKAGED_RUNTIME_SOURCE="${PACKAGED_RUNTIME_SOURCE:-$PACKAGED_RUNTIME_TEMPLATE}"
+ICON_SOURCE="$(resolve_package_icon_source)"
 
 validate_max_build_threads() {
     case "$MAX_BUILD_THREADS" in
@@ -60,8 +60,7 @@ main() {
         RPM_BINARY_PAYLOAD="w19T${MAX_BUILD_THREADS}.zstdio"
     fi
 
-    [ -d "$APP_DIR" ] || error "Missing app directory: $APP_DIR. Run ./install.sh first."
-    [ -x "$APP_DIR/start.sh" ] || error "Missing launcher: $APP_DIR/start.sh"
+    ensure_app_layout
     [ -f "$SPEC_TEMPLATE" ] || error "Missing spec template: $SPEC_TEMPLATE"
     [ -f "$DESKTOP_TEMPLATE" ] || error "Missing desktop template: $DESKTOP_TEMPLATE"
     [ -f "$ICON_SOURCE" ] || error "Missing icon: $ICON_SOURCE"
@@ -95,15 +94,19 @@ main() {
     stage_optional_update_builder_bundle "$staging_root"
 
     cat > "$staging_root/usr/bin/$PACKAGE_NAME" <<SCRIPT
-#!/bin/bash
+#!/usr/bin/env bash
 exec /opt/$PACKAGE_NAME/start.sh "\$@"
 SCRIPT
     chmod 0755 "$staging_root/usr/bin/$PACKAGE_NAME"
+    stage_port_integration_package_resources "$staging_root" "rpm"
     run_port_integration_package_hooks "$staging_root" "rpm"
     normalize_package_payload_permissions "$staging_root"
     restore_port_integration_payload_permissions "$staging_root"
+    restore_port_integration_package_resource_permissions "$staging_root" "rpm"
 
     local spec_file="$build_root/codex-app.spec"
+    local integration_dependency_suffix
+    local integration_files
     local updater_requires=""
     local updater_description=""
     local updater_files=""
@@ -126,7 +129,11 @@ use the bundled managed Node.js runtime plus the local packaging toolchain liste
         updater_post="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
 if [ -f \"\$SERVICE_HELPER\" ]; then
     . \"\$SERVICE_HELPER\"
-    codex_ensure_user_service_running || true
+    if [ \${1:-0} -eq 1 ]; then
+        codex_ensure_user_service_running || true
+    else
+        codex_start_enabled_user_service || true
+    fi
 fi
 $desktop_doctor_post"
         updater_preun="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
@@ -149,6 +156,16 @@ if [ -f \"\$CLEANUP_HELPER\" ]; then
 fi
 $desktop_doctor_post"
         updater_preun="$updater_post"
+    fi
+    if ! integration_dependency_suffix="$(
+        port_integration_package_dependency_suffix rpm "$staging_root/opt/$PACKAGE_NAME"
+    )"; then
+        error "Failed to render port integration dependencies for rpm"
+    fi
+    if ! integration_files="$(
+        port_integration_package_files rpm "$staging_root/opt/$PACKAGE_NAME"
+    )"; then
+        error "Failed to render port integration files for rpm"
     fi
     AWK_PACKAGE_NAME="$PACKAGE_NAME" \
     AWK_RPM_VERSION="$rpm_ver" \
@@ -182,6 +199,14 @@ $desktop_doctor_post"
             print
         }
     ' "$SPEC_TEMPLATE" > "$spec_file"
+    replace_literal_file_token \
+        "$spec_file" \
+        "__PORT_INTEGRATION_DEPENDENCIES__" \
+        "$integration_dependency_suffix"
+    replace_literal_file_token \
+        "$spec_file" \
+        "__PORT_INTEGRATION_FILES__" \
+        "$integration_files"
 
     local rpmbuild_dir="$build_root/rpmbuild"
     mkdir -p \

@@ -1,7 +1,7 @@
 version = 1
 
 # In this config, "upstream" means the Linux-port upstream remote for
-# ilysenko/codex-desktop-linux. The official OpenAI Codex DMG is not this
+# ilysenko/codex-desktop-linux. The official OpenAI ChatGPT DMG is not this
 # upstream surface.
 [upstream]
 direct_remote = "upstream"

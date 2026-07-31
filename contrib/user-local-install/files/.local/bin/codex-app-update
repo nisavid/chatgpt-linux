@@ -138,7 +138,7 @@ log "Rebuilding wrapper..."
         export CODEX_LINUX_FEATURES_CONFIG="$CODEX_PORT_INTEGRATIONS_CONFIG"
     fi
     TMPDIR="$STATE_DIR/tmp" \
-    CODEX_INSTALL_ALLOW_RUNNING=1 \
+    CODEX_INSTALL_ALLOW_RUNNING=0 \
         CODEX_INSTALL_ROOT="$INSTALL_ROOT" \
         CODEX_INSTALL_DIR="$APP_DIR" \
         ./install.sh

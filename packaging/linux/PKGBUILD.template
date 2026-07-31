@@ -10,6 +10,7 @@ provides=('__PACKAGE_PROVIDES__')
 conflicts=('__PACKAGE_CONFLICTS__')
 depends=(
     'python'
+    'xdg-utils'
 __PACMAN_UPDATER_DEPENDS__
     # Electron runtime libraries
     'alsa-lib'
@@ -33,6 +34,7 @@ __PACMAN_UPDATER_DEPENDS__
     'nspr'
     'nss'
     'pango'
+__PORT_INTEGRATION_DEPENDENCIES__
 )
 optdepends=(
     'nodejs>=22.22.0: optional override for the bundled managed Node.js runtime'

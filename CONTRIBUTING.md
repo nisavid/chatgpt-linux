@@ -1,6 +1,15 @@
 # Contributing to Codex App for Linux
 
-Thanks for your interest in contributing to Codex App for Linux. This project adapts the official macOS Codex DMG into a runnable Linux app, packages it for multiple Linux distributions, and maintains the local Rust `codex-app-updater` for future rebuilds.
+Thanks for your interest in contributing to Codex App for Linux. This project adapts the official macOS ChatGPT DMG into a runnable Linux app, packages it for multiple Linux distributions, and maintains the local Rust `codex-app-updater` for future rebuilds.
+
+> [!IMPORTANT]
+> Keep one pull request open at a time. The default maximum is two active pull
+> requests from one contributor, reserved for exceptional cases; automation may
+> close work above the effective limit.
+>
+> Target the latest official `ChatGPT.dmg` and current `ChatGPT.app` bundle.
+> When repairing official-app drift, remove obsolete fallback patch paths and
+> version-specific compatibility branches in the same pull request.
 
 Contributions of all sizes are welcome: bug reports, documentation improvements, packaging fixes, installer updates, tests, and new features.
 
@@ -11,6 +20,9 @@ Contributions of all sizes are welcome: bug reports, documentation improvements,
 - Avoid mixed pull requests that combine unrelated fixes, refactors, formatting, docs, or cleanup.
 - Think through the impact on every supported path: source installs, `.deb`, `.rpm`, pacman packages, Nix, updater rebuilds, and different desktop environments.
 - Preserve existing platform behavior unless the pull request explicitly explains why it must change.
+- Keep common launch and runtime compatibility in core. Put workflow-specific,
+  editor-specific, browser-specific, distro-specific, or otherwise optional
+  behavior in a `port-integrations/` module.
 - Include a short summary, the user-visible behavior change, and the validation you ran.
 
 ## Before You Start

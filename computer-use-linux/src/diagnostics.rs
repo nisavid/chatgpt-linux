@@ -1,7 +1,8 @@
 use crate::windowing::registry::{
     self, COSMIC_WAYLAND_BACKEND, GNOME_SHELL_EXTENSION_BACKEND, GNOME_SHELL_INTROSPECT_BACKEND,
-    HYPRLAND_BACKEND, KWIN_BACKEND,
+    HYPRLAND_BACKEND, KWIN_BACKEND, NIRI_BACKEND,
 };
+use crate::ydotool;
 use schemars::JsonSchema;
 use serde::Serialize;
 use std::{
@@ -21,6 +22,7 @@ const DESKTOP_ENV_KEYS: &[&str] = &[
     "DESKTOP_SESSION",
     "DISPLAY",
     "HYPRLAND_INSTANCE_SIGNATURE",
+    "NIRI_SOCKET",
     "XAUTHORITY",
     "YDOTOOL_SOCKET",
     "XDG_SESSION_DESKTOP",
@@ -106,9 +108,11 @@ pub struct AccessibilityReport {
 pub struct WindowingReport {
     pub gnome_shell_introspect: Check,
     pub codex_gnome_shell_extension: Check,
+    pub codex_gnome_shell_extension_screenshot: Check,
     pub cosmic_helper: Check,
     pub kwin: Check,
     pub hyprland: Check,
+    pub niri: Check,
     pub backends: BTreeMap<String, Check>,
     pub can_list_windows: bool,
     pub can_focus_apps: bool,
@@ -208,13 +212,16 @@ fn capability_map(
     if portals.remote_desktop.ok {
         input_backends.push("portal".to_string());
     }
-    if input.ydotool_socket.ok {
+    if input.ydotool.ok && input.ydotoold.ok && input.ydotool_socket.ok {
         input_backends.push("ydotool".to_string());
     }
 
     let mut screenshot_backends = Vec::new();
     if platform.gnome_shell_version.ok {
         screenshot_backends.push("gnome_shell".to_string());
+    }
+    if windowing.codex_gnome_shell_extension_screenshot.ok {
+        screenshot_backends.push("gnome_shell_extension".to_string());
     }
     if portals.screenshot.ok {
         screenshot_backends.push("portal".to_string());
@@ -236,6 +243,9 @@ fn capability_map(
     }
     if windowing.hyprland.ok {
         window_backends.push("hyprland".to_string());
+    }
+    if windowing.niri.ok {
+        window_backends.push(NIRI_BACKEND.to_string());
     }
     if windowing.cosmic_helper.ok {
         window_backends.push("cosmic".to_string());
@@ -567,9 +577,15 @@ fn windowing_report() -> WindowingReport {
     };
     let gnome_shell_introspect = backend_check(GNOME_SHELL_INTROSPECT_BACKEND);
     let codex_gnome_shell_extension = backend_check(GNOME_SHELL_EXTENSION_BACKEND);
+    let codex_gnome_shell_extension_screenshot = gdbus_introspect_contains(
+        crate::identity::DBUS_SERVICE,
+        crate::identity::DBUS_OBJECT_PATH,
+        "CaptureScreenshot",
+    );
     let cosmic_helper = backend_check(COSMIC_WAYLAND_BACKEND);
     let kwin = backend_check(KWIN_BACKEND);
     let hyprland = backend_check(HYPRLAND_BACKEND);
+    let niri = backend_check(NIRI_BACKEND);
     let backends = probes
         .iter()
         .map(|probe| (probe.id.to_string(), check_from_backend_probe(probe)))
@@ -605,9 +621,11 @@ fn windowing_report() -> WindowingReport {
     WindowingReport {
         gnome_shell_introspect,
         codex_gnome_shell_extension,
+        codex_gnome_shell_extension_screenshot,
         cosmic_helper,
         kwin,
         hyprland,
+        niri,
         backends,
         can_list_windows,
         can_focus_apps,
@@ -626,7 +644,10 @@ fn check_from_backend_probe(probe: &registry::BackendProbe) -> Check {
 
 fn input_report() -> InputReport {
     InputReport {
-        ydotool: command_path_check("ydotool"),
+        ydotool: match ydotool::ensure_supported() {
+            Ok(detail) => Check::ok(detail),
+            Err(detail) => Check::fail(detail),
+        },
         ydotoold: process_check("ydotoold"),
         ydotool_socket: ydotool_socket_check(),
         uinput: read_write_path_check(Path::new("/dev/uinput")),
@@ -796,10 +817,6 @@ fn user_id() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn command_path_check(command: &str) -> Check {
-    command_check("sh", &["-c", &format!("command -v {command}")])
-}
-
 fn process_check(process_name: &str) -> Check {
     command_check("pgrep", &["-a", process_name])
 }
@@ -924,6 +941,27 @@ fn gdbus_call_check(destination: &str, object_path: &str, method: &str, args: &[
     command_check_with_session_bus("gdbus", &command_args)
 }
 
+fn gdbus_introspect_contains(destination: &str, object_path: &str, needle: &str) -> Check {
+    let check = command_check_with_session_bus(
+        "gdbus",
+        &[
+            "introspect",
+            "--session",
+            "--dest",
+            destination,
+            "--object-path",
+            object_path,
+        ],
+    );
+    if check.ok && check.detail.contains(needle) {
+        Check::ok(format!("DBus introspection includes {needle}"))
+    } else if check.ok {
+        Check::fail(format!("DBus introspection did not include {needle}"))
+    } else {
+        check
+    }
+}
+
 fn command_check(command: &str, args: &[&str]) -> Check {
     run_command(command, args, false)
 }
@@ -1025,9 +1063,15 @@ mod tests {
             } else {
                 Check::fail("missing")
             },
+            codex_gnome_shell_extension_screenshot: if can_focus_windows {
+                Check::ok("ok")
+            } else {
+                Check::fail("missing")
+            },
             cosmic_helper: Check::fail("missing"),
             kwin: Check::fail("not a KWin session"),
             hyprland: Check::fail("not a Hyprland session"),
+            niri: Check::fail("not a Niri session"),
             backends: BTreeMap::new(),
             can_list_windows,
             can_focus_apps: true,
@@ -1124,6 +1168,11 @@ mod tests {
     }
 
     #[test]
+    fn desktop_env_hydration_includes_niri_socket() {
+        assert!(DESKTOP_ENV_KEYS.contains(&"NIRI_SOCKET"));
+    }
+
+    #[test]
     fn graphical_process_env_requires_display() {
         let with_display = HashMap::from([("DISPLAY".to_string(), ":0".to_string())]);
         let with_wayland =
@@ -1184,6 +1233,47 @@ mod tests {
         assert!(readiness.can_focus_apps);
         assert!(readiness.can_focus_windows);
         assert!(readiness.blockers.is_empty());
+    }
+
+    #[test]
+    fn capability_map_reports_niri_window_control() {
+        let platform = platform_report();
+        let portals = portal_report(Check::fail("missing"));
+        let accessibility = accessibility_report(Check::ok("bus"), Check::ok("true"));
+        let mut windowing = windowing_report(false, false);
+        windowing.niri = Check::ok("niri msg returned windows");
+        let input = input_report(false);
+
+        let capabilities = capability_map(&platform, &portals, &accessibility, &windowing, &input);
+
+        assert_eq!(capabilities.window_control, vec![NIRI_BACKEND]);
+        assert_eq!(
+            capabilities.preferred.window_control.as_deref(),
+            Some(NIRI_BACKEND)
+        );
+    }
+
+    #[test]
+    fn capability_map_rejects_incompatible_ydotool_with_live_daemon() {
+        let platform = platform_report();
+        let portals = portal_report(Check::fail("missing"));
+        let accessibility = accessibility_report(Check::ok("bus"), Check::ok("true"));
+        let windowing = windowing_report(true, true);
+        let input = input_report_parts(
+            Check::fail("unsupported legacy ydotool CLI"),
+            Check::ok("ydotoold"),
+            Check::ok("connectable socket"),
+            Check::fail("/dev/uinput: Permission denied"),
+        );
+
+        let capabilities = capability_map(&platform, &portals, &accessibility, &windowing, &input);
+        let readiness = readiness_report(&platform, &portals, &accessibility, &windowing, &input);
+
+        assert!(!capabilities
+            .input
+            .iter()
+            .any(|backend| backend == "ydotool"));
+        assert!(!readiness.can_send_development_input);
     }
 
     #[test]

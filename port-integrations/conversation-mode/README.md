@@ -23,7 +23,9 @@ rebuilding:
 
 Conversation mode is available by default, but a session starts only after the
 user clicks the composer voice control. `read-aloud` is default-on too because
-conversation mode speaks through the local Kokoro Read Aloud handler.
+conversation mode speaks through the local Kokoro Read Aloud handler. The Read
+Aloud settings toggle can remain off because Conversation Mode invokes the
+backend for its own responses.
 
 ## Scope
 

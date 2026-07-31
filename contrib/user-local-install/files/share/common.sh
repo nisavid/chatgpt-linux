@@ -7,8 +7,8 @@ XDG_STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
 INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
 DATA_DIR="$INSTALL_ROOT"
 APP_DIR="${INSTALL_ROOT}/app"
-DMG_FILE="${INSTALL_ROOT}/Codex.dmg"
-DMG_URL="https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+DMG_FILE="${INSTALL_ROOT}/ChatGPT.dmg"
+DMG_URL="https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
 
 STATE_DIR="${XDG_STATE_HOME}/codex-app"
 LOG_DIR="${STATE_DIR}/logs"
@@ -88,7 +88,7 @@ effective_repo_dir() {
 # install.sh caches the upstream DMG next to itself in the build repo
 # checkout, never under $OPT_ROOT.
 cached_dmg_file() {
-    printf '%s/Codex.dmg\n' "$(effective_repo_dir)"
+    printf '%s/ChatGPT.dmg\n' "$(effective_repo_dir)"
 }
 
 current_repo_head() {
@@ -547,7 +547,13 @@ header_value() {
 extract_icon() {
     ensure_layout
     local dmg_file source_icon tmp_dir
-    source_icon="${SOURCE_REPO_DIR:-$REPO_DIR_DEFAULT}/assets/codex.png"
+    source_icon="$APP_DIR/.codex-linux/codex-app.png"
+    if [ -f "$source_icon" ]; then
+        cp "$source_icon" "$ICON_PATH"
+        return 0
+    fi
+
+    source_icon="${SOURCE_REPO_DIR:-$REPO_DIR_DEFAULT}/assets/codex-linux.png"
     if [ -f "$source_icon" ]; then
         cp "$source_icon" "$ICON_PATH"
         return 0
@@ -557,7 +563,7 @@ extract_icon() {
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "$tmp_dir"' RETURN
 
-    7z e -y "$dmg_file" "Codex Installer/Codex.app/Contents/Resources/electron.icns" "-o${tmp_dir}" >/dev/null
+    7z e -y "$dmg_file" "ChatGPT Installer/ChatGPT.app/Contents/Resources/electron.icns" "-o${tmp_dir}" >/dev/null
     python3 - "$tmp_dir/electron.icns" "$ICON_PATH" <<'PY'
 from PIL import Image
 import sys

@@ -10,8 +10,8 @@ upstream path tracks the official macOS DMG. This integration tracks newer build
 
 ## Control Surfaces
 
-- Settings -> General shows **Check for Codex App updates**.
-- Settings -> General also shows **Ask which integrations to enable on update**.
+- Settings -> Linux desktop shows **Check for Codex App updates**.
+- Settings -> Linux desktop also shows **Ask which integrations to enable on update**.
 - Both settings are off/on independently: wrapper update checks are off by
   default, and the integration picker prompt defaults on when this integration is built.
 - When wrapper update checks are off, the in-app runtime does not spawn
@@ -56,19 +56,16 @@ integrations the rebuild stages.
 - Integration ids that are currently enabled but absent from the candidate catalog
   are preserved.
 - The special **(Don't ask again on future updates)** row, or turning off
-  **Settings -> General -> Ask which integrations to enable on update**, suppresses
+  **Settings -> Linux desktop -> Ask which integrations to enable on update**, suppresses
   future prompts.
 - Cancelling the dialog keeps the current integration set and still proceeds with
   the update.
 - No display, no dialog tool, no recorded candidate catalog, or a dialog launch
   failure skips the prompt and leaves the current integration set unchanged.
 
-## Toolbar states
+## Update button states
 
-- A **SHA chip** shows the installed short commit when build metadata is
-  available (a git-ref-style pill, e.g. `5fcfea9`), so you can see which build
-  is running.
-- The action chip is color-coded:
+- The action button is color-coded:
   - **green Update** means a genuinely newer upstream build is available.
   - **amber dev mode** (non-clickable) means the installed build appears to be
     ahead of the tracked remote, so updating would be a downgrade; the update
@@ -84,7 +81,7 @@ runtime integration rather than a required core ASAR compatibility patch. Core o
 generic port integration loader and hook runner. This integration owns:
 
 - the in-app wrapper update button;
-- the Settings -> General runtime opt-ins;
+- the Settings -> Linux desktop runtime opt-ins;
 - the main-process bridge handler;
 - the pending-update marker;
 - the retry/apply hook;
@@ -119,9 +116,8 @@ When enabled, the integration contributes three patch descriptors:
   `codex-linux-wrapper-updater` bridge handler.
 - `webview-runtime`: injects the webview runtime that creates and refreshes the
   top-right **Update** button.
-- `settings-toggle`: patches the settings asset. Current upstream builds use
-  `general-settings-*.js`; older builds may still use
-  `keybinds-settings-linux.js`.
+- `settings-toggle`: patches the current Linux desktop settings asset,
+  `linux-desktop-settings-linux.js`.
 
 The integration also stages the same runtime hook twice:
 
@@ -262,11 +258,11 @@ sed -n '1,160p' /opt/codex-app/resources/codex-linux-build-info.json
 Verify the settings patch landed in the installed webview bundle:
 
 ```bash
-rg "CodexLinuxWrapperUpdatesSetting|CodexPortIntegrationPickerOnUpdateSetting|get-global-state|set-global-state" \
-  /opt/codex-app/content/webview/assets/general-settings-*.js
+rg "Check for Codex App updates|Ask which integrations to enable on update" \
+  /opt/codex-app/content/webview/assets/linux-desktop-settings-linux.js
 ```
 
-Toggle the settings in Settings -> General, then verify:
+Toggle the settings in Settings -> Linux desktop, then verify:
 
 ```bash
 rg "codex-linux-wrapper-updates-enabled|codex-linux-integration-picker-on-update" \
@@ -289,7 +285,7 @@ upstream typed settings API, the app will reject the Linux-only keys.
 
 If the **Update** button does not appear, check:
 
-- the Settings -> General wrapper update toggle is on;
+- the Settings -> Linux desktop wrapper update toggle is on;
 - `check-wrapper --json` records `candidate_wrapper_commit`;
 - `~/.local/state/codex-app-updater/state.json` contains the candidate;
 - the installed build includes `codex-wrapper-updater` in
@@ -297,7 +293,7 @@ If the **Update** button does not appear, check:
 
 If the integration picker does not appear before the update:
 
-- the Settings -> General integration picker toggle may be off;
+- the Settings -> Linux desktop integration picker toggle may be off;
 - the app may not have a graphical display session;
 - neither `zenity` nor `kdialog` may be installed;
 - the recorded wrapper candidate may not include a readable integration catalog;

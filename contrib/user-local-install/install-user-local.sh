@@ -168,5 +168,5 @@ if [ "$FROM_UPDATE" -eq 0 ] && [ -x "${USER_BIN_DIR}/codex-app-update" ]; then
 fi
 
 if [ "$FROM_UPDATE" -eq 0 ]; then
-    echo "Installed user-local Codex desktop integration."
+    echo "Installed user-local ChatGPT Desktop integration."
 fi

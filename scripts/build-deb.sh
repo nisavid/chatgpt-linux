@@ -11,7 +11,6 @@ CONTROL_TEMPLATE="$REPO_DIR/packaging/linux/control"
 DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
 SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
 USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-ICON_SOURCE="$REPO_DIR/assets/codex.png"
 PRERM_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.prerm"
 POSTRM_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.postrm"
 POSTINST_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.postinst"
@@ -19,6 +18,7 @@ PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
 
 PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
+ICON_SOURCE="$(resolve_package_icon_source)"
 MAX_BUILD_THREADS="${MAX_BUILD_THREADS:-0}"
 UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
@@ -80,13 +80,22 @@ main() {
     stage_common_package_files "$PKG_ROOT"
     stage_optional_update_builder_bundle "$PKG_ROOT"
     write_launcher_stub "$PKG_ROOT"
+    stage_port_integration_package_resources "$PKG_ROOT" "deb"
     run_port_integration_package_hooks "$PKG_ROOT" "deb"
     normalize_package_payload_permissions "$PKG_ROOT"
     restore_port_integration_payload_permissions "$PKG_ROOT"
+    restore_port_integration_package_resource_permissions "$PKG_ROOT" "deb"
 
     local deb_depends
+    local integration_dependency_suffix
     local updater_description=""
-    deb_depends="python3, libasound2 | libasound2t64, libatk-bridge2.0-0, libatk1.0-0, libc6, libcairo2, libcups2t64 | libcups2, libdbus-1-3, libdrm2, libgbm1, libglib2.0-0t64 | libglib2.0-0, libgtk-3-0t64 | libgtk-3-0, libnspr4, libnss3, libpango-1.0-0, libstdc++6, libx11-6, libx11-xcb1, libxcb-dri3-0, libxcb1, libxcomposite1, libxdamage1, libxext6, libxfixes3, libxkbcommon0, libxrandr2"
+    deb_depends="python3, xdg-utils, libasound2 | libasound2t64, libatk-bridge2.0-0, libatk1.0-0, libc6, libcairo2, libcups2t64 | libcups2, libdbus-1-3, libdrm2, libgbm1, libglib2.0-0t64 | libglib2.0-0, libgtk-3-0t64 | libgtk-3-0, libnspr4, libnss3, libpango-1.0-0, libstdc++6, libx11-6, libx11-xcb1, libxcb-dri3-0, libxcb1, libxcomposite1, libxdamage1, libxext6, libxfixes3, libxkbcommon0, libxrandr2"
+    if ! integration_dependency_suffix="$(
+        port_integration_package_dependency_suffix deb "$PKG_ROOT/opt/$PACKAGE_NAME"
+    )"; then
+        error "Failed to render port integration dependencies for deb"
+    fi
+    deb_depends+="$integration_dependency_suffix"
     if package_with_updater_enabled; then
         deb_depends="build-essential, curl, dpkg, p7zip-full, pkexec | policykit-1, polkitd | policykit-1, $deb_depends, unzip"
         updater_description=" Local auto-updates rebuild a Linux package from the official OpenAI Codex.dmg and therefore

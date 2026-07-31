@@ -1,6 +1,7 @@
 //! Runtime configuration loading and XDG path discovery for the updater.
 
 use anyhow::{Context, Result};
+use chrono::Duration as ChronoDuration;
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,11 +9,51 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use tracing::warn;
 
 const SERVICE_NAME: &str = "codex-app-updater";
 pub const PACKAGED_BUILDER_BUNDLE_ROOT: &str = "/usr/lib/codex-app/update-builder";
+const SECONDS_PER_HOUR: u64 = 60 * 60;
+const DEFAULT_CHECK_INTERVAL_HOURS: u64 = 6;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Optional cleanup for generated wrapper checkout artifacts such as `dist/`
+/// and `target/`. Disabled by default; when enabled, cleanup only runs if the
+/// filesystem containing a configured root is below `min_free_bytes`.
+pub struct GeneratedArtifactCleanupConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_generated_artifact_cleanup_min_free_bytes")]
+    pub min_free_bytes: u64,
+    #[serde(default)]
+    pub roots: Vec<PathBuf>,
+    #[serde(default = "default_generated_artifact_cleanup_entries")]
+    pub entries: Vec<PathBuf>,
+}
+
+impl Default for GeneratedArtifactCleanupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_free_bytes: default_generated_artifact_cleanup_min_free_bytes(),
+            roots: Vec::new(),
+            entries: default_generated_artifact_cleanup_entries(),
+        }
+    }
+}
+
+fn default_generated_artifact_cleanup_min_free_bytes() -> u64 {
+    10 * 1024 * 1024 * 1024
+}
+
+fn default_generated_artifact_cleanup_entries() -> Vec<PathBuf> {
+    ["codex-app", "codex-app-next", "dist", "dist-next", "target"]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// Runtime configuration values that control how the updater behaves on Linux.
@@ -41,6 +82,11 @@ pub struct RuntimeConfig {
     /// Branch to track for wrapper updates.
     #[serde(default = "default_wrapper_branch")]
     pub wrapper_branch: String,
+    /// Optional cleanup for generated wrapper checkout artifacts. This is
+    /// intentionally opt-in so users keep manual build output unless they
+    /// configure cleanup.
+    #[serde(default)]
+    pub generated_artifact_cleanup: GeneratedArtifactCleanupConfig,
 }
 
 fn default_wrapper_branch() -> String {
@@ -63,6 +109,7 @@ struct RuntimeConfigOverlay {
     enable_wrapper_updates: Option<bool>,
     wrapper_remote: Option<String>,
     wrapper_branch: Option<String>,
+    generated_artifact_cleanup: Option<GeneratedArtifactCleanupConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -127,10 +174,10 @@ impl RuntimeConfig {
                 .to_path_buf()
         };
 
-        Self {
-            dmg_url: "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg".to_string(),
+        let config = Self {
+            dmg_url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 30,
-            check_interval_hours: 6,
+            check_interval_hours: DEFAULT_CHECK_INTERVAL_HOURS,
             auto_install_on_app_exit: true,
             notifications: true,
             developer_mode: false,
@@ -141,7 +188,12 @@ impl RuntimeConfig {
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: default_wrapper_branch(),
-        }
+            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
+        };
+        config
+            .validate()
+            .expect("default runtime configuration must be valid");
+        config
     }
 
     /// Loads the runtime configuration from disk, or returns defaults if missing.
@@ -156,7 +208,19 @@ impl RuntimeConfig {
             .with_context(|| format!("Failed to parse {}", paths.config_file.display()))?;
         let mut config = Self::default_with_paths(paths);
         config.apply_overlay(overlay);
+        if config.check_interval_hours == 0 {
+            warn!(
+                config_path = %paths.config_file.display(),
+                configured_hours = 0,
+                default_hours = DEFAULT_CHECK_INTERVAL_HOURS,
+                "invalid check_interval_hours; using default"
+            );
+            config.check_interval_hours = DEFAULT_CHECK_INTERVAL_HOURS;
+        }
         config.enforce_packaged_builder_root(Path::new(PACKAGED_BUILDER_BUNDLE_ROOT));
+        config
+            .validate()
+            .with_context(|| format!("Invalid configuration {}", paths.config_file.display()))?;
         Ok(config)
     }
 
@@ -200,6 +264,9 @@ impl RuntimeConfig {
         if let Some(value) = overlay.wrapper_branch {
             self.wrapper_branch = value;
         }
+        if let Some(value) = overlay.generated_artifact_cleanup {
+            self.generated_artifact_cleanup = value;
+        }
     }
 
     fn enforce_packaged_builder_root(&mut self, packaged_root: &Path) {
@@ -207,10 +274,39 @@ impl RuntimeConfig {
             self.builder_bundle_root = packaged_root.to_path_buf();
         }
     }
+
+    fn validate(&self) -> Result<()> {
+        let interval = self.check_interval_duration()?;
+        self.check_interval_chrono_duration()?;
+        Instant::now()
+            .checked_add(interval)
+            .context("check_interval_hours exceeds the platform timer range")?;
+        let _ = self.initial_check_delay_duration();
+        Ok(())
+    }
+
+    pub(crate) fn initial_check_delay_duration(&self) -> Duration {
+        Duration::from_secs(self.initial_check_delay_seconds)
+    }
+
+    pub(crate) fn check_interval_duration(&self) -> Result<Duration> {
+        let seconds = self
+            .check_interval_hours
+            .checked_mul(SECONDS_PER_HOUR)
+            .context("check_interval_hours overflows seconds")?;
+        Ok(Duration::from_secs(seconds))
+    }
+
+    pub(crate) fn check_interval_chrono_duration(&self) -> Result<ChronoDuration> {
+        let hours = i64::try_from(self.check_interval_hours)
+            .context("check_interval_hours exceeds the Chrono hour range")?;
+        ChronoDuration::try_hours(hours)
+            .context("check_interval_hours exceeds the Chrono duration range")
+    }
 }
 
 const APP_SETTINGS_FILE: &str = "settings.json";
-const DEFAULT_APP_ID: &str = "codex-app";
+pub(crate) const DEFAULT_APP_ID: &str = "codex-app";
 const AUTO_INSTALL_SETTING_KEY: &str = "codex-linux-auto-update-on-exit";
 const WRAPPER_UPDATES_SETTING_KEY: &str = "codex-linux-wrapper-updates-enabled";
 
@@ -218,22 +314,40 @@ const WRAPPER_UPDATES_SETTING_KEY: &str = "codex-linux-wrapper-updates-enabled";
 /// `CODEX_LINUX_APP_ID`, then `CODEX_APP_ID`, then `codex-app`.
 /// Invalid ids fall back to the default so a malformed env value can never point
 /// the lookup at an attacker-controlled path.
-fn resolve_app_id() -> String {
-    fn valid(id: &str) -> bool {
-        !id.is_empty()
-            && id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
-    }
-
+pub(crate) fn resolve_app_id() -> String {
     for var in ["CODEX_LINUX_APP_ID", "CODEX_APP_ID"] {
         if let Ok(value) = std::env::var(var) {
-            if valid(&value) {
+            if valid_app_id(&value) {
                 return value;
             }
         }
     }
     DEFAULT_APP_ID.to_string()
+}
+
+pub(crate) fn valid_app_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+}
+
+pub(crate) fn resolve_launch_instance_id() -> Option<String> {
+    std::env::var("CODEX_LINUX_INSTANCE_ID")
+        .ok()
+        .filter(|value| valid_app_id(value))
+}
+
+pub(crate) fn resolve_app_state_dir() -> Result<PathBuf> {
+    let base_dirs = BaseDirs::new().context("Could not resolve XDG base directories")?;
+    let state_root = base_dirs
+        .state_dir()
+        .unwrap_or_else(|| base_dirs.data_local_dir());
+    let app_state_dir = state_root.join(resolve_app_id());
+    Ok(match resolve_launch_instance_id() {
+        Some(instance) => app_state_dir.join("instances").join(instance),
+        None => app_state_dir,
+    })
 }
 
 /// Resolves the app `settings.json` path mirroring the launcher
@@ -422,7 +536,34 @@ fn atomic_temp_path(path: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use anyhow::Result;
+    use std::path::Path;
     use tempfile::tempdir;
+
+    fn test_paths(root: &Path) -> RuntimePaths {
+        RuntimePaths {
+            config_file: root.join("config/config.toml"),
+            state_file: root.join("state/state.json"),
+            log_file: root.join("state/service.log"),
+            cache_dir: root.join("cache"),
+            state_dir: root.join("state"),
+            config_dir: root.join("config"),
+        }
+    }
+
+    fn runtime_config_toml(initial_delay: u64, check_interval: u64) -> String {
+        format!(
+            r#"
+dmg_url = "https://example.com/Codex.dmg"
+initial_check_delay_seconds = {initial_delay}
+check_interval_hours = {check_interval}
+auto_install_on_app_exit = false
+notifications = false
+workspace_root = "/tmp/codex-workspaces"
+builder_bundle_root = "/tmp/codex-builder"
+app_executable_path = "/opt/codex-app/electron"
+"#
+        )
+    }
 
     /// Writes `settings.json` content to a tempfile, points
     /// `CODEX_LINUX_SETTINGS_FILE` at it, and returns the override result.
@@ -643,6 +784,21 @@ mod tests {
         assert!(config.auto_install_on_app_exit);
         assert_eq!(config.workspace_root, paths.cache_dir);
         assert!(config.builder_bundle_root.is_absolute());
+        assert!(!config.generated_artifact_cleanup.enabled);
+        assert_eq!(
+            config.generated_artifact_cleanup.min_free_bytes,
+            10 * 1024 * 1024 * 1024
+        );
+        assert_eq!(
+            config.generated_artifact_cleanup.entries,
+            vec![
+                PathBuf::from("codex-app"),
+                PathBuf::from("codex-app-next"),
+                PathBuf::from("dist"),
+                PathBuf::from("dist-next"),
+                PathBuf::from("target"),
+            ]
+        );
         Ok(())
     }
 
@@ -671,6 +827,13 @@ workspace_root = "/tmp/codex-workspaces"
 builder_bundle_root = "/tmp/codex-builder"
 app_executable_path = "/opt/codex-app/electron"
 cli_path = "/opt/codex/bin/codex"
+
+
+[generated_artifact_cleanup]
+enabled = true
+min_free_bytes = 2147483648
+roots = ["/tmp/codex-app-linux"]
+entries = ["dist", "target", "Codex.dmg"]
 "#,
         )?;
 
@@ -678,6 +841,18 @@ cli_path = "/opt/codex/bin/codex"
         assert_eq!(config.dmg_url, "https://example.com/Codex.dmg");
         assert_eq!(config.initial_check_delay_seconds, 5);
         assert_eq!(config.check_interval_hours, 12);
+        assert_eq!(
+            config.initial_check_delay_duration(),
+            Duration::from_secs(5)
+        );
+        assert_eq!(
+            config.check_interval_duration()?,
+            Duration::from_secs(12 * SECONDS_PER_HOUR)
+        );
+        assert_eq!(
+            config.check_interval_chrono_duration()?,
+            ChronoDuration::hours(12)
+        );
         assert!(!config.auto_install_on_app_exit);
         assert!(!config.notifications);
         assert!(config.developer_mode);
@@ -694,6 +869,20 @@ cli_path = "/opt/codex/bin/codex"
             PathBuf::from("/opt/codex-app/electron")
         );
         assert_eq!(config.cli_path, Some(PathBuf::from("/opt/codex/bin/codex")));
+        assert!(config.generated_artifact_cleanup.enabled);
+        assert_eq!(config.generated_artifact_cleanup.min_free_bytes, 2147483648);
+        assert_eq!(
+            config.generated_artifact_cleanup.roots,
+            vec![PathBuf::from("/tmp/codex-app-linux")]
+        );
+        assert_eq!(
+            config.generated_artifact_cleanup.entries,
+            vec![
+                PathBuf::from("dist"),
+                PathBuf::from("target"),
+                PathBuf::from("Codex.dmg"),
+            ]
+        );
         Ok(())
     }
 
@@ -716,6 +905,47 @@ cli_path = "/opt/codex/bin/codex"
         assert!(config.auto_install_on_app_exit);
         assert_eq!(config.workspace_root, paths.cache_dir);
         assert_eq!(config.cli_path, Some(PathBuf::from("/opt/codex/bin/codex")));
+        Ok(())
+    }
+
+    #[test]
+    fn zero_check_interval_warns_and_falls_back_to_default() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(&paths.config_file, runtime_config_toml(5, 0))?;
+
+        #[derive(Clone)]
+        struct BufferWriter(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for BufferWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("log buffer lock")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let output = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let writer = BufferWriter(output.clone());
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let config = tracing::subscriber::with_default(subscriber, || {
+            RuntimeConfig::load_or_default(&paths)
+        })?;
+        let message = String::from_utf8(output.lock().expect("log buffer lock").clone())?;
+
+        assert_eq!(config.check_interval_hours, DEFAULT_CHECK_INTERVAL_HOURS);
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("invalid check_interval_hours; using default"));
+        assert!(message.contains("default_hours=6"));
         Ok(())
     }
 
@@ -758,6 +988,7 @@ cli_path = "/opt/codex/bin/codex"
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
         };
 
         config.enforce_packaged_builder_root(&packaged_root);
@@ -785,6 +1016,7 @@ cli_path = "/opt/codex/bin/codex"
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
         };
 
         config.enforce_packaged_builder_root(&packaged_root);
@@ -819,6 +1051,76 @@ notifications = false
         assert!(config.auto_install_on_app_exit);
         assert!(!config.notifications);
         assert_eq!(config.workspace_root, paths.cache_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_check_interval_that_overflows_seconds() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(
+            &paths.config_file,
+            runtime_config_toml(5, u64::MAX / SECONDS_PER_HOUR + 1),
+        )?;
+
+        let error =
+            RuntimeConfig::load_or_default(&paths).expect_err("overflowing interval should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("check_interval_hours overflows seconds"));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_check_interval_outside_chrono_range() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        let chrono_millisecond_overflow_hours = (i64::MAX as u64) / (SECONDS_PER_HOUR * 1000) + 1;
+        fs::write(
+            &paths.config_file,
+            runtime_config_toml(5, chrono_millisecond_overflow_hours),
+        )?;
+
+        let error = RuntimeConfig::load_or_default(&paths)
+            .expect_err("interval outside Chrono range should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("check_interval_hours exceeds the Chrono duration range"));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_errors_include_config_path() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(&paths.config_file, "check_interval_hours = [")?;
+
+        let error = RuntimeConfig::load_or_default(&paths).expect_err("invalid TOML should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains("Failed to parse"));
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn initial_check_delay_conversion_accepts_extreme_u64() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        let mut config = RuntimeConfig::default_with_paths(&paths);
+        config.initial_check_delay_seconds = u64::MAX;
+
+        config.validate()?;
+
+        assert_eq!(
+            config.initial_check_delay_duration(),
+            Duration::from_secs(u64::MAX)
+        );
         Ok(())
     }
 }

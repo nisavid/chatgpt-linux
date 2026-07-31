@@ -94,7 +94,7 @@ Before pushing changes that affect the generated app, installer, ASAR patcher,
 package builders, package payload, updater rebuild flow, or bundled runtime
 helpers:
 
-1. Refresh `Codex.dmg`, or verify the cached DMG was refreshed within the last
+1. Refresh `ChatGPT.dmg`, or verify the cached DMG was refreshed within the last
    24 hours.
 2. Run `make build-app` or `./install.sh` from current sources.
 3. If package contents changed, run the relevant package builder and inspect

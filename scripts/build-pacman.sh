@@ -11,13 +11,13 @@ INSTALL_HOOKS="$REPO_DIR/packaging/linux/codex-app.install"
 DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
 SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
 USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-ICON_SOURCE="$REPO_DIR/assets/codex.png"
 PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
 
 PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
 PACKAGE_PROVIDES="${PACKAGE_PROVIDES:-codex-desktop}"
 PACKAGE_CONFLICTS="${PACKAGE_CONFLICTS:-codex-desktop}"
+ICON_SOURCE="$(resolve_package_icon_source)"
 MAX_BUILD_THREADS="${MAX_BUILD_THREADS:-0}"
 UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
@@ -111,7 +111,8 @@ main() {
 	trap "rm -rf '$build_root'" EXIT
 
 	local staging_root="$build_root/staging"
-	local -a makepkg_env=("PKGDEST=$DIST_DIR")
+	# Pin PKGEXT so Debian/Ubuntu makepkg (defaults to .pkg.tar.gz) produces .zst for the collector
+	local -a makepkg_env=("PKGDEST=$DIST_DIR" "PKGEXT=.pkg.tar.zst")
 
 	if [ "$MAX_BUILD_THREADS" != "0" ]; then
 		local makepkg_config="$build_root/makepkg.conf"
@@ -123,9 +124,11 @@ main() {
 	stage_common_package_files "$staging_root"
 	stage_optional_update_builder_bundle "$staging_root"
 	write_launcher_stub "$staging_root"
+	stage_port_integration_package_resources "$staging_root" "pacman"
 	run_port_integration_package_hooks "$staging_root" "pacman"
 	normalize_package_payload_permissions "$staging_root"
 	restore_port_integration_payload_permissions "$staging_root"
+	restore_port_integration_package_resource_permissions "$staging_root" "pacman"
 
 	local package_name
 	local package_provides
@@ -172,6 +175,23 @@ main() {
 			print
 		}
 	' >"$build_root/PKGBUILD"
+
+	local integration_dependency_lines=""
+	local integration_dependencies
+	local integration_dependency
+	if ! integration_dependencies="$(
+		port_integration_package_dependencies pacman "$staging_root/opt/$PACKAGE_NAME"
+	)"; then
+		error "Failed to render port integration dependencies for pacman"
+	fi
+	while IFS= read -r integration_dependency; do
+		[ -n "$integration_dependency" ] || continue
+		integration_dependency_lines+="    '$integration_dependency'"$'\n'
+	done <<<"$integration_dependencies"
+	replace_literal_file_token \
+		"$build_root/PKGBUILD" \
+		"__PORT_INTEGRATION_DEPENDENCIES__" \
+		"$integration_dependency_lines"
 
 	local updater_service_preamble=""
 	local updater_post_install=""

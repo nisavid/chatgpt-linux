@@ -18,6 +18,7 @@ use serde_json::Value;
 use std::{
     collections::HashSet,
     fs,
+    io::{BufReader, Read},
     os::unix::{
         fs::{self as unix_fs, PermissionsExt},
         process::CommandExt,
@@ -113,7 +114,7 @@ pub async fn run_apply_wrapper_update(
         }
     };
 
-    match result {
+    let outcome = match result {
         Ok(()) => {
             state.installed_version = install::installed_package_version();
             state.candidate_version = None;
@@ -124,7 +125,7 @@ pub async fn run_apply_wrapper_update(
             state.artifact_paths.package_path = None;
             refresh_installed_wrapper_state(config, state);
             state.clear_wrapper_update_candidate();
-            state.save(&paths.state_file)?;
+            state.save_updater(&paths.state_file)?;
             let _ = notify::send(
                 "Codex App updated",
                 "The newer Linux wrapper build has been installed.",
@@ -135,7 +136,14 @@ pub async fn run_apply_wrapper_update(
             warn!(?error, "wrapper update apply failed");
             Err(error)
         }
+    };
+    if let Err(error) = crate::cache_cleanup::prune_dmg_cache(&config.workspace_root, state) {
+        warn!(
+            ?error,
+            "failed to prune updater DMG cache after wrapper apply"
+        );
     }
+    outcome
 }
 
 fn refresh_installed_wrapper_state(config: &RuntimeConfig, state: &mut PersistedState) {
@@ -148,10 +156,18 @@ fn refresh_installed_wrapper_state(config: &RuntimeConfig, state: &mut Persisted
     }
 }
 
+/// Force safety policy for every automated user-local installer command.
+fn configure_user_local_install_command(command: &mut Command) -> &mut Command {
+    // Automated updates must never inherit developer-only safety overrides.
+    command
+        .env("CODEX_ACCEPTANCE_OVERRIDE", "0")
+        .env("CODEX_INSTALL_ALLOW_RUNNING", "0")
+}
+
 /// User-local apply. Prefers the contrib `codex-app-update` helper (managed
 /// checkout pull + in-place `install.sh`) when present; otherwise falls back to
 /// fetching the wrapper source and running its `install.sh` directly against the
-/// running app dir. Runs as the user, no privilege escalation.
+/// installed app dir. Runs as the user, no privilege escalation.
 async fn apply_user_local(
     config: &RuntimeConfig,
     paths: &RuntimePaths,
@@ -162,6 +178,7 @@ async fn apply_user_local(
         info!(helper = %helper.display(), "applying wrapper update via user-local helper");
         let mut cmd = Command::new(&helper);
         cmd.arg("--quiet");
+        configure_user_local_install_command(&mut cmd);
         if let Some(app_dir) = user_local_app_dir() {
             if let Some(install_root) = app_dir.parent() {
                 cmd.env("CODEX_USER_INSTALL_ROOT", install_root);
@@ -171,7 +188,6 @@ async fn apply_user_local(
         // its repo-local default, so the in-app picker's selection wins.
         if let Some(config_path) = &integration_config {
             cmd.env("CODEX_PORT_INTEGRATIONS_CONFIG", config_path);
-            cmd.env("CODEX_LINUX_FEATURES_CONFIG", config_path);
         }
         let status = cmd
             .status()
@@ -201,12 +217,11 @@ async fn apply_user_local(
     info!(app_dir = %app_dir.display(), "rebuilding user-local app in place via install.sh");
     let mut cmd = Command::new(&install_sh);
     cmd.current_dir(&wrapper_src)
-        .env("CODEX_INSTALL_ALLOW_RUNNING", "1")
         .env("CODEX_INSTALL_ROOT", &install_root)
         .env("CODEX_INSTALL_DIR", &app_dir);
+    configure_user_local_install_command(&mut cmd);
     if let Some(config_path) = &integration_config {
         cmd.env("CODEX_PORT_INTEGRATIONS_CONFIG", config_path);
-        cmd.env("CODEX_LINUX_FEATURES_CONFIG", config_path);
     }
     let status = cmd
         .status()
@@ -351,7 +366,7 @@ fn stage_enabled_local_integrations(
         }
 
         // If the fetched wrapper gained a real top-level integration with this
-        // id, prefer the upstream integration and avoid creating a duplicate.
+        // id, prefer the fetched integration and avoid creating a duplicate.
         if target_integrations_root
             .join(&id)
             .join("integration.json")
@@ -412,11 +427,12 @@ async fn apply_packaged(
     seed_packaged_builder_payload(config, &wrapper_src)?;
     let integration_config = effective_integration_config(config);
     stage_enabled_local_integrations(config, &wrapper_src, integration_config.as_deref())?;
-    let dmg_path = cached_or_downloaded_dmg(config, state, paths).await?;
+    let cached_dmg = cached_or_downloaded_dmg(config, state, paths).await?;
+    let dmg_path = &cached_dmg.path;
 
     // Keep wrapper rebuild workspaces unique even when the official app version
     // is unchanged; the produced package still uses the official app version.
-    let workspace_version = derive_workspace_version(&dmg_path)?;
+    let workspace_version = derive_workspace_version(dmg_path)?;
 
     let artifacts = builder::build_update_from(
         &wrapper_src,
@@ -424,7 +440,7 @@ async fn apply_packaged(
         state,
         paths,
         &workspace_version,
-        &dmg_path,
+        dmg_path,
     )
     .await
     .context("wrapper package rebuild failed")?;
@@ -454,7 +470,7 @@ async fn apply_packaged(
     }
 
     state.installed_version = install::installed_package_version();
-    let _ = state.save(&paths.state_file);
+    let _ = state.save_updater(&paths.state_file);
     Ok(())
 }
 
@@ -629,19 +645,32 @@ fn run_git(args: &[&str]) -> Result<()> {
 }
 
 /// Returns the cached DMG path, downloading it if no usable cache exists.
+struct CachedDmg {
+    path: PathBuf,
+    _lease: crate::cache_cleanup::DmgCacheLease,
+}
+
 async fn cached_or_downloaded_dmg(
     config: &RuntimeConfig,
     state: &mut PersistedState,
     paths: &RuntimePaths,
-) -> Result<PathBuf> {
+) -> Result<CachedDmg> {
     if let Some(dmg) = state.artifact_paths.dmg_path.clone() {
         if dmg.exists() {
-            trust_dmg_for_wrapper_rebuild(config, state, paths, &dmg, None)?;
-            return Ok(dmg);
+            let downloads_dir = config.workspace_root.join("downloads");
+            let lease = crate::cache_cleanup::acquire_dmg_cache_lease(&downloads_dir).await?;
+            if dmg.exists() {
+                trust_dmg_for_wrapper_rebuild(config, state, paths, &dmg, None)?;
+                return Ok(CachedDmg {
+                    path: dmg,
+                    _lease: lease,
+                });
+            }
+            drop(lease);
         }
     }
 
-    let client = reqwest::Client::builder().build()?;
+    let client = dmg_source::http_client()?;
     let downloads_dir = config.workspace_root.join("downloads");
     let downloaded =
         dmg_source::download_dmg(&client, &config.dmg_url, &downloads_dir, chrono::Utc::now())
@@ -655,8 +684,11 @@ async fn cached_or_downloaded_dmg(
         Some(downloaded.sha256.as_str()),
     )?;
     state.artifact_paths.dmg_path = Some(downloaded.path.clone());
-    let _ = state.save(&paths.state_file);
-    Ok(downloaded.path)
+    state.save_updater(&paths.state_file)?;
+    Ok(CachedDmg {
+        path: downloaded.path,
+        _lease: downloaded.lease,
+    })
 }
 
 fn trust_dmg_for_wrapper_rebuild(
@@ -683,7 +715,7 @@ fn trust_dmg_for_wrapper_rebuild(
                 message: Some("Wrapper rebuild DMG matched repo-trusted metadata".to_string()),
             });
             state.artifact_paths.dmg_path = Some(dmg_path.to_path_buf());
-            state.save(&paths.state_file)?;
+            state.save_updater(&paths.state_file)?;
             Ok(())
         }
         Err(error) => {
@@ -696,7 +728,7 @@ fn trust_dmg_for_wrapper_rebuild(
                 message: Some(error.to_string()),
             });
             state.artifact_paths.dmg_path = Some(dmg_path.to_path_buf());
-            let _ = state.save(&paths.state_file);
+            let _ = state.save_updater(&paths.state_file);
             Err(error)
         }
     }
@@ -706,10 +738,20 @@ fn trust_dmg_for_wrapper_rebuild(
 /// contents, matching the DMG update path's workspace naming scheme.
 fn derive_workspace_version(dmg_path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
-    let bytes = std::fs::read(dmg_path)
-        .with_context(|| format!("Failed to read {}", dmg_path.display()))?;
+    let file = fs::File::open(dmg_path)
+        .with_context(|| format!("Failed to open {}", dmg_path.display()))?;
+    let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
-    hasher.update(&bytes);
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let bytes_read = reader
+            .read(&mut buffer)
+            .with_context(|| format!("Failed to read {}", dmg_path.display()))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
     let sha = hasher
         .finalize()
         .iter()
@@ -783,7 +825,45 @@ mod tests {
             enable_wrapper_updates: true,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: Default::default(),
         }
+    }
+
+    #[test]
+    fn automated_user_local_commands_force_safety_overrides_off() {
+        for program in ["codex-app-update", "install.sh"] {
+            let mut command = Command::new(program);
+            configure_user_local_install_command(&mut command);
+            let envs = command
+                .get_envs()
+                .map(|(key, value)| (key.to_owned(), value.map(ToOwned::to_owned)))
+                .collect::<std::collections::HashMap<_, _>>();
+
+            assert_eq!(
+                envs.get(std::ffi::OsStr::new("CODEX_INSTALL_ALLOW_RUNNING"))
+                    .and_then(Option::as_deref),
+                Some(std::ffi::OsStr::new("0")),
+                "{program} must not bypass the running-app gate"
+            );
+            assert_eq!(
+                envs.get(std::ffi::OsStr::new("CODEX_ACCEPTANCE_OVERRIDE"))
+                    .and_then(Option::as_deref),
+                Some(std::ffi::OsStr::new("0")),
+                "{program} must not bypass acceptance"
+            );
+        }
+    }
+
+    #[test]
+    fn derives_workspace_version_with_streamed_dmg_hash() -> Result<()> {
+        let root = tempdir()?;
+        let dmg = root.path().join("ChatGPT.dmg");
+        std::fs::write(&dmg, b"codex-dmg-test-payload")?;
+
+        let version = derive_workspace_version(&dmg)?;
+
+        assert!(version.ends_with("+678cd508"));
+        Ok(())
     }
 
     fn write_local_integration(root: &Path, id: &str) {

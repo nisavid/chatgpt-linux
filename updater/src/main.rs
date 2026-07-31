@@ -10,13 +10,18 @@ mod cache_cleanup;
 mod changelog;
 mod cli;
 #[cfg(unix)]
+mod cli_management;
+#[cfg(unix)]
 mod codex_cli;
 #[cfg(unix)]
 mod config;
 #[cfg(unix)]
+mod diagnostics;
+#[cfg(unix)]
 mod dmg_source;
 #[cfg(unix)]
 mod feature_picker;
+#[cfg(unix)]
 mod install;
 #[cfg(unix)]
 mod install_rollback;
@@ -27,9 +32,13 @@ mod logging;
 #[cfg(unix)]
 mod notify;
 #[cfg(unix)]
+mod npm_cli_repair;
+#[cfg(unix)]
 mod package_verification;
 #[cfg(unix)]
 mod redaction;
+#[cfg(unix)]
+mod restart;
 #[cfg(unix)]
 mod rollback;
 #[cfg(unix)]

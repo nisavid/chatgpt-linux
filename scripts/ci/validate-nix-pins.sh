@@ -3,8 +3,8 @@ set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 FLAKE_FILE="${FLAKE_FILE:-$REPO_DIR/flake.nix}"
-OFFICIAL_DMG_URL="${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/Codex.dmg}}"
-OFFICIAL_DMG_PATH="${1:-${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/Codex.dmg}}}"
+OFFICIAL_DMG_URL="${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg}}"
+OFFICIAL_DMG_PATH="${1:-${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/ChatGPT.dmg}}}"
 NATIVE_MODULES_PKG="${NATIVE_MODULES_PKG:-$REPO_DIR/nix/native-modules/package.json}"
 
 # Opt-in pin-writing mode (used by the hash-refresh bot, not by PR CI). When set,

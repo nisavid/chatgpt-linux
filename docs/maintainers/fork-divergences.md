@@ -16,9 +16,9 @@ Use the same terms as `AGENTS.md`:
 - `Linux-port upstream`: `ilysenko/codex-desktop-linux`, the git remote named
   `upstream`, and sync work that imports that repository's Linux conversion
   changes.
-- `Official OpenAI Codex DMG`: the OpenAI-distributed macOS app artifact used
+- `Official OpenAI ChatGPT DMG`: the OpenAI-distributed macOS app artifact used
   as app-generation input.
-- `Official OpenAI app bundle`: the `Codex.app` bundle extracted from the DMG
+- `Official OpenAI app bundle`: the `ChatGPT.app` bundle extracted from the DMG
   and patched for Linux.
 - `OpenAI-hosted services`: account, rollout, entitlement, remote-control, and
   other service-side behavior outside this fork's local packaging path.
@@ -28,7 +28,7 @@ the official OpenAI app, DMG, app bundle, or hosted services. Once the surface
 is clear, concise terms such as `upstream`, `DMG`, or `app bundle` are fine.
 
 The current comparison baseline is upstream commit
-`933413a679df51886ea05d1d0eeb8057e44bf764` (2026-06-18). Claims below describe
+`efe491761d9075341fe79f564631a6dd9aafd291` (2026-07-30). Claims below describe
 the current tree's diff against that baseline, with current source files taking
 precedence over generated output.
 
@@ -150,7 +150,7 @@ during app generation. Timestamp or commit-hash package versions are explicit
 test overrides only.
 
 **Upstream baseline:** Upstream already derives update
-candidates from official OpenAI Codex DMG metadata. This fork changes native
+candidates from official OpenAI ChatGPT DMG metadata. This fork changes native
 package versioning and updater comparison helpers so package upgrades track the
 DMG-contained app version.
 
@@ -273,9 +273,11 @@ paths should fail loudly; stale persisted paths should not block fallback.
 **Fork delta:** Checkout launches stay generic. Native packages load
 package-only behavior only when the packaged runtime helper exists. The helper
 lives under `/usr/lib/codex-app`, imports desktop/session display variables
-without importing `PATH`, disables the legacy upstream service name when
-present, starts/enables `codex-app-updater.service` without restarting an active
-service, and triggers launch-time update checks after Electron PID recording.
+without importing `PATH`, and disables the legacy upstream service name when
+present. A fresh native-package installation enables and starts
+`codex-app-updater.service`; upgrades and launches start it only when the user
+already enabled it. These paths do not restart an active service. Launches also
+trigger update checks after Electron PID recording.
 
 **Upstream baseline:** Upstream provides the launcher template and packaged
 runtime pattern. This fork changes the package-only helper location, service
@@ -391,7 +393,7 @@ and clear that local installation does not bypass OpenAI feature flags.
 ### 12. Release, Security, And Supply-Chain Verification
 
 **Fork delta:** The fork adds and wires release/security workflow around the
-mutable official OpenAI Codex DMG: trusted DMG hash input, packaged trusted DMG
+mutable official OpenAI ChatGPT DMG: trusted DMG hash input, packaged trusted DMG
 metadata for unattended updater rebuilds, generated app and ASAR inspection,
 package metadata checks, checksums, optional detached checksum signing, public
 key export, macOS Apple DMG verification, reviewed hash-refresh PRs, safer DMG

@@ -1,0 +1,9 @@
+{
+  "id": "persistent-status-panel",
+  "title": "Persistent Status Panel",
+  "description": "Keep the Codex /status panel open across thread switches and app restarts until explicitly closed.",
+  "defaultEnabled": true,
+  "entrypoints": {
+    "patchDescriptors": "./patch.js"
+  }
+}

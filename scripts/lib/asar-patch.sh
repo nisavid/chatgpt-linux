@@ -31,12 +31,12 @@ if (enabledIntegrations.length === 0) {
   console.error("  optional integrations: none enabled");
 } else {
   console.error(`  enabled integrations: ${enabledIntegrations.join(", ")}`);
-  const featureEntries = Object.entries(summary.groups.optionalFeatures.byFeature);
-  if (featureEntries.length === 0) {
+  const integrationEntries = Object.entries(summary.groups.optionalIntegrations.byIntegration);
+  if (integrationEntries.length === 0) {
     console.error("  optional integration drift: none");
   } else {
-    for (const [featureId, featureSummary] of featureEntries) {
-      console.error(`  integration ${featureId}: ${fmt(featureSummary.statusCounts)}`);
+    for (const [integrationId, integrationSummary] of integrationEntries) {
+      console.error(`  integration ${integrationId}: ${fmt(integrationSummary.statusCounts)}`);
     }
   }
 }
@@ -52,13 +52,13 @@ if (drift.length > 0) {
 const strategyDrift = [];
 for (const patch of report.patches ?? []) {
   for (const entry of patch.strategies ?? []) {
-    if (entry.strategy.startsWith("legacy:") || entry.strategy === "none") {
+    if (entry.strategy === "none") {
       strategyDrift.push(`${patch.name}: ${entry.group}=${entry.strategy}`);
     }
   }
 }
 if (strategyDrift.length > 0) {
-  console.error(`[INFO] legacy match strategies in use (${strategyDrift.length}):`);
+  console.error(`[INFO] match strategies needing attention (${strategyDrift.length}):`);
   for (const line of strategyDrift) {
     console.error(`  - ${line}`);
   }

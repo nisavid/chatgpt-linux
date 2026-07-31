@@ -5,7 +5,7 @@
 This repository is a downstream maintenance fork of
 `ilysenko/codex-desktop-linux`. The git remote named `upstream` is the
 Linux-port upstream: it does the primary Linux conversion work from the
-official OpenAI Codex DMG and carries much of the Linux runtime enablement.
+official OpenAI ChatGPT DMG and carries much of the Linux runtime enablement.
 This fork is the finishing layer over that work: it preserves the local
 `codex-app` identity, distro-shaped install layout, updater policy, hardening,
 security review, and packaging/runtime polish.
@@ -16,7 +16,7 @@ upstream's work.
 
 Use explicit upstream terminology where it prevents ambiguity. `Linux-port
 upstream` means `ilysenko/codex-desktop-linux` or the git remote named
-`upstream`. `Official OpenAI Codex DMG`, `official OpenAI app bundle`, and
+`upstream`. `Official OpenAI ChatGPT DMG`, `official OpenAI app bundle`, and
 `OpenAI-hosted services` mean the OpenAI-distributed macOS app artifact,
 generated bundle behavior, and service/account surfaces. Once a section,
 document, or sentence clearly scopes the relevant surface, concise terms such
@@ -41,6 +41,12 @@ Engineering skills publish issues and PRDs to GitHub Issues for `nisavid/codex-a
 ### Triage labels
 
 The triage vocabulary uses the five default engineering-skill labels. See `docs/agents/triage-labels.md`.
+
+### Label governance
+
+`.github/labels.json` is the source of truth for repository labels. Follow
+`docs/label-governance.md` before proposing or applying classifications. Labels
+are staff-managed, and `workflow: manual only` blocks item-specific mutation.
 
 ### Domain docs
 
@@ -92,13 +98,21 @@ This is a single-context repo. See `docs/agents/domain.md`.
   helpers, run a local app generation/build gate first. The minimum gate is a
   successful `./install.sh` or `make build-app` from the current sources plus the
   relevant local package builder when package contents are affected. Refresh
-  `Codex.dmg` first unless the cached DMG was refreshed within the last 24
+  `ChatGPT.dmg` first unless the cached DMG was refreshed within the last 24
   hours. Record the exact DMG refresh or age-check command and build command in
   the verification notes.
 - Use Conventional Commits. Commit messages must accurately describe the
   committed change.
+- Support the latest official `ChatGPT.dmg` and its current `ChatGPT.app`
+  bundle shape. When official-app drift is repaired, remove obsolete fallback
+  patch paths and version-specific compatibility branches in the same change.
+- Treat updater, package-builder, launcher, and port-integration framework
+  changes as cross-format unless the implementation explicitly scopes them.
+- Keep app generation transactional: build and validate a sibling candidate,
+  preserve the working app on rejected or inconclusive acceptance, and promote
+  with atomic directory exchange plus the recovery journal.
 - Do not hand-edit generated app output as the durable fix. Change `install.sh`, launcher templates, package templates, updater code, or shared helpers, then regenerate or inspect generated output as needed.
-- Treat `codex-app/`, `codex-*-app/`, `dist/`, `Codex.dmg`, and XDG updater config/state/cache paths as generated or runtime artifacts unless the task explicitly targets them.
+- Treat `codex-app/`, `codex-*-app/`, `dist/`, `ChatGPT.dmg`, and XDG updater config/state/cache paths as generated or runtime artifacts unless the task explicitly targets them.
 - Do not assume `codex-app/` is pristine. If it disagrees with source scripts, source scripts win.
 - Keep Linux package behavior in `packaging/linux/`, `scripts/build-deb.sh`, `scripts/build-rpm.sh`, `scripts/build-pacman.sh`, and `scripts/lib/package-common.sh`.
 - Preserve this fork's intentional names when syncing from `upstream`:
@@ -161,9 +175,14 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - Linux patch registry and port integration descriptors: `scripts/patches/`,
   `scripts/lib/port-integrations.js`, and `port-integrations/`
 - Linux package templates, maintainer scripts, desktop entry, service unit, packaged runtime helper: `packaging/linux/`
+- AppImage-only runtime behavior: `packaging/appimage/codex-appimage-runtime.sh`
+- Shared build pipeline: `scripts/lib/*.sh`
+- Official DMG automation: `scripts/automation/upstream-dmg-watchdog/` and
+  `docs/upstream-dmg-watchdog.md`
+- Nix package and modules: `flake.nix`, `flake.lock`, and `nix/`
 - Rust updater service and CLI: `updater/`
 - Updater crate version and versioning policy: `updater/Cargo.toml` and
-  `docs/maintainers/package-runtime-maintenance.md` (current version: `0.9.0`)
+  `docs/maintainers/package-runtime-maintenance.md` (current version: `0.10.4`)
 - User-facing overview and install guidance: `README.md`
 - Webview server design decision and acceptance criteria: `docs/webview-server-evaluation.md`
 - Fork-specific contracts and upstream sync review inventory: `docs/maintainers/fork-divergences.md`
@@ -171,6 +190,18 @@ This is a single-context repo. See `docs/agents/domain.md`.
   `docs/maintainers/fork-sync-policy.md` and `.agents/fork-sync-policy.toml`
 - Security follow-up and `@codex-security` review routing: `docs/maintainers/security-backlog.md`
 - Additional maintainer notes: prefer `docs/maintainers/` over expanding this file.
+
+## Patch And Integration Rules
+
+- Treat `scripts/patch-linux-window-ui.js` as a build-facing CLI. Use the
+  descriptor, runner, and helper APIs under `scripts/patches/` for patch work.
+- Keep ASAR patches fail-soft and idempotent unless a descriptor is deliberately
+  marked `required-official-dmg`.
+- Do not recreate deleted compatibility barrels such as
+  `scripts/patches/main-process.js`, `webview-assets.js`, or `shared.js`.
+- Port integrations patch through `entrypoints.patchDescriptors`. Prefer
+  declarative `resources`, `runtimeHooks`, and `packageHooks` to ad hoc
+  staging, and keep resource targets inside the app directory.
 
 ## Triggered Guidance
 
@@ -196,7 +227,7 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - `codex-app/codex-app-version.env`: generated package-version metadata read
   from the official OpenAI app bundle.
 - `dist/`: native package output.
-- `Codex.dmg`: cached official OpenAI Codex DMG.
+- `ChatGPT.dmg`: cached official OpenAI ChatGPT DMG.
 - `~/.config/codex-app-updater/config.toml`: updater runtime config.
 - `~/.local/state/codex-app-updater/`: updater state and service logs.
 - `~/.cache/codex-app-updater/`: downloaded DMGs, rebuild workspaces, staged packages, and build logs.

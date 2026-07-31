@@ -12,6 +12,7 @@ Terminal=false
 Type=Application
 Categories=Development;
 MimeType=x-scheme-handler/codex;x-scheme-handler/codex-browser-sidebar;
+Keywords=codex;openai;ai;coding;
 StartupNotify=true
 StartupWMClass=codex-app
 X-GNOME-WMClass=codex-app

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 "use strict";
 
-const fs = require("node:fs");
-const {
-  requiredPatchNamesForProfile,
-} = require("../patches/registry.js");
 const {
   SUCCESS_STATUSES,
-  criticalFailuresFromReport,
   optionalDriftFromReport,
 } = require("../lib/patch-report.js");
+const {
+  readPatchReport,
+  uniqueStrings,
+  validatePatchReport,
+} = require("../lib/patch-validation.js");
 
 const PROFILE_ALIASES = new Map([
   ["upstream-build", "official-dmg-build"],
@@ -17,11 +17,18 @@ const PROFILE_ALIASES = new Map([
 const KNOWN_PROFILES = new Set(["official-dmg-build"]);
 
 function usage() {
-  return "Usage: validate-patch-report.js <patch-report.json> [--profile official-dmg-build]";
+  return [
+    "Usage: validate-patch-report.js <patch-report.json> [--profile official-dmg-build]",
+    "       [--require-enabled-integration INTEGRATION_ID] [--require-success PATCH_NAME]",
+    "       [--require-applied PATCH_NAME]",
+  ].join("\n");
 }
 
 function parseArgs(argv) {
   let profile = "official-dmg-build";
+  const requiredEnabledIntegrations = [];
+  const requiredAppliedPatches = [];
+  const requiredSuccessfulPatches = [];
   const positional = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -32,9 +39,32 @@ function parseArgs(argv) {
         throw new Error(usage());
       }
       index += 1;
+    } else if (arg === "--require-enabled-integration") {
+      const integrationId = argv[index + 1];
+      if (!integrationId) {
+        throw new Error(usage());
+      }
+      requiredEnabledIntegrations.push(integrationId);
+      index += 1;
+    } else if (arg === "--require-success") {
+      const patchName = argv[index + 1];
+      if (!patchName) {
+        throw new Error(usage());
+      }
+      requiredSuccessfulPatches.push(patchName);
+      index += 1;
+    } else if (arg === "--require-applied") {
+      const patchName = argv[index + 1];
+      if (!patchName) {
+        throw new Error(usage());
+      }
+      requiredAppliedPatches.push(patchName);
+      index += 1;
     } else if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
+    } else if (arg.startsWith("--")) {
+      throw new Error(`Unknown option: ${arg}\n${usage()}`);
     } else {
       positional.push(arg);
     }
@@ -44,17 +74,18 @@ function parseArgs(argv) {
     throw new Error(usage());
   }
 
-  return { profile, reportPath: positional[0] };
+  return {
+    profile,
+    reportPath: positional[0],
+    requirements: {
+      requiredAppliedPatches: uniqueStrings(requiredAppliedPatches),
+      requiredEnabledIntegrations: uniqueStrings(requiredEnabledIntegrations),
+      requiredSuccessfulPatches: uniqueStrings(requiredSuccessfulPatches),
+    },
+  };
 }
 
-function readReport(reportPath) {
-  const raw = fs.readFileSync(reportPath, "utf8");
-  const report = JSON.parse(raw);
-  if (report == null || typeof report !== "object" || !Array.isArray(report.patches)) {
-    throw new Error(`Invalid patch report: ${reportPath}`);
-  }
-  return report;
-}
+const readReport = readPatchReport;
 
 function normalizeProfile(profile) {
   const normalized = PROFILE_ALIASES.get(profile) ?? profile;
@@ -64,28 +95,8 @@ function normalizeProfile(profile) {
   return normalized;
 }
 
-function validateReport(report, profile) {
-  const normalizedProfile = normalizeProfile(profile);
-  const requiredNames = requiredPatchNamesForProfile(normalizedProfile);
-  const patchesByName = new Map(report.patches.map((patch) => [patch.name, patch]));
-  const failures = [];
-
-  // A required patch that never ran leaves no report entry, so the
-  // report-driven check below cannot see it — catch it by name first.
-  for (const name of requiredNames) {
-    if (!patchesByName.has(name)) {
-      failures.push(`${name}: missing from patch report`);
-    }
-  }
-
-  // Shared predicate with the local build gate (patch-linux-window-ui.js
-  // --enforce-critical): any recorded critical patch with a non-success,
-  // applicable status fails validation.
-  for (const failure of criticalFailuresFromReport(report)) {
-    failures.push(`${failure.name}: ${failure.status}${failure.reason ? ` (${failure.reason})` : ""}`);
-  }
-
-  return failures;
+function validateReport(report, profile, requirements) {
+  return validatePatchReport(report, normalizeProfile(profile), requirements);
 }
 
 function printOptionalDrift(report) {
@@ -101,10 +112,10 @@ function printOptionalDrift(report) {
 
 function main() {
   try {
-    const { profile, reportPath } = parseArgs(process.argv.slice(2));
+    const { profile, reportPath, requirements } = parseArgs(process.argv.slice(2));
     const report = readReport(reportPath);
     printOptionalDrift(report);
-    const failures = validateReport(report, profile);
+    const failures = validateReport(report, profile, requirements);
     if (failures.length > 0) {
       console.error(`Required patch validation failed for profile ${profile}:`);
       for (const failure of failures) {

@@ -2,16 +2,23 @@
 set -Eeuo pipefail
 
 app_dir="${1:-codex-app}"
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 mkdir -p \
+    "$app_dir/.codex-linux" \
     "$app_dir/content/webview" \
     "$app_dir/resources/node-runtime/bin" \
     "$app_dir/resources/node-runtime/lib/node_modules/npm/bin"
 
+enabled_port_integrations_json="${CODEX_FIXTURE_PORT_INTEGRATIONS_JSON:-[]}"
+printf '{"schemaVersion":1,"portIntegrations":{"enabled":%s}}\n' \
+    "$enabled_port_integrations_json" \
+    > "$app_dir/.codex-linux/build-info.json"
+
 printf '%s\n' '#!/usr/bin/env bash' 'echo "codex desktop fixture"' > "$app_dir/start.sh"
 chmod +x "$app_dir/start.sh"
-
 printf '%s\n' '<!doctype html><title>Codex fixture</title>' > "$app_dir/content/webview/index.html"
+cp "$repo_dir/launcher/cli-launch-path.py" "$app_dir/.codex-linux/cli-launch-path.py"
 
 for binary in node npm-cli.js npx-cli.js; do
     cat > "$app_dir/resources/node-runtime/bin/$binary" <<'SCRIPT'

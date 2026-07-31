@@ -1,20 +1,20 @@
 [package]
 name = "codex-app-updater"
-version = "0.9.0"
+version = "0.10.4"
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0.102"
-chrono = { version = "0.4.44", features = ["clock", "serde"] }
+chrono = { version = "0.4.45", features = ["clock", "serde"] }
 clap = { version = "4.6.1", features = ["derive"] }
 directories = "6.0.0"
 futures-util = "0.3.32"
-fs4 = "1.1.0"
-notify-rust = "4.17.0"
+libc = "0.2.178"
+notify-rust = "4.18.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["http2", "rustls", "stream"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-semver = "1.0.27"
+serde_json = "1.0.150"
+semver = "1.0.28"
 sha2 = "0.11.0"
 tokio = { version = "1.52.3", features = ["fs", "io-util", "macros", "process", "rt-multi-thread", "signal", "time"] }
 toml = "1.1.2"

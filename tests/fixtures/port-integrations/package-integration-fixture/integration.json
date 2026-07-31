@@ -1,0 +1,28 @@
+{
+  "id": "package-integration-fixture",
+  "title": "Package Integration Fixture",
+  "defaultEnabled": false,
+  "packageResources": [
+    {
+      "source": "fixture.txt",
+      "target": "usr/share/codex-port-integration-framework/fixture.txt",
+      "mode": "0640",
+      "formats": [
+        "deb",
+        "rpm",
+        "pacman"
+      ]
+    }
+  ],
+  "packageDependencies": {
+    "deb": [
+      "codex-port-integration-framework-runtime"
+    ],
+    "rpm": [
+      "codex-port-integration-framework-runtime"
+    ],
+    "pacman": [
+      "codex-port-integration-framework-runtime"
+    ]
+  }
+}

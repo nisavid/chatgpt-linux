@@ -14,6 +14,7 @@ Obsoletes:      codex-desktop
 %endif
 
 Requires:       python3
+Requires:       xdg-utils
 __UPDATER_REQUIRES__
 Requires:       libasound.so.2%{codex_elf_suffix}, libatk-bridge-2.0.so.0%{codex_elf_suffix}
 Requires:       libatk-1.0.so.0%{codex_elf_suffix}, libglib-2.0.so.0%{codex_elf_suffix}, libgtk-3.so.0%{codex_elf_suffix}
@@ -21,7 +22,7 @@ Requires:       libdrm.so.2%{codex_elf_suffix}, libnspr4.so%{codex_elf_suffix}, 
 Requires:       libpango-1.0.so.0%{codex_elf_suffix}, libstdc++.so.6%{codex_elf_suffix}, libX11.so.6%{codex_elf_suffix}
 Requires:       libxcb.so.1%{codex_elf_suffix}, libXcomposite.so.1%{codex_elf_suffix}, libXdamage.so.1%{codex_elf_suffix}
 Requires:       libXext.so.6%{codex_elf_suffix}, libXfixes.so.3%{codex_elf_suffix}, libxkbcommon.so.0%{codex_elf_suffix}
-Requires:       libXrandr.so.2%{codex_elf_suffix}, libgbm.so.1%{codex_elf_suffix}
+Requires:       libXrandr.so.2%{codex_elf_suffix}, libgbm.so.1%{codex_elf_suffix}__PORT_INTEGRATION_DEPENDENCIES__
 Recommends:     zenity, kdialog
 
 %description
@@ -41,6 +42,7 @@ cp -a "__RPM_STAGING_DIR__/." "%{buildroot}/"
 /usr/bin/__PACKAGE_NAME__
 /usr/share/applications/__PACKAGE_NAME__.desktop
 /usr/share/icons/hicolor/256x256/apps/__PACKAGE_NAME__.png
+__PORT_INTEGRATION_FILES__
 __UPDATER_FILES__
 
 %post

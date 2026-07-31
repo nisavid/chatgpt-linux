@@ -11,6 +11,21 @@ const test = require("node:test");
 const REAPER = path.join(__dirname, "reaper.sh");
 const LONG_RUNNING_NODE_ARGS = ["-e", "setInterval(() => {}, 1000)"];
 
+function commandPath(name) {
+  for (const directory of (process.env.PATH || "").split(path.delimiter)) {
+    if (!directory || !path.isAbsolute(directory)) continue;
+    const candidate = path.join(directory, name);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      if (!fs.statSync(candidate).isFile()) continue;
+      return candidate;
+    } catch {}
+  }
+  throw new Error(`could not resolve executable from PATH: ${name}`);
+}
+
+const BASH = commandPath("bash");
+
 function makeFakeApp() {
   const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-node-repl-reaper-test-"));
   fs.mkdirSync(path.join(appDir, "resources"));
@@ -36,7 +51,7 @@ function pidAlive(pid) {
 }
 
 function runReaperOnce(appDir) {
-  const result = spawnSync("bash", [REAPER, appDir, "once"], {
+  const result = spawnSync(BASH, [REAPER, appDir, "once"], {
     encoding: "utf8",
     env: { ...process.env, CODEX_NODE_REPL_REAPER_KILL_GRACE: "1" },
   });
@@ -74,6 +89,22 @@ test("reaps a node_repl whose parent is not a live codex app-server", async () =
   }
 });
 
+test("reaps a wrapped node_repl running from the original backup path", async () => {
+  const { appDir } = makeFakeApp();
+  const originalNodeReplBin = path.join(appDir, "resources", "node_repl.codex-linux-original");
+  fs.symlinkSync(process.execPath, originalNodeReplBin);
+  const leaked = spawn(originalNodeReplBin, LONG_RUNNING_NODE_ARGS, { stdio: "ignore" });
+  try {
+    await new Promise((resolve) => leaked.once("spawn", resolve));
+    const output = runReaperOnce(appDir);
+    assert.match(output, new RegExp(`reaping leaked node_repl pid=${leaked.pid}\\b`));
+    await waitForExit(leaked.pid);
+  } finally {
+    try { leaked.kill("SIGKILL"); } catch {}
+    fs.rmSync(appDir, { recursive: true, force: true });
+  }
+});
+
 test("leaves a node_repl with a live codex app-server parent alone", async () => {
   const { appDir, nodeReplBin } = makeFakeApp();
   // Fake app-server: an executable named codex run with an app-server arg,
@@ -82,7 +113,7 @@ test("leaves a node_repl with a live codex app-server parent alone", async () =>
   const fakeCodex = path.join(appDir, "codex");
   fs.writeFileSync(
     fakeCodex,
-    `#!/bin/bash\n"${nodeReplBin}" -e 'setInterval(() => {}, 1000)' &\necho "child=$!"\nwait\n`,
+    `#!${BASH}\n"${nodeReplBin}" -e 'setInterval(() => {}, 1000)' &\necho "child=$!"\nwait\n`,
   );
   fs.chmodSync(fakeCodex, 0o755);
   const appServer = spawn(fakeCodex, ["app-server"], { stdio: ["ignore", "pipe", "ignore"] });
@@ -109,6 +140,37 @@ test("leaves a node_repl with a live codex app-server parent alone", async () =>
     await waitForExit(childPid);
   } finally {
     try { appServer.kill("SIGKILL"); } catch {}
+    spawnSync("pkill", ["-9", "-f", nodeReplBin]);
+    fs.rmSync(appDir, { recursive: true, force: true });
+  }
+});
+
+test("leaves a node_repl with a live codex resume parent alone", async () => {
+  const { appDir, nodeReplBin } = makeFakeApp();
+  const fakeCodex = path.join(appDir, "codex");
+  fs.writeFileSync(
+    fakeCodex,
+    `#!${BASH}\n"${nodeReplBin}" -e 'setInterval(() => {}, 1000)' &\necho "child=$!"\nwait\n`,
+  );
+  fs.chmodSync(fakeCodex, 0o755);
+  const cliSession = spawn(fakeCodex, ["resume"], { stdio: ["ignore", "pipe", "ignore"] });
+  try {
+    const childPid = await new Promise((resolve, reject) => {
+      let buffer = "";
+      cliSession.stdout.on("data", (chunk) => {
+        buffer += chunk;
+        const match = buffer.match(/child=(\d+)/);
+        if (match) resolve(Number(match[1]));
+      });
+      cliSession.once("exit", () => reject(new Error("fake codex resume exited early")));
+    });
+    assert.ok(pidAlive(childPid));
+
+    const output = runReaperOnce(appDir);
+    assert.doesNotMatch(output, new RegExp(`pid=${childPid}\\b`));
+    assert.ok(pidAlive(childPid), "protected node_repl was killed");
+  } finally {
+    try { cliSession.kill("SIGKILL"); } catch {}
     spawnSync("pkill", ["-9", "-f", nodeReplBin]);
     fs.rmSync(appDir, { recursive: true, force: true });
   }

@@ -8,18 +8,21 @@
 let
   cfg = config.programs.codexAppLinux;
   remoteCfg = cfg.remoteControl;
+  remoteEnvironmentFilePath =
+    if remoteCfg.environmentFile == null then null else lib.removePrefix "-" remoteCfg.environmentFile;
+  remoteEnvironmentFileSegments =
+    if remoteEnvironmentFilePath == null then [ ] else lib.drop 1 (lib.splitString "/" remoteEnvironmentFilePath);
+  remoteEnvironmentFileIsCanonical =
+    remoteEnvironmentFilePath != null
+    && lib.hasPrefix "/" remoteEnvironmentFilePath
+    && lib.all (segment: segment != "" && segment != "." && segment != "..") remoteEnvironmentFileSegments;
   system = pkgs.stdenv.hostPlatform.system;
   flakePackages = self.packages.${system};
-  packageName =
-    if cfg.remoteMobileControl.enable && cfg.computerUseUi.enable then
-      "codex-app-computer-use-ui-remote-mobile-control"
-    else if cfg.remoteMobileControl.enable then
-      "codex-app-remote-mobile-control"
-    else if cfg.computerUseUi.enable then
-      "codex-app-computer-use-ui"
-    else
-      "codex-app";
-  basePackage = if cfg.package != null then cfg.package else flakePackages.${packageName};
+  portIntegrations = import ./port-integrations.nix { inherit lib; };
+  packageSelection = import ./package-selection.nix {
+    inherit cfg flakePackages lib;
+  };
+  basePackage = packageSelection.package;
   codexCliPackage =
     if cfg.cliPackage != null then
       cfg.cliPackage
@@ -88,10 +91,13 @@ in
         inputs.codex-app-linux.packages.''${pkgs.stdenv.hostPlatform.system}.codex-app
       '';
       description = ''
-        Codex App package to install. When unset, the module selects one of
-        this flake's package variants from
+        Codex App package to install. When unset, the module builds the
+        selected configuration from
         {option}`programs.codexAppLinux.computerUseUi.enable` and
-        {option}`programs.codexAppLinux.remoteMobileControl.enable`.
+        {option}`programs.codexAppLinux.portIntegrations`. The
+        {option}`programs.codexAppLinux.remoteMobileControl.enable` option
+        remains a compatibility shorthand for the `remote-mobile-control`
+        port integration.
       '';
     };
 
@@ -122,6 +128,22 @@ in
     computerUseUi.enable = lib.mkEnableOption "the Linux Computer Use UI package variant";
 
     remoteMobileControl.enable = lib.mkEnableOption "the experimental Linux mobile remote-control package variant";
+
+    portIntegrations = lib.mkOption {
+      type = portIntegrations.optionType;
+      default = [ ];
+      example = [
+        "appshots"
+        "open-target-discovery"
+      ];
+      description = ''
+        Nix-compatible optional port integrations to include in the package. IDs
+        are deduplicated and sorted before the package derivation is created.
+        Port integrations not supported by the Nix packaging layer fail module
+        evaluation. This option does not affect an explicitly configured
+        {option}`programs.codexAppLinux.package`.
+      '';
+    };
 
     remoteControl = {
       enable = lib.mkEnableOption "a user systemd app-server with remote control enabled";
@@ -177,7 +199,10 @@ in
         default = null;
         example = "/run/secrets/codex-remote-control.env";
         description = ''
-          Additional environment file as defined in {manpage}`systemd.exec(5)`.
+          Runtime path to an additional environment file as defined in
+          {manpage}`systemd.exec(5)`. Use a quoted runtime string. Nix path
+          literals or interpolations can copy contents into the Nix store
+          before module validation; store-backed values are rejected.
         '';
       };
 
@@ -221,6 +246,28 @@ in
       {
         assertion = !remoteCfg.enable || pkgs.stdenv.hostPlatform.isLinux;
         message = "`programs.codexAppLinux.remoteControl.enable` is only supported on Linux";
+      }
+      {
+        assertion =
+          remoteCfg.environmentFile == null
+          || (!builtins.hasContext remoteCfg.environmentFile && remoteEnvironmentFileIsCanonical);
+        message = ''
+          `programs.codexAppLinux.remoteControl.environmentFile` must be an
+          absolute canonical runtime path without Nix store context, optionally
+          prefixed with `-`
+        '';
+      }
+      {
+        assertion =
+          remoteCfg.environmentFile == null
+          || (
+            remoteEnvironmentFilePath != builtins.storeDir
+            && !lib.hasPrefix "${builtins.storeDir}/" remoteEnvironmentFilePath
+          );
+        message = ''
+          `programs.codexAppLinux.remoteControl.environmentFile` must be a
+          runtime path outside the Nix store
+        '';
       }
     ];
 

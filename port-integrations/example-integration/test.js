@@ -11,14 +11,14 @@ const { applyMainBundlePatch } = require("./patch.js");
 const {
   enabledPortIntegrationIds,
   enabledPortIntegrationStageHooks,
-  loadPortIntegrationMainBundlePatches,
+  loadPortIntegrationPatchDescriptors,
   portIntegrationsConfigPath,
 } = require("../../scripts/lib/port-integrations.js");
+const { createPatchReport } = require("../../scripts/lib/patch-report.js");
 const {
-  createPatchReport,
   patchExtractedApp,
   patchMainBundleSource,
-} = require("../../scripts/patch-linux-window-ui.js");
+} = require("../../scripts/patches/runner.js");
 
 function withTempIntegrationRoot(config, fn) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-example-integration-test-"));
@@ -70,7 +70,7 @@ test("example integration stays disabled until listed in integrations.json", () 
   withTempIntegrationRoot([], (root) => {
     assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), []);
     assert.deepEqual(enabledPortIntegrationStageHooks({ integrationsRoot: root }), []);
-    assert.deepEqual(loadPortIntegrationMainBundlePatches({ integrationsRoot: root }), []);
+    assert.deepEqual(loadPortIntegrationPatchDescriptors({ integrationsRoot: root }), []);
   });
 });
 
@@ -200,25 +200,6 @@ test("checkout integration roots ignore persistent XDG user config fallback", ()
   });
 });
 
-test("legacy Linux feature option and manifest names remain compatibility aliases", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-legacy-linux-features-"));
-  try {
-    const integrationDir = path.join(root, "example-integration");
-    fs.mkdirSync(integrationDir, { recursive: true });
-    fs.copyFileSync(path.join(__dirname, "integration.json"), path.join(integrationDir, "feature.json"));
-    fs.copyFileSync(path.join(__dirname, "README.md"), path.join(integrationDir, "README.md"));
-    fs.writeFileSync(
-      path.join(root, "features.json"),
-      JSON.stringify({ enabled: ["example-integration"] }, null, 2),
-    );
-
-    assert.equal(portIntegrationsConfigPath(root), path.join(root, "features.json"));
-    assert.deepEqual(enabledPortIntegrationIds({ featuresRoot: root }), ["example-integration"]);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("empty CODEX_APP_ID does not block CODEX_LINUX_APP_ID config fallback", () => {
   withTempIntegrationRoot(null, (root) => {
     const configHome = path.join(root, "xdg-config");
@@ -279,9 +260,9 @@ test("example integration exposes its patch and stage hook when enabled", () => 
     assert.equal(hooks[0].id, "example-integration");
     assert.equal(path.basename(hooks[0].path), "stage.sh");
 
-    const patches = loadPortIntegrationMainBundlePatches({ integrationsRoot: root });
+    const patches = loadPortIntegrationPatchDescriptors({ integrationsRoot: root });
     assert.equal(patches.length, 1);
-    assert.equal(patches[0].name, "integration:example-integration");
+    assert.equal(patches[0].name, "integration:example-integration:synthetic-marker");
     assert.equal(
       patches[0].apply("codexLinuxExampleIntegrationDisabled()", {}),
       "codexLinuxExampleIntegrationEnabled()",
@@ -291,12 +272,13 @@ test("example integration exposes its patch and stage hook when enabled", () => 
 
 test("example integration participates in main bundle patching and patch reports", () => {
   withTempIntegrationRoot(["example-integration"], (root) => {
-    const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-    process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-example-integration-app-"));
     try {
       assert.equal(
-        patchMainBundleSource("codexLinuxExampleIntegrationDisabled()", null),
+        patchMainBundleSource("codexLinuxExampleIntegrationDisabled()", null, {
+          corePatchRoot: path.join(root, "core-patches"),
+          integrationsRoot: root,
+        }),
         "codexLinuxExampleIntegrationEnabled()",
       );
 
@@ -305,16 +287,18 @@ test("example integration participates in main bundle patching and patch reports
       fs.writeFileSync(path.join(buildDir, "main.js"), "codexLinuxExampleIntegrationDisabled()");
 
       const report = createPatchReport();
-      patchExtractedApp(tempApp, { report });
+      patchExtractedApp(tempApp, {
+        corePatchRoot: path.join(root, "core-patches"),
+        integrationsRoot: root,
+        report,
+      });
 
       assert.match(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), /codexLinuxExampleIntegrationEnabled\(\)/);
-      assert.ok(report.patches.some((patch) => patch.name === "integration:example-integration" && patch.status === "applied"));
+      assert.ok(report.patches.some((patch) =>
+        patch.name === "integration:example-integration:synthetic-marker" &&
+        patch.status === "applied"
+      ));
     } finally {
-      if (originalRoot == null) {
-        delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-      } else {
-        process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
-      }
       fs.rmSync(tempApp, { recursive: true, force: true });
     }
   });

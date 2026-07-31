@@ -13,15 +13,19 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CI_PACKAGE_VERSION: 2026.04.28.000000+ci${{ github.run_number }}
 
 jobs:
   rust-and-smoke:
     name: Rust and Smoke Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - name: Install Rust components
         run: rustup component add rustfmt clippy
@@ -53,23 +57,11 @@ jobs:
           bash -n scripts/ci/update-nix-hashes.sh
           bash -n scripts/ci/validate-nix-pins.sh
 
-      - name: Check Node patcher syntax
+      - name: Check Node syntax and tests
+        timeout-minutes: 10
         run: |
           set -euo pipefail
-          node --check scripts/patch-linux-window-ui.js
-          node --check scripts/patch-linux-window-ui.test.js
-          for file in scripts/patches/*.js; do
-            node --check "$file"
-          done
-          for file in port-integrations/*/*.js; do
-            [ -f "$file" ] || continue
-            node --check "$file"
-          done
-          integration_tests=(port-integrations/*/test.js)
-          if [ -e "${integration_tests[0]}" ]; then
-            node --test --test-concurrency=1 "${integration_tests[@]}"
-          fi
-          node --check scripts/ci/validate-patch-report.js
+          bash scripts/ci/run-node-checks.sh
 
       - name: Check Rust formatting
         run: cargo fmt --check
@@ -91,6 +83,7 @@ jobs:
             echo "## Rust and Smoke Tests"
             echo ""
             echo "- Shell syntax checks passed."
+            echo "- Node syntax and tests passed."
             echo "- Rust formatting, clippy, check, and tests passed."
             echo "- Script smoke tests passed."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -99,7 +92,7 @@ jobs:
     name: Build Debian Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Create minimal packaged app fixture
         run: |
@@ -117,15 +110,86 @@ jobs:
           test -n "$deb_file"
           dpkg-deb -I "$deb_file"
           dpkg-deb -c "$deb_file" | tee /tmp/deb-contents.txt >/dev/null
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-depends.txt >/dev/null
           grep -q './usr/bin/codex-app-updater' /tmp/deb-contents.txt
           grep -q './usr/lib/systemd/user/codex-app-updater.service' /tmp/deb-contents.txt
           grep -q './usr/lib/codex-app/update-builder/install.sh' /tmp/deb-contents.txt
           grep -q './usr/lib/codex-app/packaged-runtime.sh' /tmp/deb-contents.txt
+          ! grep -q './usr/share/codex-port-integration-framework/fixture.txt' /tmp/deb-contents.txt
+          ! grep -q 'codex-port-integration-framework-runtime' /tmp/deb-depends.txt
           {
             echo "## Debian Package Validation"
             echo ""
             echo "- Built: \`$(basename "$deb_file")\`"
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create feature-enabled packaged app fixture
+        env:
+          CODEX_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+        run: |
+          set -euo pipefail
+          rm -rf codex-app dist
+          tests/fixtures/create-packaged-app-fixture.sh codex-app
+
+      - name: Build feature-enabled Debian package
+        env:
+          CODEX_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+          CODEX_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/tests/fixtures/port-integrations/integrations-enabled.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
+
+      - name: Inspect feature-enabled Debian package
+        run: |
+          set -euo pipefail
+          deb_file="$(find dist -maxdepth 1 -name 'codex-app_*.deb' -print -quit)"
+          test -n "$deb_file"
+          dpkg-deb -I "$deb_file"
+          dpkg-deb -c "$deb_file" | tee /tmp/deb-integration-contents.txt >/dev/null
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-integration-depends.txt >/dev/null
+          grep -q './usr/share/codex-port-integration-framework/fixture.txt' /tmp/deb-integration-contents.txt
+          grep -q 'codex-port-integration-framework-runtime' /tmp/deb-integration-depends.txt
+          fixture_mode="$(
+            awk '$NF == "./usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+              /tmp/deb-integration-contents.txt
+          )"
+          test "$fixture_mode" = '-rw-r-----'
+          {
+            echo "- Integration-enabled build: \`$(basename "$deb_file")\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Codex Micro packaged app fixture
+        env:
+          CODEX_FIXTURE_PORT_INTEGRATIONS_JSON: '["codex-micro"]'
+        run: |
+          set -euo pipefail
+          rm -rf codex-app dist
+          tests/fixtures/create-packaged-app-fixture.sh codex-app
+          printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+
+      - name: Build Codex Micro Debian package
+        env:
+          CODEX_PORT_INTEGRATIONS_CONFIG: /tmp/codex-micro-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
+
+      - name: Inspect Codex Micro Debian package
+        run: |
+          set -euo pipefail
+          deb_file="$(find dist -maxdepth 1 -name 'codex-app_*.deb' -print -quit)"
+          test -n "$deb_file"
+          dpkg-deb -c "$deb_file" | tee /tmp/deb-micro-contents.txt >/dev/null
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-micro-depends.txt >/dev/null
+          grep -q './usr/lib/udev/rules.d/70-codex-micro.rules' /tmp/deb-micro-contents.txt
+          grep -q 'libudev1' /tmp/deb-micro-depends.txt
+          grep -q 'libusb-1.0-0' /tmp/deb-micro-depends.txt
+          rule_mode="$(
+            awk '$NF == "./usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+              /tmp/deb-micro-contents.txt
+          )"
+          test "$rule_mode" = '-rw-r--r--'
+          {
+            echo "- Codex Micro build: \`$(basename "$deb_file")\`"
+            echo "- Verified udev rule, 0644 mode, and libudev/libusb dependencies."
           } >> "$GITHUB_STEP_SUMMARY"
 
   nix:
@@ -138,9 +202,9 @@ jobs:
         max-jobs = 1
         fallback = true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -149,7 +213,7 @@ jobs:
       - name: Configure Cachix for Nix build substitutions
         uses: cachix/cachix-action@v17
         with:
-          name: codex-desktop-linux
+          name: codex-app-linux
           skipPush: true
 
       - name: Install validation dependencies
@@ -163,6 +227,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           changed=false
@@ -172,14 +238,24 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
               --paginate \
               --jq '.[].filename' | tee "$changed_files"
-            if grep -Eq '^(flake\.nix|flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$' "$changed_files"; then
+            guarded_paths='^(flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$'
+            if grep -Eq "$guarded_paths" "$changed_files"; then
               changed=true
+            elif grep -qx 'flake.nix' "$changed_files"; then
+              git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
+              if git diff --unified=0 "$PR_BASE_SHA" "$PR_HEAD_SHA" -- flake.nix \
+                  | grep -Eq '^[+-][[:space:]]*(codexVersion|electronVersion|hash) = '; then
+                changed=true
+              fi
+            fi
+
+            if [ "$changed" = "true" ]; then
               {
                 echo "## Nix Pin File Changes"
                 echo ""
-                echo "- Rollout skip is disabled because this PR changes Nix pin source-of-truth files."
+                echo "- Rollout skip is disabled because this PR changes Nix pin source-of-truth content."
                 echo "- Changed guarded files:"
-                grep -E '^(flake\.nix|flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$' "$changed_files" | sed 's/^/  - `/' | sed 's/$/`/'
+                grep -E "$guarded_paths|^flake\.nix$" "$changed_files" | sed 's/^/  - `/' | sed 's/$/`/'
               } >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
@@ -231,6 +307,8 @@ jobs:
             .#codex-app-computer-use-ui
             .#codex-app-remote-mobile-control
             .#codex-app-computer-use-ui-remote-mobile-control
+            .#checks.x86_64-linux.nix-gsettings-schema-wrapper
+            .#checks.x86_64-linux.watchdog-port-integrations
           )
           for output in "${outputs[@]}"; do
             build_log="$(mktemp)"
@@ -261,7 +339,7 @@ jobs:
     name: Build RPM Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install RPM tooling
         run: |
@@ -286,10 +364,13 @@ jobs:
           test -n "$rpm_file"
           rpm -qip "$rpm_file"
           rpm -qlp "$rpm_file" | tee /tmp/rpm-contents.txt >/dev/null
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-requires.txt >/dev/null
           grep -q '/usr/bin/codex-app-updater' /tmp/rpm-contents.txt
           grep -q '/usr/lib/systemd/user/codex-app-updater.service' /tmp/rpm-contents.txt
           grep -q '/usr/lib/codex-app/update-builder/install.sh' /tmp/rpm-contents.txt
           grep -q '/usr/lib/codex-app/packaged-runtime.sh' /tmp/rpm-contents.txt
+          ! grep -q '/usr/share/codex-port-integration-framework/fixture.txt' /tmp/rpm-contents.txt
+          ! grep -q '^codex-port-integration-framework-runtime$' /tmp/rpm-requires.txt
           {
             echo "## RPM Package Validation"
             echo ""
@@ -297,11 +378,81 @@ jobs:
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Create feature-enabled packaged app fixture
+        env:
+          CODEX_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+        run: |
+          set -euo pipefail
+          rm -rf codex-app dist
+          tests/fixtures/create-packaged-app-fixture.sh codex-app
+
+      - name: Build feature-enabled RPM package
+        env:
+          CODEX_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+          CODEX_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/tests/fixtures/port-integrations/integrations-enabled.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
+
+      - name: Inspect feature-enabled RPM package
+        run: |
+          set -euo pipefail
+          rpm_file="$(find dist -maxdepth 1 -name 'codex-app-*.rpm' -print -quit)"
+          test -n "$rpm_file"
+          rpm -qip "$rpm_file"
+          rpm -qlp "$rpm_file" | tee /tmp/rpm-integration-contents.txt >/dev/null
+          rpm -qlvp "$rpm_file" | tee /tmp/rpm-integration-long-contents.txt >/dev/null
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-integration-requires.txt >/dev/null
+          grep -q '/usr/share/codex-port-integration-framework/fixture.txt' /tmp/rpm-integration-contents.txt
+          grep -q '^codex-port-integration-framework-runtime$' /tmp/rpm-integration-requires.txt
+          fixture_mode="$(
+            awk '$NF == "/usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+              /tmp/rpm-integration-long-contents.txt
+          )"
+          test "$fixture_mode" = '-rw-r-----'
+          {
+            echo "- Integration-enabled build: \`$(basename "$rpm_file")\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Codex Micro packaged app fixture
+        env:
+          CODEX_FIXTURE_PORT_INTEGRATIONS_JSON: '["codex-micro"]'
+        run: |
+          set -euo pipefail
+          rm -rf codex-app dist
+          tests/fixtures/create-packaged-app-fixture.sh codex-app
+          printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+
+      - name: Build Codex Micro RPM package
+        env:
+          CODEX_PORT_INTEGRATIONS_CONFIG: /tmp/codex-micro-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
+
+      - name: Inspect Codex Micro RPM package
+        run: |
+          set -euo pipefail
+          rpm_file="$(find dist -maxdepth 1 -name 'codex-app-*.rpm' -print -quit)"
+          test -n "$rpm_file"
+          rpm -qlp "$rpm_file" | tee /tmp/rpm-micro-contents.txt >/dev/null
+          rpm -qlvp "$rpm_file" | tee /tmp/rpm-micro-long-contents.txt >/dev/null
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-micro-requires.txt >/dev/null
+          grep -q '/usr/lib/udev/rules.d/70-codex-micro.rules' /tmp/rpm-micro-contents.txt
+          grep -q '^libudev\.so\.1' /tmp/rpm-micro-requires.txt
+          grep -q '^libusb-1\.0\.so\.0' /tmp/rpm-micro-requires.txt
+          rule_mode="$(
+            awk '$NF == "/usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+              /tmp/rpm-micro-long-contents.txt
+          )"
+          test "$rule_mode" = '-rw-r--r--'
+          {
+            echo "- Codex Micro build: \`$(basename "$rpm_file")\`"
+            echo "- Verified udev rule, 0644 mode, and libudev/libusb dependencies."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   package-pacman:
     name: Build Pacman Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build and inspect pacman package in Arch Linux
         run: |
@@ -329,22 +480,80 @@ jobs:
                 test -n "$pkg_file"
                 pacman -Qip "$pkg_file"
                 pacman -Qlp "$pkg_file" | tee /tmp/pacman-contents.txt >/dev/null
+                tar -xOf "$pkg_file" .PKGINFO | tee /tmp/pacman-pkginfo.txt >/dev/null
                 grep -q "usr/bin/codex-app-updater" /tmp/pacman-contents.txt
                 grep -q "usr/lib/systemd/user/codex-app-updater.service" /tmp/pacman-contents.txt
                 grep -q "usr/lib/codex-app/update-builder/install.sh" /tmp/pacman-contents.txt
                 grep -q "usr/lib/codex-app/packaged-runtime.sh" /tmp/pacman-contents.txt
+                ! grep -q "usr/share/codex-port-integration-framework/fixture.txt" /tmp/pacman-contents.txt
+                ! grep -q "^depend = codex-port-integration-framework-runtime$" /tmp/pacman-pkginfo.txt
                 printf "%s\n" "$(basename "$pkg_file")" > /tmp/pacman-package-name.txt
+
+                rm -rf codex-app dist
+                CODEX_FIXTURE_PORT_INTEGRATIONS_JSON="[\"package-integration-fixture\"]" \
+                  tests/fixtures/create-packaged-app-fixture.sh codex-app
+
+                CODEX_PORT_INTEGRATIONS_ROOT=/work/tests/fixtures/port-integrations \
+                CODEX_PORT_INTEGRATIONS_CONFIG=/work/tests/fixtures/port-integrations/integrations-enabled.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
+
+                feature_pkg_file="$(find dist -maxdepth 1 -name "codex-app-*.pkg.tar.*" -print -quit)"
+                test -n "$feature_pkg_file"
+                pacman -Qip "$feature_pkg_file"
+                pacman -Qlp "$feature_pkg_file" | tee /tmp/pacman-integration-contents.txt >/dev/null
+                tar -xOf "$feature_pkg_file" .PKGINFO | tee /tmp/pacman-integration-pkginfo.txt >/dev/null
+                tar -tvf "$feature_pkg_file" \
+                  usr/share/codex-port-integration-framework/fixture.txt \
+                  | tee /tmp/pacman-integration-long-contents.txt >/dev/null
+                grep -q "usr/share/codex-port-integration-framework/fixture.txt" /tmp/pacman-integration-contents.txt
+                grep -q "^depend = codex-port-integration-framework-runtime$" /tmp/pacman-integration-pkginfo.txt
+                fixture_mode="$(sed -n "1s/ .*//p" /tmp/pacman-integration-long-contents.txt)"
+                test "$fixture_mode" = "-rw-r-----"
+                printf "%s\n" "$(basename "$feature_pkg_file")" > /tmp/pacman-integration-package-name.txt
+
+                rm -rf codex-app dist
+                CODEX_FIXTURE_PORT_INTEGRATIONS_JSON="[\"codex-micro\"]" \
+                  tests/fixtures/create-packaged-app-fixture.sh codex-app
+                printf "%s\n" "{\"enabled\":[\"codex-micro\"]}" \
+                  > /tmp/codex-micro-integrations.json
+
+                CODEX_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
+
+                micro_pkg_file="$(find dist -maxdepth 1 -name "codex-app-*.pkg.tar.*" -print -quit)"
+                test -n "$micro_pkg_file"
+                pacman -Qlp "$micro_pkg_file" | tee /tmp/pacman-micro-contents.txt >/dev/null
+                tar -xOf "$micro_pkg_file" .PKGINFO | tee /tmp/pacman-micro-pkginfo.txt >/dev/null
+                tar -tvf "$micro_pkg_file" \
+                  usr/lib/udev/rules.d/70-codex-micro.rules \
+                  | tee /tmp/pacman-micro-long-contents.txt >/dev/null
+                grep -q "usr/lib/udev/rules.d/70-codex-micro.rules" /tmp/pacman-micro-contents.txt
+                grep -q "^depend = libusb$" /tmp/pacman-micro-pkginfo.txt
+                grep -q "^depend = systemd-libs$" /tmp/pacman-micro-pkginfo.txt
+                micro_rule_mode="$(sed -n "1s/ .*//p" /tmp/pacman-micro-long-contents.txt)"
+                test "$micro_rule_mode" = "-rw-r--r--"
+                printf "%s\n" "$(basename "$micro_pkg_file")" > /tmp/pacman-micro-package-name.txt
               '"'"'
               cp /tmp/pacman-package-name.txt /work/.pacman-package-name.txt
+              cp /tmp/pacman-integration-package-name.txt /work/.pacman-integration-package-name.txt
+              cp /tmp/pacman-micro-package-name.txt /work/.pacman-micro-package-name.txt
             '
 
       - name: Write pacman validation summary
         run: |
           set -euo pipefail
           pkg_file="$(cat .pacman-package-name.txt)"
+          feature_pkg_file="$(cat .pacman-integration-package-name.txt)"
+          micro_pkg_file="$(cat .pacman-micro-package-name.txt)"
           {
             echo "## Pacman Package Validation"
             echo ""
             echo "- Built: \`$pkg_file\`"
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
+            echo "- Integration-enabled build: \`$feature_pkg_file\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+            echo "- Codex Micro build: \`$micro_pkg_file\`"
+            echo "- Verified udev rule, 0644 mode, and systemd-libs/libusb dependencies."
           } >> "$GITHUB_STEP_SUMMARY"

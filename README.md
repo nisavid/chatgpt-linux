@@ -18,7 +18,7 @@ native packages.
 
 > [!NOTE]
 > This is an unofficial community project. It does not redistribute OpenAI
-> software; it automates a local conversion from the official OpenAI Codex DMG.
+> software; it automates a local conversion from the official OpenAI ChatGPT DMG.
 
 ## Start Here
 
@@ -36,9 +36,14 @@ native packages.
 ## Quick Start
 
 This is the normal fast path for a package-managed install. It removes old
-generated output, rebuilds the Linux app from the official OpenAI Codex DMG,
+generated output, rebuilds the Linux app from the official OpenAI ChatGPT DMG,
 builds the native package for your host, then installs that package with your
 distro's package manager.
+
+For the guided one-command path, clone the repository and run
+`make bootstrap-native`. It installs host dependencies, builds and packages
+the app, and installs the resulting native package. The expanded flow below is
+useful when you want to inspect the package before installing it.
 
 ```bash
 git clone https://github.com/nisavid/codex-app-linux.git
@@ -95,6 +100,31 @@ port integration config. It can write the git-ignored
 build, package, or install flow unless you explicitly opt in through
 `CODEX_BOOTSTRAP_INSTALL_DEPS=1` or `CODEX_BOOTSTRAP_INSTALL_NATIVE=1`.
 
+## Uninstall
+
+Close Codex App, then remove the native package with your distro's package
+manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt remove codex-app
+
+# Fedora
+sudo dnf remove codex-app
+
+# openSUSE
+sudo zypper remove codex-app
+
+# Arch Linux
+sudo pacman -R codex-app
+```
+
+Package removal stops and disables `codex-app-updater.service`. If a service
+from an older or manual install remains, remove its user-level enablement with
+`systemctl --user disable --now codex-app-updater.service`. AppImage and
+checkout builds are not system-installed; remove the artifact or generated tree
+you created. User configuration and state are preserved for reinstall.
+
 ## Highlights
 
 - **Distro-shaped native packages.** Builds `.deb`, `.rpm`, and pacman packages
@@ -123,12 +153,11 @@ build, package, or install flow unless you explicitly opt in through
 - **Host-gated:** Linux Computer Use is packaged, but real readiness depends on
   local AT-SPI, screenshot portal or compositor support, `ydotool`, and input
   permissions.
-- **Default port integrations:** Agent Workspaces, AppShots, wrapper updater,
-  Copilot reasoning effort defaults, remote-control UI, mobile-control host
-  patches, Read Aloud, Read Aloud MCP, conversation mode, and Open target
-  discovery are enabled by default. Integration-specific settings, account,
-  rollout, MFA, connected-client, audio, and host-network requirements still
-  apply.
+- **Curated port integrations:** the manifest-declared defaults cover app
+  workflow, project, update, remote-control, speech, theme, and status surfaces.
+  `make setup-native` shows the current set. Integration-specific settings,
+  account rollouts, MFA, connected-client, audio, and host-network requirements
+  still apply.
 - **NixOS:** the flake exposes the default app, Computer Use UI compatibility
   outputs, remote-mobile compatibility aliases, and installer outputs with
   pinned DMG metadata.
@@ -158,28 +187,37 @@ make build-app
 make run-app
 ```
 
-`make build-app` downloads or reuses `Codex.dmg`, extracts the app, patches the
+`make build-app` downloads or reuses `ChatGPT.dmg`, extracts the app, patches the
 macOS bundle for Linux, rebuilds native modules, downloads a Linux Electron
 runtime, and writes `codex-app/start.sh`.
+
+App generation is transactional. The candidate must pass the shared
+[official DMG acceptance profile](docs/upstream-dmg-acceptance.md) before it
+replaces the working `codex-app/`. Acceptance checks enabled port integrations;
+rejected or inconclusive candidates preserve the current app.
 
 On first launch, the app can install the Codex CLI if it is missing. To install
 the CLI yourself with an existing `npm` command:
 
 ```bash
-npm i -g @openai/codex
+npm i -g --include=optional @openai/codex
 ```
 
 If global npm installs require elevated privileges on your system, use a
 rootless prefix instead:
 
 ```bash
-npm i -g --prefix ~/.local @openai/codex
+npm i -g --prefix ~/.local --include=optional @openai/codex
 ```
+
+The Linux optional dependency supplies the platform binary. The launcher uses
+`CODEX_CLI_PATH` first, then its normal lookup order, and logs the resolved path
+plus a best-effort version for GUI `PATH` troubleshooting.
 
 Build from a DMG you already downloaded:
 
 ```bash
-make build-app DMG=/path/to/Codex.dmg
+make build-app DMG=/path/to/ChatGPT.dmg
 ```
 
 If Electron runtime or header downloads are slow or blocked, use
@@ -210,17 +248,14 @@ behavior and local runtime helpers to this Linux port. The source path is
 `port-integrations/`, but the modules are not features of Linux itself,
 and their user-facing concepts are not necessarily Linux-only Codex features.
 
-This fork enables the current supported integration set by default: Open target
-discovery, Agent Workspaces, AppShots, wrapper updater, Copilot reasoning effort
-defaults, remote-control UI, mobile-control host patches, Read Aloud, Read Aloud
-MCP, and conversation mode. Open target discovery lets the Open menus discover
-Linux terminals, editors, and file managers from the current desktop session.
-Agent Workspaces keeps its normal workspace start approval flow and permission
-controls in its settings page. Main-process hardening for direct bridge calls is
-tracked in
-[`#99`](https://github.com/nisavid/codex-app-linux/issues/99). AppShots keeps
-global hotkeys inactive until the user chooses one. Wrapper update checks stay
-off at runtime until enabled in Settings.
+This fork enables the curated integration set declared by each manifest. Run
+`make setup-native` to review the current defaults. Open target discovery finds
+Linux terminals, editors, and file managers from the desktop session; Agent
+Workspaces preserves its approval and permission controls; AppShots keeps global
+hotkeys inactive until configured; and wrapper update checks stay off at
+runtime until enabled in Settings. Main-process hardening for direct workspace
+bridge calls is tracked in
+[`#99`](https://github.com/nisavid/codex-app-linux/issues/99).
 
 To disable default integrations or enable still-optional integrations, copy
 `port-integrations/integrations.example.json` to the git-ignored
@@ -232,14 +267,11 @@ override shape; checkout builds ignore that persistent user file and use
 See [`port-integrations/README.md`](port-integrations/README.md) for the integration
 contract.
 
-The `agent-workspace`, `appshots`, `codex-wrapper-updater`,
-`copilot-reasoning-effort`, `remote-control-ui`, `remote-mobile-control`,
-`read-aloud`, `read-aloud-mcp`, and `conversation-mode` integrations expose or
-support official app surfaces and local runtime helpers through Linux-specific
-implementation code. Treat them as UI/runtime integrations, not as account-policy
-bypasses: OpenAI rollouts, MFA state, connected-client state, audio availability,
-remote-control enrollment, and host network exposure still come from
-OpenAI-hosted services and your local environment.
+Port integrations expose official app surfaces and local runtime helpers through
+Linux-specific implementation code. Treat them as UI/runtime integrations, not
+as account-policy bypasses: OpenAI rollouts, MFA state, connected-client state,
+audio availability, remote-control enrollment, and host network exposure still
+come from OpenAI-hosted services and your local environment.
 
 ## Native Package Details
 
@@ -326,8 +358,13 @@ The AppImage flow omits `codex-app-updater`, the systemd user service, polkit
 policy, and the native-package update-builder bundle. Rebuild it manually when
 you want a newer official OpenAI app bundle.
 
+To embed an installed Codex CLI and its matching Linux platform package, set
+`CODEX_CLI_BUNDLE_SOURCE` to its `node_modules/@openai/codex` directory when
+running `make appimage`. An explicit runtime `CODEX_CLI_PATH` still takes
+precedence.
+
 Before publishing packages, run the release gate with a trusted official OpenAI
-Codex DMG hash:
+ChatGPT DMG hash:
 
 ```bash
 CODEX_DMG_SHA256=<reviewed-dmg-sha256> \
@@ -394,7 +431,7 @@ app-server managed by systemd, import the flake module:
 prefer a global user unit.
 
 If `nix run` reports a DMG metadata mismatch, OpenAI likely republished the
-Codex DMG after the pinned metadata changed. A scheduled GitHub Actions job
+ChatGPT DMG after the pinned metadata changed. A scheduled GitHub Actions job
 refreshes that metadata and verifies the Nix package outputs on `main`. Retry
 after the bot has had time to run; if it still fails, open an issue.
 
@@ -441,10 +478,10 @@ After building the app, check backend readiness with:
 ## Local Updater
 
 Native packages install `codex-app-updater`, a `systemd --user` service that
-checks for newer official OpenAI Codex DMGs, rebuilds the matching Linux package
+checks for newer official OpenAI ChatGPT DMGs, rebuilds the matching Linux package
 locally, and uses `pkexec` only for the final package install step.
 
-Current updater crate version: `0.9.0`.
+Current updater crate version: `0.10.4`.
 
 Useful service commands after installing a native package:
 

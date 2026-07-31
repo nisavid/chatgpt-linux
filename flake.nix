@@ -53,6 +53,7 @@
           ];
         };
         flakeSourceCommit = self.rev or (self.dirtyRev or "");
+        flakeSourceRemote = "https://github.com/nisavid/codex-app-linux.git";
         flakeSourceDateEpoch = toString (self.lastModified or 1);
         sourceRoot = pkgs.lib.cleanSourceWith {
           src = ./.;
@@ -63,6 +64,7 @@
             in
               !(pkgs.lib.hasSuffix "/.codex" pathStr || pkgs.lib.hasInfix "/.codex/" pathStr));
         };
+        nixPortIntegrations = import ./nix/port-integrations.nix { lib = pkgs.lib; };
         computerUseBuildSource = pkgs.runCommandLocal "codex-computer-use-linux-source" { } ''
           mkdir -p "$out"
           cp ${./Cargo.lock} "$out/Cargo.lock"
@@ -74,27 +76,38 @@
           cp -R ${./computer-use-linux} "$out/computer-use-linux"
           chmod -R u+w "$out"
         '';
+        notificationActionsBuildSource = pkgs.runCommandLocal "codex-notification-actions-linux-source" { } ''
+          mkdir -p "$out"
+          cp ${./Cargo.lock} "$out/Cargo.lock"
+          cat > "$out/Cargo.toml" <<'EOF'
+          [workspace]
+          members = ["notification-actions-linux"]
+          resolver = "2"
+          EOF
+          cp -R ${./notification-actions-linux} "$out/notification-actions-linux"
+          chmod -R u+w "$out"
+        '';
         nativeModulesBuildSupport = pkgs.runCommandLocal "codex-native-modules-build-support" { } ''
           mkdir -p "$out/scripts/lib"
           cp ${./scripts/lib/native-modules.sh} "$out/scripts/lib/native-modules.sh"
         '';
 
         codexDmg = pkgs.fetchurl {
-          url = "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg";
-          hash = "sha256-MdjiZmoIlagw3wgy3ECDroKm6b0mYDFBwCk6zqZhghE=";
+          url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg";
+          hash = "sha256-+5OiOcgRx2Oc9FqQ/zbCYvoCkGQBQM0S2j/cYLYiVa4=";
         };
 
-        codexVersion = "26.611.62324";
-        electronVersion = "42.1.0";
+        codexVersion = "26.727.40816";
+        electronVersion = "42.3.0";
         electronPlatform =
           {
             x86_64-linux = {
               arch = "x64";
-              hash = "sha256-iCBHNDqeIDxs/F05sWbqngJd0laUPg03EfhnJa0OO9k=";
+              hash = "sha256-SHpmfKanNLlYwWz/HfdNnUTSwYpszNtN1R9jAaNWxCA=";
             };
             aarch64-linux = {
               arch = "arm64";
-              hash = "sha256-HnAPfz2u95TMRSNeUcEXJmSu1JpOdze4iW3cOYv/TX0=";
+              hash = "sha256-Kjdf+XP7e93FOKT2eyFBlH6dclE6G6or6r7Cp/Zc0PA=";
             };
           }.${system} or (throw "codex-app-linux Nix package is not supported on ${system}");
 
@@ -119,7 +132,13 @@
 
         electronHeaders = pkgs.fetchurl {
           url = "https://artifacts.electronjs.org/headers/dist/v${electronVersion}/node-v${electronVersion}-headers.tar.gz";
-          hash = "sha256-DPwdIPJS1sKb3RSx88qjDtxkd9uT5aZiBnRCSzjc3f0=";
+          hash = "sha256-ghAJ+cGDAFDYlK755hkGywpTeyAAstm77ZmF//HV4NA=";
+        };
+
+        codexMicroNodeHidArchive = pkgs.fetchurl {
+          name = "node-hid-3.3.0.tgz";
+          url = "https://registry.npmjs.org/node-hid/-/node-hid-3.3.0.tgz";
+          hash = "sha512-j+dFgJLRAE0nufQKXk3IfS6T6YuHhCgMvz4TrG0sgtb6DSCdYpfJ1etcdmeCmPQjUgO+yo32ktVrRliNs/+fmg==";
         };
 
         browserUseNodeReplRuntime = pkgs.fetchurl {
@@ -151,9 +170,6 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cosmic-protocols-0.2.0" = "sha256-ymn+BUTTzyHquPn4hvuoA3y1owFj8LVrmsPu2cdkFQ8=";
-            };
           };
 
           buildAndTestSubdir = "computer-use-linux";
@@ -194,6 +210,7 @@
             "-p"
             "codex-read-aloud-linux"
           ];
+
           doCheck = false;
 
           installPhase = ''
@@ -203,6 +220,65 @@
               release_dir="target/release"
             fi
             install -Dm0755 "$release_dir/codex-read-aloud-linux" "$out/bin/codex-read-aloud-linux"
+            runHook postInstall
+          '';
+        };
+
+        codexNotificationActionsBinary = pkgs.rustPlatform.buildRustPackage {
+          pname = "codex-notification-actions-linux";
+          version = "0.1.0";
+          src = notificationActionsBuildSource;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          cargoBuildFlags = [
+            "-p"
+            "codex-notification-actions-linux"
+          ];
+
+          doCheck = true;
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 "$release_dir/codex-notification-actions-linux" "$out/bin/codex-notification-actions-linux"
+            runHook postInstall
+          '';
+        };
+
+        codexMcpHelperReaper = pkgs.rustPlatform.buildRustPackage {
+          pname = "codex-mcp-helper-reaper";
+          version = "0.1.0";
+          src = ./port-integrations/mcp-helper-reaper/reaper;
+
+          cargoLock = {
+            lockFile = ./port-integrations/mcp-helper-reaper/reaper/Cargo.lock;
+          };
+        };
+
+        codexGlobalDictationBinary = pkgs.rustPlatform.buildRustPackage {
+          pname = "codex-global-dictation-linux";
+          version = "0.1.0";
+          src = ./global-dictation-linux;
+
+          cargoLock = {
+            lockFile = ./global-dictation-linux/Cargo.lock;
+          };
+
+          doCheck = false;
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 "$release_dir/codex-global-dictation-linux" "$out/bin/codex-global-dictation-linux"
             runHook postInstall
           '';
         };
@@ -315,6 +391,7 @@ EOF
           libxi
           libxtst
           libxscrnsaver
+          libnotify
           libglvnd
           systemd
           wayland
@@ -326,6 +403,21 @@ EOF
           stdenv.cc.cc.lib
           zlib
         ]);
+        codexMicroRuntimeLibPath = pkgs.lib.makeLibraryPath (with pkgs; [
+          systemd
+          libusb1
+          stdenv.cc.cc.lib
+          glibc
+        ]);
+        gsettingsSchemaPackages = with pkgs; [
+          gsettings-desktop-schemas
+          gtk3
+        ];
+        gsettingsSchemaRoot = pkg:
+          pkgs.lib.removeSuffix "/glib-2.0/schemas" (pkgs.glib.getSchemaPath pkg);
+        gsettingsSchemaDataDirs =
+          pkgs.lib.concatMapStringsSep ":" gsettingsSchemaRoot gsettingsSchemaPackages;
+        xdgDefaultDataDirs = "/usr/local/share:/usr/share";
         launcherPath = pkgs.lib.makeBinPath (with pkgs; [
           bash
           coreutils
@@ -340,6 +432,11 @@ EOF
           systemd
           xdg-utils
         ]);
+        globalDictationRuntimePath = pkgs.lib.makeBinPath (with pkgs; [
+          xdotool
+          xinput
+          xmodmap
+        ]);
 
         patchNixInstalledApp = installDir: ''
           # Patch generated scripts for NixOS systems without /bin/bash.
@@ -347,9 +444,12 @@ EOF
             ${pkgs.gnused}/bin/sed -i '1s|^#!/bin/bash$|#!${pkgs.bash}/bin/bash|' "${installDir}/start.sh"
             if ! grep -q "NixOS Electron library path" "${installDir}/start.sh"; then
               # shellcheck disable=SC2016
-              ${pkgs.gnused}/bin/sed -i '2i# NixOS Electron library path for dlopen()ed GL/EGL libraries.\nexport LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}:''${LD_LIBRARY_PATH:-}"' "${installDir}/start.sh"
+              ${pkgs.gnused}/bin/sed -i '/^codex_capture_original_ld_library_path$/a\
+# NixOS Electron library path for dlopen()ed GL/EGL libraries.\
+export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\
+codex_nixos_add_runtime_library_dirs' "${installDir}/start.sh"
             fi
-            if ! grep -q "codex_nixos_add_runtime_library_dirs" "${installDir}/start.sh"; then
+            if ! grep -q "codex_nixos_add_runtime_library_dirs()" "${installDir}/start.sh"; then
               # shellcheck disable=SC2016
               ${pkgs.gnused}/bin/sed -i '/^set -euo pipefail$/a\
 \
@@ -371,9 +471,7 @@ codex_nixos_add_runtime_library_dirs() {\
     done\
 \
     export LD_LIBRARY_PATH\
-}\
-\
-codex_nixos_add_runtime_library_dirs' "${installDir}/start.sh"
+}' "${installDir}/start.sh"
             fi
             if ! grep -q "Browser Use bundled marketplace metadata" "${installDir}/start.sh"; then
               ${pkgs.python3}/bin/python3 - "${installDir}/start.sh" <<'PY'
@@ -439,13 +537,29 @@ PY
           fi
         '';
 
+        portIntegrationsConfigFile = config:
+          pkgs.writeText "codex-port-integrations.json" (builtins.toJSON config);
+
         portIntegrationsConfig = portIntegrationIds:
-          pkgs.writeText "codex-port-integrations.json" (builtins.toJSON {
+          portIntegrationsConfigFile {
             enabled = portIntegrationIds;
-          });
+          };
+
+        normalizePortIntegrationsConfig = config:
+          let
+            enabled = nixPortIntegrations.normalize (config.enabled or [ ]);
+          in
+          config // {
+            inherit enabled;
+          };
+
+        watchdogPortIntegrationsConfig = normalizePortIntegrationsConfig (
+          builtins.fromJSON (builtins.readFile ./scripts/ci/watchdog-port-integrations.json)
+        );
 
         enabledIntegrationIds = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
-          pkgs.lib.optionals enableComputerUseUi [ "computer-use-ui" ] ++ portIntegrationIds;
+          pkgs.lib.optionals enableComputerUseUi [ "computer-use-ui" ]
+          ++ nixPortIntegrations.normalize portIntegrationIds;
 
         packageSuffix = args:
           let
@@ -453,12 +567,18 @@ PY
           in
           if integrationIds == [ ] then "" else "-${pkgs.lib.concatStringsSep "-" integrationIds}";
 
-        mkCodexAppPayload = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
+        mkCodexAppPayload = { enableComputerUseUi ? false, portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
-          integrationIds = enabledIntegrationIds { inherit enableComputerUseUi portIntegrationIds; };
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          effectivePortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = builtins.elem "codex-micro" effectivePortIntegrationIds;
         in
         pkgs.stdenv.mkDerivation {
-          pname = "codex-app${packageSuffix { inherit enableComputerUseUi portIntegrationIds; }}-payload";
+          pname = "codex-app${packageSuffix { inherit enableComputerUseUi; portIntegrationIds = effectivePortIntegrationIds; }}-payload";
           version = codexVersion;
           src = sourceRoot;
           __structuredAttrs = true;
@@ -477,6 +597,7 @@ PY
             pkgs.patchelf
             pkgs.python3
             pkgs.unzip
+            pkgs.util-linux
           ];
 
           dontConfigure = true;
@@ -495,6 +616,7 @@ PY
             export SOURCE_DATE_EPOCH="${flakeSourceDateEpoch}"
             ${pkgs.lib.optionalString (flakeSourceCommit != "") ''
             export CODEX_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
+            export CODEX_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"
             ''}
             ${pkgs.lib.optionalString enableComputerUseUi ''
             export CODEX_LINUX_ENABLE_COMPUTER_USE_UI=1
@@ -503,9 +625,12 @@ PY
             export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
             export CODEX_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
-            export CODEX_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfig integrationIds}"
+            export CODEX_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
             export CODEX_ELECTRON_ZIP_SOURCE="${electronZip}"
             export CODEX_NATIVE_MODULES_SOURCE="${codexNativeModules}"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            export CODEX_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
+            ''}
             ${pkgs.lib.optionalString (browserUseNodeRepl != null) ''
             export CODEX_LINUX_NODE_REPL_SOURCE="${browserUseNodeRepl}/bin/node_repl"
             ''}
@@ -513,13 +638,20 @@ PY
             export CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE="${codexComputerUseBinaries}/bin/codex-computer-use-cosmic"
             export CODEX_CHROME_EXTENSION_HOST_SOURCE="${codexComputerUseBinaries}/bin/codex-chrome-extension-host"
             export CODEX_LINUX_READ_ALOUD_MCP_SOURCE="${codexReadAloudMcpBinary}/bin/codex-read-aloud-linux"
+            export CODEX_NOTIFICATION_ACTIONS_SOURCE="${codexNotificationActionsBinary}/bin/codex-notification-actions-linux"
+            ${pkgs.lib.optionalString (builtins.elem "mcp-helper-reaper" effectivePortIntegrationIds) ''
+            export CODEX_MCP_HELPER_REAPER_SOURCE="${codexMcpHelperReaper}/bin/codex-mcp-helper-reaper"
+            ''}
+            ${pkgs.lib.optionalString (builtins.elem "global-dictation" effectivePortIntegrationIds) ''
+            export CODEX_GLOBAL_DICTATION_LINUX_SOURCE="${codexGlobalDictationBinary}/bin/codex-global-dictation-linux"
+            ''}
             mkdir -p "$HOME" "$npm_config_cache" "$CARGO_HOME"
 
             source_dir="$TMPDIR/codex-source"
             mkdir -p "$source_dir"
             cp -R ./. "$source_dir/"
             chmod -R u+w "$source_dir"
-            cp ${codexDmg} "$source_dir/Codex.dmg"
+            cp ${codexDmg} "$source_dir/ChatGPT.dmg"
 
             substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \
               --replace-fail "npx --yes asar" "asar"
@@ -527,7 +659,7 @@ PY
               --replace-fail "npx --yes asar" "asar"
 
             export CODEX_INSTALL_DIR="$out/opt/codex-app"
-            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/Codex.dmg"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
 
             asar extract "$CODEX_INSTALL_DIR/resources/app.asar" "$CODEX_INSTALL_DIR/resources/app-extracted"
             rm -f "$CODEX_INSTALL_DIR/resources/app.asar"
@@ -539,12 +671,27 @@ PY
           '';
         };
 
-        mkCodexApp = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
+        buildCodexApp = { enableComputerUseUi ? false, portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
-          integrationArgs = { inherit enableComputerUseUi portIntegrationIds; };
-          payload = mkCodexAppPayload {
-            inherit enableComputerUseUi portIntegrationIds;
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          normalizedPortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = builtins.elem "codex-micro" normalizedPortIntegrationIds;
+          integrationArgs = {
+            inherit enableComputerUseUi;
+            portIntegrationIds = normalizedPortIntegrationIds;
           };
+          payload = mkCodexAppPayload {
+            inherit enableComputerUseUi;
+            portIntegrationIds = normalizedPortIntegrationIds;
+            portIntegrationsConfigOverride = effectivePortIntegrationsConfig;
+          };
+          payloadLauncherPath = launcherPath + pkgs.lib.optionalString
+            (builtins.elem "global-dictation" normalizedPortIntegrationIds)
+            ":${globalDictationRuntimePath}";
         in
         pkgs.stdenv.mkDerivation {
           pname = "codex-app${packageSuffix integrationArgs}";
@@ -580,10 +727,55 @@ PY
               --unpack "{*.node,*.so,*.dylib}"
             rm -rf "$resources_dir/app-extracted"
 
-            if [ -f "$resources_dir/node_repl" ]; then
-              patchelf --set-interpreter "$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)" \
-                --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
-                "$resources_dir/node_repl"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            codex_micro_node_count=0
+            while IFS= read -r codex_micro_node; do
+              codex_micro_node_count=$((codex_micro_node_count + 1))
+              patchelf --set-rpath "${codexMicroRuntimeLibPath}" "$codex_micro_node"
+              actual_rpath="$(patchelf --print-rpath "$codex_micro_node")"
+              if [ "$actual_rpath" != "${codexMicroRuntimeLibPath}" ]; then
+                echo "codex-micro node-hid RPATH verification failed: $actual_rpath" >&2
+                exit 1
+              fi
+            done < <(
+              find "$resources_dir/app.asar.unpacked" -type f \
+                -path '*/node-hid/prebuilds/HID_hidraw-linux-*/node-napi-v4.node' \
+                -print
+            )
+            if [ "$codex_micro_node_count" -ne 1 ]; then
+              echo "expected exactly one codex-micro node-hid Linux binding, found $codex_micro_node_count" >&2
+              exit 1
+            fi
+
+            install -Dm0644 \
+              "$out/opt/codex-app/.codex-linux/integrations/codex-micro/70-codex-micro.rules" \
+              "$out/lib/udev/rules.d/70-codex-micro.rules"
+            ''}
+
+            for node_repl_binary in \
+              "$resources_dir/node_repl" \
+              "$resources_dir/node_repl.codex-linux-original"; do
+              if [ -f "$node_repl_binary" ] \
+                  && [ "$(dd if="$node_repl_binary" bs=1 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
+                patchelf --set-interpreter "$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)" \
+                  --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
+                  "$node_repl_binary"
+              fi
+            done
+
+            if [ -f "$resources_dir/node_repl.codex-linux-original" ]; then
+              node_repl_interpreter="$(patchelf --print-interpreter \
+                "$resources_dir/node_repl.codex-linux-original")"
+              node_repl_rpath="$(patchelf --print-rpath \
+                "$resources_dir/node_repl.codex-linux-original")"
+              case "$node_repl_interpreter" in
+                /nix/store/*) ;;
+                *) echo "node_repl backup has non-Nix interpreter: $node_repl_interpreter" >&2; exit 1 ;;
+              esac
+              case "$node_repl_rpath" in
+                *"/nix/store/"*) ;;
+                *) echo "node_repl backup has non-Nix RPATH: $node_repl_rpath" >&2; exit 1 ;;
+              esac
             fi
 
             ${patchNixInstalledApp "$out/opt/codex-app"}
@@ -598,7 +790,9 @@ PY
               --replace-fail "/usr/share/applications/codex-app.desktop" "$out/share/applications/codex-app.desktop"
 
             makeWrapper "$out/opt/codex-app/start.sh" "$out/bin/codex-app" \
-              --prefix PATH : "${launcherPath}" \
+              --prefix PATH : "${payloadLauncherPath}" \
+              --run 'export XDG_DATA_DIRS="''${XDG_DATA_DIRS:-${xdgDefaultDataDirs}}"' \
+              --prefix XDG_DATA_DIRS : "${gsettingsSchemaDataDirs}" \
               --prefix LD_LIBRARY_PATH : "${electronLibPath}" \
               --prefix LD_LIBRARY_PATH : "${runtimeLibPath}" \
               --prefix PATH : "/run/current-system/sw/bin" \
@@ -623,19 +817,23 @@ PY
           };
         };
 
-        codexApp = mkCodexApp { };
+        codexApp = pkgs.lib.makeOverridable buildCodexApp { };
 
-        codexAppComputerUseUi = mkCodexApp {
+        codexAppComputerUseUi = codexApp.override {
           enableComputerUseUi = true;
         };
 
-        codexAppRemoteMobileControl = mkCodexApp {
+        codexAppRemoteMobileControl = codexApp.override {
           portIntegrationIds = [ "remote-mobile-control" ];
         };
 
-        codexAppComputerUseUiRemoteMobileControl = mkCodexApp {
+        codexAppComputerUseUiRemoteMobileControl = codexApp.override {
           enableComputerUseUi = true;
           portIntegrationIds = [ "remote-mobile-control" ];
+        };
+
+        codexAppWatchdogIntegrationCheck = codexApp.override {
+          portIntegrationsConfigOverride = watchdogPortIntegrationsConfig;
         };
 
         installer = pkgs.writeShellApplication {
@@ -665,13 +863,14 @@ PY
             mkdir -p "$source_dir"
             cp -R ${sourceRoot}/. "$source_dir"
             chmod -R u+w "$source_dir"
-            cp ${codexDmg} "$source_dir/Codex.dmg"
+            cp ${codexDmg} "$source_dir/ChatGPT.dmg"
             chmod +x "$source_dir/install.sh"
 
             cd "$source_dir"
             export CODEX_INSTALL_DIR="''${CODEX_INSTALL_DIR:-$root_dir/codex-app}"
             export CODEX_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
-            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/Codex.dmg" "$@"
+            export CODEX_NOTIFICATION_ACTIONS_SOURCE="${codexNotificationActionsBinary}/bin/codex-notification-actions-linux"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg" "$@"
 
             install_dir="''${CODEX_INSTALL_DIR:-$root_dir/codex-app}"
 
@@ -687,6 +886,56 @@ PY
           codex-app-remote-mobile-control = codexAppRemoteMobileControl;
           codex-app-computer-use-ui-remote-mobile-control = codexAppComputerUseUiRemoteMobileControl;
           installer = installer;
+        };
+
+        checks = {
+          notification-actions-linux = codexNotificationActionsBinary;
+          notification-actions-installer = pkgs.runCommand "codex-notification-actions-installer-check" { } ''
+            grep -F 'CODEX_NOTIFICATION_ACTIONS_SOURCE=' ${installer}/bin/codex-app-installer >/dev/null
+            touch "$out"
+          '';
+          nix-gsettings-schema-wrapper = pkgs.runCommand "codex-app-nix-gsettings-schema-wrapper-check" { } ''
+            schema_data_dirs=${pkgs.lib.escapeShellArg gsettingsSchemaDataDirs}
+            default_data_dirs=${pkgs.lib.escapeShellArg xdgDefaultDataDirs}
+            explicit_data_dirs=/custom/share:/other/share
+
+            run_wrapper() {
+              case "$1" in
+                unset) unset XDG_DATA_DIRS ;;
+                empty) export XDG_DATA_DIRS= ;;
+                populated) export XDG_DATA_DIRS="$explicit_data_dirs" ;;
+                *) echo "unknown test case: $1" >&2; return 1 ;;
+              esac
+
+              exec() {
+                printf '%s\n' "$XDG_DATA_DIRS"
+              }
+
+              source ${codexApp}/bin/codex-app
+            }
+
+            assert_data_dirs() {
+              test_case="$1"
+              expected="$2"
+              actual="$(run_wrapper "$test_case")"
+              if [ "$actual" != "$expected" ]; then
+                printf '%s: expected <%s>, got <%s>\n' \
+                  "$test_case" "$expected" "$actual" >&2
+                return 1
+              fi
+            }
+
+            expected_defaults="$schema_data_dirs:$default_data_dirs"
+            assert_data_dirs unset "$expected_defaults"
+            assert_data_dirs empty "$expected_defaults"
+            assert_data_dirs populated "$schema_data_dirs:$explicit_data_dirs"
+            touch "$out"
+          '';
+          nix-port-integrations-evaluation = import ./nix/port-integrations-test.nix {
+            inherit pkgs self system;
+          };
+          watchdog-port-integrations = codexAppWatchdogIntegrationCheck;
+          nix-port-integrations-multi-integration = codexAppWatchdogIntegrationCheck;
         };
 
         apps.default = {

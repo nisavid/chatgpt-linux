@@ -1,18 +1,154 @@
-//! Cleanup helpers for updater-managed build workspaces.
+//! Cleanup helpers for updater-managed build workspaces and opt-in generated
+//! wrapper checkout artifacts.
 
+use crate::config::GeneratedArtifactCleanupConfig;
 use crate::state::{PersistedState, UpdateStatus};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::{
     collections::BTreeSet,
+    ffi::CString,
     fs,
-    path::{Path, PathBuf},
+    fs::OpenOptions,
+    mem,
+    os::unix::ffi::OsStrExt,
+    path::{Component, Path, PathBuf},
 };
 
 const HEAVY_WORKSPACE_DIRS: &[&str] = &["builder", "codex-app", "dist"];
+pub const DMG_CACHE_LOCK_NAME: &str = ".downloads.lock";
+const DMG_DOWNLOAD_TEMP_PREFIX: &str = ".ChatGPT.dmg.download-";
+
+#[derive(Debug)]
+pub struct DmgCacheLease {
+    _file: fs::File,
+}
+
+pub async fn acquire_dmg_cache_lease(downloads_dir: &Path) -> Result<DmgCacheLease> {
+    let downloads_dir = downloads_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        fs::create_dir_all(&downloads_dir)
+            .with_context(|| format!("Failed to create {}", downloads_dir.display()))?;
+        let lock_path = downloads_dir.join(DMG_CACHE_LOCK_NAME);
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .with_context(|| format!("Failed to open {}", lock_path.display()))?;
+        file.lock_shared()
+            .with_context(|| format!("Failed to lock {}", lock_path.display()))?;
+        Ok(DmgCacheLease { _file: file })
+    })
+    .await
+    .context("DMG cache lock task failed")?
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct CleanupSummary {
     pub pruned_workspaces: usize,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct DmgCacheCleanupSummary {
+    pub pruned_dmgs: usize,
+    pub pruned_temps: usize,
+    pub skipped_locked: bool,
+}
+
+pub fn prune_dmg_cache(
+    workspace_root: &Path,
+    state: &PersistedState,
+) -> Result<DmgCacheCleanupSummary> {
+    let downloads_dir = workspace_root.join("downloads");
+    if !downloads_dir.is_dir() {
+        return Ok(DmgCacheCleanupSummary::default());
+    }
+
+    let lock_path = downloads_dir.join(DMG_CACHE_LOCK_NAME);
+    let lock_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| format!("Failed to open {}", lock_path.display()))?;
+    match lock_file.try_lock() {
+        Ok(()) => {}
+        Err(fs::TryLockError::WouldBlock) => {
+            return Ok(DmgCacheCleanupSummary {
+                skipped_locked: true,
+                ..DmgCacheCleanupSummary::default()
+            });
+        }
+        Err(fs::TryLockError::Error(error)) => {
+            return Err(error).with_context(|| format!("Failed to lock {}", lock_path.display()));
+        }
+    }
+
+    let protected_dmg = state.artifact_paths.dmg_path.as_deref();
+    let mut summary = DmgCacheCleanupSummary::default();
+    for entry in fs::read_dir(&downloads_dir)
+        .with_context(|| format!("Failed to read {}", downloads_dir.display()))?
+    {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_file() || file_type.is_symlink() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let path = entry.path();
+        if is_managed_content_dmg(&name) {
+            if protected_dmg == Some(path.as_path()) {
+                continue;
+            }
+            fs::remove_file(&path)
+                .with_context(|| format!("Failed to remove {}", path.display()))?;
+            summary.pruned_dmgs += 1;
+        } else if is_managed_download_temp(&name) {
+            fs::remove_file(&path)
+                .with_context(|| format!("Failed to remove {}", path.display()))?;
+            summary.pruned_temps += 1;
+        }
+    }
+    Ok(summary)
+}
+
+fn is_managed_content_dmg(name: &str) -> bool {
+    let Some(hash) = name
+        .strip_prefix("Codex-")
+        .and_then(|value| value.strip_suffix(".dmg"))
+    else {
+        return false;
+    };
+    hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_managed_download_temp(name: &str) -> bool {
+    let Some(identity) = name
+        .strip_prefix(DMG_DOWNLOAD_TEMP_PREFIX)
+        .and_then(|value| value.strip_suffix(".tmp"))
+    else {
+        return false;
+    };
+    let mut components = identity.split('-');
+    matches!(
+        (components.next(), components.next(), components.next()),
+        (Some(pid), Some(counter), None)
+            if !pid.is_empty()
+                && !counter.is_empty()
+                && pid.bytes().all(|byte| byte.is_ascii_digit())
+                && counter.bytes().all(|byte| byte.is_ascii_digit())
+    )
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct GeneratedArtifactCleanupSummary {
+    pub inspected_roots: usize,
+    pub skipped_roots: usize,
+    pub pruned_paths: usize,
+    pub bytes_removed: u64,
 }
 
 pub fn prune_unreferenced_workspaces(
@@ -54,6 +190,51 @@ pub fn prune_unreferenced_workspaces(
 
         if pruned {
             summary.pruned_workspaces += 1;
+        }
+    }
+
+    Ok(summary)
+}
+
+pub fn prune_generated_artifacts(
+    cleanup: &GeneratedArtifactCleanupConfig,
+    default_root: &Path,
+) -> Result<GeneratedArtifactCleanupSummary> {
+    if !cleanup.enabled {
+        return Ok(GeneratedArtifactCleanupSummary::default());
+    }
+
+    let entries = cleanup_entries(cleanup)?;
+    let mut summary = GeneratedArtifactCleanupSummary::default();
+    for root in cleanup_roots(cleanup, default_root) {
+        if !root.is_dir() {
+            summary.skipped_roots += 1;
+            continue;
+        }
+        if !looks_like_wrapper_root(&root) {
+            summary.skipped_roots += 1;
+            continue;
+        }
+
+        summary.inspected_roots += 1;
+        let available_bytes = available_disk_bytes(&root)
+            .with_context(|| format!("Failed to read free space for {}", root.display()))?;
+        if cleanup.min_free_bytes > 0 && available_bytes >= cleanup.min_free_bytes {
+            summary.skipped_roots += 1;
+            continue;
+        }
+
+        for entry in &entries {
+            let target = root.join(entry);
+            if !target.exists() && fs::symlink_metadata(&target).is_err() {
+                continue;
+            }
+
+            let bytes = path_size(&target).unwrap_or(0);
+            remove_path(&target)
+                .with_context(|| format!("Failed to remove {}", target.display()))?;
+            summary.pruned_paths += 1;
+            summary.bytes_removed = summary.bytes_removed.saturating_add(bytes);
         }
     }
 
@@ -150,12 +331,160 @@ fn directory_is_empty(path: &Path) -> Result<bool> {
         .is_none())
 }
 
+fn cleanup_roots(
+    cleanup: &GeneratedArtifactCleanupConfig,
+    default_root: &Path,
+) -> BTreeSet<PathBuf> {
+    if cleanup.roots.is_empty() {
+        BTreeSet::from([default_root.to_path_buf()])
+    } else {
+        cleanup.roots.iter().cloned().collect()
+    }
+}
+
+fn cleanup_entries(cleanup: &GeneratedArtifactCleanupConfig) -> Result<Vec<PathBuf>> {
+    let mut entries = Vec::new();
+    for entry in &cleanup.entries {
+        if entry.as_os_str().is_empty() || entry.is_absolute() {
+            bail!("generated artifact cleanup entries must be relative top-level names");
+        }
+        let mut components = entry.components();
+        if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+            bail!("generated artifact cleanup entries must be relative top-level names");
+        }
+        entries.push(entry.clone());
+    }
+    Ok(entries)
+}
+
+fn looks_like_wrapper_root(root: &Path) -> bool {
+    root.join("install.sh").is_file()
+        && root.join("scripts/build-deb.sh").is_file()
+        && root.join("scripts/build-pacman.sh").is_file()
+}
+
+fn available_disk_bytes(path: &Path) -> Result<u64> {
+    let c_path = CString::new(path.as_os_str().as_bytes())
+        .with_context(|| format!("Path contains interior NUL: {}", path.display()))?;
+    let mut stat: libc::statvfs = unsafe { mem::zeroed() };
+    let result = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return Err(std::io::Error::last_os_error())
+            .with_context(|| format!("statvfs failed for {}", path.display()));
+    }
+
+    Ok((stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64))
+}
+
+fn path_size(path: &Path) -> Result<u64> {
+    let metadata =
+        fs::symlink_metadata(path).with_context(|| format!("Failed to stat {}", path.display()))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Ok(metadata.len());
+    }
+
+    let mut total = metadata.len();
+    for entry in fs::read_dir(path).with_context(|| format!("Failed to read {}", path.display()))? {
+        let entry = entry?;
+        total = total.saturating_add(path_size(&entry.path())?);
+    }
+    Ok(total)
+}
+
+fn remove_path(path: &Path) -> Result<()> {
+    let metadata =
+        fs::symlink_metadata(path).with_context(|| format!("Failed to stat {}", path.display()))?;
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(path).with_context(|| format!("Failed to remove {}", path.display()))
+    } else {
+        fs::remove_file(path).with_context(|| format!("Failed to remove {}", path.display()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::GeneratedArtifactCleanupConfig;
     use crate::state::{ArtifactPaths, PersistedState, UpdateStatus};
     use anyhow::Result;
     use std::{fs, path::PathBuf};
+
+    fn managed_dmg(downloads: &Path, byte: char) -> PathBuf {
+        downloads.join(format!("Codex-{}.dmg", byte.to_string().repeat(64)))
+    }
+
+    #[test]
+    fn dmg_cache_prunes_old_content_and_crash_temps_only() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let downloads = temp.path().join("downloads");
+        fs::create_dir_all(&downloads)?;
+        let protected = managed_dmg(&downloads, 'a');
+        let old = managed_dmg(&downloads, 'b');
+        let crash_temp = downloads.join(".ChatGPT.dmg.download-123-4.tmp");
+        let unrelated = downloads.join("notes.txt");
+        let malformed = downloads.join("Codex-not-a-hash.dmg");
+        let symlink = downloads.join(format!("Codex-{}.dmg", "c".repeat(64)));
+        fs::write(&protected, b"current")?;
+        fs::write(&old, b"old")?;
+        fs::write(&crash_temp, b"partial")?;
+        fs::write(&unrelated, b"notes")?;
+        fs::write(&malformed, b"unmanaged")?;
+        std::os::unix::fs::symlink(&old, &symlink)?;
+        let mut state = PersistedState::new(true);
+        state.artifact_paths.dmg_path = Some(protected.clone());
+
+        let summary = prune_dmg_cache(temp.path(), &state)?;
+
+        assert_eq!(summary.pruned_dmgs, 1);
+        assert_eq!(summary.pruned_temps, 1);
+        assert!(protected.exists());
+        assert!(!old.exists());
+        assert!(!crash_temp.exists());
+        assert!(unrelated.exists());
+        assert!(malformed.exists());
+        assert!(symlink.symlink_metadata()?.file_type().is_symlink());
+        Ok(())
+    }
+
+    #[test]
+    fn dmg_cache_without_state_prunes_all_managed_dmgs() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let downloads = temp.path().join("downloads");
+        fs::create_dir_all(&downloads)?;
+        let first = managed_dmg(&downloads, '1');
+        let second = managed_dmg(&downloads, '2');
+        fs::write(&first, b"first")?;
+        fs::write(&second, b"second")?;
+
+        let summary = prune_dmg_cache(temp.path(), &PersistedState::new(true))?;
+
+        assert_eq!(summary.pruned_dmgs, 2);
+        assert!(!first.exists());
+        assert!(!second.exists());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn active_dmg_lease_blocks_cleanup_until_state_is_persisted() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let downloads = temp.path().join("downloads");
+        let current = managed_dmg(&downloads, 'd');
+        let lease = acquire_dmg_cache_lease(&downloads).await?;
+        fs::write(&current, b"current")?;
+
+        let blocked = prune_dmg_cache(temp.path(), &PersistedState::new(true))?;
+        assert!(blocked.skipped_locked);
+        assert!(current.exists());
+
+        let mut state = PersistedState::new(true);
+        state.artifact_paths.dmg_path = Some(current.clone());
+        drop(lease);
+        let completed = prune_dmg_cache(temp.path(), &state)?;
+        assert!(!completed.skipped_locked);
+        assert_eq!(completed.pruned_dmgs, 0);
+        assert!(current.exists());
+        Ok(())
+    }
 
     fn create_workspace(root: &std::path::Path, name: &str) -> Result<PathBuf> {
         let workspace = root.join("workspaces").join(name);
@@ -171,6 +500,141 @@ mod tests {
         fs::write(workspace.join("reports/rebuild-report.json"), b"{}")?;
         fs::write(workspace.join("metadata.json"), b"{}")?;
         Ok(workspace)
+    }
+
+    fn create_wrapper_root(root: &std::path::Path) -> Result<()> {
+        fs::create_dir_all(root.join("scripts"))?;
+        fs::write(root.join("install.sh"), b"#!/bin/bash\n")?;
+        fs::write(root.join("scripts/build-deb.sh"), b"#!/bin/bash\n")?;
+        fs::write(root.join("scripts/build-pacman.sh"), b"#!/bin/bash\n")?;
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_is_disabled_by_default() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        create_wrapper_root(temp.path())?;
+        fs::create_dir_all(temp.path().join("dist"))?;
+        fs::write(temp.path().join("dist/pkg.deb"), b"pkg")?;
+
+        let summary =
+            prune_generated_artifacts(&GeneratedArtifactCleanupConfig::default(), temp.path())?;
+
+        assert_eq!(summary.pruned_paths, 0);
+        assert!(temp.path().join("dist/pkg.deb").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_removes_known_artifacts_below_threshold() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        create_wrapper_root(temp.path())?;
+        fs::create_dir_all(temp.path().join("dist"))?;
+        fs::create_dir_all(temp.path().join("target"))?;
+        fs::create_dir_all(temp.path().join("codex-app"))?;
+        fs::write(temp.path().join("dist/pkg.deb"), b"pkg")?;
+        fs::write(temp.path().join("target/build.txt"), b"target")?;
+        fs::write(temp.path().join("codex-app/app.txt"), b"app")?;
+        fs::write(temp.path().join("Codex.dmg"), b"dmg")?;
+
+        let cleanup = GeneratedArtifactCleanupConfig {
+            enabled: true,
+            min_free_bytes: u64::MAX,
+            roots: Vec::new(),
+            entries: GeneratedArtifactCleanupConfig::default().entries,
+        };
+        let summary = prune_generated_artifacts(&cleanup, temp.path())?;
+
+        assert_eq!(summary.inspected_roots, 1);
+        assert_eq!(summary.pruned_paths, 3);
+        assert!(summary.bytes_removed > 0);
+        assert!(!temp.path().join("dist").exists());
+        assert!(!temp.path().join("target").exists());
+        assert!(!temp.path().join("codex-app").exists());
+        assert!(temp.path().join("Codex.dmg").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_skips_when_free_space_is_sufficient() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        create_wrapper_root(temp.path())?;
+        fs::create_dir_all(temp.path().join("dist"))?;
+        fs::write(temp.path().join("dist/pkg.deb"), b"pkg")?;
+
+        let cleanup = GeneratedArtifactCleanupConfig {
+            enabled: true,
+            min_free_bytes: 1,
+            roots: Vec::new(),
+            entries: GeneratedArtifactCleanupConfig::default().entries,
+        };
+        let summary = prune_generated_artifacts(&cleanup, temp.path())?;
+
+        assert_eq!(summary.pruned_paths, 0);
+        assert!(temp.path().join("dist/pkg.deb").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_skips_non_wrapper_roots() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        fs::create_dir_all(temp.path().join("dist"))?;
+        fs::write(temp.path().join("dist/pkg.deb"), b"pkg")?;
+
+        let cleanup = GeneratedArtifactCleanupConfig {
+            enabled: true,
+            min_free_bytes: u64::MAX,
+            roots: Vec::new(),
+            entries: GeneratedArtifactCleanupConfig::default().entries,
+        };
+        let summary = prune_generated_artifacts(&cleanup, temp.path())?;
+
+        assert_eq!(summary.pruned_paths, 0);
+        assert_eq!(summary.skipped_roots, 1);
+        assert!(temp.path().join("dist/pkg.deb").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_rejects_unsafe_entries() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        create_wrapper_root(temp.path())?;
+        for entry in [
+            PathBuf::from("../outside"),
+            PathBuf::from("dist/pkg.deb"),
+            PathBuf::from("/tmp/dist"),
+        ] {
+            let cleanup = GeneratedArtifactCleanupConfig {
+                enabled: true,
+                min_free_bytes: u64::MAX,
+                roots: Vec::new(),
+                entries: vec![entry],
+            };
+
+            let error = prune_generated_artifacts(&cleanup, temp.path()).unwrap_err();
+
+            assert!(error.to_string().contains("top-level names"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn generated_artifact_cleanup_can_remove_configured_files() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        create_wrapper_root(temp.path())?;
+        fs::write(temp.path().join("Codex.dmg"), b"dmg")?;
+
+        let cleanup = GeneratedArtifactCleanupConfig {
+            enabled: true,
+            min_free_bytes: u64::MAX,
+            roots: Vec::new(),
+            entries: vec![PathBuf::from("Codex.dmg")],
+        };
+        let summary = prune_generated_artifacts(&cleanup, temp.path())?;
+
+        assert_eq!(summary.pruned_paths, 1);
+        assert!(!temp.path().join("Codex.dmg").exists());
+        Ok(())
     }
 
     #[test]

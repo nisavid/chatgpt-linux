@@ -6,15 +6,21 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 const {
   enabledPortIntegrationIds,
-  loadPortIntegrationMainBundlePatches,
   loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
 const {
   createPatchReport,
+} = require("../../scripts/lib/patch-report.js");
+const {
+  applyWebviewAssetPatchDescriptors,
+  normalizePatchDescriptors,
+} = require("../../scripts/patches/engine.js");
+const {
   patchExtractedApp,
-} = require("../../scripts/patch-linux-window-ui.js");
+} = require("../../scripts/patches/runner.js");
 const {
   applyAssistantRenderPatch,
   applyComposerControlPatch,
@@ -22,21 +28,9 @@ const {
   applyComposerRuntimePatch,
   applyDictationEndpointPatch,
   applyReadAloudMainBundlePatch,
-  patches: integrationPatches,
+  descriptors: integrationPatches,
 } = require("./patch.js");
 
-const DEFAULT_INTEGRATION_IDS = [
-  "agent-workspace",
-  "appshots",
-  "codex-wrapper-updater",
-  "conversation-mode",
-  "copilot-reasoning-effort",
-  "open-target-discovery",
-  "read-aloud",
-  "read-aloud-mcp",
-  "remote-control-ui",
-  "remote-mobile-control",
-];
 
 function twice(fn, source) {
   const patched = fn(source);
@@ -95,20 +89,18 @@ const mainBundleSource =
 const explicitButtonMainBundleSource =
   "function codexLinuxReadAloudHandle(e={}){return e.action===`config`?codexLinuxReadAloudConfig():e.action===`setup`?codexLinuxReadAloudSetup(e):e.action===`stop`?codexLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?codexLinuxReadAloudSpeak(e.text,{requireEnabled:!1}):codexLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
 
-const dictationSource =
-  "function Ht(){let {recordingDurationMs:T,waveformCanvasRef:E,startWaveformCapture:Wc,stopWaveformCapture:D,resetWaveformDisplay:k}=Ve(),m={current:null},_={current:null},g={current:[]},y={current:null},C={current:null};let j=async({action:e,handlers:n})=>{let i=`hello`;i.length>0&&(j.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:i}),e===`send`?n.onTranscriptSend(i):n.onTranscriptInsert(i))};let A=async()=>{let e=y.current??`insert`;y.current=null;let r=m.current,i=g.current;g.current=[],r&&(r.ondataavailable=null,r.onstop=null),m.current=null,D();};let a=z(e=>{y.current=e;let t=m.current;if(!t){A();return}if(t.state===`inactive`){A();return}t.stop()});return{startDictation:z(async()=>{let e=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1}});let t=new MediaRecorder(e);m.current=t,g.current=[],t.ondataavailable=e=>{e.data.size>0&&g.current.push(e.data)},t.onstop=()=>{A()},t.start(),l(!0)}),stopDictation:a}}function Kt(){let p={current:null};let x=e=>{!d||p.current!==e.sessionId||(p.current=null,o(`insert`))}}";
+const currentAppInitialAsset = "app-initial-current.js";
+const currentComposerAsset = currentAppInitialAsset;
+const currentDictationAsset = currentAppInitialAsset;
 
-const composerControlSource =
-  "function mz(e){let {voiceControls:z}=e;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||J),He=si(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};let e=G.formatMessage({id:`composer.realtime.start.aria`,defaultMessage:`Start realtime voice`,description:`Aria label for the button that starts realtime voice mode in the composer`});let n=G.formatMessage({id:`composer.realtime.start.tooltip`,defaultMessage:`Start realtime voice`,description:`Tooltip for the button that starts realtime voice mode in the composer`});}";
+const dictationSource =
+  "function Sit({onTranscriptInsert:i,onTranscriptSend:a}){let h={current:null},g={current:null},y={current:[]},b={current:null};let P=async({action:t,handlers:r})=>{let a=`hello`;a.length>0&&(df.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:a}),t===`send`?r.onTranscriptSend(a):r.onTranscriptInsert(a))},F=async()=>{let e=b.current??`insert`,r=h.current,i=y.current;y.current=[],r&&(r.ondataavailable=null,r.onstop=null),h.current=null,j(),Q(),u(!1);await P({action:e,audio:i,handlers:{onTranscriptInsert:i,onTranscriptSend:a}})},L=e=>{b.current=e;let t=h.current;t.state!==`inactive`&&t.stop()};return{startDictation:async()=>{let e=Cit(),g.current=e;let t=await e.stream;let n=new MediaRecorder(t);if(h.current=n,y.current=[],n.ondataavailable=e=>{e.data.size>0&&y.current.push(e.data)},n.onstop=()=>{F()},n.start(),u(!0),b.current!=null){n.stop();return}},stopDictation:L}}function Cit(){let e=!1,t=null,n=()=>{e=!0,t?.getTracks().forEach(e=>{e.stop()}),t=null};return{dispose:n,stream:Knt({channelCount:1}).then(r=>(t=r,e&&n(),r))}}";
 
 const currentComposerControlSource =
-  "function hz(e){let{conversationId:v,isResponseInProgress:A,onStop:P,submitBlockReason:F,voiceControls:z}=e,{canRetryDictation:K,dictationShortcutLabel:q,isDictating:J,isDictationSupported:ee,isNewRealtimeConversationAvailable:te,isRealtimeSubmitStarting:ne,isTranscribing:re,startDictation:se,startNewRealtimeConversation:ce,stopDictation:le,threadRealtime:ue}=z;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||te),He=oi(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};}";
-
-const halfPatchedCurrentComposerControlSource =
-  "function hz(e){let{conversationId:v,isResponseInProgress:A,onStop:P,submitBlockReason:F,voiceControls:z}=e,{canRetryDictation:K,dictationShortcutLabel:q,isDictating:J,isDictationSupported:ee,isNewRealtimeConversationAvailable:te,isRealtimeSubmitStarting:ne,isTranscribing:re,startDictation:se,startNewRealtimeConversation:ce,stopDictation:le,threadRealtime:ue}=z;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||te),He=oi(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(globalThis.codexLinuxConversationToggle?.({conversationId:v,startDictation:se,stopDictation:le,onStop:P,isDictating:te,isTranscribing:re,isResponseInProgress:A,isDictationSupported:q}))return;if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};}";
+  "function Vka(e){let{isResponseInProgress:x,onStop:T,submitBlockReason:E,voiceControls:A}=e,j=Nn(Bk),M=RZ(),N=Rk(j),P=LEa(j.value,t),{canRetryDictation:B,dictationShortcutLabel:V,isDictating:U,isDictationButtonVisible:W,isDictationSupported:G,isTranscribing:ee,isVoiceFooterVisible:te,recordingDurationMs:ne,retryDictation:K,startDictation:re,stopDictation:ie,realtimeSession:ae,waveformCanvasRef:oe}=A;let je=(0,x7.jsx)(_ka,{conversationId:N,hostId:g,cwdOverride:_}),ke=(0,x7.jsx)(Twe,{isTranscribing:ee,recordingDurationMs:ne,waveformCanvasRef:oe,stopDictation:ie});let Ae=(0,x7.jsx)(Ewe,{isVisible:W,disabled:!G,isTranscribing:ee,canRetryDictation:B,shortcutLabel:V,retryDictation:K,startDictation:re,stopDictation:ie});return Ae}";
 
 const assistantRenderSource =
-  "return (0,$.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,after:g,conversationId:o,cwd:u,renderCodeBlocksAsWritingBlocks:V})";
+  "return (0,t8.jsx)(K6c,{item:n,alwaysShowActions:re,assistantCopyText:b,turnId:x,processTargets:S,autoReviewStats:A,hookStats:j,threadDetailLevel:p,after:T,conversationId:d,cwd:g,renderCodeBlocksAsWritingBlocks:we})";
 
 const conversationGlobals = [
   "codexLinuxConversationAvailable",
@@ -124,6 +116,38 @@ const conversationGlobals = [
   "codexLinuxConversationToggleMute",
   "codexLinuxConversationVersion",
 ];
+
+test("dictation endpoint descriptor targets the current dictation bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test(currentDictationAsset), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~onboarding-page-BUwCKIcU.js"), false);
+  assert.equal(descriptor.pattern.test("use-dictation-BUwCKIcU.js"), false);
+  assert.equal(descriptor.pattern.test("use-dictation-hotkey-BUwCKIcU.js"), false);
+});
+
+test("composer descriptor targets the current app-initial bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "composer-control");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test(currentComposerAsset), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~page-hSvsQcNf.js"), false);
+  assert.equal(descriptor.pattern.test("composer-old.js"), false);
+});
+
+test("current DMG co-locates dictation, composer, and assistant ownership", () => {
+  const dictation = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+  const composer = integrationPatches.find((patch) => patch.id === "composer-control");
+  const assistant = integrationPatches.find((patch) => patch.id === "assistant-observer");
+  const asset = "app-initial-BHB6SClA.js";
+
+  assert.equal(dictation.pattern.test(asset), true);
+  assert.equal(composer.pattern.test(asset), true);
+  assert.equal(assistant.pattern.test(asset), true);
+  assert.equal(dictation.pattern.test("onboarding-page-Bv4pLarm.js"), false);
+  assert.equal(composer.pattern.test("new-thread-panel-page-Xl0DC1bk.js"), false);
+});
 
 function fetchBodies(events) {
   return events.map((event) => JSON.parse(event.body));
@@ -147,6 +171,7 @@ function withConversationRuntime(fn, options = {}) {
   const timers = [];
   const fakeWindow = {
     AudioContext: options.AudioContext,
+    MutationObserver: options.MutationObserver,
     innerHeight: options.innerHeight ?? 900,
     innerWidth: options.innerWidth ?? 1600,
     webkitAudioContext: options.webkitAudioContext,
@@ -360,12 +385,50 @@ function createFakeDocument() {
   };
 }
 
+function createAudioStream() {
+  return {
+    getTracks() {
+      return [];
+    },
+  };
+}
+
+function createCountingAudioContext({ level = () => 0 } = {}) {
+  const stats = {
+    fftSizes: [],
+    sampleCalls: 0,
+  };
+  class FakeAudioContext {
+    createMediaStreamSource() {
+      return {
+        connect() {},
+        disconnect() {},
+      };
+    }
+    createAnalyser() {
+      return {
+        _fftSize: 0,
+        set fftSize(value) {
+          stats.fftSizes.push(value);
+          this._fftSize = value;
+        },
+        get fftSize() {
+          return this._fftSize;
+        },
+        getFloatTimeDomainData(data) {
+          stats.sampleCalls++;
+          data.fill(level());
+        },
+      };
+    }
+    close() {}
+  }
+  return { AudioContext: FakeAudioContext, stats };
+}
+
 test("conversation mode is enabled by default", () => {
   withTempIntegrationConfig([], (root) => {
-    assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), DEFAULT_INTEGRATION_IDS);
-
-    const mainBundlePatchNames = loadPortIntegrationMainBundlePatches({ integrationsRoot: root }).map((patch) => patch.name);
-    assert.ok(mainBundlePatchNames.includes("integration:conversation-mode:read-aloud-conversation-source"));
+    assert.equal(enabledPortIntegrationIds({ integrationsRoot: root }).includes("conversation-mode"), true);
 
     const conversationPatches = loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
       .filter((patch) => patch.name.startsWith("integration:conversation-mode:"));
@@ -383,14 +446,25 @@ test("conversation mode is enabled by default", () => {
 
 test("conversation mode can be disabled in integrations.json", () => {
   withTempIntegrationConfig([], (root) => {
+    const defaultIntegrationIds = enabledPortIntegrationIds({ integrationsRoot: root });
     fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ disabled: ["conversation-mode"] }, null, 2));
 
     const patches = loadPortIntegrationPatchDescriptors({ integrationsRoot: root });
     assert.deepEqual(
       enabledPortIntegrationIds({ integrationsRoot: root }),
-      DEFAULT_INTEGRATION_IDS.filter((id) => id !== "conversation-mode"),
+      defaultIntegrationIds.filter((id) => id !== "conversation-mode"),
     );
     assert.equal(patches.some((patch) => patch.name.startsWith("integration:conversation-mode:")), false);
+  });
+});
+
+test("conversation mode requires Read Aloud to remain enabled", () => {
+  withTempIntegrationConfig([], (root) => {
+    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ disabled: ["read-aloud"] }, null, 2));
+    assert.throws(
+      () => loadPortIntegrationPatchDescriptors({ integrationsRoot: root }),
+      /requires 'read-aloud' to be enabled/,
+    );
   });
 });
 
@@ -406,16 +480,9 @@ test("main bundle patch preserves explicit button speech while adding conversati
   assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
 });
 
-test("main bundle patch upgrades older conversation speech gates", () => {
-  const alreadyAllowed =
-    "function codexLinuxReadAloudHandle(e={}){return e.action===`config`?codexLinuxReadAloudConfig():e.action===`setup`?codexLinuxReadAloudSetup(e):e.action===`stop`?codexLinuxReadAloudStop():e.action===`speak`&&(e.source===`button`||e.source===`conversation`)?codexLinuxReadAloudSpeak(e.text):codexLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
-  const patched = twice(applyReadAloudMainBundlePatch, alreadyAllowed);
-  assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
-});
-
 test("composer runtime appends one browser-side conversation controller", () => {
   const patched = twice(applyComposerRuntimePatch, "console.log(`composer`);");
-  assert.match(patched, /conversation-mode-v19/);
+  assert.match(patched, /conversation-mode-v26/);
   assert.match(patched, /activeConversationId/);
   assert.match(patched, /seenAssistantKeys/);
   assert.match(patched, /assistantKey/);
@@ -464,6 +531,7 @@ test("composer runtime appends one browser-side conversation controller", () => 
   assert.match(patched, /codex-linux-conversation-interrupt-threshold/);
   assert.match(patched, /interruptMs:420/);
   assert.match(patched, /interruptGraceMs:180/);
+  assert.match(patched, /audioPollMs:32/);
   assert.match(patched, /echoCancellation:!0/);
   assert.match(patched, /resetTranscriptState/);
   assert.match(patched, /stopTracks/);
@@ -519,6 +587,35 @@ test("conversation runtime is scoped to the active conversation id", () => {
   });
 });
 
+test("conversation runtime completes task switch cleanup when the dictation callback rejects render-time calls", () => {
+  const fakeDocument = createFakeDocument();
+  withConversationRuntime(() => {
+    let stopCalls = 0;
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {
+        stopCalls++;
+        throw new Error("A function wrapped in useStableCallback can't be called during rendering.");
+      },
+      onStop() {},
+    };
+
+    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-active"), true);
+
+    assert.doesNotThrow(() => globalThis.codexLinuxConversationSync("thread-b", controls));
+    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), false);
+    assert.equal(globalThis.codexLinuxConversationStop(), false);
+    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-active"), false);
+    assert.equal(fakeDocument.composerClassList.contains("codex-linux-conversation-composer-aura"), false);
+    assert.equal(fakeDocument.getElementById("codex-linux-conversation-stop").hidden, true);
+    assert.equal(fakeDocument.getElementById("codex-linux-conversation-mute").hidden, true);
+    assert.equal(stopCalls, 1);
+  }, { document: fakeDocument });
+});
+
 test("conversation runtime can be explicitly exited from the active voice control", () => {
   withConversationRuntime(({ events }) => {
     const stopActions = [];
@@ -541,6 +638,59 @@ test("conversation runtime can be explicitly exited from the active voice contro
     assert.ok(fetchBodies(events).some((body) => body.action === "stop"));
     assert.deepEqual(stopActions, ["discard"]);
   });
+});
+
+test("conversation runtime exits when the unified shell opens ChatGPT in a non-English locale", () => {
+  let chatOpen = false;
+  let mutationCallback = null;
+  let mutationOptions = null;
+  const stopActions = [];
+  const queriedSelectors = [];
+  const document = createFakeDocument();
+  const closeButton = { getAttribute: (name) => name === "aria-label" ? "Fechar chat" : null };
+  const chatSurface = { querySelector: () => closeButton };
+  document.querySelector = (selector) => {
+    queriedSelectors.push(selector);
+    return selector === 'section[role="dialog"][data-pip-obstacle="quick-chat"][data-state="open"]' && chatOpen
+      ? chatSurface
+      : null;
+  };
+  class FakeMutationObserver {
+    constructor(callback) {
+      mutationCallback = callback;
+    }
+    observe(_target, options) {
+      mutationOptions = options;
+    }
+  }
+
+  withConversationRuntime(() => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation(action) {
+        stopActions.push(action);
+      },
+      onStop() {},
+    };
+    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), true);
+
+    chatOpen = true;
+    mutationCallback();
+
+    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), false);
+    assert.deepEqual(stopActions, ["discard"]);
+    assert.equal(closeButton.getAttribute("aria-label"), "Fechar chat");
+    assert.equal(queriedSelectors.some((selector) => selector.includes("aria-label")), false);
+    assert.deepEqual(mutationOptions, {
+      attributes: true,
+      attributeFilter: ["data-state"],
+      childList: true,
+      subtree: true,
+    });
+  }, { document, MutationObserver: FakeMutationObserver });
 });
 
 test("conversation runtime resets duplicate transcript guards for a fresh session", () => {
@@ -1701,6 +1851,177 @@ test("conversation endpoint fails closed when the audio graph cannot start", () 
   }, { AudioContext: BrokenAudioContext });
 });
 
+test("conversation endpoint paces microphone analysis below display frame rate", () => {
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.05 });
+
+  withConversationRuntime(({ animationFrames, timers }) => {
+    assert.equal(
+      globalThis.codexLinuxConversationToggle({
+        conversationId: "thread-a",
+        isResponseInProgress: false,
+        startDictation() {},
+        stopDictation() {},
+        onStop() {},
+      }),
+      true,
+    );
+
+    const cleanup = globalThis.codexLinuxConversationEndpoint({
+      stream,
+      stop() {
+        throw new Error("stop should not be called before the silence window");
+      },
+      isActive() {
+        return true;
+      },
+    });
+
+    assert.equal(stats.fftSizes.at(-1), 512);
+    assert.equal(animationFrames.length, 0);
+    runTimer(timers, (timer) => timer.delay === 32, "first endpoint audio poll");
+    assert.equal(stats.sampleCalls, 1);
+    runTimer(timers, (timer) => timer.delay === 32, "second endpoint audio poll");
+    assert.equal(stats.sampleCalls, 2);
+
+    cleanup();
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, performance: { now: () => 320 } });
+});
+
+test("conversation interrupt monitor paces microphone analysis below display frame rate", () => {
+  let now = 0;
+  let getUserMediaCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.05 });
+  const navigator = {
+    userAgent: "Codex Desktop Linux",
+    mediaDevices: {
+      getUserMedia() {
+        getUserMediaCalls++;
+        return {
+          then(resolve) {
+            resolve(stream);
+            return {
+              catch() {},
+            };
+          },
+        };
+      },
+    },
+  };
+
+  withConversationRuntime(({ animationFrames, timers }) => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {},
+      onStop() {},
+    };
+
+    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(getUserMediaCalls, 1);
+    assert.equal(stats.fftSizes.at(-1), 512);
+    assert.equal(animationFrames.length, 0);
+
+    runTimer(timers, (timer) => timer.delay === 32, "first monitor audio poll");
+    assert.equal(stats.sampleCalls, 1);
+  }, { AudioContext, navigator, performance: { now: () => (now += 320) } });
+});
+
+test("conversation endpoint still stops dictation after paced silence", () => {
+  let now = 0;
+  let level = 0.05;
+  let stopCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext } = createCountingAudioContext({ level: () => level });
+
+  withConversationRuntime(({ timers }) => {
+    assert.equal(
+      globalThis.codexLinuxConversationToggle({
+        conversationId: "thread-a",
+        isResponseInProgress: false,
+        startDictation() {},
+        stopDictation() {},
+        onStop() {},
+      }),
+      true,
+    );
+
+    globalThis.codexLinuxConversationEndpoint({
+      stream,
+      stop() {
+        stopCalls++;
+      },
+      isActive() {
+        return true;
+      },
+    });
+
+    now = 32;
+    runTimer(timers, (timer) => timer.delay === 32, "initial voiced endpoint poll");
+    now = 288;
+    runTimer(timers, (timer) => timer.delay === 32, "speech confirmation endpoint poll");
+    assert.equal(stopCalls, 0);
+
+    level = 0;
+    now = 2100;
+    runTimer(timers, (timer) => timer.delay === 32, "silence endpoint poll");
+    assert.equal(stopCalls, 1);
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, performance: { now: () => now } });
+});
+
+test("conversation interrupt monitor still triggers after sustained paced speech", () => {
+  let now = 0;
+  let onStopCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.06 });
+  const navigator = {
+    userAgent: "Codex Desktop Linux",
+    mediaDevices: {
+      getUserMedia() {
+        return {
+          then(resolve) {
+            resolve(stream);
+            return {
+              catch() {},
+            };
+          },
+        };
+      },
+    },
+  };
+
+  withConversationRuntime(({ timers }) => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {},
+      onStop() {
+        onStopCalls++;
+      },
+    };
+
+    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+
+    now = 200;
+    runTimer(timers, (timer) => timer.delay === 32, "initial monitor speech poll");
+    now = 650;
+    runTimer(timers, (timer) => timer.delay === 32, "sustained monitor speech poll");
+
+    assert.equal(stats.sampleCalls, 2);
+    assert.equal(onStopCalls, 1);
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, navigator, performance: { now: () => now } });
+});
+
 test("dictation endpoint patch adds VAD stop-on-silence and send action", () => {
   const patched = twice(applyDictationEndpointPatch, dictationSource);
   assert.match(patched, /echoCancellation:!0/);
@@ -1708,67 +2029,156 @@ test("dictation endpoint patch adds VAD stop-on-silence and send action", () => 
   assert.match(patched, /codexLinuxConversationCleanup/);
   assert.match(patched, /codexLinuxConversationEndpoint/);
   assert.match(patched, /codexLinuxConversationShouldSendTranscript/);
-  assert.match(patched, /e!==`discard`/);
-  assert.match(patched, /e===`send`\?n\.onTranscriptSend\(i\):n\.onTranscriptInsert\(i\)/);
-  assert.match(patched, /stop:\(\)=>a\(`send`\)/);
-  assert.match(patched, /o\(e\.action===`discard`\?`discard`:e\.action===`send`\?`send`:`insert`\)/);
+  assert.match(patched, /t!==`discard`/);
+  assert.match(patched, /t===`send`\?r\.onTranscriptSend\(a\):r\.onTranscriptInsert\(a\)/);
+  assert.match(patched, /stop:\(\)=>\{b\.current=`send`;n\.state!==`inactive`&&n\.stop\(\)\}/);
 });
 
-test("composer control patch repurposes the voice button for conversation mode first", () => {
-  const patched = twice(applyComposerControlPatch, composerControlSource);
-  assert.match(patched, /codexLinuxConversationAvailable/);
-  assert.match(patched, /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A/);
-  assert.match(patched, /isDictating:J/);
-  assert.match(patched, /codexLinuxConversationActive=globalThis\.codexLinuxConversationIsActive/);
-  assert.match(patched, /Ve=codexLinuxConversationActive\|\|F===`empty-message`/);
-  assert.match(patched, /codexLinuxConversationToggle/);
-  assert.match(patched, /\(v&&globalThis\.codexLinuxConversationAvailable\?\.\(\)\)/);
-  assert.match(patched, /startDictation:se/);
-  assert.match(patched, /stopDictation:le/);
-  assert.match(patched, /onStop:P/);
-  assert.equal(
-    patched.match(/defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g)?.length,
-    2,
-  );
-  assert.doesNotMatch(patched, /defaultMessage:`Start conversation mode`/);
-  assert.match(patched, /ue\.startRealtime/);
+test("dictation endpoint patch fails soft and atomically when the current recorder contract drifts", () => {
+  const drifted = dictationSource.replace("new MediaRecorder", "new AudioRecorder");
+  const { value: patched, warnings } = captureWarns(() => applyDictationEndpointPatch(drifted));
+
+  assert.equal(patched, drifted);
+  assert.match(warnings.join("\n"), /Could not resolve the current dictation contract/);
+  assert.doesNotMatch(patched, /echoCancellation/);
+  assert.doesNotMatch(patched, /codexLinuxConversation/);
 });
 
-test("composer control patch repairs stale static conversation button hints", () => {
-  const once = applyComposerControlPatch(composerControlSource);
-  const stale = once.replace(
-    /defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g,
-    "defaultMessage:`Start conversation mode`",
-  );
-  const patched = twice(applyComposerControlPatch, stale);
-  assert.equal(
-    patched.match(/defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g)?.length,
-    2,
-  );
+test("current dictation drift is reported as skipped instead of already applied", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentDictationAsset);
+    const drifted = dictationSource.replace("new MediaRecorder", "new AudioRecorder");
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not resolve the current dictation contract/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test("composer control patch follows the current composer voiceControls shape", () => {
+test("composer control patch wires the current dictation control into conversation mode", () => {
   const patched = twice(applyComposerControlPatch, currentComposerControlSource);
   assert.match(
     patched,
-    /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A,isDictating:J,isTranscribing:re,startDictation:se,stopDictation:le,onStop:P\}\)/,
+    /codexLinuxConversationSync\?\.\(N,\{isResponseInProgress:x,isDictating:U,isTranscribing:ee,startDictation:re,stopDictation:ie,onStop:T\}\)/,
   );
   assert.match(
     patched,
-    /codexLinuxConversationToggle\?\.\(\{conversationId:v,startDictation:se,stopDictation:le,onStop:P,isDictating:J,isTranscribing:re,isResponseInProgress:A,isDictationSupported:ee\}\)/,
+    /codexLinuxConversationToggle\?\.\(\{conversationId:N,startDictation:re,stopDictation:ie,onStop:T,isDictating:U,isTranscribing:ee,isResponseInProgress:x,isDictationSupported:G\}\)/,
   );
-  assert.match(patched, /He=oi\(fc,`composer\.startVoiceMode`\)/);
-  assert.match(patched, /\|\|ue\.isAvailable&&ue\.phase!==`active`\|\|te/);
-  assert.doesNotMatch(patched, /isDictating:te/);
-  assert.doesNotMatch(patched, /isDictationSupported:q/);
+  assert.match(patched, /isVisible:W\|\|N&&globalThis\.codexLinuxConversationAvailable\?\.\(\)/);
+  assert.match(patched, /className:N\?`codex-linux-conversation-trigger`:void 0/);
+  assert.match(patched, /startDictation:\(\)=>globalThis\.codexLinuxConversationToggle/);
 });
 
-test("composer control patch repairs bundles where only the click handler was patched", () => {
-  const patched = twice(applyComposerControlPatch, halfPatchedCurrentComposerControlSource);
-  assert.match(patched, /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A,isDictating:J/);
-  assert.match(patched, /isDictationSupported:ee/);
-  assert.doesNotMatch(patched, /isDictating:te/);
-  assert.doesNotMatch(patched, /isDictationSupported:q/);
+test("composer control preserves the current async startDictation contract", async () => {
+  const patched = applyComposerControlPatch(currentComposerControlSource);
+  const originalResult = Promise.resolve("started");
+  let originalStarts = 0;
+  const context = {
+    Bk: {},
+    Ewe: "dictation-control",
+    LEa: () => ({}),
+    Nn: () => ({}),
+    RZ: () => ({}),
+    Rk: () => "thread-a",
+    Twe: "waveform",
+    _ka: "composer-anchor",
+    _: null,
+    g: "host-a",
+    t: null,
+    x7: {
+      jsx(component, props) {
+        return component === "dictation-control" ? props : {};
+      },
+    },
+  };
+  context.globalThis = context;
+  vm.runInNewContext(`${patched};globalThis.renderCurrentComposer=Vka`, context);
+  context.codexLinuxConversationAvailable = () => true;
+  context.codexLinuxConversationSync = () => {};
+  const voiceControls = {
+    canRetryDictation: false,
+    dictationShortcutLabel: "D",
+    isDictating: false,
+    isDictationButtonVisible: true,
+    isDictationSupported: true,
+    isTranscribing: false,
+    isVoiceFooterVisible: true,
+    recordingDurationMs: 0,
+    retryDictation() {},
+    startDictation() {
+      originalStarts++;
+      return originalResult;
+    },
+    stopDictation() {},
+    realtimeSession: {},
+    waveformCanvasRef: {},
+  };
+  const render = () => context.renderCurrentComposer({
+    isResponseInProgress: false,
+    onStop() {},
+    submitBlockReason: null,
+    voiceControls,
+  });
+
+  context.codexLinuxConversationToggle = () => false;
+  assert.equal(render().startDictation(), originalResult);
+  assert.equal(originalStarts, 1);
+
+  context.codexLinuxConversationToggle = () => true;
+  const handledResult = render().startDictation();
+  assert.equal(typeof handledResult?.finally, "function");
+  await handledResult;
+  assert.equal(originalStarts, 1);
+});
+
+test("composer control patch fails soft when the current conversation binding drifts", () => {
+  const drifted = currentComposerControlSource.replace("conversationId:N,hostId:g", "conversationKey:N,hostId:g");
+  const { value: patched, warnings } = captureWarns(() => twice(applyComposerPatch, drifted));
+
+  assert.equal(patched, drifted);
+  assert.match(warnings.join("\n"), /Could not resolve composer prop aliases/);
+  assert.doesNotMatch(patched, /codexLinuxConversationSync/);
+  assert.doesNotMatch(patched, /codexLinuxConversationToggle/);
+});
+
+test("current composer marker drift is reported as skipped instead of already applied", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-composer-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentComposerAsset);
+    const drifted = "console.log(`current composer contract drifted`);";
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "composer-control");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not find current composer controls/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("composer patch ignores adjacent composer chunks", () => {
@@ -1777,8 +2187,8 @@ test("composer patch ignores adjacent composer chunks", () => {
 
 test("assistant render patch observes assistant text for automatic speech", () => {
   const patched = twice(applyAssistantRenderPatch, assistantRenderSource);
-  assert.match(patched, /codexLinuxConversationAssistant\?\.\(n,p,o,m,typeof c!="undefined"\?c:null\)/);
-  assert.match(patched, /\$\.Fragment/);
+  assert.match(patched, /codexLinuxConversationAssistant\?\.\(n,b,d,x,typeof c!="undefined"\?c:null\)/);
+  assert.match(patched, /t8\.Fragment/);
 });
 
 test("assistant render patch preserves the current JSX runtime alias", () => {
@@ -1790,8 +2200,43 @@ test("assistant render patch preserves the current JSX runtime alias", () => {
   assert.match(patched, /Q\.Fragment/);
 });
 
+test("assistant observer targets only the current primary thread bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~onboarding-page-D4eTO0KG.js"), false);
+  assert.equal(descriptor.pattern.test("local-conversation-turn-old.js"), false);
+  assert.equal(descriptor.pattern.test("local-conversation-thread-old.js"), false);
+  assert.equal(descriptor.pattern.test("index-old.js"), false);
+});
+
+test("current assistant observer drift is reported as skipped instead of already applied", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-assistant-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentAppInitialAsset);
+    const drifted = "console.log(`current assistant renderer drifted`);";
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not find assistant message render call/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("conversation mode patches matching app assets and records report entries", () => {
-  withTempIntegrationConfig(["conversation-mode"], (root) => {
+  withTempIntegrationConfig([], (root) => {
     withPortIntegrationRootEnv(root, () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-app-"));
       try {
@@ -1801,9 +2246,10 @@ test("conversation mode patches matching app assets and records report entries",
         fs.mkdirSync(assetsDir, { recursive: true });
         fs.writeFileSync(path.join(buildDir, "main.js"), mainBundleSource);
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
-        fs.writeFileSync(path.join(assetsDir, "browser-sidebar-comment-light-dismiss-test.js"), dictationSource);
-        fs.writeFileSync(path.join(assetsDir, "composer-test.js"), composerControlSource);
-        fs.writeFileSync(path.join(assetsDir, "local-conversation-thread-test.js"), assistantRenderSource);
+        fs.writeFileSync(
+          path.join(assetsDir, currentDictationAsset),
+          `${dictationSource};${currentComposerControlSource};${assistantRenderSource}`,
+        );
 
         const report = createPatchReport();
         const { warnings } = captureWarns(() => patchExtractedApp(tempApp, { report }));
@@ -1816,15 +2262,15 @@ test("conversation mode patches matching app assets and records report entries",
           /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "browser-sidebar-comment-light-dismiss-test.js"), "utf8"),
+          fs.readFileSync(path.join(assetsDir, currentDictationAsset), "utf8"),
           /codexLinuxConversationEndpoint/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "composer-test.js"), "utf8"),
+          fs.readFileSync(path.join(assetsDir, currentAppInitialAsset), "utf8"),
           /codexLinuxConversationToggle/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "local-conversation-thread-test.js"), "utf8"),
+          fs.readFileSync(path.join(assetsDir, currentDictationAsset), "utf8"),
           /codexLinuxConversationAssistant/,
         );
         for (const name of [

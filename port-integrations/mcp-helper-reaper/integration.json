@@ -1,0 +1,10 @@
+{
+  "id": "mcp-helper-reaper",
+  "title": "MCP Helper Reaper",
+  "description": "Reaps orphaned MCP helpers after their Codex owner exits without touching live sessions.",
+  "defaultEnabled": false,
+  "entrypoints": {
+    "stageHook": "./stage.sh",
+    "cleanupHook": "./cleanup.sh"
+  }
+}

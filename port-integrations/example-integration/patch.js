@@ -9,6 +9,17 @@ function applyMainBundlePatch(source) {
   return source.replace(marker, "codexLinuxExampleIntegrationEnabled()");
 }
 
+const descriptors = [
+  {
+    id: "synthetic-marker",
+    phase: "main-bundle",
+    order: 20_000,
+    ciPolicy: "optional",
+    apply: applyMainBundlePatch,
+  },
+];
+
 module.exports = {
   applyMainBundlePatch,
+  descriptors,
 };

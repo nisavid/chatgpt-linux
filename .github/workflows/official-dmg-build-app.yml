@@ -2,7 +2,7 @@ name: Official DMG Build App
 
 on:
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '30 * * * *'
   pull_request:
     paths:
       - install.sh
@@ -10,7 +10,11 @@ on:
       - launcher/**
       - computer-use-linux/**
       - plugins/**
-      - packaging/linux/**
+      - packaging/**
+      - port-integrations/**
+      - scripts/lib/port-integrations.js
+      - global-dictation-linux/**
+      - notification-actions-linux/**
       - scripts/**
       - .github/workflows/official-dmg-build-app.yml
   push:
@@ -22,7 +26,11 @@ on:
       - launcher/**
       - computer-use-linux/**
       - plugins/**
-      - packaging/linux/**
+      - packaging/**
+      - port-integrations/**
+      - scripts/lib/port-integrations.js
+      - global-dictation-linux/**
+      - notification-actions-linux/**
       - scripts/**
       - .github/workflows/official-dmg-build-app.yml
   workflow_dispatch:
@@ -30,10 +38,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: official-dmg-acceptance-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  OFFICIAL_DMG_URL: https://persistent.oaistatic.com/codex-app-prod/Codex.dmg
-  OFFICIAL_DMG_PATH: /tmp/codex-official-dmg-ci/Codex.dmg
+  OFFICIAL_DMG_URL: https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg
+  OFFICIAL_DMG_PATH: /tmp/codex-official-dmg-ci/ChatGPT.dmg
   DMG_CACHE_SCHEMA_VERSION: v1
 
 jobs:
@@ -43,10 +54,10 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
 
@@ -93,7 +104,7 @@ jobs:
 
       - name: Restore cached official DMG
         id: dmg-cache
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.OFFICIAL_DMG_PATH }}
           key: official-dmg-${{ env.DMG_CACHE_SCHEMA_VERSION }}-${{ steps.official-metadata.outputs.cache_segment }}
@@ -137,37 +148,121 @@ jobs:
           JSON
 
       - name: Build app from official DMG
-        run: |
-          set -euo pipefail
-          CODEX_PATCH_REPORT_JSON="$GITHUB_WORKSPACE/patch-report.json" \
-            make build-app DMG="$OFFICIAL_DMG_PATH"
-          node scripts/ci/validate-patch-report.js patch-report.json --profile official-dmg-build
+        id: acceptance-build
+        continue-on-error: true
+        env:
+          CODEX_ACCEPTANCE_DECISION_JSON: ${{ github.workspace }}/official-dmg-decision.json
+          CODEX_ACCEPTANCE_OVERRIDE: '0'
+          CODEX_ACCEPTANCE_SOURCE: github-actions
+          CODEX_UPSTREAM_DMG_METADATA_JSON: ${{ github.workspace }}/official-dmg-metadata.json
+          REBUILD_REPORT_DIR: ${{ github.workspace }}/official-acceptance
+        run: make build-app DMG="$OFFICIAL_DMG_PATH"
+
+      - name: Import staged Browser clients through node_repl
+        if: steps.acceptance-build.outcome == 'success'
+        env:
+          CODEX_NODE_REPL_PATH: ${{ github.workspace }}/codex-app/resources/node_repl
+          CODEX_STAGED_BUNDLED_PLUGINS_ROOT: ${{ github.workspace }}/codex-app/resources/plugins/openai-bundled/plugins
+        run: node --test scripts/lib/browser-client-node-repl-runtime.test.js
 
       - name: Upload official DMG metadata artifact
-        # The build step aborts on critical patch failures; keep uploading the
-        # patch report so the failure is diagnosable from the artifact.
+        # The transactional installer records a decision before returning a
+        # rejected status, so diagnostics remain available on failed runs.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: official-dmg-metadata
           path: |
             official-dmg-metadata.json
+            official-dmg-decision.json
+            official-acceptance/**/*.json
             patch-report.json
           if-no-files-found: ignore
 
-      - name: Write build summary
+      - name: Record missing decision in the summary
+        if: always()
         run: |
-          {
-            echo "## Official DMG Build App"
-            echo ""
-            echo "- DMG URL: \`$OFFICIAL_DMG_URL\`"
-            echo "- DMG Last-Modified: \`${{ steps.official-metadata.outputs.last_modified }}\`"
-            echo "- DMG ETag: \`${{ steps.official-metadata.outputs.etag }}\`"
-            echo "- DMG Content-Length: \`${{ steps.official-metadata.outputs.content_length }}\`"
-            echo "- DMG SHA-256: \`${{ steps.local-dmg.outputs.sha256 }}\`"
-            echo "- DMG Size (bytes): \`${{ steps.local-dmg.outputs.size_bytes }}\`"
-            echo "- Tested At (UTC): \`${{ steps.local-dmg.outputs.tested_at_utc }}\`"
-            echo "- Cache Hit: \`${{ steps.dmg-cache.outputs.cache-hit || 'false' }}\`"
-            echo "- Build command: \`make build-app DMG=$OFFICIAL_DMG_PATH\`"
-            echo "- Patch report: \`patch-report.json\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -f official-dmg-decision.json ]; then
+            {
+              echo "## Official DMG acceptance"
+              echo
+              echo "No decision artifact was produced; the run is inconclusive."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce shared acceptance decision
+        if: always()
+        run: |
+          test -f official-dmg-decision.json
+          verdict="$(node -e 'console.log(require("./official-dmg-decision.json").verdict)')"
+          case "$verdict" in
+            accepted|accepted_with_warnings) exit 0 ;;
+            *) echo "Official DMG verdict: $verdict" >&2; exit 1 ;;
+          esac
+
+  reconcile-official-dmg-issue:
+    name: Reconcile Official DMG Drift Issue
+    needs: build-app-official-dmg
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+
+    steps:
+      - name: Check out trusted reconciliation code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download acceptance artifact
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: official-dmg-metadata
+          path: acceptance-artifact
+
+      - name: Capture current official DMG identity
+        id: current-identity
+        if: steps.download.outcome == 'success' && hashFiles('acceptance-artifact/official-dmg-decision.json') != ''
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT
+          curl -fsSLI "$OFFICIAL_DMG_URL" > "$headers_file"
+          node - "$headers_file" > current-official-dmg-identity.json <<'NODE'
+          const fs = require("node:fs");
+          const headers = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/);
+          const metadata = {};
+          for (const line of headers) {
+            const match = line.match(/^([^:]+):\s*(.*)$/);
+            if (!match) continue;
+            const key = match[1].toLowerCase();
+            if (key === "etag") metadata.etag = match[2].replace(/^"|"$/g, "");
+            if (key === "last-modified") metadata.last_modified = match[2];
+            if (key === "content-length") metadata.content_length = match[2];
+          }
+          process.stdout.write(`${JSON.stringify(metadata, null, 2)}\n`);
+          NODE
+
+      - name: Create, update, or close the drift issue
+        if: steps.current-identity.outcome == 'success'
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const { httpIdentity } = require('./scripts/lib/upstream-dmg-acceptance.js');
+            const { reconcileUpstreamDmgIssue } = require('./scripts/ci/upstream-dmg-issue.js');
+            const decision = JSON.parse(fs.readFileSync('acceptance-artifact/official-dmg-decision.json', 'utf8'));
+            const currentMetadata = JSON.parse(fs.readFileSync('current-official-dmg-identity.json', 'utf8'));
+            const result = await reconcileUpstreamDmgIssue({
+              github,
+              repo: context.repo,
+              decision,
+              currentHttpIdentityKey: httpIdentity(currentMetadata)?.key ?? null,
+            });
+            core.info(`Official DMG issue reconciliation: ${JSON.stringify(result)}`);

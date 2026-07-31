@@ -1,7 +1,7 @@
 //! Command-line interface definition for the updater binary.
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Debug, Parser)]
 #[command(name = "codex-app-updater")]
@@ -43,6 +43,29 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         allow_install_missing: bool,
     },
+    /// Reinstall a removed standalone CLI tree with a permission-safe installer
+    /// child. This command never overwrites an existing standalone tree.
+    RecoverStandaloneCli {
+        #[arg(long)]
+        codex_home: Option<PathBuf>,
+        #[arg(long)]
+        install_dir: Option<PathBuf>,
+        #[arg(long)]
+        print_path: bool,
+    },
+    RepairCli,
+    #[command(hide = true)]
+    RunNpmSupervisor {
+        #[arg(long)]
+        owner_pid: u32,
+        #[arg(long)]
+        timeout_millis: u64,
+        #[arg(long)]
+        install_lock_fd: i32,
+        program: PathBuf,
+        #[arg(last = true, allow_hyphen_values = true)]
+        args: Vec<OsString>,
+    },
     PromptInstallCli {
         #[arg(long)]
         cli_path: Option<PathBuf>,
@@ -50,6 +73,11 @@ pub enum Commands {
         print_path: bool,
     },
     Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print read-only post-update/runtime diagnostics for support and smoke checks.
+    Diagnose {
         #[arg(long)]
         json: bool,
     },

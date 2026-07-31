@@ -14,5 +14,7 @@ To try it locally, copy `port-integrations/integrations.example.json` to
 }
 ```
 
-The example `patch.js` replaces a synthetic marker used only in tests. The
-example `stage.sh` is a no-op hook that prints a short message.
+The example integration declares `entrypoints.patchDescriptors` in
+`integration.json`.
+Its `patch.js` exports `descriptors` that replace a synthetic marker used only
+in tests. The example `stage.sh` is a no-op hook that prints a short message.
