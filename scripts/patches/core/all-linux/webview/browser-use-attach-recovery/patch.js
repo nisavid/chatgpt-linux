@@ -35,7 +35,7 @@ module.exports = [
     phase: "webview-asset",
     order: 1096,
     ciPolicy: "optional",
-    pattern: /^browser-sidebar-hidden-browser-use-webview-host-[^.]+\.js$/,
+    pattern: /^hidden-browser-use-webview-host-[^.]+\.js$/,
     missingDescription: "Browser Use hidden-webview host bundle",
     skipDescription: "Linux inactive-route Browser Use host ownership patch",
     apply: applyLinuxBrowserUseHiddenHostOwnershipPatch,

@@ -54,6 +54,28 @@ test("accepts a candidate when the shared release profile passes", () => withFix
   assert.equal(decision.blockers.length, 0);
 }));
 
+test("reads canonical official DMG metadata from build info", () => withFixture(({ root }) => {
+  const core = writeJson(root, "core.json", requiredCoreReport());
+  const buildInfo = writeJson(root, "build-info.json", {
+    officialDmg: {
+      sha256: "a".repeat(64),
+      sizeBytes: 1234,
+      appVersion: "1.2.3",
+    },
+  });
+  const decision = evaluateUpstreamDmg({
+    buildInfoPath: buildInfo,
+    coreReportPath: core,
+    buildStatus: "success",
+    repoRoot: root,
+  });
+
+  assert.equal(decision.verdict, "accepted");
+  assert.equal(decision.dmg.sha256, "a".repeat(64));
+  assert.equal(decision.dmg.sizeBytes, 1234);
+  assert.equal(decision.dmg.appVersion, "1.2.3");
+}));
+
 test("keeps optional drift non-blocking", () => withFixture(({ root, dmg }) => {
   const core = requiredCoreReport();
   core.patches.push(patch("optional-ui", { status: "skipped-optional", ciPolicy: "optional", reason: "needle moved" }));
@@ -70,6 +92,30 @@ test("rejects required patch and post-patch integrity failures", () => withFixtu
   const decision = evaluate(root, dmg, { core });
   assert.equal(decision.verdict, "rejected");
   assert.ok(decision.blockers.some((item) => item.code === "post-patch-integrity"));
+}));
+
+test("rejects a generated-app mutation integrity failure", () => withFixture(({ root, dmg }) => {
+  const core = requiredCoreReport();
+  core.mutationIntegrity = {
+    status: "failed",
+    operation: "replace",
+    code: "integrity",
+    reason: "generated-app mutation integrity failure",
+  };
+
+  const decision = evaluate(root, dmg, { core });
+
+  assert.equal(decision.verdict, "rejected");
+  assert.deepEqual(
+    decision.blockers.find((item) => item.code === "generated-app-mutation-integrity"),
+    {
+      code: "generated-app-mutation-integrity",
+      check: "core",
+      name: "generated-app mutation",
+      status: "failed",
+      reason: "generated-app mutation integrity failure",
+    },
+  );
 }));
 
 test("rejects drift from a user-enabled integration", () => withFixture(({ root, dmg }) => {

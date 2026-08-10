@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# shellcheck source=scripts/lib/generated-app-mutation-broker.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/generated-app-mutation-broker.sh"
+
 info() {
     echo "[INFO] $*" >&2
 }
@@ -646,8 +649,31 @@ normalize_app_payload_modes() {
 
 updater_binary_is_stale() {
     local binary="$1"
+    local canonical_binary
+    local canonical_repo
+    local requested_binary
+    local requested_repo
 
     [ -x "$binary" ] || return 0
+    canonical_binary="$(realpath -e -- "$binary")" || return 0
+    canonical_repo="$(realpath -e -- "$REPO_DIR")" || return 0
+    requested_binary="$(realpath -m -s -- "$binary")" || return 0
+    requested_repo="$(realpath -m -s -- "$REPO_DIR")" || return 0
+
+    # An explicit binary outside the copied source tree is an authoritative
+    # prebuilt input. Updater-managed rebuilds pass their currently running
+    # executable here; copied checkout mtimes must not force an untrusted or
+    # unavailable Rust toolchain back into that rebuild. A path requested from
+    # inside the source tree remains source-owned even if its final component
+    # is a symlink to an external executable.
+    if [[ "$requested_binary" != "$requested_repo" &&
+        "$requested_binary" != "$requested_repo"/* &&
+        "$requested_binary" != "$canonical_repo" &&
+        "$requested_binary" != "$canonical_repo"/* &&
+        "$canonical_binary" != "$canonical_repo" &&
+        "$canonical_binary" != "$canonical_repo"/* ]]; then
+        return 1
+    fi
 
     local source
     for source in "$REPO_DIR/Cargo.toml" "$REPO_DIR/Cargo.lock"; do
@@ -730,9 +756,44 @@ const path = require("node:path");
 
 const [repoDir, infoFile] = process.argv.slice(2);
 
+function trustedGitBinary() {
+  for (const candidate of ["/usr/bin/git", "/bin/git"]) {
+    try {
+      const stat = fs.statSync(candidate);
+      fs.accessSync(candidate, fs.constants.X_OK);
+      if (stat.isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Try the next fixed system path.
+    }
+  }
+  return null;
+}
+
+const trustedGit = trustedGitBinary();
+
 function git(args) {
-  const result = childProcess.spawnSync("git", ["-C", repoDir, ...args], {
+  if (trustedGit == null) {
+    return null;
+  }
+  const result = childProcess.spawnSync(trustedGit, [
+    "-C",
+    repoDir,
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    ...args,
+  ], {
     encoding: "utf8",
+    env: {
+      GIT_CONFIG_NOSYSTEM: "1",
+      HOME: "/nonexistent",
+      LC_ALL: "C",
+      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      XDG_CONFIG_HOME: "/nonexistent",
+    },
     stdio: ["ignore", "pipe", "ignore"],
   });
   if (result.status !== 0) {
@@ -883,12 +944,14 @@ function githubCommitUrl(remote, commit) {
 }
 
 const stagedInfo = readJsonFile(path.join(repoDir, ".chatgpt-linux", "source-info.json"));
-const commit = process.env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || git(["rev-parse", "HEAD"]);
-const status = git(["status", "--porcelain"]);
-const remote = sanitizeGitRemoteUrl(process.env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || git(["remote", "get-url", "origin"]));
-const info = stagedInfo?.commit
-  ? sanitizeSourceInfo(stagedInfo)
-  : {
+let info;
+if (stagedInfo?.commit) {
+  info = sanitizeSourceInfo(stagedInfo);
+} else {
+  const commit = process.env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || git(["rev-parse", "HEAD"]);
+  const status = git(["status", "--porcelain"]);
+  const remote = sanitizeGitRemoteUrl(process.env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || git(["remote", "get-url", "origin"]));
+  info = {
       commit,
       shortCommit: shortSourceCommit(commit),
       version: readWrapperVersion(repoDir),
@@ -899,7 +962,8 @@ const info = stagedInfo?.commit
       dirty: status == null ? null : status.length > 0,
       provenance: "packaged-update-builder",
       capturedAt: isoTimestamp(),
-    };
+  };
+}
 
 fs.mkdirSync(path.dirname(infoFile), { recursive: true });
 fs.writeFileSync(infoFile, `${JSON.stringify(info, null, 2)}\n`, "utf8");
@@ -1004,7 +1068,8 @@ stage_update_builder_bundle() {
         "$update_builder_root/launcher" \
         "$update_builder_root/port-integrations" \
         "$update_builder_root/packaging/linux" \
-        "$update_builder_root/assets"
+        "$update_builder_root/assets" \
+        "$update_builder_root/prebuilt-helpers"
 
     cp "$REPO_DIR/install.sh" "$update_builder_root/install.sh"
     cp "$REPO_DIR/CHANGELOG.md" "$update_builder_root/CHANGELOG.md"
@@ -1013,6 +1078,8 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/launcher/webview-server.py" "$update_builder_root/launcher/webview-server.py"
     cp "$REPO_DIR/Cargo.toml" "$update_builder_root/Cargo.toml"
     cp "$REPO_DIR/Cargo.lock" "$update_builder_root/Cargo.lock"
+    cp -r "$REPO_DIR/generated-app-mutation-broker" \
+        "$update_builder_root/generated-app-mutation-broker"
     cp -r "$REPO_DIR/computer-use-linux" "$update_builder_root/computer-use-linux"
     cp -r "$REPO_DIR/notification-actions-linux" "$update_builder_root/notification-actions-linux"
     cp -r "$REPO_DIR/record-replay-linux" "$update_builder_root/record-replay-linux"
@@ -1031,6 +1098,8 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/patch-linux-window-ui.js" "$update_builder_root/scripts/patch-linux-window-ui.js"
     cp -r "$REPO_DIR/scripts/patches/." "$update_builder_root/scripts/patches/"
     cp "$REPO_DIR/scripts/lib/package-common.sh" "$update_builder_root/scripts/lib/package-common.sh"
+    cp "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh" \
+        "$update_builder_root/scripts/lib/generated-app-mutation-broker.sh"
     cp "$REPO_DIR/scripts/lib/patch-chrome-plugin.js" "$update_builder_root/scripts/lib/patch-chrome-plugin.js"
     cp "$REPO_DIR/scripts/lib/node-runtime.sh" "$update_builder_root/scripts/lib/node-runtime.sh"
     cp "$REPO_DIR/scripts/lib/upstream-dmg-intel.js" "$update_builder_root/scripts/lib/upstream-dmg-intel.js"
@@ -1047,7 +1116,6 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/lib/patch-browser-client-iab-socket-scope.js" \
         "$update_builder_root/scripts/lib/patch-browser-client-iab-socket-scope.js"
     cp "$REPO_DIR/scripts/lib/linux-target-context.js" "$update_builder_root/scripts/lib/linux-target-context.js"
-    cp "$REPO_DIR/scripts/lib/linux-update-bridge-patch.js" "$update_builder_root/scripts/lib/linux-update-bridge-patch.js"
     cp "$REPO_DIR/scripts/lib/patch-report.js" "$update_builder_root/scripts/lib/patch-report.js"
     cp "$REPO_DIR/scripts/lib/patch-validation.js" "$update_builder_root/scripts/lib/patch-validation.js"
     cp "$REPO_DIR/scripts/lib/upstream-dmg-acceptance.js" "$update_builder_root/scripts/lib/upstream-dmg-acceptance.js"
@@ -1079,12 +1147,89 @@ stage_update_builder_bundle() {
     fi
     cp "$REPO_DIR/assets/chatgpt.png" "$update_builder_root/assets/chatgpt.png"
     cp "$REPO_DIR/assets/chatgpt-linux.png" "$update_builder_root/assets/chatgpt-linux.png"
+    stage_update_builder_prebuilt_helpers "$update_builder_root"
     stage_update_builder_source_info "$update_builder_root"
     write_update_builder_manifest "$update_builder_root"
     if [ -d "$node_runtime_source" ]; then
         cp -a "$node_runtime_source" "$update_builder_root/node-runtime"
     else
         error "Missing managed Node.js runtime: $node_runtime_source. Run ./install.sh first."
+    fi
+}
+
+stage_update_builder_prebuilt_helper() {
+    local source="$1"
+    local destination="$2"
+    local label="$3"
+
+    [ -e "$source" ] || return 1
+    [ -f "$source" ] && [ ! -L "$source" ] && [ -x "$source" ] || \
+        error "Invalid $label helper binary: $source"
+    install -m 0755 "$source" "$destination"
+}
+
+stage_update_builder_prebuilt_helpers() {
+    local update_builder_root="$1"
+    local helpers_root="$update_builder_root/prebuilt-helpers"
+    local computer_use_root="$APP_DIR/resources/plugins/openai-bundled/plugins/computer-use/bin"
+    local notification_actions_source="$APP_DIR/resources/native/chatgpt-notification-actions-linux"
+    local global_dictation_source="$APP_DIR/resources/native/chatgpt-global-dictation-linux"
+    local read_aloud_mcp_source="$APP_DIR/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    local chrome_host_source=""
+    local chrome_arch=""
+    local mutation_broker_source
+
+    resolve_generated_app_mutation_broker || \
+        error "Could not resolve the generated-app mutation broker used by this package build"
+    mutation_broker_source="$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+    stage_generation_bound_mutation_broker \
+        "$APP_DIR" \
+        "$mutation_broker_source" \
+        "$helpers_root/$GENERATED_APP_MUTATION_BROKER_BINARY" || \
+        error "Could not stage the generation-bound generated-app mutation broker"
+
+    case "$(uname -m)" in
+        x86_64) chrome_arch="x64" ;;
+        aarch64|arm64) chrome_arch="arm64" ;;
+    esac
+    if [ -n "$chrome_arch" ]; then
+        chrome_host_source="$APP_DIR/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$chrome_arch/extension-host"
+    fi
+
+    local backend_source="$computer_use_root/chatgpt-computer-use-linux"
+    local cosmic_source="$computer_use_root/chatgpt-computer-use-cosmic"
+    if [ -e "$backend_source" ] || [ -e "$cosmic_source" ]; then
+        stage_update_builder_prebuilt_helper \
+            "$backend_source" \
+            "$helpers_root/chatgpt-computer-use-linux" \
+            "Linux Computer Use backend"
+        stage_update_builder_prebuilt_helper \
+            "$cosmic_source" \
+            "$helpers_root/chatgpt-computer-use-cosmic" \
+            "Linux Computer Use COSMIC"
+    fi
+
+    stage_update_builder_prebuilt_helper \
+        "$notification_actions_source" \
+        "$helpers_root/chatgpt-notification-actions-linux" \
+        "notification actions" || true
+    if [ -n "$chrome_host_source" ]; then
+        stage_update_builder_prebuilt_helper \
+            "$chrome_host_source" \
+            "$helpers_root/chatgpt-chrome-extension-host" \
+            "Chrome extension host" || true
+    fi
+    if port_integration_enabled "global-dictation"; then
+        stage_update_builder_prebuilt_helper \
+            "$global_dictation_source" \
+            "$helpers_root/chatgpt-global-dictation-linux" \
+            "global dictation" || error "Enabled Global Dictation helper is missing from the generated app"
+    fi
+    if port_integration_enabled "read-aloud-mcp"; then
+        stage_update_builder_prebuilt_helper \
+            "$read_aloud_mcp_source" \
+            "$helpers_root/chatgpt-read-aloud-linux" \
+            "Read Aloud MCP" || error "Enabled Read Aloud MCP helper is missing from the generated app"
     fi
 }
 

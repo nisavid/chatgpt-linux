@@ -38,6 +38,8 @@ builder-root permission checks, trusted DMG metadata gating for unattended
 updater rebuilds and installs, package digest binding for updater-managed
 privileged installs, default-enabled Electron sandboxing, release gate checks,
 Apple DMG verification tooling, descriptor-based required patch validation,
+capability-mediated central main-bundle and webview mutation that poisons on
+integrity failure, private transactional candidate roots,
 sanitized Linux desktop-target launches, loopback-only no-cache webview serving,
 no-updater transition cleanup under package-owned support paths, default-enabled
 remote-control UI/mobile patching, private AppShots temporary capture staging,
@@ -59,6 +61,7 @@ In scope:
 - ASAR and generated-app inspection tooling:
   `scripts/patch-linux-window-ui.js`,
   `scripts/patch-linux-window-ui.test.js`, `scripts/patches/`,
+  `generated-app-mutation-broker/`,
   `scripts/lib/port-integrations.js`, `scripts/lib/linux-target-context.js`, and
   `scripts/inspect-electron-security.js`.
 - Native package builders and templates: `scripts/build-deb.sh`,
@@ -124,8 +127,6 @@ Open questions that materially affect risk:
   `openExternal`/`openPath` behavior does each generated app bundle expose?
 - What public artifact channel will be canonical: GitHub Releases, a package
   repository, Nix inputs, or a combination?
-- What privilege and consent boundary should Linux Computer Use enforce when
-  account-side gating enables it?
 
 ## System Model
 
@@ -153,6 +154,13 @@ Open questions that materially affect risk:
   and configurable integration patches to generated main-process, webview, and
   extracted-app bundles; required official-app patches must fail closed in
   patch reports. The source path is `port-integrations/`.
+- **Generated-app mutation broker:** a build-only Rust helper receives the
+  private generated-tree directory descriptor and mediates central main-bundle
+  and webview discovery, reads, and replacements. Single-use read tokens bind
+  replacements to relative path, identity, and digest. Integrity failure
+  poisons the session and keeps the transaction's child build unsuccessful.
+  Extracted-app descriptors, declarative resources, and shell staging hooks are
+  not yet part of this capability boundary.
 - **Agent Workspaces port integration:** adds a generated app settings page,
   staged Codex skill, prelaunch hook, and main-process bridge to
   `agent-workspace-linux`; workspace profiles, permission JSON, command paths,
@@ -182,8 +190,9 @@ Open questions that materially affect risk:
   `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/remote-control-device-keys-v1.json`.
 - **Linux Computer Use backend:** Rust MCP backend and plugin resources that can
   inspect accessibility state, capture screenshots, and synthesize desktop
-  input through AT-SPI, GNOME/KDE portal, and ydotool-style backends when
-  official app UI and OpenAI account gating enable Computer Use.
+  input through AT-SPI, GNOME/KDE portal, and ydotool-style backends. Live MCP
+  calls require trusted Linux support, current official eligibility, and a
+  fresh exact installed-and-enabled local official plugin record.
 - **Native package builders:** convert a generated app tree into `.deb`, `.rpm`,
   or pacman packages under the `chatgpt` identity.
 - **AppImage builder:** creates a local manual AppImage under the `chatgpt`
@@ -209,6 +218,7 @@ Open questions that materially affect risk:
 | Legacy-to-canonical state migration | same-user legacy XDG trees and migration journal | canonical ChatGPT XDG trees | Symlink traversal, collision overwrite, cross-filesystem partial copy, malicious persisted path rewrite |
 | Build toolchain | npm, Electron releases, Rust crates, distro tools, 7z/7zz | generated app and packages | Dependency compromise, unpinned downloads, malicious native modules |
 | Generated app bundle | extracted official app and patched ASAR | Linux Electron runtime | Renderer isolation, IPC, navigation, local file access |
+| Generated-app mutation | Node patch policy and untrusted generated files | build-only descriptor-relative Rust broker and private candidate | Path escape, link or rename race, stale read token, metadata loss, fail-soft integrity error |
 | Local webview origin | loopback HTTP server | Electron renderer | Same-user port spoofing, stale assets, served-asset substitution |
 | Port integration patches | generated app bundle | desktop launch helpers and platform integrations | Descriptor drift, command launch semantics, unsafe environment inheritance |
 | Agent Workspaces bridge | renderer settings, global state, profile and permission JSON | Electron main process and `agent-workspace-linux` | Helper command selection, renderer-supplied approvals, permission enforcement |
@@ -230,7 +240,8 @@ flowchart LR
   D["Official OpenAI ChatGPT.dmg"] --> I["install.sh"]
   D --> U["chatgpt-updater"]
   N["npm / Electron / Rust / distro tools"] --> I
-  I --> G["Generated chatgpt/"]
+  I --> MB["Build-only mutation broker"]
+  MB --> G["Generated chatgpt/"]
   G --> L["Launcher"]
   L --> W["Loopback webview"]
   W --> E["Electron renderer"]
@@ -268,13 +279,16 @@ flowchart LR
   digest, artifact path, and install status across restarts and package
   upgrades.
 - **Generated app integrity:** ensure the Linux app is built from the intended
-  official OpenAI ChatGPT DMG and reviewed patch set.
+  official OpenAI ChatGPT DMG and reviewed patch set, and keep central
+  main-bundle/webview replacements bound to broker-issued read identity.
 - **Renderer and desktop-control boundary:** keep Electron, webview, CLI, and
-  Computer Use behavior constrained to intended user-consented actions.
+  Computer Use behavior constrained to actions authorized by the owning
+  ChatGPT or Codex feature and tool controls.
 - **Port integration control state:** treat generated webview settings,
   integration global state, local helper paths, permission/profile JSON, update
-  markers, and feature preferences as user-writable inputs that must be
-  revalidated at the trusted action sink.
+  markers, and feature preferences as user-writable inputs. The trusted control
+  plane owns authorization; action sinks must still revalidate targets,
+  arguments, and local preconditions.
 - **Remote-control device keys and enrollment state:** protect software private
   keys, preserved app-server remote-control config, and UI state that implies
   whether another device can control or be controlled by this desktop.
@@ -295,6 +309,8 @@ flowchart LR
   by same-user processes.
 - Generated ASAR/webview content, renderer messages, plugin manifests, and
   Computer Use requests.
+- Generated-tree paths, file identity, replacement bytes, mutation-broker
+  executable identity, and the generation-bound broker digest manifest.
 - Agent Workspace settings state, renderer-supplied bridge params, local
   permission/profile JSON, and configured command paths.
 - AppShots focused-window capture requests, accessibility output, screenshot
@@ -338,14 +354,42 @@ flowchart LR
   explicit lower-security compatibility mode.
 - Required generated-app patches must be marked as required failures when
   official app bundle drift prevents application.
+- Central main-bundle and webview-asset discovery, reads, and replacements must
+  use the descriptor-relative generated-app mutation capability. Read tokens
+  are single-use and path/identity/digest-bound; any broker, protocol, lookup,
+  token, or replacement-integrity failure poisons the session and fails the
+  child build. Replacement preserves mode and nanosecond modification time and
+  rejects extended attributes.
+- The generated-app mutation broker must remain build-only. Source and Nix
+  builds may compile it; packaged updater rebuilds must execute only the
+  package-owned prebuilt helper whose exact digest is bound to the generated app
+  in the isolated build environment.
+- Transactional candidates must be created and verified as owned, non-symlink
+  `0700` directories before population, preserved under inner `--fresh`, and
+  reverified before becoming `0755` only after integrity and official-DMG
+  acceptance. Rejection leaves the candidate private or removes it before the
+  journaled atomic promotion boundary.
+- Extracted-app descriptors, declarative resource staging, and shell hooks
+  remain outside the mutation capability until their later migration gates are
+  complete.
 - Desktop target discovery must use argument-vector process launches, sanitize
   app-internal environment variables, reject unsafe open-target values before
   launch sinks, and treat user-local `.desktop` entries as same-user trust
   inputs.
-- Computer Use must remain locally scoped, account/host-gated, and bound to
-  user-consented desktop-control semantics.
+- Computer Use must remain locally scoped. The official installed-and-enabled
+  local `computer-use@openai-bundled` plugin setting is the persistent user
+  grant. Every live request must also require current official eligibility and
+  trusted Linux support, with the exact plugin record read afresh. The private
+  generation/token-bound app authority must revalidate every MCP tool call and
+  deny stale or late results after plugin disablement or eligibility loss. This
+  fork must not add a parallel consent store or recurring first-use, session,
+  or action prompt. Codex tool approval, sandboxing, auto-approval, allowed-app
+  selection, and local action validation remain independent controls. Host
+  readiness is a feasibility condition, not another grant.
 - Renderer-visible port integration controls must not be treated as security
-  boundaries unless the main process or backend enforces the same decision.
+  boundaries unless the trusted main process, backend, or OpenAI-hosted service
+  enforces the same decision. A build-time UI exposure flag is never an action
+  grant.
 - Platform enablement patches must preserve upstream account, rollout, and
   availability gates unless the local integration supplies an equivalent
   documented control.
@@ -441,6 +485,40 @@ tool downloads; developer mode intentionally trusts local builder roots.
 
 **Priority:** Medium.
 
+### T3a: Generated-App Mutation Escapes Or Poisons The Candidate
+
+**Entry points:** generated main-bundle and webview files, broker executable,
+private candidate root, relative component paths, read tokens, and replacement
+bytes.
+
+**Abuse path:** a generated file or concurrent workspace mutation redirects a
+path, swaps identity after read, changes the broker binary, exploits metadata
+loss, or turns an integrity error into ordinary optional patch drift.
+
+**Impact:** High. A poisoned generated app could pass acceptance and become the
+next local or packaged runtime.
+
+**Existing mitigations:** the Node runner verifies an owned private root and a
+trusted executable, passes both as descriptors, and clears the broker
+environment. Central main-bundle and webview operations use relative components
+and single-use path/identity/digest-bound tokens. Replacement fails closed on
+links, mount escape, identity drift, unsupported atomic exchange, or extended
+attributes, while preserving mode and nanosecond modification time. Any
+integrity error poisons the session, stops later patch work, fails the child
+build, and blocks acceptance override. Source/Nix builds use a build-only
+broker; updater rebuilds use the package-owned prebuilt executable and its exact
+generation-bound digest. Transactional candidates stay `0700` until integrity
+and acceptance
+succeed, then retain journaled atomic promotion.
+
+**Gaps:** extracted-app descriptor callbacks, declarative resource copies, and
+shell stage/cleanup hooks still use pathname mutation pending Gates 3 and 4.
+The boundary also excludes actors that control the build account, workspace,
+or mount namespace.
+
+**Priority:** High when changing app generation, broker delivery, or staging;
+Medium otherwise.
+
 ### T4: Renderer Or Local Webview Origin Escapes Containment
 
 **Entry points:** generated ASAR/webview content, loopback webview server,
@@ -479,16 +557,28 @@ or input automation beyond user intent.
 **Impact:** High for confidentiality and integrity of the user's desktop
 session.
 
-**Existing mitigations:** Computer Use remains subject to OpenAI account-side
-rollout and host accessibility/input prerequisites; backend is packaged as a
-local app component rather than a network service; requested app selection now
-errors when no accessible app matches; the backend carries explicit identity
-metadata for desktop portal/GNOME integration.
+**Existing mitigations:** the official installed-and-enabled local
+`computer-use@openai-bundled` plugin setting is the persistent user grant. A
+live allow requires all three current inputs: trusted Linux support, official
+eligibility, and a fresh exact official plugin record. The app exposes that
+decision over a private process-tree-bound Unix socket with a rotating
+generation and random token; the Rust backend revalidates every MCP tool call
+and rejects missing, stale, late, or revoked authority. Plugin disablement
+revokes before the persisted config write, and eligibility loss revokes before
+plugin reconciliation. This fork adds no separate consent state or prompt.
+Codex tool approval, sandboxing, auto-approval, allowed-app selection, and local
+action validation remain in force. Official app and OS portal prompts remain
+intact. Host accessibility, screenshot, and input readiness only determine
+whether an authorized request can run. Direct execution of the backend CLI is
+an explicit action by the same-user operator.
 
-**Gaps:** local authorization/consent semantics for Computer Use are mostly
-inherited from the official app flow; the backend needs manual review when
-plugin manifests, command routing, screenshot handling, or input backends
-change.
+**Gaps:** the backend and its trusted invocation path need manual review when
+plugin manifests, command routing, target validation, screenshot handling, or
+input backends change. Local protocol access or syntactically valid input must
+never be interpreted as a grant from the ChatGPT/Codex control plane. This
+contract enforces ChatGPT product authorization; it cannot cryptographically
+isolate the feature from a process that already controls the same user account,
+can change that user's settings, or can directly execute the helper.
 
 **Priority:** High when touching Computer Use; Medium otherwise.
 
@@ -613,7 +703,8 @@ and private temporary staging.
 
 **Gaps:** Linux capture tooling remains best-effort and desktop-environment
 dependent; future capture backends need review for temporary-file handling,
-focused-window identity, and user-visible consent.
+focused-window identity, and enforcement of the owning AppShots setting and
+hotkey state.
 
 **Priority:** Medium when changing AppShots capture behavior; Low otherwise.
 
@@ -765,23 +856,25 @@ still contain arbitrary sensitive values.
 1. Bind privileged installs to a verified package digest and identity.
 2. Attach Apple signature/notarization and version evidence to hash-refresh PRs.
 3. Review generated app Electron security settings before public releases.
-4. Add package signing, checksums, and hosted provenance for public artifacts.
-5. Review Computer Use command routing, screenshots, and input backends whenever
+4. Preserve the generated-app mutation capability and private-candidate
+   boundary; complete extracted-app descriptor and integration-staging migration.
+5. Add package signing, checksums, and hosted provenance for public artifacts.
+6. Review Computer Use command routing, screenshots, and input backends whenever
    that surface changes.
-6. Review remote-control/mobile host enrollment, UI gates, and Linux device-key
+7. Review remote-control/mobile host enrollment, UI gates, and Linux device-key
    storage as the default-enabled surface evolves beyond experimental use.
-7. Harden and re-review Agent Workspaces helper command selection, permission
+8. Harden and re-review Agent Workspaces helper command selection, permission
    files, and hidden-workspace acknowledgement handling before treating its
    settings UI as the security boundary.
-8. Review AppShots capture backends, focused-window identity, and temporary
+9. Review AppShots capture backends, focused-window identity, and temporary
    staging whenever capture behavior changes.
-9. Review wrapper update UI state and Copilot reasoning-effort settings for
+10. Review wrapper update UI state and Copilot reasoning-effort settings for
    misleading authority or service-policy assumptions.
-10. Review Linux open-target discovery heuristics and launch environment
+11. Review Linux open-target discovery heuristics and launch environment
    sanitization when adding target families or `.desktop` handling.
-11. Review npm CLI auto-upgrade trust and add an approved-version or consent
+12. Review npm CLI auto-upgrade trust and add an approved-version or consent
    path.
-12. Redact credential-looking subprocess output before persistence.
+13. Redact credential-looking subprocess output before persistence.
 
 ## Focus Paths For Manual Security Review
 
@@ -792,6 +885,11 @@ still contain arbitrary sensitive values.
 - `scripts/patch-linux-window-ui.js` and `scripts/patches/`: ASAR patch
   injection, descriptor policies, fail-soft behavior, file-manager handling,
   launch-action socket behavior.
+- `generated-app-mutation-broker/`,
+  `scripts/patches/lib/generated-app-mutation-client.js`,
+  `scripts/lib/generated-app-mutation-broker.sh`, `install.sh`, and
+  `scripts/lib/install-helpers.sh`: broker confinement and delivery, poison
+  propagation, private candidate lifecycle, and acceptance/promotion ordering.
 - `scripts/inspect-electron-security.js`: generated app security checks used by
   release gates.
 - `launcher/webview-server.py`: loopback webview serving, cache headers, and
@@ -847,7 +945,7 @@ still contain arbitrary sensitive values.
   environment, filesystem access.
 - `packaging/linux/chatgpt-packaged-runtime.sh`: systemd environment import,
   service startup, launch-time update checks.
-- `.github/workflows/update-codex-hash.yml` and
+- `.github/workflows/update-chatgpt-hash.yml` and
   `.github/workflows/verify-apple-dmg.yml`: trust-root update and Apple
   verification evidence.
 - `flake.nix`: fixed-output DMG hash, Electron patching, Nix-specific runtime

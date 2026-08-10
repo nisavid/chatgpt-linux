@@ -44,7 +44,7 @@ if (socketDirOnly || source.includes(iabMarker)) {
 }
 
 const socketListingPattern =
-  /([A-Za-z_$][\w$]*)=\(\)=>\s*([A-Za-z_$][\w$]*)\(\)==="win32"\?([A-Za-z_$][\w$]*)\(\):([A-Za-z_$][\w$]*)\(\),\4=async\(\)=>\(await ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\)\.map\(([A-Za-z_$][\w$]*)=>([A-Za-z_$][\w$]*)\.resolve\(\6,\7\)\),\3=async\(\)=>/g;
+  /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)=>\2\.platform==="win32"\?([A-Za-z_$][\w$]*)\(\2\):([A-Za-z_$][\w$]*)\(\2\),\4=async ([A-Za-z_$][\w$]*)=>\{let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\5\.platform\);return\(await ([A-Za-z_$][\w$]*)\(\6\)\)\.map\(([A-Za-z_$][\w$]*)=>([A-Za-z_$][\w$]*)\.resolve\(\6,\9\)\)\},\3=async ([A-Za-z_$][\w$]*)=>/g;
 const matches = [...source.matchAll(socketListingPattern)];
 if (matches.length !== 1) {
   if (source.includes("codex-browser-use")) {
@@ -59,18 +59,23 @@ if (matches.length !== 1) {
 const [
   target,
   dispatcher,
-  platform,
+  dispatchContext,
   windowsListing,
   unixListing,
-  readDirectory,
+  unixContext,
   socketDirectory,
+  socketDirectoryResolver,
+  readDirectory,
   entry,
   pathModule,
+  windowsContext,
 ] = matches[0];
 const replacement =
-  `${dispatcher}=()=>${platform}()==="win32"?${windowsListing}():${unixListing}(),` +
-  `${unixListing}=async()=>(await ${readDirectory}(${socketDirectory}))` +
+  `${dispatcher}=${dispatchContext}=>${dispatchContext}.platform==="win32"?` +
+  `${windowsListing}(${dispatchContext}):${unixListing}(${dispatchContext}),` +
+  `${unixListing}=async ${unixContext}=>{let ${socketDirectory}=` +
+  `${socketDirectoryResolver}(${unixContext}.platform);return(await ${readDirectory}(${socketDirectory}))` +
   `.filter(${entry}=>!${entry}.startsWith("extension-")${iabMarker})` +
-  `.map(${entry}=>${pathModule}.resolve(${socketDirectory},${entry})),` +
-  `${windowsListing}=async()=>`;
+  `.map(${entry}=>${pathModule}.resolve(${socketDirectory},${entry}))},` +
+  `${windowsListing}=async ${windowsContext}=>`;
 fs.writeFileSync(clientPath, source.replace(target, replacement), "utf8");

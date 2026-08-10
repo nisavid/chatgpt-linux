@@ -50,7 +50,7 @@ module.exports = [
     id: "linux-bundled-plugin-copy-permissions",
     phase: "main-bundle",
     order: 165,
-    ciPolicy: "optional",
+    ciPolicy: "required-official-dmg",
     apply: applyLinuxBundledPluginCopyPermissionsPatch,
   }),
   mainBundlePatch({

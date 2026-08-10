@@ -152,7 +152,7 @@ render_pr_body() {
     local better_sqlite3_version=""
     local node_pty_version=""
     local verification_url=""
-    local branch="bot/update-codex-dmg-hash"
+    local branch="bot/update-chatgpt-dmg-hash"
 
     while [ "$#" -gt 0 ]; do
         case "$1" in

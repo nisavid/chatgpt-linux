@@ -51,6 +51,26 @@ TRUE_BIN="$(PATH="$HOST_TOOL_PATH" type -P true)"
     exit 1
 }
 TMP_DIR="$(mktemp -d)"
+MUTATION_BROKER_INPUT="${CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE:-}"
+if [ -z "$MUTATION_BROKER_INPUT" ]; then
+    for broker_candidate in \
+        "$REPO_DIR/target/release/chatgpt-generated-app-mutation-broker" \
+        "$REPO_DIR/target/debug/chatgpt-generated-app-mutation-broker"; do
+        if [ -x "$broker_candidate" ]; then
+            MUTATION_BROKER_INPUT="$broker_candidate"
+            break
+        fi
+    done
+fi
+[ -n "$MUTATION_BROKER_INPUT" ] && [ -x "$MUTATION_BROKER_INPUT" ] || {
+    printf '%s\n' \
+        "Build generated-app-mutation-broker or set CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE" >&2
+    exit 1
+}
+MUTATION_BROKER_SOURCE="$TMP_DIR/chatgpt-generated-app-mutation-broker"
+cp "$MUTATION_BROKER_INPUT" "$MUTATION_BROKER_SOURCE"
+chmod 0700 "$MUTATION_BROKER_SOURCE"
+export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$MUTATION_BROKER_SOURCE"
 
 SMOKE_PORT_INTEGRATIONS_CONFIG="$TMP_DIR/port-integrations-disabled.json"
 CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/port-integrations/integrations.example.json" \
@@ -183,7 +203,7 @@ JSON
 {"name":"browser","version":"0.1.0-alpha2","interface":{"category":"Engineering"}}
 JSON
     cat > "$resources_dir/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" <<'JS'
-import{env as Ub}from"node:process";function lu(e){let t=globalThis.nodeRepl?.env[e];return typeof t=="string"?t:void 0}function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}function th(){let e=import.meta.__codexNativePipe;return e==null||typeof e.createConnection!="function"?null:e}var I2=new Set(["about:blank"]);function Gb(e){if(I2.has(e))return!0;let t;try{t=new URL(e)}catch{return!1}return t.protocol==="http:"||t.protocol==="https:"}class Uf{async fetchBlocked(e,t){let r=await bS(e.endpoint,{method:"GET"});if(!r.ok)throw new Error(ae(`${t} cannot determine if ${e.displayUrl} is allowed. Please try again later or use another source.`));let n=await r.json();return TF(n)}}var kE=t=>t==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use";var Cb=kE(hV.platform()),EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>wP.resolve(Cb,e)),TV=async()=>[];export function setupAtlasRuntime() {return Ub.XDG_CONFIG_HOME}
+import{env as Ub}from"node:process";function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}function th(){let e=import.meta.__codexNativePipe;return e==null||typeof e.createConnection!="function"?null:e}var I2=new Set(["about:blank"]);function Gb(e){if(I2.has(e))return!0;let t;try{t=new URL(e)}catch{return!1}return t.protocol==="http:"||t.protocol==="https:"}class Uf{async fetchBlocked(e,t){let r=await bS(e.endpoint,{method:"GET"});if(!r.ok)throw new Error(ae(`${t} cannot determine if ${e.displayUrl} is allowed. Please try again later or use another source.`));let n=await r.json();return TF(n)}}var ys=e=>e==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use",Q6=e=>e.platform==="win32"?t4(e):e4(e),e4=async e=>{let t=ys(e.platform);return(await BE(t)).map(n=>NE.resolve(t,n))},t4=async e=>[];export function setupAtlasRuntime() {return Ub.XDG_CONFIG_HOME}
 JS
 }
 
@@ -226,6 +246,29 @@ JSON
 make_fake_app() {
     local app_dir="$1"
     bash "$REPO_DIR/tests/fixtures/create-packaged-app-fixture.sh" "$app_dir"
+    local helper_root="$app_dir/resources/plugins/openai-bundled/plugins/computer-use/bin"
+    local chrome_root="$app_dir/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux"
+    local notification_root="$app_dir/resources/native"
+    local read_aloud_root="$app_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin"
+    local helper
+
+    mkdir -p "$helper_root" "$chrome_root/x64" "$chrome_root/arm64" "$notification_root" "$read_aloud_root"
+    for helper in \
+        "$helper_root/chatgpt-computer-use-linux" \
+        "$helper_root/chatgpt-computer-use-cosmic" \
+        "$chrome_root/x64/extension-host" \
+        "$chrome_root/arm64/extension-host" \
+        "$notification_root/chatgpt-notification-actions-linux" \
+        "$notification_root/chatgpt-global-dictation-linux" \
+        "$read_aloud_root/chatgpt-read-aloud-linux"; do
+        printf '#!/usr/bin/env bash\nexit 0\n' > "$helper"
+        chmod 0755 "$helper"
+    done
+    mkdir -p "$app_dir/.chatgpt-linux"
+    printf '%s  %s\n' \
+        "$(sha256sum "$MUTATION_BROKER_SOURCE" | awk '{print $1}')" \
+        "chatgpt-generated-app-mutation-broker" \
+        > "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
 }
 
 make_stub_bin_dir() {
@@ -249,6 +292,7 @@ test_extract_webview_replaces_linux_icon_assets() {
     printf '%s\n' '<style>--startup-background: transparent</style>' > "$work_dir/app-extracted/webview/index.html"
 
     (
+        umask 0077
         SCRIPT_DIR="$REPO_DIR"
         INSTALL_DIR="$install_dir"
         WORK_DIR="$work_dir"
@@ -633,7 +677,7 @@ SCRIPT
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-acceptance.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/candidate-promotion.py"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/validate-upstream-dmg.js"
-    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/linux-update-bridge-patch.js"
+    assert_file_not_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/linux-update-bridge-patch.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-report.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/rebuild-report.sh"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/build-info.js"
@@ -658,6 +702,27 @@ SCRIPT
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/port-integrations/example-integration/integration.json"
     assert_file_not_exists "$pkg_root/usr/lib/chatgpt/update-builder/port-integrations/integrations.json"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/node-runtime/bin/node"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-computer-use-linux"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-computer-use-cosmic"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-chrome-extension-host"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-notification-actions-linux"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-generated-app-mutation-broker"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/prebuilt-helpers/chatgpt-generated-app-mutation-broker.sha256"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/generated-app-mutation-broker/Cargo.toml"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/generated-app-mutation-broker/PROTOCOL.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/generated-app-mutation-broker.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/patches/lib/generated-app-mutation-client.js"
+    local leaked_mutation_broker
+    leaked_mutation_broker="$(find \
+        "$pkg_root/opt/chatgpt" \
+        "$pkg_root/usr/bin" \
+        "$pkg_root/usr/share" \
+        -type f -name chatgpt-generated-app-mutation-broker -print -quit)"
+    [ -z "$leaked_mutation_broker" ] || \
+        fail "Build-only generated-app mutation broker leaked into package runtime payload: $leaked_mutation_broker"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "prebuilt-helpers/chatgpt-generated-app-mutation-broker.sha256"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/Cargo.toml"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/CHANGELOG.md"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/launcher/cli-launch-path.py"
@@ -782,6 +847,48 @@ if (info.remote !== "https://example.com/org/repo.git") {
 }
 if (info.recapturedAt !== new Date(1710000000 * 1000).toISOString()) {
   throw new Error(`unexpected recapturedAt: ${info.recapturedAt}`);
+}
+NODE
+}
+
+test_update_builder_source_info_uses_only_isolated_git() {
+    info "Checking update-builder source info cannot execute ambient or repository-configured Git commands"
+    local workspace="$TMP_DIR/update-builder-isolated-git"
+    local source_info="$workspace/.chatgpt-linux/source-info.json"
+    local path_git_marker="$workspace/path-git-ran"
+    local fsmonitor_marker="$workspace/fsmonitor-ran"
+
+    mkdir -p "$workspace/updater" "$workspace/bin"
+    printf '%s\n' '[package]' 'name = "chatgpt-updater"' 'version = "0.10.4"' > "$workspace/updater/Cargo.toml"
+    printf '%s\n' '#!/bin/sh' "touch '$path_git_marker'" 'exec /usr/bin/git "$@"' > "$workspace/bin/git"
+    printf '%s\n' '#!/bin/sh' 'touch "$1"' 'exit 0' > "$workspace/fsmonitor"
+    chmod 0755 "$workspace/bin/git" "$workspace/fsmonitor"
+
+    git -C "$workspace" init -q -b main
+    git -C "$workspace" add updater/Cargo.toml fsmonitor
+    git -C "$workspace" -c user.name='Source info fixture' -c user.email='source-info.invalid' \
+        commit -qm 'create source fixture'
+    git -C "$workspace" config core.fsmonitor "$workspace/fsmonitor $fsmonitor_marker"
+
+    (
+        export REPO_DIR="$workspace"
+        export PATH="$workspace/bin:/usr/bin:/bin"
+        # shellcheck disable=SC1091
+        source "$SCRIPT_DIR/../scripts/lib/package-common.sh"
+        stage_update_builder_source_info "$workspace"
+    )
+
+    assert_file_exists "$source_info"
+    assert_file_not_exists "$path_git_marker"
+    assert_file_not_exists "$fsmonitor_marker"
+    node - "$source_info" <<'NODE' || fail "Expected isolated Git to capture source metadata"
+const fs = require("node:fs");
+const info = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+if (!/^[0-9a-f]{40}$/.test(info.commit ?? "")) {
+  throw new Error(`unexpected commit: ${info.commit}`);
+}
+if (info.branch !== "main") {
+  throw new Error(`unexpected branch: ${info.branch}`);
 }
 NODE
 }
@@ -2215,6 +2322,47 @@ SCRIPT
     [ "$actual" = "9" ] || fail "Expected 9 repaired symlinks, found $actual"
 }
 
+test_dmg_link_warning_repair_treats_option_like_target_as_data() {
+    info "Checking DMG link-warning repair cannot mutate the caller directory"
+    local workspace="$TMP_DIR/dmg-link-option-target"
+    local extract_dir="$workspace/extract"
+    local app_dir="$extract_dir/ChatGPT.app"
+    local caller_dir="$workspace/caller"
+    local warning_log="$workspace/7z.log"
+    local link_path="$app_dir/Contents/victim.txt"
+    local caller_victim="$caller_dir/victim.txt"
+
+    mkdir -p "$app_dir/Contents" "$caller_dir"
+    printf '%s\n' "link target" >"$app_dir/Contents/-f"
+    printf '%s\n' "caller sentinel" >"$caller_victim"
+    printf '%s\n' \
+        "ERROR: Dangerous link path was ignored : ChatGPT.app/Contents/victim.txt : -f" \
+        >"$warning_log"
+
+    (
+        cd "$caller_dir"
+        REPO_DIR="$REPO_DIR" \
+        TEST_EXTRACT_DIR="$extract_dir" \
+        TEST_APP_DIR="$app_dir" \
+        TEST_WARNING_LOG="$warning_log" \
+            bash <<'SCRIPT'
+set -Eeuo pipefail
+info() { :; }
+warn() { :; }
+error() { echo "$*" >&2; exit 1; }
+# shellcheck disable=SC1091
+source "$REPO_DIR/scripts/lib/dmg.sh"
+[ "$(repair_7z_dangerous_link_path_warnings "$TEST_EXTRACT_DIR" "$TEST_APP_DIR" "$TEST_WARNING_LOG")" = "1" ]
+SCRIPT
+    )
+
+    [ ! -L "$caller_victim" ] || fail "DMG repair replaced a caller-directory file"
+    [ "$(cat "$caller_victim")" = "caller sentinel" ] \
+        || fail "DMG repair changed caller-directory file contents"
+    [ -L "$link_path" ] || fail "Expected option-like target to create only the in-app link"
+    [ "$(readlink "$link_path")" = "-f" ] || fail "Option-like target was not preserved as link data"
+}
+
 test_fresh_install_removes_cached_dmg_metadata() {
     info "Checking --fresh removes cached DMG metadata"
     local workspace="$TMP_DIR/fresh-dmg-metadata"
@@ -2850,6 +2998,134 @@ test_transactional_install_uses_managed_node_and_isolated_reports() {
     assert_contains "$REPO_DIR/install.sh" "harden_bundled_plugin_source_tree"
 }
 
+test_transactional_install_rejects_mutation_integrity_failure() {
+    info "Checking mutation integrity failures cannot promote a transactional candidate"
+    local workspace="$TMP_DIR/transactional-mutation-integrity"
+    local fixture_root="$workspace/fixture"
+    local final_dir="$workspace/chatgpt"
+    local original_dir="$workspace/original"
+    local dmg_path="$workspace/ChatGPT.dmg"
+    local metadata_path="$workspace/dmg-metadata.json"
+    local patch_report="$workspace/published/patch-report.json"
+    local decision_report="$workspace/published/decision.json"
+    local rebuild_report="$workspace/published/rebuild-report.json"
+    local acceptance_capture="$workspace/acceptance-build-status"
+    local candidate_mode_capture="$workspace/candidate-mode"
+    local later_sentinel="$workspace/later-stage-ran"
+    local promotion_sentinel="$workspace/promotion-ran"
+    local missing_broker="$workspace/missing-broker"
+    local host_node
+
+    host_node="$(PATH="$HOST_TOOL_PATH" type -P node)"
+    [ -x "$host_node" ] || fail "Expected a host Node.js executable for mutation integrity fixture"
+
+    mkdir -p "$fixture_root/scripts" "$final_dir" "$original_dir"
+    printf '%s\n' 'installed-app-bytes' > "$final_dir/version"
+    cp -a "$final_dir/." "$original_dir/"
+    printf '%s\n' 'fixture-dmg' > "$dmg_path"
+    printf '%s\n' '{"url":"fixture"}' > "$metadata_path"
+
+    cat > "$fixture_root/install.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+stat -c '%a' -- "$CHATGPT_INSTALL_DIR" > "$CANDIDATE_MODE_CAPTURE"
+mkdir -p "$CHATGPT_INSTALL_DIR/.vite/build"
+printf '%s\n' 'must-stay-unchanged' > "$CHATGPT_INSTALL_DIR/.vite/build/main.js"
+"$PATCHER_NODE" "$PATCHER_CLI" \
+    --mutation-broker "$FAILING_MUTATION_BROKER" \
+    --verified-private-root \
+    --report-json "$CHATGPT_PATCH_REPORT_JSON" \
+    "$CHATGPT_INSTALL_DIR"
+printf '%s\n' 'later-stage-ran' > "$LATER_STAGE_SENTINEL"
+SCRIPT
+    chmod +x "$fixture_root/install.sh"
+
+    cat > "$workspace/acceptance-node" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if [ "${1-}" = "-e" ]; then
+    printf '%s\n' 'rejected'
+    exit 0
+fi
+
+shift
+output_path=""
+build_status=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --output)
+            shift
+            output_path="${1-}"
+            ;;
+        --build-status)
+            shift
+            build_status="${1-}"
+            ;;
+    esac
+    shift
+done
+[ -n "$output_path" ]
+[ -n "$build_status" ]
+mkdir -p "$(dirname "$output_path")"
+printf '%s\n' "$build_status" > "$ACCEPTANCE_BUILD_STATUS_CAPTURE"
+printf '{"verdict":"rejected","buildStatus":"%s"}\n' "$build_status" > "$output_path"
+SCRIPT
+    chmod +x "$workspace/acceptance-node"
+
+    if (
+        export CHATGPT_INSTALLER_SOURCE_ONLY=1
+        # shellcheck disable=SC1091
+        source "$REPO_DIR/install.sh"
+
+        SCRIPT_DIR="$fixture_root"
+        INSTALL_DIR="$final_dir"
+        PROVIDED_DMG_PATH="$dmg_path"
+        CHATGPT_ACCEPTANCE_NODE="$workspace/acceptance-node"
+        CHATGPT_ACCEPTANCE_OVERRIDE=1
+        CHATGPT_OFFICIAL_DMG_METADATA_JSON="$metadata_path"
+        CHATGPT_PATCH_REPORT_JSON="$patch_report"
+        CHATGPT_REBUILD_REPORT_JSON="$rebuild_report"
+        CHATGPT_ACCEPTANCE_DECISION_JSON="$decision_report"
+        PATCHER_NODE="$host_node"
+        PATCHER_CLI="$REPO_DIR/scripts/patch-linux-window-ui.js"
+        FAILING_MUTATION_BROKER="$missing_broker"
+        LATER_STAGE_SENTINEL="$later_sentinel"
+        ACCEPTANCE_BUILD_STATUS_CAPTURE="$acceptance_capture"
+        CANDIDATE_MODE_CAPTURE="$candidate_mode_capture"
+        export SCRIPT_DIR INSTALL_DIR PROVIDED_DMG_PATH CHATGPT_ACCEPTANCE_NODE
+        export CHATGPT_ACCEPTANCE_OVERRIDE CHATGPT_OFFICIAL_DMG_METADATA_JSON
+        export CHATGPT_PATCH_REPORT_JSON CHATGPT_REBUILD_REPORT_JSON
+        export CHATGPT_ACCEPTANCE_DECISION_JSON PATCHER_NODE PATCHER_CLI
+        export FAILING_MUTATION_BROKER LATER_STAGE_SENTINEL ACCEPTANCE_BUILD_STATUS_CAPTURE
+        export CANDIDATE_MODE_CAPTURE
+
+        recover_pending_candidate_promotion() { :; }
+        promote_candidate_install() {
+            printf '%s\n' 'promotion-ran' > "$promotion_sentinel"
+        }
+
+        transactional_install
+    ); then
+        fail "Expected mutation integrity failure to reject the transactional candidate"
+    fi
+
+    cmp -s "$original_dir/version" "$final_dir/version" \
+        || fail "Mutation integrity failure changed the installed app"
+    assert_file_not_exists "$later_sentinel"
+    assert_file_not_exists "$promotion_sentinel"
+    assert_file_exists "$patch_report"
+    assert_file_exists "$decision_report"
+    [ "$(cat "$acceptance_capture")" = "failure" ] \
+        || fail "Expected acceptance to receive build_status=failure"
+    [ "$(cat "$candidate_mode_capture")" = "700" ] \
+        || fail "Expected candidate population to begin under mode 0700"
+    assert_contains "$patch_report" '"status": "failed"'
+    assert_contains "$patch_report" '"reason": "generated-app mutation integrity failure"'
+    assert_not_contains "$patch_report" "$missing_broker"
+}
+
 test_installer_cleanup_handles_readonly_trees() {
     info "Checking installer cleanup handles immutable-source directory modes"
     local workspace="$TMP_DIR/readonly-installer-cleanup"
@@ -3005,6 +3281,11 @@ test_fedora_dependency_bootstrap_installs_rpmbuild() {
     awk '/^install_dnf\(\) \{/,/^}/' "$install_deps" | grep -q -- "gcc-c++" \
         || fail "install_dnf must install gcc-c++ for g++"
 
+}
+
+test_sevenzip_bootstrap_authenticates_executable_archive() {
+    info "Checking 7zz bootstrap authenticates executable archive bytes"
+    "$BASH_BIN" "$REPO_DIR/tests/sevenzip_bootstrap.sh"
 }
 
 test_fedora_atomic_rpm_ostree_target_detection() {
@@ -3179,13 +3460,14 @@ test_setup_native_wizard_noninteractive_integration_writer() {
     }
   }
 }
+
 JSON
 
     CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
     CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
     CHATGPT_PORT_INTEGRATIONS="remote-mobile-control,read-aloud" \
-    CHATGPT_LINUX_DISABLE_FEATURES="conversation-mode" \
+    CHATGPT_DISABLE_PORT_INTEGRATIONS="conversation-mode" \
     PACKAGE_WITH_UPDATER=0 \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
@@ -3263,7 +3545,7 @@ test_setup_native_wizard_rejects_conflicting_integration_ids() {
         CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
         CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         CHATGPT_PORT_INTEGRATIONS="read-aloud" \
-        CHATGPT_LINUX_DISABLE_FEATURES="read-aloud" \
+        CHATGPT_DISABLE_PORT_INTEGRATIONS="read-aloud" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
         fail "setup wizard should reject conflicting integration ids"
     fi
@@ -3298,7 +3580,7 @@ JSON
     CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
     CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
-    CHATGPT_LINUX_DISABLE_FEATURES="remote-mobile-control,read-aloud,read-aloud-mcp" \
+    CHATGPT_DISABLE_PORT_INTEGRATIONS="remote-mobile-control,read-aloud,read-aloud-mcp" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
 
     assert_json_enabled_equals "$config" '[]'
@@ -3682,7 +3964,7 @@ test_setup_native_wizard_cleanup_requires_interactive_confirmation() {
     if HOME="$fake_home" \
         XDG_CONFIG_HOME="$fake_home/.config" \
         CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
-        CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
+        CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS="remote-mobile-control" \
         CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
         CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
             bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log" 2>&1; then
@@ -3711,7 +3993,7 @@ test_setup_native_wizard_dry_run_cleanup_allows_noninteractive_preview() {
     XDG_CONFIG_HOME="$fake_home/.config" \
     CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
     CHATGPT_BOOTSTRAP_DRY_RUN=1 \
-    CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control" \
+    CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS="remote-mobile-control" \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
     CHATGPT_PORT_INTEGRATIONS_CONFIG="$config" \
         bash "$REPO_DIR/scripts/bootstrap-wizard.sh" >"$output_log"
@@ -3781,7 +4063,7 @@ test_setup_native_wizard_dry_run_cleanup_does_not_delete_confirmed_paths() {
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
         export CHATGPT_BOOTSTRAP_DRY_RUN=1
-        export CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control"
+        export CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS="remote-mobile-control"
         export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
         export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
@@ -3824,7 +4106,7 @@ test_setup_native_wizard_cleanup_deletes_only_confirmed_paths() {
         export HOME="$fake_home"
         export XDG_CONFIG_HOME="$fake_home/.config"
         export XDG_DATA_HOME="$fake_home/.local/share"
-        export CHATGPT_BOOTSTRAP_CLEANUP_FEATURES="remote-mobile-control,read-aloud"
+        export CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS="remote-mobile-control,read-aloud"
         export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
         export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         {
@@ -4035,7 +4317,6 @@ test_update_nix_hashes_supports_focused_verification_output() {
         run_update_nix_hash_fixture "$(basename "$fixture")" 0 "$hash_b"
 
     assert_contains "$fixture/calls.log" "nix build .#checks.x86_64-linux.nix-port-integrations-multi-feature"
-    assert_not_contains "$fixture/calls.log" ".#chatgpt-computer-use-ui"
 }
 
 test_update_nix_hashes_skips_output_build_when_refresh_ref_already_matches() {
@@ -4083,10 +4364,626 @@ PY
     assert_not_contains "$fixture/calls.log" "nix build"
 }
 
-test_ci_local_mounts_shared_git_metadata_for_linked_worktrees() {
-    info "Checking ci-local supports linked Git worktrees"
-    assert_contains "$REPO_DIR/scripts/ci-local.sh" 'rev-parse --path-format=absolute --git-common-dir'
-    assert_contains "$REPO_DIR/scripts/ci-local.sh" 'git_common_dir:$git_common_dir:ro'
+make_ci_local_snapshot_capture_engine() {
+    local engine_path="$1"
+
+    cat > "$engine_path" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if [ "${1:-}" = "pull" ]; then
+    if [ -n "${POC_ENGINE_PULL_WAIT_FILE:-}" ]; then
+        printf '%s\n' "$$" > "${POC_ENGINE_PULL_PID_FILE:-$POC_ENGINE_PULL_WAIT_FILE.pid}"
+        : > "$POC_ENGINE_PULL_WAIT_FILE"
+        if [ "${POC_ENGINE_IGNORE_TERM:-0}" = "1" ]; then
+            trap '' TERM
+        else
+            trap 'exit 143' TERM
+        fi
+        while :; do
+            sleep 1
+        done
+    fi
+    exit 0
+fi
+
+: "${POC_EXPECTED_REPO_DIR:?missing expected repository directory}"
+: "${POC_EXPECTED_COMMON_DIR:?missing expected common directory}"
+: "${POC_EXPECTED_NEWLINE_PATH:?missing expected newline path}"
+: "${POC_SNAPSHOT_LOG:?missing snapshot log}"
+
+[ "${1:-}" = "run" ] || {
+    echo "capture engine expected a container run invocation" >&2
+    exit 2
+}
+
+args=("$@")
+workspace=""
+summary_source=""
+dmg_source=""
+for ((index = 0; index < ${#args[@]}; index += 1)); do
+    if [ "${args[$index]}" != "-v" ] || [ "$((index + 1))" -ge "${#args[@]}" ]; then
+        continue
+    fi
+
+    mount="${args[$((index + 1))]}"
+    mount_source="${mount%%:*}"
+    mount_destination="${mount#*:}"
+    mount_destination="${mount_destination%%:*}"
+    case "$mount" in
+        "$POC_EXPECTED_REPO_DIR":*|"$POC_EXPECTED_COMMON_DIR":*)
+            echo "real repository or Git metadata was mounted: $mount" >&2
+            exit 1
+            ;;
+        *:/work|*:/work:rw)
+            workspace="${mount%%:/work*}"
+            ;;
+    esac
+
+    if [ -n "${POC_EXPECTED_SUMMARY_PATH:-}" ]; then
+        if [ "$mount_source" = "$POC_EXPECTED_SUMMARY_PATH" ]; then
+            [ "$mount_destination" = "/tmp/chatgpt-ci-github-step-summary" ] || {
+                echo "summary file used an unexpected container path: $mount" >&2
+                exit 1
+            }
+            summary_source="$mount_source"
+        elif [[ "$POC_EXPECTED_SUMMARY_PATH" == "$mount_source"/* ]]; then
+            echo "summary mount exposed its containing directory: $mount" >&2
+            exit 1
+        fi
+    fi
+
+    if [ -n "${POC_EXPECTED_DMG_PATH:-}" ]; then
+        if [ "$mount_source" = "$POC_EXPECTED_DMG_PATH" ]; then
+            [ "$mount_destination" = "/tmp/chatgpt-ci-input.dmg" ] || {
+                echo "DMG file used an unexpected container path: $mount" >&2
+                exit 1
+            }
+            [[ "$mount" == *:ro ]] || {
+                echo "DMG input mount was not read-only: $mount" >&2
+                exit 1
+            }
+            dmg_source="$mount_source"
+        elif [[ "$POC_EXPECTED_DMG_PATH" == "$mount_source"/* ]]; then
+            echo "DMG mount exposed its containing directory: $mount" >&2
+            exit 1
+        fi
+    fi
+done
+
+[ -n "$workspace" ] || {
+    echo "private /work snapshot mount was not emitted" >&2
+    exit 1
+}
+[ "$workspace" != "$POC_EXPECTED_REPO_DIR" ]
+[ "$(stat -c '%a' "$workspace")" = "700" ]
+[ -d "$workspace/.git" ]
+[ ! -L "$workspace/.git" ]
+printf '%s\n' "$workspace" > "$POC_SNAPSHOT_LOG"
+
+if [ -n "${POC_EXPECTED_SUMMARY_PATH:-}" ]; then
+    [ "$summary_source" = "$POC_EXPECTED_SUMMARY_PATH" ] || {
+        echo "exact summary file mount was not emitted" >&2
+        exit 1
+    }
+    printf '%s\n' 'summary-from-job' >> "$summary_source"
+fi
+if [ -n "${POC_EXPECTED_DMG_PATH:-}" ]; then
+    [ "$dmg_source" = "$POC_EXPECTED_DMG_PATH" ] || {
+        echo "exact read-only DMG file mount was not emitted" >&2
+        exit 1
+    }
+fi
+
+if [ -n "${POC_ENGINE_WAIT_FILE:-}" ]; then
+    : > "$POC_ENGINE_WAIT_FILE"
+    trap 'exit 143' TERM
+    while :; do
+        sleep 1
+    done
+fi
+
+synthetic_common_dir="$(git -C "$workspace" rev-parse --path-format=absolute --git-common-dir)"
+case "$synthetic_common_dir" in
+    "$workspace"/*) ;;
+    *)
+        echo "synthetic Git metadata escaped the private workspace: $synthetic_common_dir" >&2
+        exit 1
+        ;;
+esac
+
+if git -C "$workspace" config --get ci.host-marker >/dev/null 2>&1; then
+    echo "host-only Git config marker entered the snapshot" >&2
+    exit 1
+fi
+[ -z "$(git -C "$workspace" remote)" ]
+[ "$(git -C "$workspace" rev-list --all --count)" = "1" ]
+[ ! -e "$workspace/.git/logs" ]
+[ ! -e "$workspace/.git/objects/info/alternates" ]
+[ ! -e "$workspace/.git/worktrees" ]
+if [ -d "$workspace/.git/hooks" ] && [ -n "$(find "$workspace/.git/hooks" -type f -print -quit)" ]; then
+    echo "synthetic Git hooks entered the snapshot" >&2
+    exit 1
+fi
+[ -z "$(git -C "$workspace" fsck --no-reflogs --unreachable 2>/dev/null)" ]
+
+[ "$(cat "$workspace/tracked.txt")" = "tracked-current" ]
+[ "$(cat "$workspace/intent-source.txt")" = "intent-current" ]
+[ "$(cat "$workspace/$POC_EXPECTED_NEWLINE_PATH")" = "newline-current" ]
+[ "$(od -An -tx1 "$workspace/attributes-crlf.txt" | tr -d ' \n')" = "63726c662d63757272656e740d0a7365636f6e640d0a" ]
+[ "$(od -An -tx1 "$workspace/attributes-binary.bin" | tr -d ' \n')" = "000d0aff62696e6172790d0a" ]
+[ -x "$workspace/executable.sh" ]
+[ -L "$workspace/leaf-link" ]
+[ "$(readlink "$workspace/leaf-link")" = "$POC_EXPECTED_REPO_DIR/host-only-leaf-target" ]
+[ ! -e "$workspace/untracked-source.txt" ]
+[ ! -e "$workspace/ignored-host-secret" ]
+git -C "$workspace" ls-files --error-unmatch tracked.txt >/dev/null
+git -C "$workspace" ls-files --error-unmatch intent-source.txt >/dev/null
+git -C "$workspace" ls-files --error-unmatch "$POC_EXPECTED_NEWLINE_PATH" >/dev/null
+grep -Fq 'POC_BRANCH_CONTROLLED=1' "$workspace/scripts/ci/container-entrypoint.sh"
+
+printf '%s\n' 'job-created-change' >> "$workspace/tracked.txt"
+if git -C "$workspace" diff --quiet -- tracked.txt; then
+    echo "synthetic Git baseline did not detect a job-created change" >&2
+    exit 1
+fi
+exit "${POC_ENGINE_STATUS:-0}"
+SCRIPT
+    chmod +x "$engine_path"
+}
+
+make_ci_local_snapshot_fixture() {
+    local fixture="$1"
+    local checkout_shape="$2"
+    local primary_dir="$fixture/primary"
+    local repo_dir="$primary_dir"
+    local newline_path=$'line\nbreak.txt'
+
+    mkdir -p "$primary_dir/scripts/ci" "$primary_dir/nested" "$fixture/bin" "$fixture/cache" "$fixture/tmp"
+    cp "$REPO_DIR/scripts/ci-local.sh" "$primary_dir/scripts/ci-local.sh"
+    cat > "$primary_dir/scripts/ci/container-entrypoint.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+POC_BRANCH_CONTROLLED=0
+SCRIPT
+    printf '%s\n' "tracked-base" > "$primary_dir/tracked.txt"
+    printf '%s\n' "nested-base" > "$primary_dir/nested/tracked.txt"
+    printf '%s\n' "intent-base" > "$primary_dir/intent-base.txt"
+    printf '%s\n' "newline-base" > "$primary_dir/$newline_path"
+    printf '%s\n' 'attributes-crlf.txt text eol=lf' 'attributes-binary.bin -text' > "$primary_dir/.gitattributes"
+    printf '%s\n' "crlf-base" > "$primary_dir/attributes-crlf.txt"
+    printf '\000\015\012\377binary-base\015\012' > "$primary_dir/attributes-binary.bin"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$primary_dir/executable.sh"
+    printf '%s\n' 'ignored-host-secret' > "$primary_dir/.gitignore"
+    ln -s "$primary_dir/host-only-leaf-target" "$primary_dir/leaf-link"
+    printf '%s\n' "historical-only" > "$primary_dir/historical-only.txt"
+    chmod +x \
+        "$primary_dir/scripts/ci-local.sh" \
+        "$primary_dir/scripts/ci/container-entrypoint.sh" \
+        "$primary_dir/executable.sh"
+
+    git -C "$primary_dir" init -q -b main
+    git -C "$primary_dir" add .
+    git -C "$primary_dir" -c user.name="CI snapshot fixture" -c user.email="ci-snapshot.invalid" \
+        commit -qm "create fixture history"
+    rm "$primary_dir/historical-only.txt" "$primary_dir/intent-base.txt"
+    git -C "$primary_dir" add -A
+    git -C "$primary_dir" -c user.name="CI snapshot fixture" -c user.email="ci-snapshot.invalid" \
+        commit -qm "create current source baseline"
+    git -C "$primary_dir" config ci.host-marker "harmless-host-only-marker"
+    git -C "$primary_dir" remote add origin "https://host-only.invalid/private.git"
+
+    if [ "$checkout_shape" = "linked" ]; then
+        repo_dir="$fixture/linked"
+        git -C "$primary_dir" worktree add -q -b fixture-linked "$repo_dir" main
+    fi
+
+    printf '%s\n' "tracked-current" > "$repo_dir/tracked.txt"
+    printf '%s\n' "intent-current" > "$repo_dir/intent-source.txt"
+    git -C "$repo_dir" add -N intent-source.txt
+    printf '%s\n' "newline-current" > "$repo_dir/$newline_path"
+    printf 'crlf-current\r\nsecond\r\n' > "$repo_dir/attributes-crlf.txt"
+    printf '\000\015\012\377binary\015\012' > "$repo_dir/attributes-binary.bin"
+    printf '%s\n' "untracked-source" > "$repo_dir/untracked-source.txt"
+    printf '%s\n' "ignored-secret" > "$repo_dir/ignored-host-secret"
+    printf '%s\n' "host-only-leaf-target" > "$repo_dir/host-only-leaf-target"
+    ln -snf "$repo_dir/host-only-leaf-target" "$repo_dir/leaf-link"
+    cat > "$repo_dir/scripts/ci/container-entrypoint.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+POC_BRANCH_CONTROLLED=1
+SCRIPT
+    chmod +x "$repo_dir/scripts/ci/container-entrypoint.sh"
+
+    make_ci_local_snapshot_capture_engine "$fixture/bin/capture-engine"
+    CI_LOCAL_FIXTURE_REPO="$repo_dir"
+    CI_LOCAL_FIXTURE_NEWLINE_PATH="$newline_path"
+}
+
+run_ci_local_snapshot_fixture() {
+    local checkout_shape="$1"
+    local fixture="$TMP_DIR/ci-local-snapshot-$checkout_shape"
+    local snapshot_log="$fixture/snapshot.log"
+    local common_dir
+    local snapshot
+
+    make_ci_local_snapshot_fixture "$fixture" "$checkout_shape"
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+    POC_EXPECTED_COMMON_DIR="$common_dir" \
+    POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+    POC_SNAPSHOT_LOG="$snapshot_log" \
+    TMPDIR="$fixture/tmp" \
+    CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+    CI_SKIP_PULL=1 \
+    CI_CACHE_DIR="$fixture/cache" \
+        "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" core
+
+    snapshot="$(cat "$snapshot_log")"
+    [ ! -e "$snapshot" ] || fail "CI workspace was not removed after $checkout_shape checkout success"
+    [ ! -e "$(dirname "$snapshot")" ] || fail "CI workspace root was not removed after $checkout_shape checkout success"
+}
+
+test_ci_local_uses_private_current_source_snapshots() {
+    info "Checking ci-local isolates normal and linked checkouts in current-source snapshots"
+    run_ci_local_snapshot_fixture normal
+    run_ci_local_snapshot_fixture linked
+}
+
+test_ci_local_cleans_private_snapshot_after_engine_failure() {
+    info "Checking ci-local cleans its private source snapshot after engine failure"
+    local fixture="$TMP_DIR/ci-local-snapshot-engine-failure"
+    local snapshot_log="$fixture/snapshot.log"
+    local common_dir
+    local snapshot
+    local status
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    if POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+        POC_EXPECTED_COMMON_DIR="$common_dir" \
+        POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+        POC_SNAPSHOT_LOG="$snapshot_log" \
+        POC_ENGINE_STATUS=23 \
+        TMPDIR="$fixture/tmp" \
+        CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+        CI_SKIP_PULL=1 \
+        CI_CACHE_DIR="$fixture/cache" \
+            "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" core; then
+        fail "ci-local swallowed the capture engine failure"
+    else
+        status=$?
+    fi
+
+    [ "$status" = "23" ] || fail "Expected ci-local to return capture engine status 23, got $status"
+    snapshot="$(cat "$snapshot_log")"
+    [ ! -e "$snapshot" ] || fail "CI workspace was not removed after engine failure"
+    [ ! -e "$(dirname "$snapshot")" ] || fail "CI workspace root was not removed after engine failure"
+}
+
+test_ci_local_cleans_private_snapshot_after_term() {
+    info "Checking ci-local cleans its private source snapshot after a handled signal"
+    command -v setsid >/dev/null 2>&1 || fail "setsid is required for the CI-local signal-cleanup fixture"
+    local fixture="$TMP_DIR/ci-local-snapshot-term"
+    local snapshot_log="$fixture/snapshot.log"
+    local engine_wait_file="$fixture/engine-waiting"
+    local common_dir
+    local snapshot
+    local runner_pid
+    local status
+    local attempt
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    setsid env \
+        POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+        POC_EXPECTED_COMMON_DIR="$common_dir" \
+        POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+        POC_SNAPSHOT_LOG="$snapshot_log" \
+        POC_ENGINE_WAIT_FILE="$engine_wait_file" \
+        TMPDIR="$fixture/tmp" \
+        CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+        CI_SKIP_PULL=1 \
+        CI_CACHE_DIR="$fixture/cache" \
+        "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" core &
+    runner_pid=$!
+
+    for attempt in {1..100}; do
+        [ ! -e "$engine_wait_file" ] || break
+        sleep 0.02
+    done
+    if [ ! -e "$engine_wait_file" ]; then
+        kill -TERM -- "-$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        fail "CI-local capture engine did not reach the signal fixture wait point"
+    fi
+
+    kill -TERM -- "-$runner_pid"
+    if wait "$runner_pid"; then
+        fail "ci-local returned success after SIGTERM"
+    else
+        status=$?
+    fi
+
+    [ "$status" = "143" ] || fail "Expected ci-local to return signal status 143, got $status"
+    snapshot="$(cat "$snapshot_log")"
+    [ ! -e "$snapshot" ] || fail "CI workspace was not removed after SIGTERM"
+    [ ! -e "$(dirname "$snapshot")" ] || fail "CI workspace root was not removed after SIGTERM"
+}
+
+test_ci_local_parent_term_stops_engine_and_cleans_private_snapshot() {
+    info "Checking ci-local forwards a parent-only SIGTERM and cleans its private source snapshot"
+    command -v setsid >/dev/null 2>&1 || fail "setsid is required for the CI-local signal-cleanup fixture"
+    local fixture="$TMP_DIR/ci-local-snapshot-parent-term"
+    local snapshot_log="$fixture/snapshot.log"
+    local engine_wait_file="$fixture/engine-waiting"
+    local common_dir
+    local snapshot
+    local runner_pid
+    local status
+    local attempt
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    setsid env \
+        POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+        POC_EXPECTED_COMMON_DIR="$common_dir" \
+        POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+        POC_SNAPSHOT_LOG="$snapshot_log" \
+        POC_ENGINE_WAIT_FILE="$engine_wait_file" \
+        TMPDIR="$fixture/tmp" \
+        CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+        CI_SKIP_PULL=1 \
+        CI_CACHE_DIR="$fixture/cache" \
+        "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" core &
+    runner_pid=$!
+
+    for attempt in {1..100}; do
+        [ ! -e "$engine_wait_file" ] || break
+        sleep 0.02
+    done
+    if [ ! -e "$engine_wait_file" ]; then
+        kill -TERM -- "-$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        fail "CI-local capture engine did not reach the parent-only signal fixture wait point"
+    fi
+
+    kill -TERM "$runner_pid"
+    for attempt in {1..100}; do
+        kill -0 "$runner_pid" 2>/dev/null || break
+        sleep 0.02
+    done
+    if kill -0 "$runner_pid" 2>/dev/null; then
+        kill -TERM -- "-$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        fail "ci-local did not stop after a parent-only SIGTERM"
+    fi
+    if wait "$runner_pid"; then
+        fail "ci-local returned success after parent-only SIGTERM"
+    else
+        status=$?
+    fi
+
+    [ "$status" = "143" ] || fail "Expected ci-local to return signal status 143, got $status"
+    snapshot="$(cat "$snapshot_log")"
+    [ ! -e "$snapshot" ] || fail "CI workspace was not removed after parent-only SIGTERM"
+    [ ! -e "$(dirname "$snapshot")" ] || fail "CI workspace root was not removed after parent-only SIGTERM"
+}
+
+run_ci_local_pull_signal_fixture() {
+    local signal_scope="$1"
+    local ignore_term="$2"
+    local fixture="$TMP_DIR/ci-local-pull-term-$signal_scope-$ignore_term"
+    local pull_wait_file="$fixture/pull-waiting"
+    local pull_pid_file="$fixture/pull.pid"
+    local common_dir
+    local runner_pid
+    local pull_pid
+    local status
+    local attempt
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    setsid env \
+        POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+        POC_EXPECTED_COMMON_DIR="$common_dir" \
+        POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+        POC_SNAPSHOT_LOG="$fixture/snapshot.log" \
+        POC_ENGINE_PULL_WAIT_FILE="$pull_wait_file" \
+        POC_ENGINE_PULL_PID_FILE="$pull_pid_file" \
+        POC_ENGINE_IGNORE_TERM="$ignore_term" \
+        TMPDIR="$fixture/tmp" \
+        CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+        CI_CACHE_DIR="$fixture/cache" \
+        "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" core &
+    runner_pid=$!
+
+    for attempt in {1..100}; do
+        [ ! -e "$pull_wait_file" ] || break
+        sleep 0.02
+    done
+    if [ ! -e "$pull_wait_file" ]; then
+        kill -KILL -- "-$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        fail "CI-local capture engine did not reach the pull signal fixture wait point"
+    fi
+    pull_pid="$(cat "$pull_pid_file")"
+
+    if [ "$signal_scope" = "group" ]; then
+        kill -TERM -- "-$runner_pid"
+    else
+        kill -TERM "$runner_pid"
+    fi
+    for attempt in {1..250}; do
+        kill -0 "$runner_pid" 2>/dev/null || break
+        sleep 0.02
+    done
+    if kill -0 "$runner_pid" 2>/dev/null; then
+        kill -KILL -- "-$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        fail "ci-local did not stop after SIGTERM during image pull"
+    fi
+    if wait "$runner_pid"; then
+        fail "ci-local returned success after SIGTERM during image pull"
+    else
+        status=$?
+    fi
+
+    [ "$status" = "143" ] || fail "Expected ci-local pull signal status 143, got $status"
+    kill -0 "$pull_pid" 2>/dev/null && fail "ci-local left its image pull process running"
+    if find "$fixture/tmp" -maxdepth 1 -name 'chatgpt-ci-workspace.*' -print -quit | grep -q .; then
+        fail "ci-local created or retained a private workspace after interrupted image pull"
+    fi
+}
+
+test_ci_local_stops_image_pull_on_parent_and_group_term() {
+    info "Checking ci-local supervises image pulls for parent-only and process-group SIGTERM"
+    command -v setsid >/dev/null 2>&1 || fail "setsid is required for the CI-local pull signal fixture"
+    run_ci_local_pull_signal_fixture parent 0
+    run_ci_local_pull_signal_fixture group 0
+}
+
+test_ci_local_escalates_when_image_pull_ignores_term() {
+    info "Checking ci-local bounds cleanup when an image pull ignores SIGTERM"
+    command -v setsid >/dev/null 2>&1 || fail "setsid is required for the CI-local pull signal fixture"
+    run_ci_local_pull_signal_fixture parent 1
+}
+
+test_ci_local_mounts_only_exact_optional_artifacts() {
+    info "Checking ci-local mounts summary and DMG artifacts without exposing containing directories"
+    local fixture="$TMP_DIR/ci-local-exact-optional-mounts"
+    local summary_path="$fixture/tmp/summary.md"
+    local dmg_dir="$fixture/dmg-input"
+    local dmg_path="$dmg_dir/ChatGPT.dmg"
+    local snapshot_log="$fixture/snapshot.log"
+    local common_dir
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    mkdir -p "$dmg_dir"
+    printf '%s\n' "fixture-dmg" > "$dmg_path"
+    printf '%s\n' "unrelated-host-file" > "$dmg_dir/unrelated-secret"
+    common_dir="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+
+    POC_EXPECTED_REPO_DIR="$CI_LOCAL_FIXTURE_REPO" \
+    POC_EXPECTED_COMMON_DIR="$common_dir" \
+    POC_EXPECTED_NEWLINE_PATH="$CI_LOCAL_FIXTURE_NEWLINE_PATH" \
+    POC_EXPECTED_SUMMARY_PATH="$summary_path" \
+    POC_EXPECTED_DMG_PATH="$dmg_path" \
+    POC_SNAPSHOT_LOG="$snapshot_log" \
+    GITHUB_STEP_SUMMARY="$summary_path" \
+    CI_DMG_PATH="$dmg_path" \
+    TMPDIR="$fixture/tmp" \
+    CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+    CI_SKIP_PULL=1 \
+    CI_CACHE_DIR="$fixture/cache" \
+        "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" official-dmg
+
+    assert_contains "$summary_path" "summary-from-job"
+}
+
+make_ci_local_rejection_capture_engine() {
+    local engine_path="$1"
+
+    cat > "$engine_path" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+: "${POC_ENGINE_CALLED:?missing engine-called marker}"
+: > "$POC_ENGINE_CALLED"
+SCRIPT
+    chmod +x "$engine_path"
+}
+
+run_ci_local_rejected_source_fixture() {
+    local unsafe_kind="$1"
+    local expected_error="$2"
+    local fixture="$TMP_DIR/ci-local-reject-$unsafe_kind"
+    local output_log="$fixture/output.log"
+    local engine_called="$fixture/engine-called"
+    local outside_dir="$fixture/outside"
+    local cache_dir="$fixture/cache"
+    local summary_path=""
+    local dmg_path=""
+    local path_must_remain_absent=""
+    local target="core"
+    local head_commit
+
+    make_ci_local_snapshot_fixture "$fixture" normal
+    make_ci_local_rejection_capture_engine "$fixture/bin/capture-engine"
+
+    case "$unsafe_kind" in
+        symlink-ancestor)
+            mkdir -p "$outside_dir"
+            printf '%s\n' "outside-marker" > "$outside_dir/tracked.txt"
+            rm -rf "$CI_LOCAL_FIXTURE_REPO/nested"
+            ln -s "$outside_dir" "$CI_LOCAL_FIXTURE_REPO/nested"
+            ;;
+        special-file)
+            rm "$CI_LOCAL_FIXTURE_REPO/tracked.txt"
+            mkfifo "$CI_LOCAL_FIXTURE_REPO/tracked.txt"
+            ;;
+        submodule)
+            head_commit="$(git -C "$CI_LOCAL_FIXTURE_REPO" rev-parse HEAD)"
+            git -C "$CI_LOCAL_FIXTURE_REPO" update-index --add --cacheinfo "160000,$head_commit,submodule"
+            ;;
+        overlapping-cache)
+            cache_dir="$CI_LOCAL_FIXTURE_REPO/host-cache"
+            path_must_remain_absent="$cache_dir"
+            ;;
+        overlapping-workspace-cache)
+            cache_dir="$fixture/tmp"
+            ;;
+        overlapping-summary)
+            summary_path="$CI_LOCAL_FIXTURE_REPO/host-summary/summary.md"
+            path_must_remain_absent="${summary_path%/*}"
+            ;;
+        overlapping-summary-cache)
+            summary_path="$cache_dir/summary.md"
+            path_must_remain_absent="$summary_path"
+            ;;
+        overlapping-dmg)
+            dmg_path="$CI_LOCAL_FIXTURE_REPO/host-dmg/ChatGPT.dmg"
+            path_must_remain_absent="${dmg_path%/*}"
+            target="official-dmg"
+            ;;
+        *) fail "Unknown unsafe CI source fixture: $unsafe_kind" ;;
+    esac
+
+    if POC_ENGINE_CALLED="$engine_called" \
+        TMPDIR="$fixture/tmp" \
+        CI_CONTAINER_ENGINE="$fixture/bin/capture-engine" \
+        CI_SKIP_PULL=1 \
+        CI_CACHE_DIR="$cache_dir" \
+        GITHUB_STEP_SUMMARY="$summary_path" \
+        CI_DMG_PATH="$dmg_path" \
+            "$CI_LOCAL_FIXTURE_REPO/scripts/ci-local.sh" "$target" > "$output_log" 2>&1; then
+        fail "ci-local accepted unsafe source fixture: $unsafe_kind"
+    fi
+
+    [ ! -e "$engine_called" ] || fail "Container engine ran for unsafe source fixture: $unsafe_kind"
+    assert_contains "$output_log" "$expected_error"
+    if [ -n "$path_must_remain_absent" ] && [ -e "$path_must_remain_absent" ]; then
+        fail "ci-local created a rejected host path: $path_must_remain_absent"
+    fi
+    if find "$fixture/tmp" -mindepth 1 -maxdepth 1 -name 'chatgpt-ci-workspace.*' -print -quit | grep -q .; then
+        fail "CI workspace remained after rejecting unsafe source fixture: $unsafe_kind"
+    fi
+}
+
+test_ci_local_rejects_unsafe_source_and_host_mounts() {
+    info "Checking ci-local rejects unsafe source types and overlapping host mounts before launch"
+    run_ci_local_rejected_source_fixture symlink-ancestor "symlink ancestor"
+    run_ci_local_rejected_source_fixture special-file "non-regular tracked source path"
+    run_ci_local_rejected_source_fixture submodule "Git submodule path"
+    run_ci_local_rejected_source_fixture overlapping-cache "CI cache mount overlaps protected source or Git metadata"
+    run_ci_local_rejected_source_fixture overlapping-workspace-cache "CI cache mount overlaps protected"
+    run_ci_local_rejected_source_fixture overlapping-summary "GitHub summary mount overlaps protected"
+    run_ci_local_rejected_source_fixture overlapping-summary-cache "GitHub summary mount overlaps protected"
+    run_ci_local_rejected_source_fixture overlapping-dmg "official DMG input mount overlaps protected"
 }
 
 test_installer_detects_electron_version_from_plist() {
@@ -5360,6 +6257,201 @@ test_launcher_marketplace_metadata_atomic_staging() (
         || fail "Marketplace metadata staging must not follow a destination directory symlink"
 )
 
+test_launcher_computer_use_cache_trust_boundary() {
+    info "Checking Computer Use plugin cache trust boundary"
+    local probe="$TMP_DIR/computer-use-cache-trust-probe.sh"
+
+    python3 - "$REPO_DIR/launcher/start.sh.template" "$probe" <<'PY'
+import pathlib
+import re
+import sys
+
+launcher = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+functions = []
+for name in (
+    "make_tree_owner_writable",
+    "make_path_owner_trusted",
+    "make_tree_owner_trusted",
+    "path_has_unsafe_write",
+    "tree_has_unsafe_write",
+    "remove_tree_if_exists",
+    "replace_symlink",
+    "atomic_replace_directory",
+    "bundled_plugin_path_token_is_safe",
+):
+    match = re.search(rf"^{name}\(\) \{{[\s\S]*?^\}}\n", launcher, re.M)
+    if match is None:
+        raise SystemExit(f"missing {name}")
+    functions.append(match.group(0))
+
+sync_match = re.search(
+    r"^sync_computer_use_bundled_plugin_cache\(\) \{[\s\S]*?^\}\n",
+    launcher,
+    re.M,
+)
+if sync_match is None:
+    raise SystemExit("missing Computer Use cache sync")
+
+pathlib.Path(sys.argv[2]).write_text(
+    "#!/usr/bin/env bash\nset -Eeuo pipefail\n\n"
+    + "\n".join(functions)
+    + "\n"
+    + sync_match.group(0)
+    + r'''
+mode="${1:?}"
+root="${2:?}"
+SCRIPT_DIR="$root/app"
+HOME="$root/home"
+CODEX_HOME="$HOME/.codex"
+source_plugin="$SCRIPT_DIR/resources/plugins/openai-bundled/plugins/computer-use"
+cache_root="$CODEX_HOME/plugins/cache/openai-bundled/computer-use"
+cache_plugin="$cache_root/26.test"
+outside="$root/outside"
+log="$root/sync.log"
+
+bundled_plugin_version() { printf '%s\n' 26.test; }
+
+mkdir -p "$source_plugin/.codex-plugin" "$source_plugin/bin" "$HOME" "$outside"
+printf '%s\n' '{"name":"computer-use","version":"26.test"}' > "$source_plugin/.codex-plugin/plugin.json"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$source_plugin/bin/chatgpt-computer-use-linux"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$source_plugin/bin/chatgpt-computer-use-cosmic"
+printf '%s\n' trusted-resource > "$source_plugin/resource.txt"
+chmod 0755 "$source_plugin/bin/chatgpt-computer-use-linux" "$source_plugin/bin/chatgpt-computer-use-cosmic"
+chmod -R go-w "$SCRIPT_DIR" "$HOME" "$outside"
+
+case "$mode" in
+    symlink-source-ancestor)
+        mv "$SCRIPT_DIR/resources/plugins/openai-bundled" "$outside/source-bundled"
+        ln -s "$outside/source-bundled" "$SCRIPT_DIR/resources/plugins/openai-bundled"
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        test -L "$SCRIPT_DIR/resources/plugins/openai-bundled"
+        grep -qx trusted-resource "$outside/source-bundled/plugins/computer-use/resource.txt"
+        test ! -e "$cache_plugin"
+        grep -q 'source is not trusted' "$log"
+        ;;
+    symlink-ancestor)
+        mkdir -p "$CODEX_HOME"
+        printf '%s\n' untouched > "$outside/sentinel"
+        ln -s "$outside" "$CODEX_HOME/plugins"
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        test -L "$CODEX_HOME/plugins"
+        grep -qx untouched "$outside/sentinel"
+        test ! -e "$outside/cache/openai-bundled/computer-use/26.test"
+        grep -q 'cache ancestors could not be hardened' "$log"
+        ;;
+    unsafe-source-path)
+        chmod 0775 "$source_plugin"
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        test ! -e "$cache_plugin"
+        grep -q 'source is not trusted' "$log"
+        ;;
+    unsafe-source-tree)
+        chmod 0664 "$source_plugin/resource.txt"
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        test ! -e "$cache_plugin"
+        grep -q 'source is not trusted' "$log"
+        ;;
+    unsafe-cache-tree)
+        mkdir -p "$(dirname "$cache_plugin")"
+        cp -R "$source_plugin" "$cache_plugin"
+        chmod 0664 "$cache_plugin/resource.txt"
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        grep -q 'cache synced from bundled resources' "$log"
+        grep -qx trusted-resource "$cache_plugin/resource.txt"
+        if find "$cache_plugin" -xdev \( -type l -o -perm /022 \) -print -quit | grep -q .; then
+            echo "Computer Use cache retained an unsafe tree" >&2
+            exit 1
+        fi
+        ;;
+    publication-failure)
+        mkdir -p "$cache_plugin/.codex-plugin" "$cache_plugin/bin"
+        printf '%s\n' old-cache > "$cache_plugin/resource.txt"
+        printf '%s\n' '{}' > "$cache_plugin/.codex-plugin/plugin.json"
+        printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$cache_plugin/bin/chatgpt-computer-use-linux"
+        printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$cache_plugin/bin/chatgpt-computer-use-cosmic"
+        chmod 0755 "$cache_plugin/bin/chatgpt-computer-use-linux" "$cache_plugin/bin/chatgpt-computer-use-cosmic"
+        python3() { return 75; }
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        unset -f python3
+        grep -qx old-cache "$cache_plugin/resource.txt"
+        grep -q 'publication failed; existing cache was preserved' "$log"
+        test -z "$(find "$cache_root" -maxdepth 1 -name '.computer-use-*.tmp.*' -print -quit)"
+        ;;
+    link-failure)
+        mkdir -p "$cache_root/26.old"
+        ln -s 26.old "$cache_root/latest"
+        ln() { return 74; }
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        unset -f ln
+        test -L "$cache_root/latest"
+        test "$(readlink "$cache_root/latest")" = 26.old
+        grep -q 'latest link could not be published; preserving the existing link' "$log"
+        test -z "$(find "$cache_root" -maxdepth 1 -name '.latest.tmp.*' -print -quit)"
+        ;;
+    concurrent)
+        sync_computer_use_bundled_plugin_cache >"$root/first-sync.log" 2>&1 &
+        first_pid=$!
+        sync_computer_use_bundled_plugin_cache >"$root/second-sync.log" 2>&1 &
+        second_pid=$!
+        wait "$first_pid"
+        wait "$second_pid"
+        grep -qx trusted-resource "$cache_plugin/resource.txt" || {
+            cat "$root/first-sync.log" "$root/second-sync.log" >&2
+            exit 1
+        }
+        test -L "$cache_root/latest"
+        test "$(readlink "$cache_root/latest")" = 26.test
+        test -L "$CODEX_HOME/.tmp/bundled-marketplaces/openai-bundled/plugins/computer-use"
+        test -z "$(find "$cache_root" -maxdepth 1 -name '.computer-use-*.tmp.*' -print -quit)"
+        test "$(stat -c '%a' "$cache_root/.sync.lock")" = 600
+        ;;
+    permissive-umask)
+        umask 0002
+        sync_computer_use_bundled_plugin_cache > "$log" 2>&1
+        test -x "$cache_plugin/bin/chatgpt-computer-use-linux"
+        for trusted_path in \
+            "$CODEX_HOME" \
+            "$CODEX_HOME/plugins" \
+            "$CODEX_HOME/plugins/cache" \
+            "$CODEX_HOME/plugins/cache/openai-bundled" \
+            "$cache_root"; do
+            if find "$trusted_path" -maxdepth 0 -perm /022 -print -quit | grep -q .; then
+                echo "Computer Use cache ancestor remained group/world writable: $trusted_path" >&2
+                exit 1
+            fi
+        done
+        if find "$cache_plugin" -xdev \( -type l -o -perm /022 \) -print -quit | grep -q .; then
+            echo "Computer Use cache copy retained a permissive mode" >&2
+            exit 1
+        fi
+        test -L "$cache_root/latest"
+        test "$(readlink "$cache_root/latest")" = 26.test
+        ;;
+    *)
+        exit 64
+        ;;
+esac
+''',
+    encoding="utf-8",
+)
+PY
+    chmod +x "$probe"
+
+    local scenario
+    for scenario in \
+        symlink-source-ancestor \
+        symlink-ancestor \
+        unsafe-source-path \
+        unsafe-source-tree \
+        unsafe-cache-tree \
+        publication-failure \
+        link-failure \
+        concurrent \
+        permissive-umask; do
+        "$probe" "$scenario" "$TMP_DIR/computer-use-cache-$scenario"
+    done
+}
+
 test_launcher_template_sanity() {
     info "Checking launcher template markers"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "chatgpt_capture_original_ld_library_path"
@@ -5520,7 +6612,7 @@ if (
     raise SystemExit("warm-start IPC client must require an ok\\n acknowledgement before succeeding")
 if 'launch_electron "${LAUNCHER_ARGS[@]}"' not in source:
     raise SystemExit("Electron launch must receive sanitized launcher args")
-if 'FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"' not in source:
+if 'PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"' not in source:
     raise SystemExit("launcher must expose a generic port integration launcher hook directory")
 if launch_body.index("run_feature_launcher_hooks") > launch_body.index("build_electron_launch_args"):
     raise SystemExit("port integration launcher hooks must run before final Electron launch args are built")
@@ -5679,7 +6771,7 @@ if 'chatgpt_run_host_command notify-send' not in notify_body:
     raise SystemExit("desktop notifications must not inherit packaged LD_LIBRARY_PATH")
 if 'chatgpt_run_host_command "$CHATGPT_UPDATER_PATH" "$@"' not in app_updater_body:
     raise SystemExit("app updater and its host children must not inherit packaged LD_LIBRARY_PATH")
-if 'CHATGPT_LINUX_FEATURE_HOOK_PHASE=launcher' not in launcher_hooks_body:
+if 'CHATGPT_PORT_INTEGRATION_HOOK_PHASE=launcher' not in launcher_hooks_body:
     raise SystemExit("launcher hooks must receive their hook phase")
 if '"$hook" "${ELECTRON_ARGS[@]}"' not in launcher_hooks_body:
     raise SystemExit("launcher hooks must receive current Electron args as argv")
@@ -5830,9 +6922,8 @@ APP_CONFIG_DIR="${APP_CONFIG_DIR:-/tmp/codex-launcher-probe-config.$$}"
 USER_ELECTRON_FLAGS_FILE="${USER_ELECTRON_FLAGS_FILE:-$APP_CONFIG_DIR/electron-flags.conf}"
 LOG_FILE="${LOG_FILE:-/tmp/codex-launcher-probe.log}"
 CHATGPT_PORT_INTEGRATIONS_DIR="${CHATGPT_PORT_INTEGRATIONS_DIR:-$SCRIPT_DIR/.chatgpt-linux/port-integrations}"
-CHATGPT_LINUX_FEATURES_DIR="${CHATGPT_LINUX_FEATURES_DIR:-${CHATGPT_PORT_INTEGRATIONS_DIR}}"
-FEATURE_ELECTRON_ARGS_DIR="${FEATURE_ELECTRON_ARGS_DIR:-}"
-FEATURE_LAUNCHER_HOOK_DIR="${FEATURE_LAUNCHER_HOOK_DIR:-}"
+PORT_INTEGRATION_ELECTRON_ARGS_DIR="${PORT_INTEGRATION_ELECTRON_ARGS_DIR:-}"
+PORT_INTEGRATION_LAUNCHER_HOOK_DIR="${PORT_INTEGRATION_LAUNCHER_HOOK_DIR:-}"
 
 print_state() {
     printf 'mode=%s wslg=%s ozone_platform=%s ozone_hint=%s gpu=%s gpu_arg=%s comp=%s gl_added=%s renderer_accessibility=%s hook_value=%s hook_saw_arg=%s launch=' \
@@ -5958,7 +7049,7 @@ for arg in "$@"; do
 done
 EOF
     chmod +x "$feature_launcher_hook_dir/generic-hook"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_LAUNCHER_HOOK_DIR="$feature_launcher_hook_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --existing-electron-arg)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$feature_launcher_hook_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe -- --existing-electron-arg)"
     [[ "$output" == *"hook_value=from-hook hook_saw_arg=1"* ]] || fail "launcher hook must contribute environment variables and receive current Electron args: $output"
     [[ "$output" == *"electron=<--existing-electron-arg><--test-feature-launcher-hook=1>"* ]] || fail "launcher hook must append Electron args after existing args: $output"
     [[ "$output" == *"<--enable-features=TestHookFeature>"* ]] || fail "launcher hook enable-features output must merge into launch args: $output"
@@ -5985,7 +7076,7 @@ EOF
     local feature_args_dir="$TMP_DIR/feature-electron-args"
     mkdir -p "$feature_args_dir"
     printf '%s\n' '--ozone-platform=wayland' '--use-angle=gl' > "$feature_args_dir/feature"
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" FEATURE_ELECTRON_ARGS_DIR="$feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$user_flags_dir" USER_ELECTRON_FLAGS_FILE="$user_flags_file" PORT_INTEGRATION_ELECTRON_ARGS_DIR="$feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=x11>"* ]] || fail "persistent flags file must override feature Electron platform args: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "feature Electron platform args must not survive after user override: $output"
     [[ "$output" == *"electron=<--use-angle=gl><--enable-wayland-ime><--use-gl=angle>"* ]] || fail "feature, user, and CLI-independent Electron args must keep precedence order: $output"
@@ -6009,7 +7100,7 @@ EOF
     local portal_feature_args_dir="$TMP_DIR/portal-feature-electron-args"
     mkdir -p "$portal_feature_args_dir"
     printf '%s\n' '--enable-features=GlobalShortcutsPortal' '--enable-features=GlobalShortcutsPortal' > "$portal_feature_args_dir/appshots"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$portal_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" PORT_INTEGRATION_ELECTRON_ARGS_DIR="$portal_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu "$launcher_probe" probe)"
     [[ "$output" == *"<--enable-features=GlobalShortcutsPortal,WaylandWindowDecorations>"* ]] || fail "feature and Wayland Electron feature flags must be merged: $output"
     [[ "$output" != *"electron=<--enable-features=GlobalShortcutsPortal>"* ]] || fail "merged Electron feature flags must not remain in pass-through args: $output"
 
@@ -6180,21 +7271,21 @@ EOF
     printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' 'electron-arg --ozone-platform=wayland'" > "$hook_force_wayland_dir/force-wayland"
     chmod +x "$hook_force_wayland_dir/force-wayland"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" CHATGPT_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" CHATGPT_OZONE_PLATFORM=wayland "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "launcher hook --ozone-platform must reach Electron over CHATGPT_OZONE_PLATFORM: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "env-derived --ozone-platform must be dropped when a launcher hook overrides it: $output"
     [[ "$output" != *"WaylandWindowDecorations"* ]] || fail "cleared env Wayland platform must not still add Wayland decorations: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu FEATURE_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wayland-gpu PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_x11_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--ozone-platform=x11>"* ]] || fail "launcher hook --ozone-platform must reach Electron under wayland-gpu: $output"
     [[ "$output" != *"<--ozone-platform=wayland>"* ]] || fail "wayland-gpu launcher platform must be dropped when a hook overrides it: $output"
     [[ "$output" != *"WaylandWindowDecorations"* ]] || fail "dropped wayland-gpu platform must not still add Wayland decorations: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=wslg PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must reach Electron under wslg: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "wslg launcher platform must be dropped when a hook overrides it: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default SOMMELIER_VERSION=1 FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default SOMMELIER_VERSION=1 PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe)"
     [[ "$output" == *"<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must reach Electron over the Sommelier fallback: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "Sommelier X11 fallback must be dropped when a hook overrides it: $output"
 
@@ -6202,22 +7293,22 @@ EOF
     mkdir -p "$hook_scale_dir"
     printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' 'electron-arg --force-device-scale-factor=2'" > "$hook_scale_dir/force-scale2"
     chmod +x "$hook_scale_dir/force-scale2"
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_scale_dir" CHATGPT_FORCE_DEVICE_SCALE_FACTOR=1 "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook --force-device-scale-factor must reach Electron over CHATGPT_FORCE_DEVICE_SCALE_FACTOR: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "env-derived --force-device-scale-factor must be dropped when a launcher hook overrides it: $output"
 
     # A hook-emitted arg must also replace a conflicting arg already collected in
     # ELECTRON_ARGS (pass-through CLI, persistent flags file, or feature
     # electron-args) instead of appending a duplicate switch to the final argv.
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform=x11)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform=x11)"
     [[ "$output" == *"electron=<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must replace a pass-through ozone arg: $output"
     [[ "$output" != *"<--ozone-platform=x11>"* ]] || fail "pass-through --ozone-platform must be dropped when a launcher hook supersedes it: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform-hint=auto)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_force_wayland_dir" "$launcher_probe" probe -- --ozone-platform-hint=auto)"
     [[ "$output" == *"electron=<--ozone-platform=wayland>"* ]] || fail "launcher hook --ozone-platform must replace a pass-through ozone hint: $output"
     [[ "$output" != *"<--ozone-platform-hint=auto>"* ]] || fail "pass-through --ozone-platform-hint must be dropped when a hook supplies an explicit platform: $output"
 
-    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe -- --force-device-scale-factor=1)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe -- --force-device-scale-factor=1)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a pass-through scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "pass-through --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
@@ -6225,14 +7316,14 @@ EOF
     local hook_scale_flags_file="$hook_scale_flags_dir/electron-flags.conf"
     mkdir -p "$hook_scale_flags_dir"
     printf '%s\n' '--force-device-scale-factor=1' > "$hook_scale_flags_file"
-    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$hook_scale_flags_dir" USER_ELECTRON_FLAGS_FILE="$hook_scale_flags_file" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" APP_CONFIG_DIR="$hook_scale_flags_dir" USER_ELECTRON_FLAGS_FILE="$hook_scale_flags_file" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a persistent-flags scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "persistent-flags --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
     local hook_scale_feature_args_dir="$TMP_DIR/hook-scale-feature-args"
     mkdir -p "$hook_scale_feature_args_dir"
     printf '%s\n' '--force-device-scale-factor=1' > "$hook_scale_feature_args_dir/feature"
-    output="$(env -i PATH="$PATH" HOME="$HOME" FEATURE_ELECTRON_ARGS_DIR="$hook_scale_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default FEATURE_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
+    output="$(env -i PATH="$PATH" HOME="$HOME" PORT_INTEGRATION_ELECTRON_ARGS_DIR="$hook_scale_feature_args_dir" CHATGPT_LINUX_RENDERING_MODE=default PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$hook_scale_dir" "$launcher_probe" probe)"
     [[ "$output" == *"electron=<--force-device-scale-factor=2>"* ]] || fail "launcher hook scale arg must replace a feature electron-args scale arg: $output"
     [[ "$output" != *"<--force-device-scale-factor=1>"* ]] || fail "feature electron-args --force-device-scale-factor must be dropped when a launcher hook supersedes it: $output"
 
@@ -6342,8 +7433,9 @@ EOF
     assert_contains "$REPO_DIR/.github/workflows/ci.yml" "tests/fixtures/create-packaged-app-fixture.sh chatgpt"
     assert_contains "$REPO_DIR/.github/workflows/ci.yml" "bash scripts/ci/run-node-checks.sh"
     assert_contains "$REPO_DIR/scripts/ci/container-entrypoint.sh" "bash scripts/ci/run-node-checks.sh"
-    assert_contains "$REPO_DIR/scripts/ci/run-node-checks.sh" "git ls-files '\\*.js'"
-    assert_contains "$REPO_DIR/scripts/ci/run-node-checks.sh" "git ls-files '\\*.test.js' 'port-integrations/\\*/test.js'"
+    assert_contains "$REPO_DIR/scripts/ci/run-node-checks.sh" "git ls-files --cached --others --exclude-standard '\\*.js'"
+    assert_contains "$REPO_DIR/scripts/ci/run-node-checks.sh" "git ls-files --cached --others --exclude-standard '\\*.test.js' 'port-integrations/\\*/test.js'"
+    assert_occurrence_count "$REPO_DIR/scripts/ci/run-node-checks.sh" '\[ -f "$file" \] || continue' '2'
     assert_contains "$REPO_DIR/flake.nix" "rewriteCratesIoDownloadUrl"
     assert_contains "$REPO_DIR/flake.nix" "https://static.crates.io/crates/"
     assert_contains "$REPO_DIR/flake.nix" "api/v1/crates/"
@@ -6435,8 +7527,14 @@ const mkdirCacheParent = chromeBody.indexOf('mkdir -p "$cache_parent"');
 if (mkdirCacheParent === -1 || chromeBody.indexOf('"$cache_parent"', mkdirCacheParent) === -1) {
   throw new Error("Chrome plugin runtime cache sync must harden newly created cache parents");
 }
-if (!launcher.includes('ln -sfnT "$target" "$link_path"')) {
-  throw new Error("replace_symlink must replace plugin links as paths, not as directory children");
+if (
+  !launcher.includes('ln -sT "$target" "$staged_link"') ||
+  !launcher.includes('mv -Tf -- "$staged_link" "$link_path"')
+) {
+  throw new Error("replace_symlink must atomically replace plugin links as paths");
+}
+if (launcher.includes('remove_tree_if_exists "$link_path"')) {
+  throw new Error("replace_symlink must preserve the live plugin link when publication fails");
 }
 NODE
 
@@ -6797,7 +7895,12 @@ test_launcher_cli_resolution_policy() {
     info "Checking launcher CLI resolution policy"
     local launcher_probe="$TMP_DIR/launcher-cli-policy-probe.sh"
     local routing_probe="$TMP_DIR/launcher-cli-preflight-routing-probe.sh"
-    python3 - "$REPO_DIR/launcher/start.sh.template" "$launcher_probe" "$routing_probe" <<'PY'
+    local proxy_app_dir="$TMP_DIR/launcher-cli-proxy-app"
+    local proxy_path="$proxy_app_dir/.chatgpt-linux/cli-launch-path.py"
+    mkdir -p "$(dirname "$proxy_path")"
+    cp "$REPO_DIR/launcher/cli-launch-path.py" "$proxy_path"
+    chmod 0755 "$proxy_path"
+    python3 - "$REPO_DIR/launcher/start.sh.template" "$launcher_probe" "$routing_probe" "$proxy_app_dir" <<'PY'
 import pathlib
 import re
 import shlex
@@ -6817,9 +7920,10 @@ for name in ("cached_codex_cli_path", "find_fnm_codex_cli", "find_codex_cli", "v
 
 pathlib.Path(sys.argv[2]).write_text(
     "#!/usr/bin/env bash\n"
-    "set -Eeuo pipefail\n\n"
+    "set -Eeuo pipefail\n"
+    + f"SCRIPT_DIR={shlex.quote(sys.argv[4])}\n\n"
     + "\n".join(functions)
-    + f"\nrun_cli_launch_path_helper() {{ python3 {shlex.quote(str(helper_path))} \"$1\"; }}\n"
+    + f"\nrun_cli_launch_path_helper() {{ python3 {shlex.quote(str(helper_path))} --resolve \"$1\"; }}\n"
     + r'''
 case "${1:?}" in
     find)
@@ -6848,6 +7952,13 @@ case "${1:?}" in
         verify_cli_launch_path
         printf 'path=%s\n' "$CODEX_CLI_PATH"
         printf 'source=%s\n' "$CHATGPT_CLI_SOURCE_PATH"
+        printf 'target=%s\n' "${CHATGPT_CLI_EXEC_TARGET:-}"
+        ;;
+    resolve-log)
+        CODEX_CLI_PATH="${2:-}"
+        export CODEX_CLI_PATH
+        verify_cli_launch_path
+        log_codex_cli_path
         ;;
     *)
         exit 64
@@ -6877,6 +7988,7 @@ pathlib.Path(sys.argv[3]).write_text(
     "set -Eeuo pipefail\n\n"
     + r'''
 CODEX_CLI_PATH="${ROUTING_CLI_PATH:-/tmp/codex}"
+SCRIPT_DIR=/tmp/chatgpt
 has_app_updater() { [ "${UPDATE_MANAGER_AVAILABLE:-0}" = "1" ]; }
 run_cli_launch_path_helper() {
     printf 'trust=called\n' >> "$ROUTING_LOG"
@@ -6919,6 +8031,7 @@ PY
     local fake_home="$workspace/home"
     local path_cli_bin="$workspace/path-cli-bin"
     local clean_tool_path="/usr/bin:/bin"
+    local log_output
     local selected_cli
     mkdir -p "$path_cli_bin" "$fake_home/.npm-global/bin"
     chmod 0755 "$workspace" "$path_cli_bin" "$fake_home" "$fake_home/.npm-global" "$fake_home/.npm-global/bin"
@@ -6950,8 +8063,8 @@ PY
     printf '#!/usr/bin/env bash\nprintf "codex-cli 0.170.0\\n"\n' > "$resolve_bin/codex"
     chmod 0775 "$resolve_bin" "$resolve_bin/codex"
     resolved_cli="$(env -i PATH="$resolve_bin:$HOST_TOOL_PATH" HOME="$fake_home" "$launcher_probe" resolve codex)"
-    [ "$resolved_cli" = "$(realpath "$resolve_bin/codex")" ] || \
-        fail "CLI resolver must accept an executable created under umask 0002"
+    [ "$resolved_cli" = "$proxy_path" ] || \
+        fail "CLI resolver must route an executable through the invocation-preserving proxy"
 
     local external_cli="$workspace/external-codex"
     local visible_cli="$workspace/visible-codex"
@@ -6959,7 +8072,8 @@ PY
     chmod 0755 "$external_cli"
     ln -s "$external_cli" "$visible_cli"
     resolved_cli="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" "$launcher_probe" resolve "$visible_cli")"
-    [ "$resolved_cli" = "$(realpath "$external_cli")" ] || fail "CLI resolver must canonicalize visible symlinks, got $resolved_cli"
+    [ "$resolved_cli" = "$proxy_path" ] || \
+        fail "CLI resolver must route visible symlinks through the invocation-preserving proxy, got $resolved_cli"
 
     local custom_brew_prefix="$workspace/custom-homebrew"
     local custom_brew_target_dir="$workspace/custom-homebrew-cellar/openai-codex/0.42.0/bin"
@@ -6971,13 +8085,66 @@ PY
     chmod 0755 "$custom_brew_target_dir/codex"
     ln -s "$custom_brew_target_dir/codex" "$custom_brew_visible"
     source_output="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" HOMEBREW_PREFIX="$custom_brew_prefix" "$launcher_probe" resolve-source "$custom_brew_visible")"
-    grep -qx "path=$(realpath "$custom_brew_target_dir/codex")" <<<"$source_output" || \
-        fail "CLI trust helper must expose the canonical launch path for Homebrew: $source_output"
+    grep -qx "path=$proxy_path" <<<"$source_output" || \
+        fail "CLI trust helper must expose the invocation-preserving launch proxy for Homebrew: $source_output"
     grep -qx "source=$custom_brew_visible" <<<"$source_output" || \
         fail "CLI trust helper must preserve the visible Homebrew source path: $source_output"
+    grep -qx "target=$(realpath "$custom_brew_target_dir/codex")" <<<"$source_output" || \
+        fail "CLI trust helper must pin the canonical Homebrew target: $source_output"
+
+    local multicall_root="$workspace/multicall"
+    local multicall_cli="$multicall_root/bin/codex"
+    local multicall_target="$multicall_root/releases/0.2.8/bin/vp"
+    local multicall_source="$multicall_root/multicall.c"
+    local multicall_output
+    local cc_bin
+    mkdir -p "$(dirname "$multicall_cli")" "$(dirname "$multicall_target")"
+    cc_bin="$(PATH="$HOST_TOOL_PATH" type -P cc || PATH="$HOST_TOOL_PATH" type -P gcc || true)"
+    [ -n "$cc_bin" ] || fail "A C compiler is required for the multicall CLI invocation fixture"
+    cat > "$multicall_source" <<'C'
+#include <stdio.h>
+#include <string.h>
+
+int main(int argc, char **argv) {
+    const char *base = strrchr(argv[0], '/');
+    base = base == NULL ? argv[0] : base + 1;
+    if (strcmp(base, "codex") == 0 && argc == 2 && strcmp(argv[1], "--version") == 0) {
+        puts("codex-cli 0.147.0");
+        return 0;
+    }
+    if (strcmp(base, "codex") == 0 && argc == 3 && strcmp(argv[1], "app-server") == 0 && strcmp(argv[2], "--help") == 0) {
+        puts("Usage: codex app-server [OPTIONS]");
+        return 0;
+    }
+    if (strcmp(base, "vp") == 0 && argc == 2 && strcmp(argv[1], "--version") == 0) {
+        puts("vp v0.2.8");
+        return 0;
+    }
+    fprintf(stderr, "unexpected multicall mode: %s\n", base);
+    return 2;
+}
+C
+    "$cc_bin" -O2 -o "$multicall_target" "$multicall_source"
+    ln -s ../releases/0.2.8/bin/vp "$multicall_cli"
+
+    source_output="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" "$launcher_probe" resolve-source "$multicall_cli")"
+    grep -qx "path=$proxy_path" <<<"$source_output" || \
+        fail "CLI launch path must use the invocation-preserving proxy: $source_output"
+    grep -qx "source=$multicall_cli" <<<"$source_output" || \
+        fail "CLI proxy must preserve the selected multicall source path: $source_output"
+    grep -qx "target=$(realpath "$multicall_target")" <<<"$source_output" || \
+        fail "CLI proxy must pin the canonical multicall target: $source_output"
+    multicall_output="$(
+        CHATGPT_CLI_EXEC_TARGET="$(realpath "$multicall_target")" \
+            "$proxy_path" app-server --help
+    )"
+    [ "$multicall_output" = 'Usage: codex app-server [OPTIONS]' ] || \
+        fail "CLI proxy must preserve codex argv[0] for multicall executables: $multicall_output"
+    log_output="$(env -i PATH="$HOST_TOOL_PATH" HOME="$fake_home" "$launcher_probe" resolve-log "$multicall_cli")"
+    [ "$log_output" = "Using CODEX_CLI_PATH=$proxy_path (source $multicall_cli; target $(realpath "$multicall_target"); version 0.147.0)" ] || \
+        fail "CLI diagnostics must expose the selected multicall source and pinned target: $log_output"
 
     local override_cli="$workspace/override-codex"
-    local log_output
     printf '#!/usr/bin/env bash\nprintf "codex-cli 0.42.0\\n"\n' > "$override_cli"
     chmod +x "$override_cli"
     log_output="$(env -i PATH="$path_cli_bin:$HOST_TOOL_PATH" HOME="$fake_home" "$launcher_probe" log "$override_cli")"
@@ -7220,11 +8387,11 @@ SCRIPT
     ln -s "$release" "$codex_home/packages/standalone/current"
     ln -s "$codex_home/packages/standalone/current/bin/codex" "$visible_cli"
 
-    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" "$visible_cli")"
+    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" --resolve "$visible_cli")"
     [ "$stable_path" = "$(realpath "$release/bin/codex")" ] || \
         fail "launcher trust helper must return the canonical standalone release target"
     printf '%s\n' '/tmp/removed-standalone-home/.codex' > "$trust_workspace/home/.codex-standalone-provenance"
-    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" "$visible_cli")"
+    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" --resolve "$visible_cli")"
     [ "$stable_path" = "$(realpath "$release/bin/codex")" ] || \
         fail "launcher CLI resolution must ignore stale standalone provenance"
 
@@ -7242,7 +8409,7 @@ SCRIPT
     chmod 0775 "$(dirname "$visible_cli")"
     mv "$codex_home/packages/standalone" "$codex_home/packages/standalone-rejected"
     stable_path="$(HOME="$trust_workspace/home" CODEX_HOME="$codex_home" \
-        python3 "$REPO_DIR/launcher/cli-launch-path.py" "$visible_cli")"
+        python3 "$REPO_DIR/launcher/cli-launch-path.py" --resolve "$visible_cli")"
     [ "$stable_path" = "$(realpath "$replacement_cli")" ] || \
         fail "launcher CLI resolution must follow the currently selected executable"
     [ ! -e "$replacement_marker" ] || \
@@ -7253,7 +8420,7 @@ SCRIPT
     ln -s "$codex_home/packages/standalone/current/bin/codex" "$visible_cli"
     chmod 0755 "$(dirname "$visible_cli")"
     chmod 0775 "$release/bin/codex"
-    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" "$visible_cli")"
+    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" --resolve "$visible_cli")"
     [ "$stable_path" = "$(realpath "$release/bin/codex")" ] || \
         fail "launcher CLI resolution must accept existing umask-0002 standalone installs"
     chmod 0755 "$release/bin/codex"
@@ -7263,7 +8430,7 @@ SCRIPT
     cp "$release/bin/codex" "$external_root/bin/codex"
     rm "$codex_home/packages/standalone/current"
     ln -s "$external_root" "$codex_home/packages/standalone/current"
-    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" "$visible_cli")"
+    stable_path="$(HOME="$trust_workspace/home" python3 "$REPO_DIR/launcher/cli-launch-path.py" --resolve "$visible_cli")"
     [ "$stable_path" = "$(realpath "$external_root/bin/codex")" ] || \
         fail "launcher CLI resolution must follow external package-manager symlink targets"
 }
@@ -7518,8 +8685,6 @@ test_browser_use_node_repl_fallback_runtime() {
     assert_file_exists "$install_dir/resources/node_repl"
     assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs"
     cmp -s "$true_bin" "$install_dir/resources/node_repl" || fail "Expected fallback node_repl to come from the runtime archive"
-    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
-    assert_not_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
     assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
     assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxFileUrlPolicy"
     assert_contains "$output_log" "Browser Use node_repl runtime is not a Linux executable for x86_64; skipping"
@@ -7762,8 +8927,6 @@ test_browser_plugin_renamed_upstream_staging() {
     assert_contains "$browser_dir/.codex-plugin/plugin.json" '"name":"browser"'
     assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
     assert_not_contains "$browser_dir/scripts/browser-client.mjs" '"node:process"'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
     assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseDefineNodeReplMethod"
     assert_contains "$browser_dir/scripts/browser-client.mjs" "addAfterSubmittedCodeHook"
     assert_contains "$browser_dir/scripts/browser-client.mjs" "nativePipe??import.meta.__codexNativePipe"
@@ -8109,6 +9272,7 @@ test_portable_bundled_plugins_staging() {
     assert_file_exists "$plugins_dir/deep-research/.codex-plugin/plugin.json"
     assert_file_exists "$plugins_dir/visualize/.codex-plugin/plugin.json"
     assert_mode "$plugins_dir/sites/scripts/init-site.sh" "755"
+    assert_mode "$plugins_dir/sites/mcp/server.mjs" "644"
     [ ! -e "$plugins_dir/latex" ] || fail "Expected native LaTeX plugin to remain unstaged"
     [ ! -e "$plugins_dir/record-and-replay" ] || fail "Expected native Record and Replay plugin to remain unstaged"
     assert_contains "$output_log" "Portable bundled plugin sites staged from upstream DMG"
@@ -8408,7 +9572,6 @@ JSON
     cat > "$chrome_dir/scripts/browser-client.mjs" <<'JS'
 const browserPreference={};function preferredWindowIdFor(){}function getForUrl(){}const extensionInstanceId=null;
 var kE=t=>t==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use";var Cb=kE(hV.platform()),EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>wP.resolve(Cb,e)),TV=async()=>[];
-function lu(e){let t=globalThis.nodeRepl?.env[e];return typeof t=="string"?t:void 0}
 function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}
 import{platform as yT}from"node:os";import{env as Ub}from"node:process";function eh(){return"privileged native pipe bridge is not available; browser-client is not trusted"}function th(){let e=globalThis.nodeRepl?.nativePipe;return e==null||typeof e.createConnection!="function"?null:e}var ml=class e{constructor(t){this.socket=t}static async create(t){let r=th();if(r!=null){let n=await r.createConnection(t);return new e(n)}throw new Error(eh())}};var chromeConfigHome=Ub.CHROME_CONFIG_HOME;
 async fetchBlocked(e,t){let r=await bS(e.endpoint,{method:"GET"});if(!r.ok)throw new Error(ae(`${t} cannot determine if ${e.displayUrl} is allowed. Please try again later or use another source.`));let n=await r.json();return TF(n)}
@@ -8593,8 +9756,6 @@ test_chrome_plugin_staging() {
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "getForUrl"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"node:process"'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env?.\[e\]'
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" 'globalThis.nodeRepl?.env\[e\]'
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "writeValue: chatgptLinuxBrowserUseIgnoreConfigWrite"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "batchWrite: chatgptLinuxBrowserUseIgnoreConfigWrite"
@@ -8734,6 +9895,7 @@ make_fake_extracted_asar() {
     local index_body="${4:-}"
 
     mkdir -p "$root/webview/assets" "$root/.vite/build"
+    chmod 0700 "$root"
     printf 'png' > "$root/webview/assets/app-test.png"
     printf 'export{s as t};\n' > "$root/webview/assets/chunk-test.js"
     printf 'import{t as e}from"./chunk-test.js";Symbol.for(`react.transitional.element`);export{e as t};\n' > "$root/webview/assets/react-test.js"
@@ -8951,7 +10113,7 @@ const x={o:e=>e};let s=require(`node:url`),n=require(`electron`);n=x.o(n);let l=
 var pb=class{getNativeTrayMenuItems(){return[{label:this.systemQuitMenuItemLabel,click:()=>{n.app.quit()}}]}};
 function qB(r,o){if(o.type===`quit-app`){n.app.quit();return}return o}
 n.app.on(`before-quit`,o=>{let s=BI(),c=t.sr().some(e=>e.status===`ACTIVE`);if(e||i.canQuitWithoutPrompt()||r||!s&&!c){g=!0,a.markAppQuitting();return}let l=n.app.getName();if(n.dialog.showMessageBoxSync({type:`warning`,buttons:[`Quit`,`Cancel`],defaultId:0,cancelId:1,noLink:!0,title:`Quit ${l}?`,message:`Quit ${l}?`,detail:vB({hasInProgressLocalConversation:s,hasEnabledAutomations:c})})!==0){o.preventDefault();return}i.markQuitApproved(),g=!0,a.markAppQuitting()});
-l.app.on(`will-quit`,e=>{if(y=!0,v)return;let t=()=>{U5(h,N5).then(()=>{g.dispose(),l.app.quit()})};if(r.shouldSkipDrainBeforeQuit()){e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([p(),m()]).then(t);return}e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([d.flush(),f.flush(),p(),m()]).then(t)});
+l.app.on(`will-quit`,e=>{if(y=!0,v)return;let t=()=>{U5(h,N5).then(()=>{g.dispose(),l.app.quit()})};if(r.shouldSkipDrainBeforeQuit()){e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([d.flush(),p(),m()]).then(t);return}e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([d.flush(),f.flush(),p(),m()]).then(t)});
 JS
 )"
     make_fake_extracted_asar "$extracted" "$bundle_body"
@@ -9196,20 +10358,16 @@ test_browser_annotation_screenshot_patch_smoke() {
 
     mkdir -p "$workspace"
     make_fake_extracted_asar "$extracted" 'let D={removeMenu(){},setMenuBarVisibility(){},setIcon(){},once(){}};let n=require(`electron`),t=require(`node:path`),a=require(`node:fs`);...process.platform===`win32`?{autoHideMenuBar:!0}:{},process.platform===`win32`&&D.removeMenu(),foo)}),D.once(`ready-to-show`,()=>{})'
-    cat > "$extracted/.vite/build/comment-preload.js" <<'JS'
-let mt=Te;M?.kind===`comment`?mt=pt?[M.annotation]:Te:pt||P?mt=[]:ft!=null&&(mt=Te.filter(e=>e.id!==ft.id));
-let ht=mt.flatMap(e=>[e]),kt=null,At=`hover-box`,jt,Mt=0,I=[];
-if(P&&M?.annotation.anchor.kind===`element`){let e=bt==null?null:hs(bt),t=e?.rect??Ss(M.annotation.anchor);jt=e?.borderRadius,At=Vs(M.annotation.anchor,t,C.width,C.height),kt=Is(M.annotation.anchor,t,bt),I=bc(F,C,{clipToVisibleArea:!0})}
+    cat > "$extracted/.vite/build/browser-page-preload.js" <<'JS'
+if(ht&&j?.annotation.anchor.kind===`element`){let e=kt==null?null:ns(kt),t=e?.rect??ls(j.annotation.anchor);zt=e?.borderRadius,Rt=Os(j.annotation.anchor,t,w.width,w.height)}
 JS
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$extracted/.vite/build/comment-preload.js" 'let t=Ss(M.annotation.anchor);jt=void 0,At=Vs'
-    assert_contains "$extracted/.vite/build/comment-preload.js" 'M?\.kind===`comment`?mt=pt?\[M\.annotation\]:Te'
-    assert_not_contains "$extracted/.vite/build/comment-preload.js" 'e?.rect??Ss'
+    assert_contains "$extracted/.vite/build/browser-page-preload.js" 'let t=ls(j.annotation.anchor);zt=void 0,Rt=Os'
+    assert_not_contains "$extracted/.vite/build/browser-page-preload.js" 'e?.rect??ls'
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_occurrence_count "$extracted/.vite/build/comment-preload.js" 'let t=Ss(M.annotation.anchor)' '1'
-    assert_occurrence_count "$extracted/.vite/build/comment-preload.js" 'M?\.kind===`comment`?mt=pt?\[M\.annotation\]:Te' '1'
+    assert_occurrence_count "$extracted/.vite/build/browser-page-preload.js" 'let t=ls(j.annotation.anchor)' '1'
 }
 
 test_linux_single_instance_patch_smoke() {
@@ -9738,7 +10896,7 @@ NODE
 }
 
 test_linux_computer_use_gate_patch_smoke() {
-    info "Checking Linux Computer Use plugin gate patch behavior"
+    info "Checking incomplete Linux Computer Use support remains unavailable"
     local workspace="$TMP_DIR/computer-use-gate-patch"
     local extracted="$workspace/extracted"
     local output_log="$workspace/output.log"
@@ -9755,17 +10913,17 @@ JS
     make_fake_extracted_asar "$extracted" "$bundle_body"
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(!((e.platform!==`darwin`&&e.platform!==`linux`)||!e.marketplacePluginNames.includes(`computer-use`))'
-    assert_contains "$extracted/.vite/build/main-test.js" 'return e.platform===`darwin`&&e.desktopFeatureAvailability.computerUseNodeRepl?`node-repl`:`legacy-mcp`'
-    assert_not_contains "$extracted/.vite/build/main-test.js" 'if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))return e.desktopFeatureAvailability.computerUseNodeRepl?`node-repl`:`legacy-mcp`'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))return e.desktopFeatureAvailability.computerUseNodeRepl?`node-repl`:`legacy-mcp`'
+    assert_not_contains "$extracted/.vite/build/main-test.js" 'e.platform!==`darwin`&&e.platform!==`linux`'
+    assert_contains "$output_log" 'Linux Computer Use patch contracts are incomplete'
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'return e.platform===`darwin`&&e.desktopFeatureAvailability.computerUseNodeRepl?`node-repl`:`legacy-mcp`' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))' '1'
 }
 
-test_linux_computer_use_ui_opt_in_smoke() {
-    info "Checking Linux Computer Use UI opt-in gating"
-    local workspace="$TMP_DIR/computer-use-ui-opt-in"
+test_linux_computer_use_support_smoke() {
+    info "Checking Linux Computer Use support fails closed without complete authority contracts"
+    local workspace="$TMP_DIR/computer-use-support"
     local extracted="$workspace/extracted"
     local fake_home="$workspace/home"
     local output_log="$workspace/output.log"
@@ -9802,52 +10960,31 @@ JS
     printf '%s\n' "$settings_body" > "$settings_asset"
     printf '%s\n' "$app_initial_body" > "$app_initial_asset"
 
-    env -u CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
-        HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
-        node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$main_bundle" 'if(!((e.platform!==`darwin`&&e.platform!==`linux`)||!e.marketplacePluginNames.includes(`computer-use`))'
+    node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
+    assert_contains "$output_log" 'Linux Computer Use patch contracts are incomplete'
+    assert_contains "$main_bundle" 'if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))'
     assert_not_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
+    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
     assert_not_contains "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1'
+    assert_not_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
+    assert_not_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`||K3r(o)'
+    assert_not_contains "$app_initial_asset" 'let p=f&&i!==`computer-use`,m;'
+
+    node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
+    assert_occurrence_count "$main_bundle" 'if(!(e.platform!==`darwin`||!e.marketplacePluginNames.includes(`computer-use`)))' '1'
+
+    rm "$main_bundle" "$settings_asset" "$app_initial_asset"
+    printf '%s\n' "$bundle_body" > "$main_bundle"
+    printf '%s\n' "$settings_body" > "$settings_asset"
+    printf '%s\n' "${app_initial_body/K3r(o)/drifted(o,other)}" > "$app_initial_asset"
+
+    node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
+    assert_contains "$output_log" 'Linux Computer Use patch contracts are incomplete'
+    assert_not_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
+    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
     assert_not_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
     assert_not_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`'
     assert_not_contains "$app_initial_asset" '!==`computer-use`'
-
-    rm "$main_bundle" "$settings_asset" "$app_initial_asset"
-    printf '%s\n' "$bundle_body" > "$main_bundle"
-    printf '%s\n' "$settings_body" > "$settings_asset"
-    printf '%s\n' "$app_initial_body" > "$app_initial_asset"
-
-    env -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
-        CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1 HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
-        node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
-    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
-    assert_contains "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1'
-    assert_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
-    assert_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`||K3r(o)'
-    assert_contains "$app_initial_asset" 'let p=f&&i!==`computer-use`,m;'
-
-    node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_occurrence_count "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1' '1'
-    assert_occurrence_count "$settings_asset" 'marketplaceName:`openai-bundled`' '1'
-    assert_occurrence_count "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`' '1'
-    assert_occurrence_count "$app_initial_asset" '!==`computer-use`' '1'
-
-    rm "$main_bundle" "$settings_asset" "$app_initial_asset"
-    printf '%s\n' "$bundle_body" > "$main_bundle"
-    printf '%s\n' "$settings_body" > "$settings_asset"
-    printf '%s\n' "$app_initial_body" > "$app_initial_asset"
-    printf '%s\n' '{"chatgpt-linux-computer-use-ui-enabled": true}' > "$fake_home/.config/chatgpt/settings.json"
-
-    env -u CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI -u CHATGPT_LINUX_APP_ID -u CHATGPT_APP_ID -u CHATGPT_LINUX_SETTINGS_FILE \
-        HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
-        node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
-    assert_contains "$main_bundle" 'return n===`linux`?{...e,computerUse:!0,computerUseNodeRepl:!0}'
-    assert_contains "$main_bundle" 'chatgptLinuxNativeDesktopApps'
-    assert_contains "$settings_asset" 'available:!0,isFetching:!1,isLoading:!1'
-    assert_contains "$settings_asset" 'marketplaceName:`openai-bundled`'
-    assert_contains "$app_initial_asset" 'isHostCompatiblePlatform:o===`linux`||K3r(o)'
-    assert_contains "$app_initial_asset" 'let p=f&&i!==`computer-use`,m;'
 }
 
 test_linux_file_manager_patch_fails_soft() {
@@ -10283,6 +11420,8 @@ SCRIPT
 
     PATH="$fake_bin:$PATH" \
         HOME="$home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/config" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
         RECORD_ONLY_MARKER="$marker" \
@@ -10293,6 +11432,8 @@ SCRIPT
 
     PATH="$fake_bin:$PATH" \
         HOME="$home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/config" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
         RECORD_ONLY_MARKER="$marker" \
@@ -10319,6 +11460,7 @@ test_user_local_install_preserves_persisted_x11_preference_on_refresh() {
 
     PATH="$stub_bin:$PATH" \
         HOME="$home" \
+        XDG_CACHE_HOME="$workspace/cache" \
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
@@ -10329,6 +11471,7 @@ test_user_local_install_preserves_persisted_x11_preference_on_refresh() {
 
     PATH="$stub_bin:$PATH" \
         HOME="$home" \
+        XDG_CACHE_HOME="$workspace/cache" \
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
@@ -10338,6 +11481,7 @@ test_user_local_install_preserves_persisted_x11_preference_on_refresh() {
 
     PATH="$stub_bin:$PATH" \
         HOME="$home" \
+        XDG_CACHE_HOME="$workspace/cache" \
         XDG_CONFIG_HOME="$config_home" \
         XDG_DATA_HOME="$workspace/data" \
         XDG_STATE_HOME="$workspace/state" \
@@ -10753,6 +11897,48 @@ test_notification_actions_bridge_accepts_prebuilt_binary() {
     assert_mode "$target_binary" "755"
 }
 
+test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
+    info "Checking updater rebuilds can stage default native integrations without Cargo"
+    local workspace="$TMP_DIR/update-builder-default-native-helpers"
+    local app_dir="$workspace/app"
+    local update_builder="$workspace/update-builder"
+    local install_dir="$workspace/install"
+    local config="$workspace/integrations.json"
+    local cargo_marker="$workspace/cargo-ran"
+
+    make_fake_app "$app_dir"
+    mkdir -p "$update_builder/prebuilt-helpers" "$workspace/bin" "$install_dir"
+    printf '%s\n' '{"enabled":["global-dictation","read-aloud-mcp"],"disabled":[]}' > "$config"
+    printf '%s\n' '#!/bin/sh' "touch '$cargo_marker'" 'exit 1' > "$workspace/bin/cargo"
+    chmod 0755 "$workspace/bin/cargo"
+
+    (
+        export APP_DIR="$app_dir"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
+        # shellcheck disable=SC1091
+        source "$REPO_DIR/scripts/lib/package-common.sh"
+        stage_update_builder_prebuilt_helpers "$update_builder"
+    )
+
+    assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-global-dictation-linux"
+    assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-read-aloud-linux"
+    SCRIPT_DIR="$REPO_DIR" \
+    INSTALL_DIR="$install_dir" \
+    CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="$update_builder/prebuilt-helpers/chatgpt-global-dictation-linux" \
+    PATH="$workspace/bin:/usr/bin:/bin" \
+        bash "$REPO_DIR/port-integrations/global-dictation/stage.sh"
+    SCRIPT_DIR="$REPO_DIR" \
+    INSTALL_DIR="$install_dir" \
+    ICON_SOURCE="$REPO_DIR/assets/chatgpt.png" \
+    CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="$update_builder/prebuilt-helpers/chatgpt-read-aloud-linux" \
+    PATH="$workspace/bin:/usr/bin:/bin" \
+        bash "$REPO_DIR/port-integrations/read-aloud-mcp/stage.sh"
+
+    assert_file_exists "$install_dir/resources/native/chatgpt-global-dictation-linux"
+    assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    assert_file_not_exists "$cargo_marker"
+}
+
 
 assert_not_matches() {
     local path="$1"
@@ -11141,6 +12327,94 @@ PLIST
     assert_contains "$install_dir/chatgpt-version.env" "CHATGPT_APP_BUNDLE_VERSION=2312"
 }
 
+test_installer_stages_official_git_watcher_dependency() {
+    info "Checking official Git watcher dependency staging"
+    local workspace="$TMP_DIR/git-watcher-dependency"
+    local work_dir="$workspace/work"
+    local install_dir="$workspace/chatgpt"
+    local runtime_dir="$workspace/node-runtime"
+    local npm_log="$workspace/npm-args.log"
+    local host_node
+
+    host_node="$(PATH="$HOST_TOOL_PATH" type -P node)"
+    [ -x "$host_node" ] || fail "Expected a host Node.js executable for the Git watcher fixture"
+
+    mkdir -p "$work_dir/app-extracted" "$install_dir/resources" "$runtime_dir/bin"
+    printf '%s\n' 'fixture-asar' > "$work_dir/app.asar"
+    cat > "$work_dir/app-extracted/package.json" <<'JSON'
+{
+  "dependencies": {
+    "@parcel/watcher": "2.5.6"
+  }
+}
+JSON
+    ln -s "$host_node" "$runtime_dir/bin/node"
+    printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$host_node" > "$install_dir/electron"
+    chmod 0755 "$install_dir/electron"
+    cat > "$runtime_dir/bin/npm" <<'SCRIPT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+printf '%s\n' "$@" > "$WATCHER_NPM_LOG"
+
+prefix=""
+watcher_spec=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            shift
+            prefix="${1:-}"
+            ;;
+        @parcel/watcher@*)
+            watcher_spec="$1"
+            ;;
+    esac
+    shift
+done
+
+[ "$watcher_spec" = "@parcel/watcher@2.5.6" ]
+[ -n "$prefix" ]
+mkdir -p "$prefix/node_modules/@parcel/watcher"
+cat > "$prefix/node_modules/@parcel/watcher/package.json" <<'JSON'
+{"name":"@parcel/watcher","version":"2.5.6","main":"index.js"}
+JSON
+cat > "$prefix/node_modules/@parcel/watcher/index.js" <<'JS'
+module.exports = { subscribe() {} };
+JS
+SCRIPT
+    chmod +x "$runtime_dir/bin/npm"
+
+    (
+        WORK_DIR="$work_dir"
+        INSTALL_DIR="$install_dir"
+        CHATGPT_MANAGED_NODE_RUNTIME_DIR="$runtime_dir"
+        WATCHER_NPM_LOG="$npm_log"
+        export WORK_DIR INSTALL_DIR CHATGPT_MANAGED_NODE_RUNTIME_DIR WATCHER_NPM_LOG
+        info() { :; }
+        warn() { printf '%s\n' "$*" >&2; }
+        error() { printf '%s\n' "$*" >&2; return 1; }
+        # shellcheck source=scripts/lib/webview-install.sh
+        source "$REPO_DIR/scripts/lib/webview-install.sh"
+        install_app
+    )
+
+    assert_contains "$npm_log" "@parcel/watcher@2.5.6"
+    assert_contains "$npm_log" "--ignore-scripts"
+    assert_contains "$npm_log" "--no-save"
+    assert_contains "$npm_log" "--package-lock=false"
+    ELECTRON_RUN_AS_NODE=1 "$install_dir/electron" - \
+        "$install_dir/resources/app.asar/.vite/build/worker.js" <<'NODE'
+const { createRequire } = require("node:module");
+const workerPath = process.argv[2];
+const fromWorker = createRequire(workerPath);
+const watcher = fromWorker("@parcel/watcher");
+const watcherPackage = fromWorker("@parcel/watcher/package.json");
+if (watcherPackage.version !== "2.5.6" || typeof watcher.subscribe !== "function") {
+  process.exit(1);
+}
+NODE
+}
+
 test_installer_copies_webview_into_generated_app() {
     info "Checking webview extraction target"
     local workspace="$TMP_DIR/webview-extraction-target"
@@ -11150,11 +12424,13 @@ test_installer_copies_webview_into_generated_app() {
     local output_log="$workspace/output.log"
 
     mkdir -p "$fake_app_dir" "$install_dir"
+    chmod 0700 "$install_dir"
     cp "$SMOKE_PORT_INTEGRATIONS_CONFIG" "$integration_config"
 
     CHATGPT_INSTALLER_SOURCE_ONLY=1 \
     CHATGPT_INSTALL_TRANSACTION_ACTIVE=1 \
     CHATGPT_INSTALL_DIR="$install_dir" \
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED="$MUTATION_BROKER_SOURCE" \
     CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
     FAKE_APP_DIR="$fake_app_dir" \
     bash -c '
@@ -11671,13 +12947,25 @@ test_user_local_installer_uses_xdg_data_home() {
     info "Checking user-local installer XDG layout"
     local workspace="$TMP_DIR/user-local-install"
     local home_dir="$workspace/home"
+    local cache_home="$workspace/cache"
     local data_home="$workspace/data"
     local config_home="$workspace/config"
     local state_home="$workspace/state"
 
-    mkdir -p "$home_dir" "$data_home" "$config_home" "$state_home"
+    mkdir -p "$home_dir/.local/bin" "$cache_home" "$data_home" "$config_home" "$state_home"
+    for old_helper in chatgpt-check-update chatgpt-update chatgpt-version; do
+        cat > "$home_dir/.local/bin/$old_helper" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+XDG_DATA_HOME="\${XDG_DATA_HOME:-\${HOME}/.local/share}"
+INSTALL_ROOT="\${CHATGPT_USER_INSTALL_ROOT:-\${XDG_DATA_HOME}/chatgpt}"
+exec "\${INSTALL_ROOT}/bin/$old_helper" "\$@"
+EOF
+        chmod +x "$home_dir/.local/bin/$old_helper"
+    done
 
     HOME="$home_dir" \
+    XDG_CACHE_HOME="$cache_home" \
     XDG_DATA_HOME="$data_home" \
     XDG_CONFIG_HOME="$config_home" \
     XDG_STATE_HOME="$state_home" \
@@ -11686,9 +12974,16 @@ test_user_local_installer_uses_xdg_data_home() {
     assert_file_exists "$data_home/chatgpt/bin/chatgpt"
     assert_file_exists "$data_home/chatgpt/lib/common.sh"
     assert_file_exists "$home_dir/.local/bin/chatgpt"
+    assert_file_not_exists "$home_dir/.local/bin/chatgpt-check-update"
+    assert_file_not_exists "$home_dir/.local/bin/chatgpt-update"
+    assert_file_not_exists "$home_dir/.local/bin/chatgpt-version"
+    assert_file_exists "$data_home/chatgpt/bin/chatgpt-check-update"
+    assert_file_exists "$data_home/chatgpt/bin/chatgpt-update"
+    assert_file_exists "$data_home/chatgpt/bin/chatgpt-version"
     assert_file_exists "$data_home/applications/chatgpt.desktop"
     assert_file_exists "$config_home/systemd/user/chatgpt-update.service"
     assert_file_exists "$state_home/chatgpt/install.env"
+    assert_contains "$config_home/systemd/user/chatgpt-update.service" "$data_home/chatgpt/bin/chatgpt-update"
     assert_contains "$data_home/applications/chatgpt.desktop" "$home_dir/.local/bin/chatgpt %U"
     assert_contains "$state_home/chatgpt/install.env" "INSTALL_ROOT=$data_home/chatgpt"
 }
@@ -11985,6 +13280,7 @@ main() {
     test_pacman_updater_upgrade_only_starts_enabled_service
     test_deb_builder_rebuilds_deleted_updater_source
     test_update_builder_source_info_survives_without_git_checkout
+    test_update_builder_source_info_uses_only_isolated_git
     test_port_integration_package_hook_discovery_failure_blocks_build
     test_port_integration_package_dependency_failure_propagates
     test_deb_builder_respects_package_identity
@@ -12002,6 +13298,7 @@ main() {
     test_make_build_dev_app_writes_host_portable_launcher_symlink
     test_installer_refreshes_stale_cached_dmg_metadata
     test_extract_dmg_repairs_safe_7z_link_warnings
+    test_dmg_link_warning_repair_treats_option_like_target_as_data
     test_fresh_install_removes_cached_dmg_metadata
     test_fresh_pinned_dmg_preserves_cached_dmg_metadata
     test_fresh_reuse_dmg_uses_cache_when_metadata_matches
@@ -12019,11 +13316,13 @@ main() {
     test_user_local_updates_preserve_the_running_app_gate
     test_transactional_install_reenters_with_current_bash
     test_transactional_install_uses_managed_node_and_isolated_reports
+    test_transactional_install_rejects_mutation_integrity_failure
     test_installer_cleanup_handles_readonly_trees
     test_native_shortcut_targets_compose_existing_flows
     test_sudo_alert_wrapper
     test_native_sudo_alert_wiring
     test_fedora_dependency_bootstrap_installs_rpmbuild
+    test_sevenzip_bootstrap_authenticates_executable_archive
     test_fedora_atomic_rpm_ostree_target_detection
     test_setup_native_wizard_noninteractive_integration_writer
     test_setup_native_wizard_rejects_invalid_integration_ids
@@ -12052,7 +13351,14 @@ main() {
     test_update_nix_hashes_verifies_changed_dmg_hash
     test_update_nix_hashes_supports_focused_verification_output
     test_update_nix_hashes_skips_output_build_when_refresh_ref_already_matches
-    test_ci_local_mounts_shared_git_metadata_for_linked_worktrees
+    test_ci_local_uses_private_current_source_snapshots
+    test_ci_local_cleans_private_snapshot_after_engine_failure
+    test_ci_local_cleans_private_snapshot_after_term
+    test_ci_local_parent_term_stops_engine_and_cleans_private_snapshot
+    test_ci_local_stops_image_pull_on_parent_and_group_term
+    test_ci_local_escalates_when_image_pull_ignores_term
+    test_ci_local_mounts_only_exact_optional_artifacts
+    test_ci_local_rejects_unsafe_source_and_host_mounts
     test_installer_detects_electron_version_from_plist
     test_installer_keeps_electron_fallback_for_bad_metadata
     test_port_validation_rejects_oversized_numeric_values
@@ -12066,6 +13372,7 @@ main() {
     test_native_module_rebuild_accepts_prebuilt_source
     test_bundled_plugin_builders_accept_prebuilt_binaries
     test_notification_actions_bridge_accepts_prebuilt_binary
+    test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks
     test_bundled_plugin_system_computer_use_preserves_cosmic_helper_name
     test_browser_use_node_repl_fallback_runtime
     test_browser_use_file_url_policy_patch_behavior
@@ -12094,6 +13401,7 @@ main() {
     test_launcher_extra_bundled_plugin_cache_concurrent_destination
     test_launcher_rejects_missing_webview_entrypoint
     test_launcher_marketplace_metadata_atomic_staging
+    test_launcher_computer_use_cache_trust_boundary
     test_launcher_template_sanity
     test_launcher_warm_start_recovery
     test_launcher_window_reopen_behavior
@@ -12111,7 +13419,7 @@ main() {
     test_browser_annotation_screenshot_patch_smoke
     test_linux_single_instance_patch_smoke
     test_linux_computer_use_gate_patch_smoke
-    test_linux_computer_use_ui_opt_in_smoke
+    test_linux_computer_use_support_smoke
     test_linux_file_manager_patch_fails_soft
     test_patcher_enforce_critical_gate
     test_user_local_prepare_build_repo_overlays_committed_local_changes
@@ -12134,6 +13442,7 @@ main() {
     test_rpm_builder_can_disable_updater
     test_official_dmg_build_app_workflow_tracks_dmg_metadata
     test_installer_writes_package_version_from_app_plist
+    test_installer_stages_official_git_watcher_dependency
     test_installer_copies_webview_into_generated_app
     test_webview_integrity_manifest_fails_missing_static_import
     test_webview_integrity_manifest_fails_missing_multiline_from_import

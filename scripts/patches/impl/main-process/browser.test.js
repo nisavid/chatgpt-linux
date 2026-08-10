@@ -6,9 +6,71 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const {
+  applyLinuxBundledPluginCopyPermissionsPatch,
   applyLinuxBrowserUseSocketDirectoryPatch,
   applyLinuxExternalOpenEnvPatch,
 } = require("./browser.js");
+
+function bundledPluginCopyFixture() {
+  return (
+    "let p=require(`node:path`);" +
+    "let m=require(`node:fs/promises`);m={default:m};" +
+    "let h=require(`node:crypto`);" +
+    "let g={default:{platform:process.platform}};" +
+    "let cc=[`.agents`,`plugins`,`marketplace.json`];" +
+    "async function fl(e,t){if(g.default.platform===`darwin`){return}if(g.default.platform!==`win32`){await m.default.cp(e,t,{recursive:!0,verbatimSymlinks:!0});return}}" +
+    "async function Ac(e){let a=`${e.targetMarketplaceRoot}.staging-${h.randomUUID()}`;await m.default.mkdir((0,p.join)(a,...cc.slice(0,-1)),{recursive:!0});await m.default.writeFile((0,p.join)(a,...cc),`{}\\n`,`utf8`);let n=e.sourcePlugin,t=(0,p.join)(a,`plugins`,`chrome`);await m.default.mkdir((0,p.dirname)(t),{recursive:!0}),await fl(n,t);return a}"
+  );
+}
+
+test("bundled plugin trust patch rejects executable helper-only partial state", () => {
+  const helperOnly = [
+    "async function chatgptLinuxValidateBundledPluginAncestors(){}",
+    "async function chatgptLinuxValidateBundledPluginSource(){}",
+    "async function chatgptLinuxPrepareBundledPluginStage(){}",
+    "async function chatgptLinuxMakeBundledPluginTreeWritable(){}",
+    bundledPluginCopyFixture(),
+  ].join("");
+
+  assert.throws(
+    () => applyLinuxBundledPluginCopyPermissionsPatch(helperOnly),
+    /partially present/,
+  );
+
+  const patched = applyLinuxBundledPluginCopyPermissionsPatch(
+    bundledPluginCopyFixture(),
+  );
+  const brokenCallsite = patched.replace(
+    "await chatgptLinuxPrepareBundledPluginStage(a,m.default),",
+    "",
+  );
+  assert.notEqual(brokenCallsite, patched);
+  assert.throws(
+    () => applyLinuxBundledPluginCopyPermissionsPatch(brokenCallsite),
+    /partially present/,
+  );
+});
+
+test("bundled plugin trust patch ignores quoted and commented helper decoys", () => {
+  const source = [
+    "let quoted='async function chatgptLinuxValidateBundledPluginAncestors(';",
+    "/*async function chatgptLinuxValidateBundledPluginSource(){}*/",
+    bundledPluginCopyFixture(),
+  ].join("");
+
+  const patched = applyLinuxBundledPluginCopyPermissionsPatch(source);
+
+  assert.notEqual(patched, source);
+  assert.match(
+    patched,
+    /await chatgptLinuxValidateBundledPluginSource\(e,m\.default\)/,
+  );
+  assert.match(
+    patched,
+    /await chatgptLinuxPrepareBundledPluginStage\(a,m\.default\)/,
+  );
+  assert.equal(applyLinuxBundledPluginCopyPermissionsPatch(patched), patched);
+});
 
 const browserUseSocketFixture =
   '"use strict";' +
@@ -106,6 +168,110 @@ test("Linux external open env patch is idempotent", () => {
   const second = applyLinuxExternalOpenEnvPatch(first);
 
   assert.equal(second, first, "second application should not change the source");
+});
+
+test("Linux external open env patch ignores a quoted helper decoy", () => {
+  const source =
+    '"use strict";let decoy="function chatgptLinuxPatchExternalOpen(";' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores a regex helper decoy", () => {
+  const source =
+    '"use strict";let decoy=/function chatgptLinuxPatchExternalOpen\\(\\)/;' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores a control-flow regex helper decoy", () => {
+  const source =
+    '"use strict";if(true)/function chatgptLinuxPatchExternalOpen()/.test("");' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores an async-loop regex helper decoy", () => {
+  const source =
+    '"use strict";async function f(){for await(const x of [1])/function chatgptLinuxPatchExternalOpen()/.test("")}' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores a labeled-break regex helper decoy", () => {
+  const source =
+    '"use strict";function f(){outer:while(true){break outer\n/function chatgptLinuxPatchExternalOpen()/.test("")}}' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores a division-adjacent regex helper decoy", () => {
+  const source =
+    '"use strict";let x=1;x/ /function chatgptLinuxPatchExternalOpen()/.test("");' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores an extends-expression regex helper decoy", () => {
+  const source =
+    '"use strict";class C extends /function chatgptLinuxPatchExternalOpen()/.constructor{}' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
+});
+
+test("Linux external open env patch ignores a spread-expression regex helper decoy", () => {
+  const source =
+    '"use strict";function f(){return [.../function chatgptLinuxPatchExternalOpen()/]}' +
+    'let e=chatgptLinuxPatchExternalOpen(require("electron"));';
+  const patched = applyLinuxExternalOpenEnvPatch(source);
+
+  assert.match(
+    patched,
+    /function chatgptLinuxPatchExternalOpen\(__chatgptElectron\)\{/,
+  );
+  assert.equal(applyLinuxExternalOpenEnvPatch(patched), patched);
 });
 
 test("Linux external open env patch warns when no electron require found", () => {

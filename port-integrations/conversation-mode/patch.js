@@ -3,6 +3,8 @@
 const HANDLER_NAME = "linux-read-aloud";
 const RUNTIME_VERSION = "conversation-mode-v26";
 const CURRENT_APP_INITIAL_ASSET_PATTERN = /^app-initial-[A-Za-z0-9_-]+\.js$/;
+const CURRENT_ASSISTANT_ASSET_PATTERN =
+  /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/;
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} - skipping ${patchName}`);
@@ -260,67 +262,108 @@ function applyDictationEndpointPatch(source) {
   }
 
   const micConstraintsPattern =
-    /stream:([A-Za-z_$][\w$]*)\(\{channelCount:1\}\)\.then\(/u;
+    /stream:([A-Za-z_$][\w$]*)\(\{channelCount:1\}\)\.then\(/gu;
   const cleanupPattern =
-    /([A-Za-z_$][\w$]*)&&\(\1\.ondataavailable=null,\1\.onstop=null\),([A-Za-z_$][\w$]*)\.current=null,([A-Za-z_$][\w$]*)\(\),([A-Za-z_$][\w$]*)\(\),/u;
-  const actionRef = source.match(/let [A-Za-z_$][\w$]*=([A-Za-z_$][\w$]*)\.current\?\?`insert`/)?.[1] ?? null;
-  const recorderPattern =
-    /let ([A-Za-z_$][\w$]*)=new MediaRecorder\(([A-Za-z_$][\w$]*)\);if\(([A-Za-z_$][\w$]*)\.current=\1,([A-Za-z_$][\w$]*)\.current=\[\],\1\.ondataavailable=([A-Za-z_$][\w$]*)=>\{\5\.data\.size>0&&\4\.current\.push\(\5\.data\)\},\1\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},\1\.start\(\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/u;
+    /let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current;\4\.current=null;let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current;if\(\6\.current=\[\],\1&&\(\1\.ondataavailable=null,\1\.onstop=null\),\2\.current=null,/gu;
+  const actionRefPattern =
+    /let [A-Za-z_$][\w$]*=([A-Za-z_$][\w$]*)\.current\?\?`insert`/gu;
+  const recorderCreationPattern =
+    /let ([A-Za-z_$][\w$]*)=new MediaRecorder\(([A-Za-z_$][\w$]*)\);([A-Za-z_$][\w$]*)\.current=\1;let ([A-Za-z_$][\w$]*)=/gu;
+  const recorderStartPattern =
+    /([A-Za-z_$][\w$]*)\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},([A-Za-z_$][\w$]*)==null\?\1\.start\(\):\1\.start\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/gu;
   const transcriptPattern =
-    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\5\.onTranscriptInsert\(\1\)\)/u;
-
+    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)==null\?([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\):\2\.setTranscript\(\1\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\6\.onTranscriptInsert\(\1\)\)/gu;
+  const uniqueMatch = (pattern) => {
+    const matches = [...source.matchAll(pattern)];
+    return matches.length === 1 ? matches[0] : null;
+  };
+  const micConstraintsMatch = uniqueMatch(micConstraintsPattern);
+  const cleanupMatch = uniqueMatch(cleanupPattern);
+  const actionRefMatch = uniqueMatch(actionRefPattern);
+  const recorderCreationMatch = uniqueMatch(recorderCreationPattern);
+  const recorderStartMatch = uniqueMatch(recorderStartPattern);
+  const transcriptMatch = uniqueMatch(transcriptPattern);
   if (
-    !micConstraintsPattern.test(source) ||
-    !cleanupPattern.test(source) ||
-    actionRef == null ||
-    !recorderPattern.test(source) ||
-    !transcriptPattern.test(source)
+    micConstraintsMatch == null ||
+    cleanupMatch == null ||
+    actionRefMatch == null ||
+    recorderCreationMatch == null ||
+    recorderStartMatch == null ||
+    transcriptMatch == null ||
+    cleanupMatch[1] !== recorderCreationMatch[1] ||
+    cleanupMatch[2] !== recorderCreationMatch[3] ||
+    cleanupMatch[3] !== recorderCreationMatch[4] ||
+    recorderStartMatch[1] !== recorderCreationMatch[1] ||
+    recorderStartMatch[3] !== recorderCreationMatch[4]
   ) {
     warn("Could not resolve the current dictation contract", "conversation mode dictation endpoint patch");
     return source;
   }
 
+  const recorderVar = recorderCreationMatch[1];
+  const streamVar = recorderCreationMatch[2];
+  const recorderRefVar = recorderCreationMatch[3];
+  const actionRef = actionRefMatch[1];
   let patched = source.replace(
-    micConstraintsPattern,
-    "stream:$1({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}).then(",
+    micConstraintsMatch[0],
+    `stream:${micConstraintsMatch[1]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}).then(`,
   );
   patched = patched.replace(
-    cleanupPattern,
-    "$1?.chatgptLinuxConversationCleanup?.(),$1&&($1.ondataavailable=null,$1.onstop=null),$2.current=null,$3(),$4(),",
+    cleanupMatch[0],
+    `let ${cleanupMatch[1]}=${cleanupMatch[2]}.current,${cleanupMatch[3]}=${cleanupMatch[4]}.current;${cleanupMatch[4]}.current=null;let ${cleanupMatch[5]}=${cleanupMatch[6]}.current;if(${cleanupMatch[6]}.current=[],${cleanupMatch[1]}?.chatgptLinuxConversationCleanup?.(),${cleanupMatch[1]}&&(${cleanupMatch[1]}.ondataavailable=null,${cleanupMatch[1]}.onstop=null),${cleanupMatch[2]}.current=null,`,
   );
   patched = patched.replace(
-    recorderPattern,
-    (_needle, recorderVar, streamVar, recorderRefVar, chunksRefVar, dataVar, finishFn, analyticsVar, activeSetterVar) =>
-      `let ${recorderVar}=new MediaRecorder(${streamVar});if(${recorderRefVar}.current=${recorderVar},${chunksRefVar}.current=[],${recorderVar}.ondataavailable=${dataVar}=>{${dataVar}.data.size>0&&${chunksRefVar}.current.push(${dataVar}.data)},${recorderVar}.onstop=()=>{${finishFn}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderVar}.start(),${analyticsVar}.performance.mark(\`recording_started\`),${activeSetterVar}(!0)`,
+    recorderStartMatch[0],
+    `${recorderVar}.onstop=()=>{${recorderStartMatch[2]}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderStartMatch[3]}==null?${recorderVar}.start():${recorderVar}.start(${recorderStartMatch[4]}),${recorderStartMatch[5]}.performance.mark(\`recording_started\`),${recorderStartMatch[6]}(!0)`,
   );
   return patched.replace(
-    transcriptPattern,
-    "$1.length>0&&$4!==`discard`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.($1,$4)!==!1&&($2.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:$1}),$3.performance.mark(`transcript_dispatched`),$4===`send`?$5.onTranscriptSend($1):$5.onTranscriptInsert($1))",
+    transcriptMatch[0],
+    `${transcriptMatch[1]}.length>0&&${transcriptMatch[5]}!==\`discard\`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(${transcriptMatch[1]},${transcriptMatch[5]})!==!1&&(${transcriptMatch[2]}==null?${transcriptMatch[3]}.getInstance().dispatchMessage(\`global-dictation-record-history-item\`,{text:${transcriptMatch[1]}}):${transcriptMatch[2]}.setTranscript(${transcriptMatch[1]}),${transcriptMatch[4]}.performance.mark(\`transcript_dispatched\`),${transcriptMatch[5]}===\`send\`?${transcriptMatch[6]}.onTranscriptSend(${transcriptMatch[1]}):${transcriptMatch[6]}.onTranscriptInsert(${transcriptMatch[1]}))`,
   );
 }
 
-function propVar(match, name) {
-  const re = new RegExp(`${name}:([A-Za-z_$][\\w$]*)`);
-  return match.match(re)?.[1] ?? "null";
+function currentAssistantRenderCallPattern() {
+  return /\(0,([A-Za-z_$][\w$]*)\.jsx\)\(([A-Za-z_$][\w$]*),\{(?=[^{}]*\bitem:)(?=[^{}]*\bhistoryEntityKey:)(?=[^{}]*\bisHeartbeatAutomationRequest:)(?=[^{}]*\bisHeartbeatAutomationTurn:)(?=[^{}]*\bconversationId:)(?=[^{}]*\bconversationDetailLevel:)(?=[^{}]*\bisTurnInProgress:)(?=[^{}]*\btoolActivityTurnKey:)(?=[^{}]*\bturnId:)(?=[^{}]*\bassistantCopyText:)(?=[^{}]*\bshowAssistantMessageActionRow:)([^{}]*)\}\)/gu;
 }
 
-function readAssistantObserveSource(itemVar, copyVar, conversationVar, turnVar) {
-  return `globalThis.chatgptLinuxConversationAssistant?.(${itemVar},${copyVar},${conversationVar},${turnVar},typeof c!="undefined"?c:null)??null`;
+function currentAssistantProp(props, name, { optional = false } = {}) {
+  const value = new RegExp(`(?:^|,)${name}:([^,]+)`, "u").exec(props)?.[1] ?? null;
+  if (value == null) {
+    return null;
+  }
+  const identifier = "[A-Za-z_$][\\w$]*";
+  return new RegExp(optional ? `^${identifier}(?:\\?\\?void 0)?$` : `^${identifier}$`, "u").test(value)
+    ? value
+    : null;
+}
+
+function readAssistantObserveSource(itemVar, copyVar, conversationVar, turnVar, inProgressVar) {
+  return `globalThis.chatgptLinuxConversationAssistant?.(${itemVar},${copyVar},${conversationVar},${turnVar},${inProgressVar})??null`;
 }
 
 function applyAssistantRenderPatch(source) {
   if (source.includes("chatgptLinuxConversationAssistant?.(")) {
     return source;
   }
-  const jsxCallPattern =
-    /\(0,([A-Za-z_$][\w$]*)\.jsx\)\(([A-Za-z_$][\w$]*),\{item:([A-Za-z_$][\w$]*),([^{}]*?)assistantCopyText:([A-Za-z_$][\w$]*),([^{}]*?)conversationId:([A-Za-z_$][\w$]*),[^{}]*?\}\)/g;
-  const patched = source.replace(
-    jsxCallPattern,
-    (match, jsxVar, _component, itemVar, _beforeCopy, copyVar, _beforeConversation, conversationVar) =>
-      `(0,${jsxVar}.jsxs)(${jsxVar}.Fragment,{children:[${match},${readAssistantObserveSource(itemVar, copyVar, conversationVar, propVar(match, "turnId"))}]})`,
-  );
-  if (patched !== source) {
-    return patched;
+  const matches = [...source.matchAll(currentAssistantRenderCallPattern())];
+  if (matches.length === 1) {
+    const match = matches[0];
+    const props = match[3];
+    const itemVar = currentAssistantProp(props, "item");
+    const copyVar = currentAssistantProp(props, "assistantCopyText", { optional: true });
+    const conversationVar = currentAssistantProp(props, "conversationId");
+    const turnVar = currentAssistantProp(props, "turnId", { optional: true });
+    const inProgressVar = currentAssistantProp(props, "isTurnInProgress");
+    if (
+      itemVar != null &&
+      copyVar != null &&
+      conversationVar != null &&
+      turnVar != null &&
+      inProgressVar != null
+    ) {
+      const replacement = `(0,${match[1]}.jsxs)(${match[1]}.Fragment,{children:[${match[0]},${readAssistantObserveSource(itemVar, copyVar, conversationVar, turnVar, inProgressVar)}]})`;
+      return `${source.slice(0, match.index)}${replacement}${source.slice(match.index + match[0].length)}`;
+    }
   }
   warn("Could not find assistant message render call", "conversation mode assistant observer patch");
   return source;
@@ -381,8 +424,8 @@ module.exports = {
       phase: "webview-asset",
       order: 20710,
       ciPolicy: "optional",
-      pattern: CURRENT_APP_INITIAL_ASSET_PATTERN,
-      missingDescription: "current primary thread assistant bundle",
+      pattern: CURRENT_ASSISTANT_ASSET_PATTERN,
+      missingDescription: "current local conversation turn bundle",
       skipDescription: "conversation mode assistant observer patch",
       apply: applyAssistantRenderPatch,
     },

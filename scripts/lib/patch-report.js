@@ -74,6 +74,7 @@ function createPatchReport() {
     desktopName: null,
     linuxTarget: null,
     enabledIntegrations: [],
+    mutationIntegrity: null,
     patches: [],
   };
 }
@@ -107,6 +108,20 @@ function captureWarnings(fn) {
   };
   try {
     return { value: fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function captureWarningsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+    originalWarn(...args);
+  };
+  try {
+    return { value: await fn(), warnings };
   } finally {
     console.warn = originalWarn;
   }
@@ -183,6 +198,7 @@ module.exports = {
   PATCH_STATUS_SKIPPED_TARGET,
   SUCCESS_STATUSES,
   captureWarnings,
+  captureWarningsAsync,
   createPatchReport,
   criticalFailuresFromReport,
   enabledIntegrationFailuresFromReport,

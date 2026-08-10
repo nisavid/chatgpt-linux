@@ -6,6 +6,7 @@ FILES_DIR="${SCRIPT_DIR}/files"
 SCRIPT_REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SOURCE_REPO_ROOT="${CHATGPT_USER_LOCAL_SOURCE_REPO_DIR:-$SCRIPT_REPO_ROOT}"
 DESKTOP_ENTRY_DOCTOR="${SOURCE_REPO_ROOT}/packaging/linux/chatgpt-desktop-entry-doctor.sh"
+STATE_MIGRATION_HELPER="${SOURCE_REPO_ROOT}/launcher/state-migration.py"
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
@@ -100,31 +101,29 @@ XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
 exec "${INSTALL_ROOT}/bin/chatgpt" "$@"
 EOF
-    cat > "${USER_BIN_DIR}/chatgpt-check-update" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
-exec "${INSTALL_ROOT}/bin/chatgpt-check-update" "$@"
-EOF
-    cat > "${USER_BIN_DIR}/chatgpt-update" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
-exec "${INSTALL_ROOT}/bin/chatgpt-update" "$@"
-EOF
-    cat > "${USER_BIN_DIR}/chatgpt-version" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
-INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
-exec "${INSTALL_ROOT}/bin/chatgpt-version" "$@"
-EOF
-
+    for private_helper in chatgpt-check-update chatgpt-update chatgpt-version; do
+        public_helper="${USER_BIN_DIR}/${private_helper}"
+        if [ -f "$public_helper" ] && [ ! -L "$public_helper" ] &&
+            grep -Fqx 'XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"' "$public_helper" &&
+            grep -Fqx "exec \"\${INSTALL_ROOT}/bin/${private_helper}\" \"\$@\"" "$public_helper"; then
+            rm -f "$public_helper"
+        fi
+    done
     sed "s|@USER_BIN_DIR@|${USER_BIN_DIR}|g" "${FILES_DIR}/.local/share/applications/chatgpt.desktop" > "${XDG_DATA_HOME}/applications/chatgpt.desktop"
 
-    copy_file "${FILES_DIR}/.config/systemd/user/chatgpt-update.service" "${systemd_user_dir}/chatgpt-update.service"
+    CHATGPT_USER_LOCAL_UPDATE_COMMAND="${APP_BIN_DIR}/chatgpt-update" \
+        awk '
+            $0 == "@CHATGPT_USER_LOCAL_UPDATE_EXEC_START@" {
+                command = ENVIRON["CHATGPT_USER_LOCAL_UPDATE_COMMAND"]
+                gsub(/%/, "%%", command)
+                gsub(/\\/, "\\\\", command)
+                gsub(/"/, "\\\"", command)
+                print "ExecStart=\"" command "\" --quiet"
+                next
+            }
+            { print }
+        ' "${FILES_DIR}/.config/systemd/user/chatgpt-update.service" > \
+        "${systemd_user_dir}/chatgpt-update.service"
     copy_file "${FILES_DIR}/.config/systemd/user/chatgpt-update.timer" "${systemd_user_dir}/chatgpt-update.timer"
 
     cat > "${STATE_DIR}/install.env" <<EOF
@@ -143,11 +142,14 @@ EOF
         "${APP_BIN_DIR}/chatgpt-update" \
         "${APP_BIN_DIR}/chatgpt-version" \
         "${APP_LIB_DIR}/common.sh" \
-        "${USER_BIN_DIR}/chatgpt" \
-        "${USER_BIN_DIR}/chatgpt-check-update" \
-        "${USER_BIN_DIR}/chatgpt-update" \
-        "${USER_BIN_DIR}/chatgpt-version"
+        "${USER_BIN_DIR}/chatgpt"
 }
+
+if [ ! -x "$STATE_MIGRATION_HELPER" ]; then
+    echo "ChatGPT state migration helper is missing or not executable: $STATE_MIGRATION_HELPER" >&2
+    exit 1
+fi
+"$STATE_MIGRATION_HELPER" --forward
 
 install_manager_files
 write_user_local_preferences
@@ -163,8 +165,8 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "${XDG_DATA_HOME}/applications" >/dev/null 2>&1 || true
 fi
 
-if [ "$FROM_UPDATE" -eq 0 ] && [ -x "${USER_BIN_DIR}/chatgpt-update" ]; then
-    "${USER_BIN_DIR}/chatgpt-update" --record-only >/dev/null 2>&1 || true
+if [ "$FROM_UPDATE" -eq 0 ] && [ -x "${APP_BIN_DIR}/chatgpt-update" ]; then
+    "${APP_BIN_DIR}/chatgpt-update" --record-only >/dev/null 2>&1 || true
 fi
 
 if [ "$FROM_UPDATE" -eq 0 ]; then

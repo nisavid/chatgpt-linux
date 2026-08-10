@@ -10,7 +10,7 @@ import sys
 import urllib.parse
 
 
-USER_STYLESHEET_ENDPOINT = "/__codex_user_stylesheet.css"
+USER_STYLESHEET_ENDPOINT = "/__chatgpt_user_stylesheet.css"
 MAX_USER_STYLESHEET_BYTES = 256 * 1024
 
 

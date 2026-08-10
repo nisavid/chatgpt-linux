@@ -91,8 +91,8 @@ CODEX_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_APP_DISPLAY_NAME
 CODEX_LINUX_APP_ID CHATGPT_LINUX_APP_ID
 CODEX_LINUX_APP_STATE_DIR CHATGPT_LINUX_APP_STATE_DIR
 CODEX_LINUX_ELECTRON_EXIT_STATUS CHATGPT_LINUX_ELECTRON_EXIT_STATUS
-CODEX_LINUX_FEATURES_DIR CHATGPT_LINUX_FEATURES_DIR
-CODEX_LINUX_FEATURE_HOOK_PHASE CHATGPT_LINUX_FEATURE_HOOK_PHASE
+CODEX_LINUX_FEATURES_DIR CHATGPT_PORT_INTEGRATIONS_DIR
+CODEX_LINUX_FEATURE_HOOK_PHASE CHATGPT_PORT_INTEGRATION_HOOK_PHASE
 CODEX_LINUX_HOST_LD_LIBRARY_PATH_STATE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_STATE
 CODEX_LINUX_HOST_LD_LIBRARY_PATH_VALUE CHATGPT_LINUX_HOST_LD_LIBRARY_PATH_VALUE
 CODEX_LINUX_INSTANCE_ID CHATGPT_LINUX_INSTANCE_ID
@@ -125,6 +125,8 @@ CODEX_SYNC_CLI_PREFLIGHT CHATGPT_SYNC_CLI_PREFLIGHT
 CODEX_XDG_CONFIG_HOME CHATGPT_XDG_CONFIG_HOME
 CODEX_LINUX_WEBVIEW_USER_STYLESHEET CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET
 CODEX_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT CHATGPT_LINUX_WEBVIEW_USER_STYLESHEET_DEFAULT
+CHATGPT_LINUX_FEATURES_DIR CHATGPT_PORT_INTEGRATIONS_DIR
+CHATGPT_LINUX_FEATURE_HOOK_PHASE CHATGPT_PORT_INTEGRATION_HOOK_PHASE
 OBSOLETE_LAUNCHER_ENV
 }
 
@@ -166,8 +168,7 @@ APP_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$CHATGPT_LINUX_APP_ID"
 APP_SETTINGS_FILE="$APP_CONFIG_DIR/settings.json"
 CHATGPT_LINUX_SETTINGS_FILE="$APP_SETTINGS_FILE"
 CHATGPT_PORT_INTEGRATIONS_DIR="$SCRIPT_DIR/.chatgpt-linux/port-integrations"
-CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR"
-export CODEX_HOME CHATGPT_LINUX_APP_ID CHATGPT_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_WEBVIEW_PORT CHATGPT_LINUX_SETTINGS_FILE CHATGPT_PORT_INTEGRATIONS_DIR CHATGPT_LINUX_FEATURES_DIR
+export CODEX_HOME CHATGPT_LINUX_APP_ID CHATGPT_LINUX_APP_DISPLAY_NAME CHATGPT_LINUX_WEBVIEW_PORT CHATGPT_LINUX_SETTINGS_FILE CHATGPT_PORT_INTEGRATIONS_DIR
 APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CHATGPT_LINUX_APP_ID"
 
 configure_runtime_tmpdir() {
@@ -191,8 +192,8 @@ LAUNCH_ACTION_SOCKET="$LAUNCH_ACTION_RUNTIME_DIR/launch-action.sock"
 COLD_START_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/cold-start.d"
 FEATURE_ENV_DIR="$SCRIPT_DIR/.chatgpt-linux/env.d"
 FEATURE_PRELAUNCH_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/prelaunch.d"
-FEATURE_ELECTRON_ARGS_DIR="$SCRIPT_DIR/.chatgpt-linux/electron-args.d"
-FEATURE_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"
+PORT_INTEGRATION_ELECTRON_ARGS_DIR="$SCRIPT_DIR/.chatgpt-linux/electron-args.d"
+PORT_INTEGRATION_LAUNCHER_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/launcher.d"
 FEATURE_AFTER_EXIT_HOOK_DIR="$SCRIPT_DIR/.chatgpt-linux/after-exit.d"
 MANAGED_NODE_BIN_DIR="$SCRIPT_DIR/resources/node-runtime/bin"
 APP_NOTIFICATION_ICON_NAME="$CHATGPT_LINUX_APP_ID"
@@ -632,15 +633,59 @@ remove_tree_if_exists() {
 replace_symlink() {
     local target="$1"
     local link_path="$2"
+    local link_dir
+    local link_name
+    local staged_link
 
-    if [ -e "$link_path" ] && [ ! -L "$link_path" ]; then
-        remove_tree_if_exists "$link_path"
+    link_dir="$(dirname "$link_path")"
+    link_name="$(basename "$link_path")"
+    staged_link="$(mktemp "$link_dir/.$link_name.tmp.XXXXXX")" || return 1
+    rm -f -- "$staged_link"
+    if ! ln -sT "$target" "$staged_link" || ! mv -Tf -- "$staged_link" "$link_path"; then
+        rm -f -- "$staged_link"
+        return 1
     fi
+}
 
-    if ! ln -sfnT "$target" "$link_path" 2>/dev/null; then
-        remove_tree_if_exists "$link_path"
-        ln -sfnT "$target" "$link_path"
-    fi
+atomic_replace_directory() {
+    local staged_path="$1"
+    local target_path="$2"
+
+    python3 - "$staged_path" "$target_path" <<'PY'
+import ctypes
+import errno
+import os
+import stat
+import sys
+
+staged_path, target_path = map(os.path.abspath, sys.argv[1:])
+if os.path.dirname(staged_path) != os.path.dirname(target_path):
+    raise SystemExit(2)
+
+staged_stat = os.lstat(staged_path)
+if not stat.S_ISDIR(staged_stat.st_mode):
+    raise SystemExit(2)
+
+try:
+    target_stat = os.lstat(target_path)
+except FileNotFoundError:
+    os.rename(staged_path, target_path)
+    raise SystemExit(0)
+if not stat.S_ISDIR(target_stat.st_mode):
+    raise SystemExit(2)
+
+libc = ctypes.CDLL(None, use_errno=True)
+renameat2 = getattr(libc, "renameat2", None)
+if renameat2 is None:
+    raise SystemExit(3)
+renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+renameat2.restype = ctypes.c_int
+if renameat2(-100, os.fsencode(staged_path), -100, os.fsencode(target_path), 2) != 0:
+    error = ctypes.get_errno()
+    if error in (errno.ENOSYS, errno.EINVAL, errno.EXDEV):
+        raise SystemExit(3)
+    raise OSError(error, os.strerror(error), target_path)
+PY
 }
 
 fix_bundled_marketplace_tmp_permissions() {
@@ -957,11 +1002,9 @@ run_feature_prelaunch_hooks() {
         CODEX_HOME="$CODEX_HOME" \
         CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
         CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-        CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
         CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
         CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
         CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-        CHATGPT_LINUX_FEATURE_HOOK_PHASE="prelaunch" \
         CHATGPT_PORT_INTEGRATION_HOOK_PHASE="prelaunch" \
         CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
             chatgpt_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
@@ -1550,6 +1593,7 @@ sync_chrome_bundled_plugin_cache() {
 }
 
 sync_computer_use_bundled_plugin_cache() {
+    (
     local source_plugin="$SCRIPT_DIR/resources/plugins/openai-bundled/plugins/computer-use"
     local plugin_json="$source_plugin/.codex-plugin/plugin.json"
     local source_backend="$source_plugin/bin/chatgpt-computer-use-linux"
@@ -1560,21 +1604,28 @@ sync_computer_use_bundled_plugin_cache() {
     local cache_plugin
     local cache_backend
     local cache_cosmic_helper
+    local cache_lock_fd
     local cache_parent
     local tmp_plugin
     local marketplace_root
-    local marketplace_plugins_dir
     local marketplace_plugin_link
     local needs_copy=1
+    local cache_was_untrusted=0
 
     [ -f "$plugin_json" ] || return 0
-    [ -f "$source_backend" ] || return 0
-    [ -f "$source_cosmic_helper" ] || return 0
+    [ -x "$source_backend" ] || return 0
+    [ -x "$source_cosmic_helper" ] || return 0
 
-    marketplace_root="$codex_home/.tmp/bundled-marketplaces/openai-bundled"
-    marketplace_plugins_dir="$marketplace_root/.agents/plugins"
-    marketplace_plugin_link="$marketplace_root/plugins/computer-use"
-    mkdir -p "$marketplace_root/plugins"
+    if path_has_unsafe_write \
+        "$SCRIPT_DIR" \
+        "$SCRIPT_DIR/resources" \
+        "$SCRIPT_DIR/resources/plugins" \
+        "$SCRIPT_DIR/resources/plugins/openai-bundled" \
+        "$SCRIPT_DIR/resources/plugins/openai-bundled/plugins" \
+        "$source_plugin" || tree_has_unsafe_write "$source_plugin"; then
+        echo "Computer Use bundled plugin source is not trusted; skipping cache sync."
+        return 0
+    fi
 
     version="$(bundled_plugin_version "$plugin_json" 2>/dev/null || true)"
     [ -n "$version" ] || return 0
@@ -1588,7 +1639,48 @@ sync_computer_use_bundled_plugin_cache() {
     cache_backend="$cache_plugin/bin/chatgpt-computer-use-linux"
     cache_cosmic_helper="$cache_plugin/bin/chatgpt-computer-use-cosmic"
 
-    if [ -d "$cache_plugin" ] && \
+    if path_has_unsafe_write \
+        "$codex_home" \
+        "$codex_home/plugins" \
+        "$codex_home/plugins/cache" \
+        "$codex_home/plugins/cache/openai-bundled" \
+        "$cache_root" || tree_has_unsafe_write "$cache_plugin"; then
+        cache_was_untrusted=1
+    fi
+
+    if ! make_path_owner_trusted \
+        "$codex_home" \
+        "$codex_home/plugins" \
+        "$codex_home/plugins/cache" \
+        "$codex_home/plugins/cache/openai-bundled" \
+        "$cache_root" || \
+       ! mkdir -p "$cache_root" || \
+       ! make_path_owner_trusted \
+        "$codex_home" \
+        "$codex_home/plugins" \
+        "$codex_home/plugins/cache" \
+        "$codex_home/plugins/cache/openai-bundled" \
+        "$cache_root"; then
+        echo "Computer Use plugin cache ancestors could not be hardened; skipping cache sync."
+        return 0
+    fi
+
+    if ! command -v flock >/dev/null 2>&1 || \
+       ! exec {cache_lock_fd}> "$cache_root/.sync.lock" || \
+       ! chmod 0600 "$cache_root/.sync.lock" || \
+       ! flock -x "$cache_lock_fd"; then
+        echo "Computer Use plugin cache lock could not be acquired; skipping cache sync."
+        return 0
+    fi
+
+    cache_was_untrusted=0
+    if path_has_unsafe_write "$cache_plugin" || tree_has_unsafe_write "$cache_plugin"; then
+        cache_was_untrusted=1
+    fi
+    needs_copy=1
+
+    if [ "$cache_was_untrusted" -eq 0 ] && \
+        [ -d "$cache_plugin" ] && \
         diff -qr --exclude='*:com.apple.*' "$source_plugin" "$cache_plugin" >/dev/null 2>&1; then
         needs_copy=0
     fi
@@ -1598,12 +1690,30 @@ sync_computer_use_bundled_plugin_cache() {
         tmp_plugin="$cache_parent/.computer-use-$version.tmp.$$"
         remove_tree_if_exists "$tmp_plugin"
         mkdir -p "$cache_parent"
+        if ! make_path_owner_trusted \
+            "$codex_home" \
+            "$codex_home/plugins" \
+            "$codex_home/plugins/cache" \
+            "$codex_home/plugins/cache/openai-bundled" \
+            "$cache_root" \
+            "$cache_parent"; then
+            echo "Computer Use plugin cache parent could not be hardened; skipping cache sync."
+            return 0
+        fi
 
         if cp -R "$source_plugin" "$tmp_plugin"; then
-            make_tree_owner_writable "$tmp_plugin"
+            if ! make_tree_owner_trusted "$tmp_plugin"; then
+                remove_tree_if_exists "$tmp_plugin"
+                echo "Computer Use plugin cache copy could not be hardened; continuing without a new cache."
+                return 0
+            fi
             find "$tmp_plugin" -type f -name '*:com.apple.*' -delete
-            remove_tree_if_exists "$cache_plugin"
-            mv "$tmp_plugin" "$cache_plugin"
+            if ! atomic_replace_directory "$tmp_plugin" "$cache_plugin"; then
+                remove_tree_if_exists "$tmp_plugin"
+                echo "Computer Use plugin cache publication failed; existing cache was preserved."
+                return 0
+            fi
+            remove_tree_if_exists "$tmp_plugin"
             echo "Computer Use plugin cache synced from bundled resources: $cache_plugin"
         else
             remove_tree_if_exists "$tmp_plugin"
@@ -1612,10 +1722,28 @@ sync_computer_use_bundled_plugin_cache() {
         fi
     fi
 
-    replace_symlink "$version" "$cache_root/latest"
+    if ! make_tree_owner_trusted "$cache_plugin"; then
+        echo "Computer Use plugin cache could not be hardened; skipping marketplace link sync."
+        return 0
+    fi
+    if [ ! -f "$cache_plugin/.codex-plugin/plugin.json" ] || \
+        [ ! -x "$cache_backend" ] || \
+        [ ! -x "$cache_cosmic_helper" ]; then
+        echo "Computer Use plugin cache is incomplete; skipping marketplace link sync."
+        return 0
+    fi
+    if ! replace_symlink "$version" "$cache_root/latest"; then
+        echo "Computer Use plugin latest link could not be published; preserving the existing link."
+        return 0
+    fi
 
+    marketplace_root="$codex_home/.tmp/bundled-marketplaces/openai-bundled"
+    marketplace_plugin_link="$marketplace_root/plugins/computer-use"
     mkdir -p "$marketplace_root/plugins"
-    replace_symlink "$cache_root/latest" "$marketplace_plugin_link"
+    if ! replace_symlink "$cache_root/latest" "$marketplace_plugin_link"; then
+        echo "Computer Use plugin marketplace link could not be published; preserving the existing link."
+    fi
+    )
 }
 
 sync_read_aloud_bundled_plugin_cache() {
@@ -1842,11 +1970,9 @@ run_cold_start_hooks() {
             CODEX_HOME="$CODEX_HOME" \
             CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
             CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-            CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
             CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
             CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
             CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-            CHATGPT_LINUX_FEATURE_HOOK_PHASE="cold-start" \
             CHATGPT_PORT_INTEGRATION_HOOK_PHASE="cold-start" \
             CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
             chatgpt_run_host_command "$hook" "$SCRIPT_DIR" "$APP_STATE_DIR" "$LOG_DIR"
@@ -1868,11 +1994,9 @@ run_feature_after_exit_hooks() {
         CODEX_HOME="$CODEX_HOME" \
         CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
         CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-        CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
         CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
         CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
         CHATGPT_LINUX_LAUNCHER_CMD="${CHATGPT_LINUX_LAUNCHER_CMD:-$SCRIPT_DIR/start.sh}" \
-        CHATGPT_LINUX_FEATURE_HOOK_PHASE="after-exit" \
         CHATGPT_PORT_INTEGRATION_HOOK_PHASE="after-exit" \
         CHATGPT_LINUX_ELECTRON_EXIT_STATUS="$electron_status" \
         CHATGPT_UPDATER_PATH="${CHATGPT_UPDATER_PATH:-}" \
@@ -1919,6 +2043,9 @@ run_cli_preflight() {
     if [ -n "$refreshed_path" ]; then
         CODEX_CLI_PATH="$refreshed_path"
         export CODEX_CLI_PATH
+        if ! verify_cli_launch_path; then
+            return 1
+        fi
     fi
 }
 
@@ -1941,22 +2068,34 @@ run_cli_preflight_background() {
 }
 
 run_cli_launch_path_helper() {
-    python3 "$SCRIPT_DIR/.chatgpt-linux/cli-launch-path.py" "$1"
+    python3 "$SCRIPT_DIR/.chatgpt-linux/cli-launch-path.py" --resolve "$1"
 }
 
 verify_cli_launch_path() {
     local selected_path="${CODEX_CLI_PATH:-}"
+    local proxy_path="$SCRIPT_DIR/.chatgpt-linux/cli-launch-path.py"
     local verified_path=""
 
     [ -n "$selected_path" ] || return 1
+    if [ "$selected_path" = "$proxy_path" ]; then
+        [ -n "${CHATGPT_CLI_EXEC_TARGET:-}" ] || return 1
+        if ! verified_path="$(run_cli_launch_path_helper "$CHATGPT_CLI_EXEC_TARGET")"; then
+            return 1
+        fi
+        [ -n "$verified_path" ] || return 1
+        CHATGPT_CLI_EXEC_TARGET="$verified_path"
+        export CHATGPT_CLI_EXEC_TARGET
+        return 0
+    fi
     if ! verified_path="$(run_cli_launch_path_helper "$selected_path")"; then
         return 1
     fi
     [ -n "$verified_path" ] || return 1
 
     CHATGPT_CLI_SOURCE_PATH="$selected_path"
-    CODEX_CLI_PATH="$verified_path"
-    export CHATGPT_CLI_SOURCE_PATH CODEX_CLI_PATH
+    CHATGPT_CLI_EXEC_TARGET="$verified_path"
+    CODEX_CLI_PATH="$SCRIPT_DIR/.chatgpt-linux/cli-launch-path.py"
+    export CHATGPT_CLI_SOURCE_PATH CHATGPT_CLI_EXEC_TARGET CODEX_CLI_PATH
 }
 
 is_interactive_terminal() {
@@ -2269,6 +2408,8 @@ codex_cli_missing_optional_dependency() {
 }
 
 log_codex_cli_path() {
+    local source_path="${CHATGPT_CLI_SOURCE_PATH:-}"
+    local target_path="${CHATGPT_CLI_EXEC_TARGET:-}"
     local version
 
     if [ -z "${CODEX_CLI_PATH:-}" ]; then
@@ -2277,6 +2418,14 @@ log_codex_cli_path() {
     fi
 
     version="$(codex_cli_version "$CODEX_CLI_PATH" || true)"
+    if [ -n "$source_path" ] && [ -n "$target_path" ]; then
+        if [ -n "$version" ]; then
+            echo "Using CODEX_CLI_PATH=$CODEX_CLI_PATH (source $source_path; target $target_path; version $version)"
+        else
+            echo "Using CODEX_CLI_PATH=$CODEX_CLI_PATH (source $source_path; target $target_path; version unknown; set CODEX_CLI_PATH=/path/to/codex to pin a known CLI)"
+        fi
+        return 0
+    fi
     if [ -n "$version" ]; then
         echo "Using CODEX_CLI_PATH=$CODEX_CLI_PATH (version $version)"
     else
@@ -2340,13 +2489,12 @@ run_app_updater() {
     chatgpt_run_host_command "$CHATGPT_UPDATER_PATH" "$@"
 }
 
-export_feature_runtime_env() {
+export_port_integration_runtime_env() {
     CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR"
     CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR"
     CHATGPT_LINUX_LAUNCHER_CMD="$SCRIPT_DIR/start.sh"
     CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR"
-    CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR"
-    export CHATGPT_LINUX_APP_DIR CHATGPT_LINUX_APP_STATE_DIR CHATGPT_LINUX_LAUNCHER_CMD CHATGPT_PORT_INTEGRATIONS_DIR CHATGPT_LINUX_FEATURES_DIR
+    export CHATGPT_LINUX_APP_DIR CHATGPT_LINUX_APP_STATE_DIR CHATGPT_LINUX_LAUNCHER_CMD CHATGPT_PORT_INTEGRATIONS_DIR
     resolve_app_updater_path >/dev/null 2>&1 || true
 }
 
@@ -4165,12 +4313,12 @@ set_electron_defaults() {
 
 load_feature_electron_args() {
     FEATURE_ELECTRON_ARGS=()
-    [ -n "${FEATURE_ELECTRON_ARGS_DIR:-}" ] || return 0
-    [ -d "$FEATURE_ELECTRON_ARGS_DIR" ] || return 0
+    [ -n "${PORT_INTEGRATION_ELECTRON_ARGS_DIR:-}" ] || return 0
+    [ -d "$PORT_INTEGRATION_ELECTRON_ARGS_DIR" ] || return 0
 
     local args_file
     local line
-    for args_file in "$FEATURE_ELECTRON_ARGS_DIR"/*; do
+    for args_file in "$PORT_INTEGRATION_ELECTRON_ARGS_DIR"/*; do
         [ -f "$args_file" ] || continue
         echo "Loading port integration Electron args: $args_file"
         while IFS= read -r line || [ -n "$line" ]; do
@@ -4257,8 +4405,8 @@ apply_feature_launcher_hook_electron_arg() {
 }
 
 run_feature_launcher_hooks() {
-    [ -n "${FEATURE_LAUNCHER_HOOK_DIR:-}" ] || return 0
-    [ -d "$FEATURE_LAUNCHER_HOOK_DIR" ] || return 0
+    [ -n "${PORT_INTEGRATION_LAUNCHER_HOOK_DIR:-}" ] || return 0
+    [ -d "$PORT_INTEGRATION_LAUNCHER_HOOK_DIR" ] || return 0
 
     local hook
     local output
@@ -4266,7 +4414,7 @@ run_feature_launcher_hooks() {
     local line
     local payload
 
-    for hook in "$FEATURE_LAUNCHER_HOOK_DIR"/*; do
+    for hook in "$PORT_INTEGRATION_LAUNCHER_HOOK_DIR"/*; do
         [ -f "$hook" ] || continue
         [ -x "$hook" ] || {
             echo "Skipping non-executable port integration launcher hook: $hook"
@@ -4278,10 +4426,8 @@ run_feature_launcher_hooks() {
             CODEX_HOME="$CODEX_HOME" \
             CHATGPT_LINUX_APP_DIR="$SCRIPT_DIR" \
             CHATGPT_LINUX_APP_STATE_DIR="$APP_STATE_DIR" \
-            CHATGPT_LINUX_FEATURES_DIR="$CHATGPT_LINUX_FEATURES_DIR" \
             CHATGPT_PORT_INTEGRATIONS_DIR="$CHATGPT_PORT_INTEGRATIONS_DIR" \
             CHATGPT_LINUX_LAUNCHER_LOG="$LOG_FILE" \
-            CHATGPT_LINUX_FEATURE_HOOK_PHASE=launcher \
             CHATGPT_PORT_INTEGRATION_HOOK_PHASE=launcher \
             chatgpt_run_host_command "$hook" "${ELECTRON_ARGS[@]}"
         )"; then
@@ -4788,7 +4934,7 @@ if [ "$MULTI_LAUNCH_ACTIVE" -eq 1 ]; then
     echo "Multi-launch instance: id=$CHATGPT_LINUX_INSTANCE_ID webview_port=$CHATGPT_LINUX_WEBVIEW_PORT state_dir=$APP_STATE_DIR user_data_dir=$CHATGPT_ELECTRON_USER_DATA_DIR"
 fi
 
-export_feature_runtime_env
+export_port_integration_runtime_env
 load_packaged_runtime_helper
 prepend_managed_node_runtime_to_path
 source_feature_env_files

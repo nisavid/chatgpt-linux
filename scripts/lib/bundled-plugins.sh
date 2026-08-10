@@ -185,6 +185,11 @@ stage_portable_bundled_plugin_from_upstream() {
         warn "Failed to clean macOS sidecar files for portable bundled plugin $plugin_name"
         return 1
     fi
+    if ! chmod -R u=rwX,go=rX -- "$staging_plugin"; then
+        rm -rf -- "$staging_plugin" || warn "Failed to clean staging directory for portable bundled plugin $plugin_name"
+        warn "Failed to normalize portable bundled plugin $plugin_name permissions"
+        return 1
+    fi
     if ! validate_portable_bundled_plugin "$staging_plugin" "$plugin_name"; then
         rm -rf -- "$staging_plugin" || warn "Failed to clean staging directory for portable bundled plugin $plugin_name"
         warn "Portable bundled plugin $plugin_name failed post-copy validation"
@@ -1140,7 +1145,6 @@ stage_chrome_plugin_from_official_app() {
     remove_macos_sidecar_files "$target_plugin"
     patch_chrome_plugin_for_linux "$target_plugin"
     patch_browser_use_node_repl_process_env_import "$target_plugin/scripts/browser-client.mjs"
-    patch_browser_use_node_repl_env_guard "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_node_repl_config_shim "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_native_pipe_import_meta_bridge "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_site_status_allowlist_fallback "$target_plugin/scripts/browser-client.mjs"
@@ -1286,45 +1290,6 @@ print(
     "WARN: Could not find Browser Use URL policy insertion point — leaving browser-client.mjs unchanged",
     file=sys.stderr,
 )
-PY
-}
-
-patch_browser_use_node_repl_env_guard() {
-    local client="$1"
-
-    if grep -Eq 'globalThis\.nodeRepl\?\.env\?\.\[[^]]+\]' "$client"; then
-        return 0
-    fi
-
-    python3 - "$client" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8")
-pattern = re.compile(
-    r'function (?P<helper>[A-Za-z_$][\w$]*)\((?P<key>[A-Za-z_$][\w$]*)\)\{'
-    r'let (?P<value>[A-Za-z_$][\w$]*)=globalThis\.nodeRepl\?\.env\[(?P=key)\];'
-    r'return typeof (?P=value)=="string"\?(?P=value):void 0\}'
-)
-match = pattern.search(source)
-if match is None:
-    print(
-        "WARN: Could not find Browser Use nodeRepl env guard insertion point — leaving browser-client.mjs unchanged",
-        file=sys.stderr,
-    )
-    raise SystemExit(0)
-
-helper = match.group("helper")
-key = match.group("key")
-value = match.group("value")
-replacement = (
-    f'function {helper}({key}){{'
-    f'let {value}=globalThis.nodeRepl?.env?.[{key}];'
-    f'return typeof {value}=="string"?{value}:void 0}}'
-)
-path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")
 PY
 }
 
@@ -1647,7 +1612,6 @@ stage_browser_plugin_from_official_app() {
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
     patch_browser_use_node_repl_process_env_import "$target_client"
-    patch_browser_use_node_repl_env_guard "$target_client"
     patch_browser_use_node_repl_config_shim "$target_client"
     patch_browser_use_native_pipe_import_meta_bridge "$target_client"
     patch_browser_use_site_status_allowlist_fallback "$target_client"

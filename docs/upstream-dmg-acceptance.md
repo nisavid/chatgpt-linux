@@ -1,4 +1,4 @@
-# Upstream DMG Acceptance
+# Official DMG Acceptance
 
 Local installs, updater rebuilds, and the scheduled upstream workflow use the
 same release profile from `scripts/lib/upstream-dmg-release-profile.js`. Shell
@@ -11,14 +11,14 @@ is the only component that decides whether the candidate can be promoted.
 |---|---|---:|---:|
 | `accepted` | Build and every required release check passed | yes | close obsolete drift issues |
 | `accepted_with_warnings` | Only fail-soft core diagnostics drifted | yes | close obsolete drift issues |
-| `rejected` | A required core/integrity check or an enabled Linux Feature drifted | no | create or update the current fingerprint issue |
+| `rejected` | A required core/integrity check or an enabled port integration drifted | no | create or update the current fingerprint issue |
 | `inconclusive` | Reports are missing or an infrastructure failure prevented a decision | no | no change |
 
 The profile derives required core patches from patch descriptors and reads the
-enabled feature set from the candidate's patch report. It never enables a
-feature for diagnostics. Disabled features are not checked; any patch drift in
-a user-enabled feature rejects the candidate so the working installation keeps
-that feature intact. The user can disable the feature and retry the update.
+enabled port integration set from the candidate's patch report. It never enables an
+integration for diagnostics. Disabled integrations are not checked; any patch drift in
+a user-enabled integration rejects the candidate so the working installation keeps
+that integration intact. The user can disable the integration and retry the update.
 
 ## Transactional Local Install
 

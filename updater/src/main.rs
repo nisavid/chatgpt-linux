@@ -20,11 +20,11 @@ mod diagnostics;
 #[cfg(unix)]
 mod dmg_source;
 #[cfg(unix)]
-mod feature_picker;
-#[cfg(unix)]
 mod install;
 #[cfg(unix)]
 mod install_rollback;
+#[cfg(unix)]
+mod integration_picker;
 #[cfg(unix)]
 mod liveness;
 #[cfg(unix)]

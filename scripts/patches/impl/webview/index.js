@@ -340,78 +340,20 @@ function applyLinuxAppSunsetPatch(currentSource) {
 function applyLinuxBrowserUseAvailabilityPatch(currentSource) {
   const browserUseFeatureNeedle = "featureName:`browser_use`";
   const statsigNeedle = "410262010";
-  let changed = false;
-
-  const alreadyPatched = () =>
-    /featureName:`browser_use`[\s\S]{0,1400}?isBrowserAgentGateEnabled:!0,/.test(currentSource);
-
   const gatePattern =
     /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\{isBrowserAgentGateEnabled:([A-Za-z_$][\w$]*),isBrowserSidebarEnabled:([A-Za-z_$][\w$]*),isBrowserUseEnabled:([A-Za-z_$][\w$]*),isLoading:([A-Za-z_$][\w$]*),runCodexInWsl:([A-Za-z_$][\w$]*),windowType:`electron`\}\)/g;
 
-  const patchedSource = currentSource.replace(
-    gatePattern,
-    (
-      match,
-      resultVar,
-      helperVar,
-      gateVar,
-      sidebarVar,
-      browserUseVar,
-      loadingVar,
-      wslVar,
-      offset,
-    ) => {
-      const contextStart = Math.max(0, offset - 1400);
-      const context = currentSource.slice(contextStart, offset + match.length);
-      if (!context.includes(browserUseFeatureNeedle) || !context.includes(statsigNeedle)) {
-        return match;
-      }
-
-      changed = true;
-      return `${resultVar}=${helperVar}({isBrowserAgentGateEnabled:!0,isBrowserSidebarEnabled:${sidebarVar},isBrowserUseEnabled:${browserUseVar},isLoading:${loadingVar},runCodexInWsl:${wslVar},windowType:\`electron\`})`;
-    },
-  );
-
-  if (changed || alreadyPatched()) {
-    return patchedSource;
+  for (const match of currentSource.matchAll(gatePattern)) {
+    const contextStart = Math.max(0, match.index - 1400);
+    const context = currentSource.slice(contextStart, match.index + match[0].length);
+    if (context.includes(browserUseFeatureNeedle) && context.includes(statsigNeedle)) {
+      return currentSource;
+    }
   }
 
   if (currentSource.includes(browserUseFeatureNeedle) && currentSource.includes(statsigNeedle)) {
     console.warn(
-      "WARN: Could not find Browser Use availability gate — skipping Linux Browser Use availability patch",
-    );
-  }
-
-  return currentSource;
-}
-
-function applyLinuxBrowserUseNonLocalNavigationPatch(currentSource) {
-  const messageNeedle = "browser-use-non-local-sites-allowed-changed";
-  const statsigNeedle = "3903563814";
-  let changed = false;
-
-  const dispatchPattern =
-    /((?:[A-Za-z_$][\w$]*=)?[A-Za-z_$][\w$]*\(`3903563814`\)[\s\S]{0,1800}?dispatchMessage\(`browser-use-non-local-sites-allowed-changed`,\{allowed:)([A-Za-z_$][\w$]*)(\}\))/g;
-
-  const patchedSource = currentSource.replace(
-    dispatchPattern,
-    (match, prefix, allowedVar, suffix) => {
-      changed = true;
-      return `${prefix}!0${suffix}`;
-    },
-  );
-
-  if (changed) {
-    return patchedSource;
-  }
-
-  if (currentSource.includes(`${messageNeedle}\`,{allowed:!0}`)) {
-    return currentSource;
-  }
-
-  if (currentSource.includes(messageNeedle) && currentSource.includes(statsigNeedle)) {
-    console.warn(
-      "WARN: Could not find Browser Use non-local navigation gate — skipping Linux Browser Use navigation patch",
+      "WARN: Could not verify native Linux Browser Use availability — skipping Linux Browser Use availability patch",
     );
   }
 
@@ -1039,61 +981,15 @@ function applyLinuxBrowserUseHiddenHostOwnershipPatch(currentSource) {
 function applyLinuxBrowserUseExternalAvailabilityPatch(currentSource) {
   const externalFeatureNeedle = "featureName:`browser_use_external`";
   const statsigNeedle = "410065390";
-  let changed = false;
-
-  const alreadyPatched = () =>
-    /featureName:`browser_use_external`[\s\S]{0,900}?navigator\.userAgent\.includes\(`Linux`\)/.test(currentSource);
-
-  const availabilityPattern =
-    /let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)===`chrome-extension`\|\|([A-Za-z_$][\w$]*)&&\1\.enabled&&!\1\.isLoading,([A-Za-z_$][\w$]*)=\5===`chrome-extension`\?!1:\1\.isLoading,/g;
-
-  let patchedSource = currentSource.replace(
-    availabilityPattern,
-    (
-      match,
-      featureQueryVar,
-      featureQueryFn,
-      featureQueryArg,
-      availableVar,
-      windowTypeVar,
-      statsigVar,
-      loadingVar,
-      offset,
-    ) => {
-      const contextStart = Math.max(0, offset - 700);
-      const context = currentSource.slice(contextStart, offset + match.length);
-      if (!context.includes(externalFeatureNeedle) || !context.includes(statsigNeedle)) {
-        return match;
-      }
-
-      changed = true;
-      return `let ${featureQueryVar}=${featureQueryFn}(${featureQueryArg}),${availableVar}=${windowTypeVar}===\`chrome-extension\`||navigator.userAgent.includes(\`Linux\`)||${statsigVar}&&${featureQueryVar}.enabled&&!${featureQueryVar}.isLoading,${loadingVar}=${windowTypeVar}===\`chrome-extension\`||navigator.userAgent.includes(\`Linux\`)?!1:${featureQueryVar}.isLoading,`;
-    },
-  );
-
-  if (!changed) {
-    // 26.623 refactored the inline availability gate into a status-string helper:
-    //   function X({isExternalBrowserUseFeatureEnabled:e,isExternalBrowserUseFeatureLoading:t,
-    //     isExternalBrowserUseGateEnabled:n,windowType:r}){return r===`chrome-extension`?`available`:...}
-    // Treat Linux like chrome-extension so the resolved status is `available`.
-    const statusFnPattern =
-      /(function [A-Za-z_$][\w$]*\(\{isExternalBrowserUseFeatureEnabled:[A-Za-z_$][\w$]*,isExternalBrowserUseFeatureLoading:[A-Za-z_$][\w$]*,isExternalBrowserUseGateEnabled:[A-Za-z_$][\w$]*,windowType:([A-Za-z_$][\w$]*)\}\)\{return )\2===`chrome-extension`\?`available`:/;
-    patchedSource = patchedSource.replace(
-      statusFnPattern,
-      (match, prefix, windowTypeVar) => {
-        changed = true;
-        return `${prefix}${windowTypeVar}===\`chrome-extension\`||navigator.userAgent.includes(\`Linux\`)?\`available\`:`;
-      },
-    );
-  }
-
-  if (changed || alreadyPatched()) {
-    return patchedSource;
+  const currentStatusFnPattern =
+    /(function [A-Za-z_$][\w$]*\(\{isExternalBrowserUseFeatureEnabled:[A-Za-z_$][\w$]*,isExternalBrowserUseFeatureLoading:[A-Za-z_$][\w$]*,isExternalBrowserUseGateEnabled:[A-Za-z_$][\w$]*,runCodexInWsl:[A-Za-z_$][\w$]*,windowType:([A-Za-z_$][\w$]*)\}\)\{return )\2===`chrome-extension`\?`available`:/u;
+  if (currentStatusFnPattern.test(currentSource)) {
+    return currentSource;
   }
 
   if (currentSource.includes(externalFeatureNeedle) && currentSource.includes(statsigNeedle)) {
     console.warn(
-      "WARN: Could not find Browser Use external availability gate — skipping Linux external Browser Use availability patch",
+      "WARN: Could not verify native Linux external Browser Use availability — skipping Linux external Browser Use availability patch",
     );
   }
 
@@ -2247,19 +2143,24 @@ function applyLinuxSkillsListDedupePatch(currentSource) {
     .replace("function IJ(e){return e.skills}", `${helper}function IJ(e){return e.skills}`);
 }
 
-function patchCommentPreloadBundle(extractedDir) {
-  const commentPreloadBundle = path.join(extractedDir, ".vite", "build", "comment-preload.js");
-  if (!fs.existsSync(commentPreloadBundle)) {
+function patchBrowserPagePreloadBundle(extractedDir) {
+  const browserPagePreloadBundle = path.join(
+    extractedDir,
+    ".vite",
+    "build",
+    "browser-page-preload.js",
+  );
+  if (!fs.existsSync(browserPagePreloadBundle)) {
     console.warn(
-      `WARN: Could not find comment preload bundle in ${path.dirname(commentPreloadBundle)} — skipping annotation screenshot patch`,
+      `WARN: Could not find browser page preload bundle in ${path.dirname(browserPagePreloadBundle)} — skipping annotation screenshot patch`,
     );
     return { matched: false, changed: false };
   }
 
-  const source = fs.readFileSync(commentPreloadBundle, "utf8");
+  const source = fs.readFileSync(browserPagePreloadBundle, "utf8");
   const patchedSource = applyBrowserAnnotationScreenshotPatch(source);
   if (patchedSource !== source) {
-    fs.writeFileSync(commentPreloadBundle, patchedSource, "utf8");
+    fs.writeFileSync(browserPagePreloadBundle, patchedSource, "utf8");
     return { matched: true, changed: true };
   }
   return { matched: true, changed: false };
@@ -2275,7 +2176,6 @@ module.exports = {
   applyLinuxBrowserUseAvailabilityPatch,
   applyLinuxBrowserUseExternalAvailabilityPatch,
   applyLinuxBrowserUseHiddenHostOwnershipPatch,
-  applyLinuxBrowserUseNonLocalNavigationPatch,
   applyLinuxBrowserUseWebviewHostRecoveryPatch,
   applyLinuxBrowserUseWebviewRemountStorePatch,
   applyLinuxConfigWriteVersionConflictPatch,
@@ -2292,5 +2192,5 @@ module.exports = {
   applyLocalEnvironmentActionModalDraftPatch,
   applySubagentNicknameMetadataPatch,
   chatgptLinuxWatchBrowserWebviewAttachment,
-  patchCommentPreloadBundle,
+  patchBrowserPagePreloadBundle,
 };

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve a Codex CLI path to a canonical executable without running it."""
+"""Resolve and launch a canonical Codex CLI with stable invocation identity."""
 
 from __future__ import annotations
 
@@ -12,6 +12,9 @@ import sys
 
 class LaunchPathError(RuntimeError):
     pass
+
+
+EXEC_TARGET_ENV = "CHATGPT_CLI_EXEC_TARGET"
 
 
 def resolve_cli_launch_path(raw_path: str) -> Path:
@@ -34,16 +37,39 @@ def resolve_cli_launch_path(raw_path: str) -> Path:
     return canonical_cli
 
 
+def launch_cli(raw_target: str, arguments: list[str]) -> None:
+    target = resolve_cli_launch_path(raw_target)
+    environment = os.environ.copy()
+    environment.pop(EXEC_TARGET_ENV, None)
+    os.execve(target, ["codex", *arguments], environment)
+
+
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--resolve" and sys.argv[2]:
+        try:
+            print(resolve_cli_launch_path(sys.argv[2]))
+        except (OSError, LaunchPathError) as error:
+            print(error, file=sys.stderr)
+            return 1
+        return 0
+
+    exec_target = os.environ.get(EXEC_TARGET_ENV)
+    if exec_target:
+        try:
+            launch_cli(exec_target, sys.argv[1:])
+        except (OSError, LaunchPathError) as error:
+            print(error, file=sys.stderr)
+            return 1
+        raise AssertionError("os.execve returned unexpectedly")
+
     if len(sys.argv) != 2 or not sys.argv[1]:
-        print(f"usage: {Path(sys.argv[0]).name} CLI_PATH", file=sys.stderr)
+        print(
+            f"usage: {Path(sys.argv[0]).name} --resolve CLI_PATH",
+            file=sys.stderr,
+        )
         return 64
-    try:
-        print(resolve_cli_launch_path(sys.argv[1]))
-    except (OSError, LaunchPathError) as error:
-        print(error, file=sys.stderr)
-        return 1
-    return 0
+    print(f"{EXEC_TARGET_ENV} is required for proxy launch", file=sys.stderr)
+    return 64
 
 
 if __name__ == "__main__":

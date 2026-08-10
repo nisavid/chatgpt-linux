@@ -116,6 +116,12 @@ symlinks and normalizes generated app directory/file modes before package
 creation. When package contents move, update every affected builder and template
 together.
 
+The update-builder also carries package-owned prebuilt Computer Use backend and
+COSMIC helpers, Chrome extension host when the host architecture supports it,
+notification-actions bridge, Global Dictation helper, and Read Aloud MCP
+helper. Rebuilds pass only validated copies from this bundle to `install.sh`;
+they do not use user Cargo or mutable app/plugin paths.
+
 AppImage builds use `packaging/appimage/` and intentionally omit
 `chatgpt-updater`, the systemd user service, polkit policy, and the
 update-builder bundle. Keep that path as a manual-update packaging target.
@@ -166,6 +172,9 @@ Important launcher behavior:
   the user accepts. Later preflight work runs in the background unless
   `CHATGPT_SYNC_CLI_PREFLIGHT=1` is set.
 - It exports `CODEX_CLI_PATH` before Electron starts.
+- It routes the canonical executable through the generated CLI launch proxy so
+  multicall installations keep `codex` as `argv[0]`; invoking the canonical
+  target under another name can select an unrelated tool mode.
 - It launches Electron with Chromium sandboxing enabled by default, Wayland
   decorations, and GPU compositing disabled by default. Set
   `CHATGPT_APP_DISABLE_ELECTRON_SANDBOX=1` only as a compatibility fallback.
@@ -181,10 +190,9 @@ The ASAR patch step currently:
   Linux;
 - applies the Linux Computer Use plugin manifest gate by default so the packaged
   backend can register on Linux;
-- applies the Linux Computer Use UI patches only when
-  `CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1` is set at build time or
-  `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/settings.json` contains
-  `"chatgpt-linux-computer-use-ui-enabled": true`.
+- applies Linux Computer Use support patches by default while preserving the
+  official app's eligibility and persistent feature controls as the action
+  authorization boundary;
 - applies the reviewed default port integrations through `port-integrations/`.
   Established defaults cover Agent Workspaces, AppShots, wrapper updater UI,
   conversation mode, Copilot reasoning effort, Open Target Discovery, Read
@@ -253,8 +261,8 @@ manifest version for the approved DMG. Generated metadata must stay three or
 four numeric dot-separated segments because the updater's installed-version
 comparison depends on that shape.
 
-The packaged user service sets a constrained `PATH` with system directories and
-`%h/.local/bin`, `PrivateTmp=yes`,
+The packaged user service sets a constrained `PATH` with fixed system
+directories only, `PrivateTmp=yes`,
 `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`, and `UMask=077`.
 `NoNewPrivileges` is intentionally not set because the updater must invoke
 `pkexec` for the final privileged package install. Package staging normalizes

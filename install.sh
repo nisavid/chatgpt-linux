@@ -76,6 +76,7 @@ LINUX_ICON_SOURCE="${CHATGPT_LINUX_ICON_SOURCE:-}"
 . "$SCRIPT_DIR/scripts/lib/rebuild-report.sh"
 . "$SCRIPT_DIR/scripts/lib/build-info.sh"
 . "$SCRIPT_DIR/scripts/lib/candidate-install.sh"
+. "$SCRIPT_DIR/scripts/lib/generated-app-mutation-broker.sh"
 
 transaction_report_base() {
     if [ -n "${REBUILD_REPORT_DIR:-}" ]; then
@@ -148,6 +149,8 @@ transactional_install() {
     candidate_dir="$final_parent/.${final_name}.candidate-$$"
     assert_distinct_candidate_paths "$candidate_dir" "$final_dir"
     remove_tree_safely "$candidate_dir"
+    mkdir -m 0700 -- "$candidate_dir"
+    assert_private_transaction_candidate_root "$candidate_dir"
 
     report_base="$(transaction_report_base)"
     transaction_id="${CHATGPT_ACCEPTANCE_TRANSACTION_ID:-$(date -u +%Y%m%dT%H%M%S)-$$-${RANDOM:-0}}"
@@ -223,6 +226,8 @@ transactional_install() {
 
     mkdir -p "$candidate_dir/.chatgpt-linux"
     cp "$decision_path" "$candidate_dir/.chatgpt-linux/upstream-dmg-decision.json"
+    assert_private_transaction_candidate_root "$candidate_dir"
+    chmod 0755 -- "$candidate_dir"
     if ! promote_candidate_install "$candidate_dir" "$final_dir"; then
         if [ "${CHATGPT_KEEP_REJECTED_CANDIDATE:-0}" != "1" ]; then
             remove_tree_safely "$candidate_dir"
@@ -264,6 +269,7 @@ SCRIPT
         error "Webview server helper not found at $SCRIPT_DIR/launcher/webview-server.py"
     cp "$SCRIPT_DIR/launcher/webview-server.py" "$INSTALL_DIR/.chatgpt-linux/webview-server.py"
     cp "$SCRIPT_DIR/launcher/cli-launch-path.py" "$INSTALL_DIR/.chatgpt-linux/cli-launch-path.py"
+    chmod 0755 "$INSTALL_DIR/.chatgpt-linux/cli-launch-path.py"
     cp "$SCRIPT_DIR/launcher/state-migration.py" "$INSTALL_DIR/.chatgpt-linux/state-migration.py"
     chmod 0755 "$INSTALL_DIR/.chatgpt-linux/state-migration.py"
     local linux_icon_source="$LINUX_ICON_SOURCE"
@@ -383,6 +389,9 @@ main() {
 
     write_app_version_metadata "$app_dir"
     patch_asar "$app_dir"
+    write_generated_app_mutation_broker_digest \
+        "$INSTALL_DIR" \
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
     select_linux_icon_source
     download_electron
     extract_webview "$INSTALL_DIR"

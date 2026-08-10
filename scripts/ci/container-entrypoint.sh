@@ -268,16 +268,19 @@ run_core_job() {
     cargo check --workspace --all-targets
     cargo test --workspace --all-targets
 
-    bash scripts/ci/run-node-checks.sh
+    cargo build --locked --release -p generated-app-mutation-broker
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$REPO_DIR/target/release/chatgpt-generated-app-mutation-broker" \
+        bash scripts/ci/run-node-checks.sh
 
     bash tests/scripts_smoke.sh
     bash tests/package_identity.sh
+    bash tests/generated_app_mutation_broker.sh
     bash tests/state_migration.sh
 
     append_summary "Rust and Smoke Tests" \
         "Shell syntax checks passed." \
         "Rust formatting, clippy, check, and tests passed." \
-        "Node syntax checks, Node tests, script smoke, package identity, and state migration tests passed."
+        "Node syntax checks, Node tests, script smoke, package identity, mutation-broker resolver, and state migration tests passed."
 }
 
 run_deb_job() {

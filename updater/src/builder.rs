@@ -19,11 +19,41 @@ use tokio::process::Command;
 use tracing::info;
 
 const UPDATE_BUILDER_MANIFEST: &str = ".chatgpt-linux/update-builder-manifest.txt";
+const TRUSTED_SYSTEM_PATH: &str = "/usr/sbin:/usr/bin:/sbin:/bin";
+const TRUSTED_GIT_PATHS: &[&str] = &["/usr/bin/git", "/bin/git"];
+const PREBUILT_HELPERS_DIR: &str = "prebuilt-helpers";
+const COMPUTER_USE_BACKEND_HELPER: &str = "chatgpt-computer-use-linux";
+const COMPUTER_USE_COSMIC_HELPER: &str = "chatgpt-computer-use-cosmic";
+const MUTATION_BROKER_HELPER: &str = "chatgpt-generated-app-mutation-broker";
+const MUTATION_BROKER_DIGEST: &str = "chatgpt-generated-app-mutation-broker.sha256";
+const MUTATION_BROKER_SOURCE_ENV: &str = "CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE";
+const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 4] = [
+    (
+        "chatgpt-chrome-extension-host",
+        "CHATGPT_CHROME_EXTENSION_HOST_SOURCE",
+    ),
+    (
+        "chatgpt-notification-actions-linux",
+        "CHATGPT_NOTIFICATION_ACTIONS_SOURCE",
+    ),
+    (
+        "chatgpt-global-dictation-linux",
+        "CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE",
+    ),
+    (
+        "chatgpt-read-aloud-linux",
+        "CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE",
+    ),
+];
 
 const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
     ("Cargo.toml", "Cargo.toml"),
     ("Cargo.lock", "Cargo.lock"),
     ("computer-use-linux", "computer-use-linux"),
+    (
+        "generated-app-mutation-broker",
+        "generated-app-mutation-broker",
+    ),
     ("notification-actions-linux", "notification-actions-linux"),
     ("read-aloud-linux", "read-aloud-linux"),
     ("record-replay-linux", "record-replay-linux"),
@@ -51,13 +81,12 @@ const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
         "scripts/validate-upstream-dmg.js",
         "scripts/validate-upstream-dmg.js",
     ),
-    ("node-runtime", "node-runtime"),
     ("packaging/linux", "packaging/linux"),
     ("assets/chatgpt.png", "assets/chatgpt.png"),
     ("assets/chatgpt-linux.png", "assets/chatgpt-linux.png"),
     ("port-integrations", "port-integrations"),
 ];
-const OPTIONAL_BUNDLE_FILES: [(&str, &str); 5] = [
+const OPTIONAL_BUNDLE_FILES: [(&str, &str); 7] = [
     ("CHANGELOG.md", "CHANGELOG.md"),
     (
         ".chatgpt-linux/source-info.json",
@@ -69,8 +98,13 @@ const OPTIONAL_BUNDLE_FILES: [(&str, &str); 5] = [
         "scripts/rebuild-candidate.sh",
         "scripts/rebuild-candidate.sh",
     ),
+    ("node-runtime", "node-runtime"),
+    (PREBUILT_HELPERS_DIR, PREBUILT_HELPERS_DIR),
 ];
-const BUILDER_ONLY_PAYLOAD_FILES: [(&str, &str); 1] = [("node-runtime", "node-runtime")];
+const BUILDER_ONLY_PAYLOAD_FILES: [(&str, &str); 2] = [
+    ("node-runtime", "node-runtime"),
+    (PREBUILT_HELPERS_DIR, PREBUILT_HELPERS_DIR),
+];
 const PACMAN_PACKAGE_SUFFIXES: &[&str] = &[
     ".pkg.tar.zst",
     ".pkg.tar.xz",
@@ -134,18 +168,20 @@ pub async fn build_update_from(
     );
 
     copy_builder_bundle(bundle_source, &workspace.bundle_dir)?;
-    let build_path = build_command_path(&config.builder_bundle_root);
+    let build_path = build_command_path(&config.builder_bundle_root)?;
     let managed_node_source = if config.builder_bundle_root.join("node-runtime").exists() {
         config.builder_bundle_root.join("node-runtime")
     } else {
         bundle_source.join("node-runtime")
     };
     let integration_config = crate::config::effective_integration_config_path(config);
+    let prebuilt_helpers = PrebuiltHelperSources::from_bundle(&config.builder_bundle_root)?;
     stage_git_source_info(bundle_source, &workspace.bundle_dir)?;
 
     state.status = UpdateStatus::PatchingApp;
     state.save_updater(&paths.state_file)?;
     let mut install = Command::new(workspace.bundle_dir.join("install.sh"));
+    configure_build_command(&mut install, &build_path, &workspace.build_home);
     install
         .arg(dmg_path)
         .env("CHATGPT_INSTALL_DIR", &workspace.app_dir)
@@ -159,7 +195,6 @@ pub async fn build_update_from(
         )
         .env("CHATGPT_ACCEPTANCE_OVERRIDE", "0")
         .env("CHATGPT_MANAGED_NODE_SOURCE", managed_node_source)
-        .env("PATH", &build_path)
         .current_dir(&workspace.bundle_dir);
     // Honor the user's saved integration selection (the in-app Update picker
     // writes it to a stable per-user path) so the rebuild stages exactly those
@@ -168,6 +203,7 @@ pub async fn build_update_from(
     if let Some(integration_config) = &integration_config {
         install.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", integration_config);
     }
+    prebuilt_helpers.apply_to(&mut install);
     run_and_log(&mut install, &workspace.install_log)
         .await
         .context("install.sh failed during local rebuild")?;
@@ -179,6 +215,7 @@ pub async fn build_update_from(
 
     let build_script = package_build_script(&workspace.bundle_dir);
     let mut package_build = Command::new(&build_script);
+    configure_build_command(&mut package_build, &build_path, &workspace.build_home);
     package_build
         .env("PACKAGE_VERSION", &package_version)
         .env("APP_DIR_OVERRIDE", &workspace.app_dir)
@@ -190,11 +227,11 @@ pub async fn build_update_from(
                 .bundle_dir
                 .join("packaging/linux/chatgpt-updater.service"),
         )
-        .env("PATH", &build_path)
         .current_dir(&workspace.bundle_dir);
     if let Some(integration_config) = &integration_config {
         package_build.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", integration_config);
     }
+    prebuilt_helpers.apply_mutation_broker_to(&mut package_build);
     run_and_log(&mut package_build, &workspace.build_log)
         .await
         .with_context(|| format!("{} failed during local rebuild", build_script.display()))?;
@@ -229,8 +266,62 @@ struct BuilderWorkspace {
     dist_dir: PathBuf,
     app_dir: PathBuf,
     reports_dir: PathBuf,
+    build_home: PathBuf,
     install_log: PathBuf,
     build_log: PathBuf,
+}
+
+#[derive(Debug)]
+struct PrebuiltHelperSources {
+    mutation_broker: PathBuf,
+    computer_use_backend: Option<PathBuf>,
+    computer_use_cosmic: Option<PathBuf>,
+    independent: Vec<(&'static str, PathBuf)>,
+}
+
+impl PrebuiltHelperSources {
+    fn from_bundle(bundle_root: &Path) -> Result<Self> {
+        let helpers_dir = bundle_root.join(PREBUILT_HELPERS_DIR);
+        let mutation_broker = required_mutation_broker_from_bundle(bundle_root)?;
+        let computer_use_backend =
+            trusted_prebuilt_helper(&helpers_dir, COMPUTER_USE_BACKEND_HELPER);
+        let computer_use_cosmic = trusted_prebuilt_helper(&helpers_dir, COMPUTER_USE_COSMIC_HELPER);
+        let (computer_use_backend, computer_use_cosmic) =
+            match (computer_use_backend, computer_use_cosmic) {
+                (Some(backend), Some(cosmic)) => (Some(backend), Some(cosmic)),
+                _ => (None, None),
+            };
+
+        Ok(Self {
+            mutation_broker,
+            computer_use_backend,
+            computer_use_cosmic,
+            independent: PREBUILT_HELPER_ENV_MAPPINGS
+                .iter()
+                .filter_map(|(helper, env_name)| {
+                    trusted_prebuilt_helper(&helpers_dir, helper).map(|path| (*env_name, path))
+                })
+                .collect(),
+        })
+    }
+
+    fn apply_to(&self, command: &mut Command) {
+        self.apply_mutation_broker_to(command);
+        if let (Some(backend), Some(cosmic)) =
+            (&self.computer_use_backend, &self.computer_use_cosmic)
+        {
+            command
+                .env("CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE", backend)
+                .env("CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE", cosmic);
+        }
+        for (env_name, helper) in &self.independent {
+            command.env(env_name, helper);
+        }
+    }
+
+    fn apply_mutation_broker_to(&self, command: &mut Command) {
+        command.env(MUTATION_BROKER_SOURCE_ENV, &self.mutation_broker);
+    }
 }
 
 impl BuilderWorkspace {
@@ -241,6 +332,7 @@ impl BuilderWorkspace {
         let app_dir = workspace_dir.join("chatgpt");
         let logs_dir = workspace_dir.join("logs");
         let reports_dir = workspace_dir.join("reports");
+        let build_home = workspace_dir.join("build-home");
         let install_log = logs_dir.join("install.log");
         let build_log = logs_dir.join("build-package.log");
 
@@ -253,6 +345,8 @@ impl BuilderWorkspace {
             .with_context(|| format!("Failed to create {}", logs_dir.display()))?;
         fs::create_dir_all(&reports_dir)
             .with_context(|| format!("Failed to create {}", reports_dir.display()))?;
+        fs::create_dir_all(&build_home)
+            .with_context(|| format!("Failed to create {}", build_home.display()))?;
 
         Ok(Self {
             workspace_dir,
@@ -260,6 +354,7 @@ impl BuilderWorkspace {
             dist_dir,
             app_dir,
             reports_dir,
+            build_home,
             install_log,
             build_log,
         })
@@ -380,9 +475,18 @@ impl GitSourceInfo {
 }
 
 fn git_capture(repo: &Path, args: &[&str]) -> Option<String> {
-    let output = StdCommand::new("git")
+    let git = trusted_system_program(TRUSTED_GIT_PATHS)?;
+    let output = StdCommand::new(git)
+        .env_clear()
+        .env("HOME", "/nonexistent")
+        .env("XDG_CONFIG_HOME", "/nonexistent")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("LC_ALL", "C")
+        .env("PATH", TRUSTED_SYSTEM_PATH)
         .arg("-C")
         .arg(repo)
+        .args(["-c", "core.fsmonitor=false"])
+        .args(["-c", "core.hooksPath=/dev/null"])
         .args(args)
         .output()
         .ok()?;
@@ -647,29 +751,10 @@ fn read_app_package_version(app_dir: &Path) -> Result<String> {
     }
 }
 
-fn build_command_path(builder_bundle_root: &Path) -> OsString {
+fn build_command_path(builder_bundle_root: &Path) -> Result<OsString> {
     let mut entries = managed_node_bin_dirs(builder_bundle_root);
-    entries.extend(preferred_user_bin_dirs());
-    entries.extend(preferred_node_bin_dirs());
-    entries.extend(preferred_rust_bin_dirs());
-    entries.extend(std::env::split_paths(
-        &std::env::var_os("PATH").unwrap_or_default(),
-    ));
     entries.extend(system_bin_dirs());
-    std::env::join_paths(entries).unwrap_or_else(|_| std::env::var_os("PATH").unwrap_or_default())
-}
-
-fn preferred_user_bin_dirs() -> Vec<PathBuf> {
-    let Some(home) = std::env::var_os("HOME") else {
-        return Vec::new();
-    };
-
-    let user_bin = PathBuf::from(home).join(".local/bin");
-    if user_bin.is_dir() {
-        vec![user_bin]
-    } else {
-        Vec::new()
-    }
+    std::env::join_paths(entries).context("Could not construct trusted updater build PATH")
 }
 
 fn managed_node_bin_dirs(builder_bundle_root: &Path) -> Vec<PathBuf> {
@@ -682,42 +767,21 @@ fn managed_node_bin_dirs(builder_bundle_root: &Path) -> Vec<PathBuf> {
 }
 
 fn system_bin_dirs() -> Vec<PathBuf> {
-    [
-        "/usr/local/sbin",
-        "/usr/local/bin",
-        "/usr/sbin",
-        "/usr/bin",
-        "/sbin",
-        "/bin",
-    ]
-    .into_iter()
-    .map(PathBuf::from)
-    .collect()
+    TRUSTED_SYSTEM_PATH.split(':').map(PathBuf::from).collect()
 }
 
-fn preferred_node_bin_dirs() -> Vec<PathBuf> {
-    let nvm_root = std::env::var_os("NVM_DIR")
+fn configure_build_command(command: &mut Command, build_path: &OsString, build_home: &Path) {
+    command
+        .env_clear()
+        .env("HOME", build_home)
+        .env("PATH", build_path);
+}
+
+fn trusted_system_program(candidates: &[&str]) -> Option<PathBuf> {
+    candidates
+        .iter()
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".nvm")));
-
-    let Some(nvm_root) = nvm_root else {
-        return Vec::new();
-    };
-
-    collect_nvm_bin_dirs(&nvm_root)
-}
-
-fn preferred_rust_bin_dirs() -> Vec<PathBuf> {
-    let Some(home) = std::env::var_os("HOME") else {
-        return Vec::new();
-    };
-
-    let cargo_bin = PathBuf::from(home).join(".cargo/bin");
-    if is_executable_file(&cargo_bin.join("cargo")) {
-        vec![cargo_bin]
-    } else {
-        Vec::new()
-    }
+        .find(|path| is_executable_file(path))
 }
 
 fn is_executable_file(path: &Path) -> bool {
@@ -726,33 +790,97 @@ fn is_executable_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn collect_nvm_bin_dirs(nvm_root: &Path) -> Vec<PathBuf> {
-    let mut directories = Vec::new();
-    let mut seen = std::collections::BTreeSet::new();
+fn trusted_prebuilt_helper(helpers_dir: &Path, helper_name: &str) -> Option<PathBuf> {
+    let helper = helpers_dir.join(helper_name);
+    fs::symlink_metadata(&helper)
+        .ok()
+        .filter(|metadata| {
+            metadata.file_type().is_file() && metadata.permissions().mode() & 0o111 != 0
+        })
+        .map(|_| helper)
+}
 
-    let current_bin = nvm_root.join("versions/node/current/bin");
-    if is_node_toolchain_dir(&current_bin) {
-        seen.insert(current_bin.clone());
-        directories.push(current_bin);
+fn host_elf_machine() -> Result<u16> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok(62),
+        "aarch64" => Ok(183),
+        "arm" => Ok(40),
+        "x86" => Ok(3),
+        architecture => anyhow::bail!(
+            "Unsupported host architecture for generated-app mutation broker: {architecture}"
+        ),
     }
+}
 
-    let versions_root = nvm_root.join("versions/node");
-    if let Ok(entries) = fs::read_dir(&versions_root) {
-        let mut version_bins = entries
-            .filter_map(|entry| entry.ok().map(|item| item.path().join("bin")))
-            .filter(|path| is_node_toolchain_dir(path))
-            .collect::<Vec<_>>();
-        version_bins.sort();
-        version_bins.reverse();
-
-        for path in version_bins {
-            if seen.insert(path.clone()) {
-                directories.push(path);
-            }
-        }
+fn host_elf_class() -> Result<u8> {
+    match std::env::consts::ARCH {
+        "x86_64" | "aarch64" => Ok(2),
+        "arm" | "x86" => Ok(1),
+        architecture => anyhow::bail!(
+            "Unsupported host architecture for generated-app mutation broker: {architecture}"
+        ),
     }
+}
 
-    directories
+fn required_mutation_broker_from_bundle(bundle_root: &Path) -> Result<PathBuf> {
+    let helpers_dir = bundle_root.join(PREBUILT_HELPERS_DIR);
+    let broker = helpers_dir.join(MUTATION_BROKER_HELPER);
+    let digest_path = helpers_dir.join(MUTATION_BROKER_DIGEST);
+
+    let metadata = fs::symlink_metadata(&broker).with_context(|| {
+        format!(
+            "Required generated-app mutation broker is missing: {}",
+            broker.display()
+        )
+    })?;
+    anyhow::ensure!(
+        metadata.file_type().is_file()
+            && !metadata.file_type().is_symlink()
+            && metadata.permissions().mode() & 0o111 != 0,
+        "Required generated-app mutation broker must be a regular non-symlink executable: {}",
+        broker.display()
+    );
+    anyhow::ensure!(
+        metadata.permissions().mode() & 0o022 == 0,
+        "Required generated-app mutation broker must not be group- or world-writable: {}",
+        broker.display()
+    );
+
+    let digest_metadata = fs::symlink_metadata(&digest_path).with_context(|| {
+        format!(
+            "Required generated-app mutation broker digest is missing: {}",
+            digest_path.display()
+        )
+    })?;
+    anyhow::ensure!(
+        digest_metadata.file_type().is_file() && !digest_metadata.file_type().is_symlink(),
+        "Required generated-app mutation broker digest must be a regular non-symlink file: {}",
+        digest_path.display()
+    );
+
+    let expected_digest = package_verification::file_sha256(&broker)?;
+    let expected_manifest = format!("{expected_digest}  {MUTATION_BROKER_HELPER}\n");
+    let manifest = fs::read_to_string(&digest_path)
+        .with_context(|| format!("Failed to read {}", digest_path.display()))?;
+    anyhow::ensure!(
+        manifest == expected_manifest,
+        "Generated-app mutation broker digest manifest is malformed or does not match {}",
+        broker.display()
+    );
+
+    let elf = fs::read(&broker).with_context(|| format!("Failed to read {}", broker.display()))?;
+    anyhow::ensure!(
+        elf.len() >= 20 && elf[..4] == *b"\x7fELF" && elf[4] == host_elf_class()? && elf[5] == 1,
+        "Generated-app mutation broker ELF class and endianness must match this host: {}",
+        broker.display()
+    );
+    let machine = u16::from_le_bytes([elf[18], elf[19]]);
+    anyhow::ensure!(
+        machine == host_elf_machine()?,
+        "Generated-app mutation broker ELF architecture does not match this host: {}",
+        broker.display()
+    );
+    Ok(broker)
 }
 
 fn is_node_toolchain_dir(path: &Path) -> bool {
@@ -826,54 +954,38 @@ mod tests {
         Ok(format!("#!{}\n{body}", host_tool("bash")?.display()))
     }
 
-    fn install_fake_git(root: &Path, top_level: &Path, dirty: bool) -> Result<()> {
-        let bin_dir = root.join("fake-git-bin");
-        let git_path = bin_dir.join("git");
-        fs::create_dir_all(&bin_dir)?;
-        fs::write(
-            &git_path,
-            host_bash_script(
-                r#"set -euo pipefail
-if [ "$1" != "-C" ]; then
-  exit 2
-fi
-shift 2
-case "$*" in
-  "rev-parse --show-toplevel") printf '%s\n' "$FAKE_GIT_TOP_LEVEL" ;;
-  "rev-parse HEAD") printf '%s\n' "$FAKE_GIT_COMMIT" ;;
-  "status --porcelain --untracked-files=normal") printf '%s' "$FAKE_GIT_STATUS" ;;
-  "branch --show-current") printf 'main\n' ;;
-  "remote get-url origin") printf 'https://builder:secret-token@github.com/example/chatgpt-linux.git\n' ;;
-  "describe --always --dirty --tags") printf '%s\n' "$FAKE_GIT_DESCRIBE" ;;
-  *) exit 1 ;;
-esac
-"#,
-            )?,
-        )?;
-        fs::set_permissions(&git_path, fs::Permissions::from_mode(0o755))?;
+    fn initialize_test_git_repository(root: &Path, dirty: bool) -> Result<()> {
+        let git = trusted_system_program(TRUSTED_GIT_PATHS)
+            .context("A trusted system Git executable is required for builder metadata tests")?;
+        let run = |args: &[&str]| -> Result<()> {
+            let status = StdCommand::new(&git)
+                .args(args)
+                .current_dir(root)
+                .status()?;
+            anyhow::ensure!(status.success(), "git {} failed", args.join(" "));
+            Ok(())
+        };
 
-        let mut path_entries = vec![bin_dir];
-        path_entries.extend(std::env::split_paths(
-            &std::env::var_os("PATH").unwrap_or_default(),
-        ));
-        std::env::set_var("PATH", std::env::join_paths(path_entries)?);
-        std::env::set_var("FAKE_GIT_TOP_LEVEL", top_level);
-        std::env::set_var(
-            "FAKE_GIT_COMMIT",
-            "0123456789abcdef0123456789abcdef01234567",
-        );
-        std::env::set_var(
-            "FAKE_GIT_DESCRIBE",
-            if dirty { "v0.10.2-dirty" } else { "v0.10.2" },
-        );
-        std::env::set_var(
-            "FAKE_GIT_STATUS",
-            if dirty {
-                " M updater/src/builder.rs\n"
-            } else {
-                ""
-            },
-        );
+        run(&["init", "--quiet"])?;
+        run(&["symbolic-ref", "HEAD", "refs/heads/main"])?;
+        run(&["config", "user.name", "ChatGPT Builder Test"])?;
+        run(&["config", "user.email", "builder-test@example.invalid"])?;
+        fs::write(root.join(".source-info-test"), b"source metadata fixture\n")?;
+        run(&["add", "."])?;
+        run(&["commit", "--quiet", "-m", "test builder metadata"])?;
+        run(&["tag", "v0.10.2"])?;
+        run(&[
+            "remote",
+            "add",
+            "origin",
+            "https://builder:secret-token@github.com/example/chatgpt-linux.git",
+        ])?;
+        if dirty {
+            fs::write(
+                root.join(".source-info-test"),
+                b"dirty source metadata fixture\n",
+            )?;
+        }
         Ok(())
     }
 
@@ -882,6 +994,12 @@ esac
             FakePackageOutput::Deb => {
                 r#"set -euo pipefail
 mkdir -p "${DIST_DIR_OVERRIDE}"
+printf '%s\n' "$PATH" > "${DIST_DIR_OVERRIDE}/package-build-path"
+printf '%s\n' "${CHATGPT_UNTRUSTED_TEST:-}" > "${DIST_DIR_OVERRIDE}/package-build-untrusted"
+printf '%s\n' "${NODE_OPTIONS:-}" > "${DIST_DIR_OVERRIDE}/package-build-node-options"
+printf '%s\n' "$HOME" > "${DIST_DIR_OVERRIDE}/package-build-home"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-source"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-resolved"
 cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
 printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
 printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
@@ -891,6 +1009,12 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt_${PACKAGE_VERSION}_amd64.deb"
             FakePackageOutput::Rpm => {
                 r#"set -euo pipefail
 mkdir -p "${DIST_DIR_OVERRIDE}"
+printf '%s\n' "$PATH" > "${DIST_DIR_OVERRIDE}/package-build-path"
+printf '%s\n' "${CHATGPT_UNTRUSTED_TEST:-}" > "${DIST_DIR_OVERRIDE}/package-build-untrusted"
+printf '%s\n' "${NODE_OPTIONS:-}" > "${DIST_DIR_OVERRIDE}/package-build-node-options"
+printf '%s\n' "$HOME" > "${DIST_DIR_OVERRIDE}/package-build-home"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-source"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-resolved"
 cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
 printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
 printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
@@ -901,6 +1025,12 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${PACKAGE_VERSION}.x86_64.rpm"
                 r#"set -euo pipefail
 VER="${PACKAGE_VERSION%%+*}"
 mkdir -p "${DIST_DIR_OVERRIDE}"
+printf '%s\n' "$PATH" > "${DIST_DIR_OVERRIDE}/package-build-path"
+printf '%s\n' "${CHATGPT_UNTRUSTED_TEST:-}" > "${DIST_DIR_OVERRIDE}/package-build-untrusted"
+printf '%s\n' "${NODE_OPTIONS:-}" > "${DIST_DIR_OVERRIDE}/package-build-node-options"
+printf '%s\n' "$HOME" > "${DIST_DIR_OVERRIDE}/package-build-home"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-source"
+printf '%s\n' "${CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED:-}" > "${DIST_DIR_OVERRIDE}/package-mutation-broker-resolved"
 cp .chatgpt-linux/source-info.json "${DIST_DIR_OVERRIDE}/package-source-info.json"
 printf 'CHATGPT_PORT_INTEGRATIONS_CONFIG=%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
 printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${DIST_DIR_OVERRIDE}/package-integration-config-path"
@@ -951,7 +1081,7 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
     fn write_fake_computer_use_bundle(root: &Path) -> Result<()> {
         fs::write(
             root.join("Cargo.toml"),
-            b"[workspace]\nmembers = [\"computer-use-linux\", \"notification-actions-linux\", \"read-aloud-linux\", \"record-replay-linux\", \"updater\"]\n",
+            b"[workspace]\nmembers = [\"computer-use-linux\", \"generated-app-mutation-broker\", \"notification-actions-linux\", \"read-aloud-linux\", \"record-replay-linux\", \"updater\"]\n",
         )?;
         fs::write(root.join("Cargo.lock"), b"# fake lock\n")?;
         fs::create_dir_all(root.join("computer-use-linux/src"))?;
@@ -961,6 +1091,15 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         )?;
         fs::write(
             root.join("computer-use-linux/src/main.rs"),
+            b"fn main() {}\n",
+        )?;
+        fs::create_dir_all(root.join("generated-app-mutation-broker/src"))?;
+        fs::write(
+            root.join("generated-app-mutation-broker/Cargo.toml"),
+            b"[package]\nname = \"generated-app-mutation-broker\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )?;
+        fs::write(
+            root.join("generated-app-mutation-broker/src/main.rs"),
             b"fn main() {}\n",
         )?;
         fs::create_dir_all(root.join("notification-actions-linux/src"))?;
@@ -1038,6 +1177,65 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         Ok(())
     }
 
+    fn write_fake_mutation_broker_bundle(root: &Path, machine: u16) -> Result<PathBuf> {
+        let helpers = root.join(PREBUILT_HELPERS_DIR);
+        let broker = helpers.join("chatgpt-generated-app-mutation-broker");
+        fs::create_dir_all(&helpers)?;
+        let mut elf = vec![0_u8; 64];
+        elf[..4].copy_from_slice(b"\x7fELF");
+        elf[4] = host_elf_class()?;
+        elf[5] = 1;
+        elf[6] = 1;
+        elf[18..20].copy_from_slice(&machine.to_le_bytes());
+        fs::write(&broker, elf)?;
+        fs::set_permissions(&broker, fs::Permissions::from_mode(0o755))?;
+        let digest = package_verification::file_sha256(&broker)?;
+        fs::write(
+            helpers.join("chatgpt-generated-app-mutation-broker.sha256"),
+            format!("{digest}  chatgpt-generated-app-mutation-broker\n"),
+        )?;
+        Ok(broker)
+    }
+
+    #[test]
+    fn required_mutation_broker_accepts_matching_host_elf_and_digest() -> Result<()> {
+        let temp = tempdir()?;
+        let broker = write_fake_mutation_broker_bundle(temp.path(), host_elf_machine()?)?;
+
+        assert_eq!(required_mutation_broker_from_bundle(temp.path())?, broker);
+        Ok(())
+    }
+
+    #[test]
+    fn required_mutation_broker_rejects_missing_tampered_wrong_arch_nonexec_and_symlink(
+    ) -> Result<()> {
+        let missing = tempdir()?;
+        assert!(required_mutation_broker_from_bundle(missing.path()).is_err());
+
+        let tampered = tempdir()?;
+        let broker = write_fake_mutation_broker_bundle(tampered.path(), host_elf_machine()?)?;
+        fs::write(&broker, b"tampered")?;
+        assert!(required_mutation_broker_from_bundle(tampered.path()).is_err());
+
+        let wrong_arch = tempdir()?;
+        let other_machine = if host_elf_machine()? == 62 { 183 } else { 62 };
+        write_fake_mutation_broker_bundle(wrong_arch.path(), other_machine)?;
+        assert!(required_mutation_broker_from_bundle(wrong_arch.path()).is_err());
+
+        let nonexec = tempdir()?;
+        let broker = write_fake_mutation_broker_bundle(nonexec.path(), host_elf_machine()?)?;
+        fs::set_permissions(&broker, fs::Permissions::from_mode(0o644))?;
+        assert!(required_mutation_broker_from_bundle(nonexec.path()).is_err());
+
+        let symlinked = tempdir()?;
+        let broker = write_fake_mutation_broker_bundle(symlinked.path(), host_elf_machine()?)?;
+        let actual = broker.with_extension("actual");
+        fs::rename(&broker, &actual)?;
+        std::os::unix::fs::symlink(&actual, &broker)?;
+        assert!(required_mutation_broker_from_bundle(symlinked.path()).is_err());
+        Ok(())
+    }
+
     fn assert_fresh_patch_bundle(root: &Path) {
         for relative_path in FRESH_PATCH_BUNDLE_FILES {
             let file_path = root.join(relative_path);
@@ -1063,11 +1261,10 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         let env_guard = crate::test_util::env_lock();
         let _restore_env = crate::test_util::EnvRestoreGuard::capture(&[
             "PATH",
-            "FAKE_GIT_TOP_LEVEL",
-            "FAKE_GIT_COMMIT",
-            "FAKE_GIT_DESCRIBE",
-            "FAKE_GIT_STATUS",
             "CHATGPT_LINUX_SETTINGS_FILE",
+            "CHATGPT_UNTRUSTED_TEST",
+            "NODE_OPTIONS",
+            "CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED",
         ]);
         let runtime = tokio::runtime::Runtime::new()?;
         let temp = tempdir()?;
@@ -1079,6 +1276,7 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         fs::create_dir_all(bundle_root.join("packaging/linux"))?;
         fs::create_dir_all(bundle_root.join("assets"))?;
         fs::create_dir_all(bundle_root.join("node-runtime/bin"))?;
+        fs::create_dir_all(bundle_root.join("prebuilt-helpers"))?;
         fs::create_dir_all(bundle_root.join(".chatgpt-linux"))?;
         write_fake_computer_use_bundle(&bundle_root)?;
         write_fake_port_integrations_bundle(&bundle_root)?;
@@ -1147,6 +1345,21 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
             host_bash_script(
                 r#"set -euo pipefail
 mkdir -p "${CHATGPT_INSTALL_DIR}"
+printf '%s\n' "$PATH" > "${CHATGPT_INSTALL_DIR}/install-path"
+printf '%s\n' "${CHATGPT_UNTRUSTED_TEST:-}" > "${CHATGPT_INSTALL_DIR}/install-untrusted"
+printf '%s\n' "${NODE_OPTIONS:-}" > "${CHATGPT_INSTALL_DIR}/install-node-options"
+printf '%s\n' "$HOME" > "${CHATGPT_INSTALL_DIR}/install-home"
+for helper_source in \
+    "$CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE" \
+    "$CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE" \
+    "$CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE" \
+    "$CHATGPT_CHROME_EXTENSION_HOST_SOURCE" \
+    "$CHATGPT_NOTIFICATION_ACTIONS_SOURCE" \
+    "$CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE" \
+    "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE"; do
+  [ -x "$helper_source" ]
+  printf '%s\n' "$helper_source"
+done > "${CHATGPT_INSTALL_DIR}/install-prebuilt-helper-sources"
 echo launcher > "${CHATGPT_INSTALL_DIR}/start.sh"
 chmod +x "${CHATGPT_INSTALL_DIR}/start.sh"
 echo CHATGPT_APP_PACKAGE_VERSION=26.429.20946 > "${CHATGPT_INSTALL_DIR}/chatgpt-version.env"
@@ -1204,10 +1417,25 @@ fi
             bundle_root.join("scripts/lib/node-runtime.sh"),
             b"#!/bin/bash\n",
         )?;
-        fs::write(bundle_root.join("node-runtime/bin/node"), b"node")?;
-        fs::create_dir_all(bundle_root.join(".git"))?;
-        install_fake_git(temp.path(), &bundle_root, false)?;
-        let expected_commit = "0123456789abcdef0123456789abcdef01234567";
+        for binary in ["node", "npm", "npx"] {
+            fs::write(bundle_root.join("node-runtime/bin").join(binary), b"node")?;
+        }
+        for helper in [
+            "chatgpt-computer-use-linux",
+            "chatgpt-computer-use-cosmic",
+            "chatgpt-chrome-extension-host",
+            "chatgpt-notification-actions-linux",
+            "chatgpt-global-dictation-linux",
+            "chatgpt-read-aloud-linux",
+        ] {
+            let helper_path = bundle_root.join("prebuilt-helpers").join(helper);
+            fs::write(&helper_path, b"#!/bin/sh\nexit 0\n")?;
+            fs::set_permissions(&helper_path, fs::Permissions::from_mode(0o755))?;
+        }
+        let mutation_broker = write_fake_mutation_broker_bundle(&bundle_root, host_elf_machine()?)?;
+        initialize_test_git_repository(&bundle_root, false)?;
+        let expected_commit = git_capture(&bundle_root, &["rev-parse", "HEAD"])
+            .expect("trusted Git should resolve the fixture commit");
         let expected_describe = "v0.10.2";
         let paths = RuntimePaths {
             config_file: temp.path().join("config/config.toml"),
@@ -1231,6 +1459,21 @@ fi
             "CHATGPT_LINUX_SETTINGS_FILE",
             &settings_file,
         );
+        let _untrusted_guard = crate::test_util::EnvVarGuard::set(
+            &env_guard,
+            "CHATGPT_UNTRUSTED_TEST",
+            "must-not-reach-builder",
+        );
+        let _node_options_guard = crate::test_util::EnvVarGuard::set(
+            &env_guard,
+            "NODE_OPTIONS",
+            "--require=/tmp/must-not-reach-builder.js",
+        );
+        let _resolved_guard = crate::test_util::EnvVarGuard::set(
+            &env_guard,
+            "CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED",
+            "/tmp/must-not-reach-builder",
+        );
 
         let config = RuntimeConfig {
             dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
@@ -1240,7 +1483,7 @@ fi
             notifications: true,
             developer_mode: false,
             workspace_root: cache_root,
-            builder_bundle_root: bundle_root,
+            builder_bundle_root: bundle_root.clone(),
             app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
@@ -1333,6 +1576,78 @@ fi
             .workspace_dir
             .join("reports/rebuild-report.json")
             .exists());
+        let expected_path = std::env::join_paths([
+            bundle_root.join("node-runtime/bin"),
+            PathBuf::from("/usr/sbin"),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/sbin"),
+            PathBuf::from("/bin"),
+        ])?;
+        for relative_path in ["chatgpt/install-path", "dist/package-build-path"] {
+            assert_eq!(
+                fs::read_to_string(artifacts.workspace_dir.join(relative_path))?,
+                format!("{}\n", expected_path.to_string_lossy())
+            );
+        }
+        for relative_path in ["chatgpt/install-untrusted", "dist/package-build-untrusted"] {
+            assert_eq!(
+                fs::read_to_string(artifacts.workspace_dir.join(relative_path))?,
+                "\n"
+            );
+        }
+        for relative_path in [
+            "chatgpt/install-node-options",
+            "dist/package-build-node-options",
+        ] {
+            assert_eq!(
+                fs::read_to_string(artifacts.workspace_dir.join(relative_path))?,
+                "\n"
+            );
+        }
+        for relative_path in ["chatgpt/install-home", "dist/package-build-home"] {
+            assert_eq!(
+                fs::read_to_string(artifacts.workspace_dir.join(relative_path))?,
+                format!("{}\n", artifacts.workspace_dir.join("build-home").display())
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(
+                artifacts
+                    .workspace_dir
+                    .join("chatgpt/install-prebuilt-helper-sources"),
+            )?,
+            [
+                "chatgpt-generated-app-mutation-broker",
+                "chatgpt-computer-use-linux",
+                "chatgpt-computer-use-cosmic",
+                "chatgpt-chrome-extension-host",
+                "chatgpt-notification-actions-linux",
+                "chatgpt-global-dictation-linux",
+                "chatgpt-read-aloud-linux",
+            ]
+            .into_iter()
+            .map(|helper| bundle_root.join("prebuilt-helpers").join(helper))
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+                + "\n"
+        );
+        assert_eq!(
+            fs::read_to_string(
+                artifacts
+                    .workspace_dir
+                    .join("dist/package-mutation-broker-source"),
+            )?,
+            format!("{}\n", mutation_broker.display())
+        );
+        assert_eq!(
+            fs::read_to_string(
+                artifacts
+                    .workspace_dir
+                    .join("dist/package-mutation-broker-resolved"),
+            )?,
+            "\n"
+        );
         assert!(
             is_native_package_file(&artifacts.package_path),
             "expected a native package (.deb, .rpm, or .pkg.tar.zst), got {}",
@@ -1422,29 +1737,20 @@ fi
 
     #[test]
     fn stages_dirty_git_source_identity() -> Result<()> {
-        let _env_guard = crate::test_util::env_lock();
-        let _restore_env = crate::test_util::EnvRestoreGuard::capture(&[
-            "PATH",
-            "FAKE_GIT_TOP_LEVEL",
-            "FAKE_GIT_COMMIT",
-            "FAKE_GIT_DESCRIBE",
-            "FAKE_GIT_STATUS",
-        ]);
         let temp = tempdir()?;
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
         fs::create_dir_all(&source_root)?;
-        install_fake_git(temp.path(), &source_root, true)?;
+        initialize_test_git_repository(&source_root, true)?;
+        let expected_commit = git_capture(&source_root, &["rev-parse", "HEAD"])
+            .expect("trusted Git should resolve the fixture commit");
 
         stage_git_source_info(&source_root, &destination_root)?;
 
         let source_info: serde_json::Value = serde_json::from_slice(&fs::read(
             destination_root.join(".chatgpt-linux/source-info.json"),
         )?)?;
-        assert_eq!(
-            source_info["commit"],
-            "0123456789abcdef0123456789abcdef01234567"
-        );
+        assert_eq!(source_info["commit"], expected_commit);
         assert_eq!(source_info["dirty"], true);
         assert_eq!(source_info["describe"], "v0.10.2-dirty");
         assert_eq!(
@@ -1457,20 +1763,12 @@ fi
 
     #[test]
     fn source_identity_does_not_leak_from_parent_checkout() -> Result<()> {
-        let _env_guard = crate::test_util::env_lock();
-        let _restore_env = crate::test_util::EnvRestoreGuard::capture(&[
-            "PATH",
-            "FAKE_GIT_TOP_LEVEL",
-            "FAKE_GIT_COMMIT",
-            "FAKE_GIT_DESCRIBE",
-            "FAKE_GIT_STATUS",
-        ]);
         let temp = tempdir()?;
         let parent_root = temp.path().join("parent");
         let source_root = parent_root.join("nested-builder");
         let destination_root = temp.path().join("destination");
         fs::create_dir_all(&source_root)?;
-        install_fake_git(temp.path(), &parent_root, false)?;
+        initialize_test_git_repository(&parent_root, false)?;
 
         stage_git_source_info(&source_root, &destination_root)?;
 
@@ -1496,6 +1794,77 @@ fi
             fs::read_to_string(source_info)?,
             "{\"commit\":\"packaged\"}\n"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn git_source_metadata_ignores_git_from_ambient_path() -> Result<()> {
+        let _env_guard = crate::test_util::env_lock();
+        let _restore_env = crate::test_util::EnvRestoreGuard::capture(&["PATH"]);
+        let temp = tempdir()?;
+        let source_root = temp.path().join("source");
+        let destination_root = temp.path().join("destination");
+        let attacker_bin = temp.path().join("attacker-bin");
+        let marker = temp.path().join("attacker-git-ran");
+        fs::create_dir_all(&source_root)?;
+        fs::create_dir_all(&attacker_bin)?;
+        let attacker_git = attacker_bin.join("git");
+        fs::write(
+            &attacker_git,
+            format!("#!/bin/sh\ntouch {}\n", marker.display()),
+        )?;
+        fs::set_permissions(&attacker_git, fs::Permissions::from_mode(0o755))?;
+        std::env::set_var("PATH", &attacker_bin);
+
+        stage_git_source_info(&source_root, &destination_root)?;
+
+        assert!(
+            !marker.exists(),
+            "optional source metadata must not execute Git from ambient PATH"
+        );
+        assert!(!destination_root
+            .join(".chatgpt-linux/source-info.json")
+            .exists());
+        Ok(())
+    }
+
+    #[test]
+    fn git_source_metadata_disables_repository_fsmonitor_commands() -> Result<()> {
+        let _env_guard = crate::test_util::env_lock();
+        let temp = tempdir()?;
+        let source_root = temp.path().join("source");
+        let destination_root = temp.path().join("destination");
+        let marker = temp.path().join("fsmonitor-ran");
+        let fsmonitor = temp.path().join("fsmonitor-hook");
+        fs::create_dir_all(&source_root)?;
+        initialize_test_git_repository(&source_root, false)?;
+        fs::write(
+            &fsmonitor,
+            format!("#!/bin/sh\ntouch '{}'\nprintf '0\\n'\n", marker.display()),
+        )?;
+        fs::set_permissions(&fsmonitor, fs::Permissions::from_mode(0o755))?;
+        let git = trusted_system_program(TRUSTED_GIT_PATHS)
+            .context("A trusted system Git executable is required for builder metadata tests")?;
+        let status = StdCommand::new(git)
+            .args([
+                "-C",
+                source_root.to_string_lossy().as_ref(),
+                "config",
+                "core.fsmonitor",
+                fsmonitor.to_string_lossy().as_ref(),
+            ])
+            .status()?;
+        anyhow::ensure!(status.success(), "failed to configure test fsmonitor");
+
+        stage_git_source_info(&source_root, &destination_root)?;
+
+        assert!(
+            !marker.exists(),
+            "optional source metadata must not execute repository-configured fsmonitor commands"
+        );
+        assert!(destination_root
+            .join(".chatgpt-linux/source-info.json")
+            .exists());
         Ok(())
     }
 
@@ -1572,7 +1941,8 @@ fi
     }
 
     #[test]
-    fn bundle_copy_skips_missing_optional_package_scripts() -> Result<()> {
+    fn bundle_copy_supports_source_checkout_without_builder_only_payload_or_optional_package_scripts(
+    ) -> Result<()> {
         let temp = tempdir()?;
         let source_root = temp.path().join("source");
         let destination_root = temp.path().join("destination");
@@ -1581,7 +1951,6 @@ fi
         fs::create_dir_all(source_root.join("launcher"))?;
         fs::create_dir_all(source_root.join("packaging/linux"))?;
         fs::create_dir_all(source_root.join("assets"))?;
-        fs::create_dir_all(source_root.join("node-runtime/bin"))?;
         write_fake_computer_use_bundle(&source_root)?;
         write_fake_port_integrations_bundle(&source_root)?;
         write_fake_patch_bundle(&source_root)?;
@@ -1615,7 +1984,6 @@ fi
             source_root.join("scripts/lib/node-runtime.sh"),
             b"#!/bin/bash\n",
         )?;
-        fs::write(source_root.join("node-runtime/bin/node"), b"node")?;
         fs::write(
             source_root.join("packaging/linux/control"),
             b"Package: chatgpt\n",
@@ -1656,7 +2024,8 @@ fi
         assert!(destination_root
             .join("scripts/lib/node-runtime.sh")
             .exists());
-        assert!(destination_root.join("node-runtime/bin/node").exists());
+        assert!(!destination_root.join("node-runtime").exists());
+        assert!(!destination_root.join(PREBUILT_HELPERS_DIR).exists());
         assert!(destination_root
             .join("port-integrations/integrations.example.json")
             .exists());
@@ -1757,29 +2126,9 @@ fi
     }
 
     #[test]
-    fn collects_nvm_toolchain_bins_with_current_first() -> Result<()> {
-        let temp = tempdir()?;
-        let nvm_root = temp.path().join(".nvm");
-        let current_bin = nvm_root.join("versions/node/current/bin");
-        let version_bin = nvm_root.join("versions/node/v24.2.0/bin");
-
-        fs::create_dir_all(&current_bin)?;
-        fs::create_dir_all(&version_bin)?;
-        for dir in [&current_bin, &version_bin] {
-            for binary in ["node", "npm", "npx"] {
-                fs::write(dir.join(binary), b"bin")?;
-            }
-        }
-
-        let directories = collect_nvm_bin_dirs(&nvm_root);
-        assert_eq!(directories.first(), Some(&current_bin));
-        assert!(directories.contains(&version_bin));
-        Ok(())
-    }
-
-    #[test]
     fn build_command_path_includes_system_dirs() {
-        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"))
+            .expect("trusted PATH should be constructible");
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
 
         assert!(directories.iter().any(|dir| dir == Path::new("/usr/bin")));
@@ -1787,7 +2136,7 @@ fi
     }
 
     #[test]
-    fn build_command_path_includes_user_local_bin_from_home() -> Result<()> {
+    fn build_command_path_excludes_user_local_bin_from_home() -> Result<()> {
         let _env_guard = crate::test_util::env_lock();
         let temp = tempdir()?;
         let user_bin = temp.path().join(".local/bin");
@@ -1796,7 +2145,7 @@ fi
         let original_home = std::env::var_os("HOME");
         std::env::set_var("HOME", temp.path());
 
-        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"))?;
 
         if let Some(home) = original_home {
             std::env::set_var("HOME", home);
@@ -1805,15 +2154,10 @@ fi
         }
 
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
-        let user_bin_index = directories
-            .iter()
-            .position(|dir| dir == &user_bin)
-            .expect("user-local bin should be included");
-        let system_bin_index = directories
-            .iter()
-            .position(|dir| dir == Path::new("/usr/bin"))
-            .expect("system bin should be included");
-        assert!(user_bin_index < system_bin_index);
+        assert!(
+            !directories.iter().any(|dir| dir == &user_bin),
+            "rebuild commands must not search user-local executables"
+        );
         Ok(())
     }
 
@@ -1826,14 +2170,14 @@ fi
             fs::write(runtime_bin.join(binary), b"bin")?;
         }
 
-        let path = build_command_path(temp.path());
+        let path = build_command_path(temp.path())?;
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
         assert_eq!(directories.first(), Some(&runtime_bin));
         Ok(())
     }
 
     #[test]
-    fn build_command_path_includes_cargo_bin_from_home() -> Result<()> {
+    fn build_command_path_excludes_cargo_bin_from_home() -> Result<()> {
         let _env_guard = crate::test_util::env_lock();
         let temp = tempdir()?;
         let home_dir = temp.path().join("home");
@@ -1844,29 +2188,13 @@ fi
 
         let _home_guard = crate::test_util::EnvVarGuard::set(&_env_guard, "HOME", &home_dir);
 
-        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
+        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"))?;
 
         let directories = std::env::split_paths(&path).collect::<Vec<_>>();
-        assert!(directories.iter().any(|dir| dir == &cargo_bin));
-        Ok(())
-    }
-
-    #[test]
-    fn build_command_path_skips_non_executable_cargo_from_home() -> Result<()> {
-        let _env_guard = crate::test_util::env_lock();
-        let temp = tempdir()?;
-        let home_dir = temp.path().join("home");
-        let cargo_bin = home_dir.join(".cargo/bin");
-        fs::create_dir_all(&cargo_bin)?;
-        fs::write(cargo_bin.join("cargo"), b"bin")?;
-        fs::set_permissions(cargo_bin.join("cargo"), fs::Permissions::from_mode(0o644))?;
-
-        let _home_guard = crate::test_util::EnvVarGuard::set(&_env_guard, "HOME", &home_dir);
-
-        let path = build_command_path(Path::new("/tmp/missing-chatgpt-builder"));
-
-        let directories = std::env::split_paths(&path).collect::<Vec<_>>();
-        assert!(!directories.iter().any(|dir| dir == &cargo_bin));
+        assert!(
+            !directories.iter().any(|dir| dir == &cargo_bin),
+            "rebuild commands must not search user-managed Rust toolchains"
+        );
         Ok(())
     }
 }

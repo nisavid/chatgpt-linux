@@ -4,7 +4,26 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INTEGRATIONS_ROOT="${CHATGPT_PORT_INTEGRATIONS_ROOT:-${CHATGPT_LINUX_FEATURES_ROOT:-$REPO_DIR/port-integrations}}"
+
+reject_obsolete_bootstrap_environment() {
+    local obsolete replacement
+    while read -r obsolete replacement; do
+        [ -n "$obsolete" ] || continue
+        if [[ -v "$obsolete" ]]; then
+            echo "$obsolete is no longer supported; use $replacement" >&2
+            return 1
+        fi
+    done <<'OBSOLETE_BOOTSTRAP_ENV'
+CHATGPT_LINUX_FEATURES_ROOT CHATGPT_PORT_INTEGRATIONS_ROOT
+CHATGPT_LINUX_FEATURES_CONFIG CHATGPT_PORT_INTEGRATIONS_CONFIG
+CHATGPT_LINUX_FEATURES CHATGPT_PORT_INTEGRATIONS
+CHATGPT_LINUX_DISABLE_FEATURES CHATGPT_DISABLE_PORT_INTEGRATIONS
+CHATGPT_BOOTSTRAP_CLEANUP_FEATURES CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS
+OBSOLETE_BOOTSTRAP_ENV
+}
+
+reject_obsolete_bootstrap_environment
+INTEGRATIONS_ROOT="${CHATGPT_PORT_INTEGRATIONS_ROOT:-$REPO_DIR/port-integrations}"
 PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/linux-target-detect.sh"
@@ -65,9 +84,6 @@ Environment:
   port-integrations/local/<id>/        user-local integrations are discovered and marked [local]
   PACKAGE_NAME=chatgpt-cua-lab           check side-by-side installed package state
   PACKAGE_WITH_UPDATER=0               choose manual-update package mode
-
-Legacy CHATGPT_LINUX_FEATURES_* and CHATGPT_BOOTSTRAP_CLEANUP_FEATURES variables
-are accepted as compatibility aliases.
 
 The wizard is conservative: it does not install packages, start services, stop
 ydotoold, or delete integration-owned user data unless the user explicitly asks and
@@ -186,12 +202,8 @@ package_with_updater_enabled() {
 integration_config_path() {
     if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ]; then
         printf '%s\n' "$CHATGPT_PORT_INTEGRATIONS_CONFIG"
-    elif [ -n "${CHATGPT_LINUX_FEATURES_CONFIG:-}" ]; then
-        printf '%s\n' "$CHATGPT_LINUX_FEATURES_CONFIG"
     elif [ -e "$INTEGRATIONS_ROOT/integrations.json" ]; then
         printf '%s\n' "$INTEGRATIONS_ROOT/integrations.json"
-    elif [ -e "$INTEGRATIONS_ROOT/features.json" ]; then
-        printf '%s\n' "$INTEGRATIONS_ROOT/features.json"
     else
         printf '%s\n' "$INTEGRATIONS_ROOT/integrations.json"
     fi
@@ -980,7 +992,7 @@ confirm_and_delete_path() {
 }
 
 run_integration_cleanup() {
-    local cleanup_raw="${CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS:-${CHATGPT_BOOTSTRAP_CLEANUP_FEATURES:-}}"
+    local cleanup_raw="${CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS:-}"
     if [ -z "$cleanup_raw" ]; then
         if noninteractive_mode; then
             return
@@ -1220,8 +1232,8 @@ prompt_for_integration_changes_gui() {
 }
 
 prompt_for_integration_changes() {
-    local enable_raw="${CHATGPT_PORT_INTEGRATIONS:-${CHATGPT_LINUX_FEATURES:-}}"
-    local disable_raw="${CHATGPT_DISABLE_PORT_INTEGRATIONS:-${CHATGPT_LINUX_DISABLE_FEATURES:-}}"
+    local enable_raw="${CHATGPT_PORT_INTEGRATIONS:-}"
+    local disable_raw="${CHATGPT_DISABLE_PORT_INTEGRATIONS:-}"
 
     if truthy "${CHATGPT_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]; then
         run_integration_config_python "$enable_raw" "$disable_raw" "1"

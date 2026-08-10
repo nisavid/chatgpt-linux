@@ -14,7 +14,9 @@ You need:
 - `tar`;
 - `make`;
 - `g++` or equivalent C++ build tooling;
-- Rust and `cargo` for `chatgpt-updater`.
+- Rust and `cargo` for `chatgpt-updater` and the build-only generated-app
+  mutation broker. Nix and packaged updater rebuilds supply validated prebuilt
+  broker binaries instead of using an ambient Cargo toolchain.
 
 The installer downloads and bundles a managed Linux Node.js runtime for the
 generated app, Browser Use, Codex CLI install/update flow, and updater rebuilds.
@@ -78,18 +80,16 @@ the old package or add compatibility shims.
 Ubuntu-family `p7zip-full` packages can be too old to extract newer APFS DMGs.
 `scripts/install-deps.sh` bootstraps a newer `7zz` into `~/.local/bin` by
 default. Set `SEVENZIP_SYSTEM_INSTALL=1` to install it under `/usr/local/bin`
-instead.
-
-To install `7zz` manually, download the current Linux tarball from
-<https://www.7-zip.org/download.html>, then replace `<VERSION>` with the
-published version:
+instead. The bootstrap accepts only source-controlled archive and executable
+SHA-256 identities from `scripts/lib/sevenzip-bootstrap.sh`:
 
 ```bash
-curl -L -o /tmp/7z.tar.xz "https://www.7-zip.org/a/7z<VERSION>-linux-x64.tar.xz"
-tar -C /tmp -xf /tmp/7z.tar.xz 7zz
-install -d -m 755 "$HOME/.local/bin"
-install -m 755 /tmp/7zz "$HOME/.local/bin/7zz"
+bash scripts/install-deps.sh
 ```
+
+For a manual installation, prefer a distribution package with signed metadata.
+Do not install a downloaded `7zz` archive without independently verifying its
+published identity.
 
 ### Fedora
 
@@ -244,13 +244,15 @@ override shape; checkout builds ignore that persistent user file and use
 [`port-integrations/README.md`](../../port-integrations/README.md) for the integration
 contract.
 
-### Linux Computer Use UI Opt-In
+### Linux Computer Use Controls And Readiness
 
-The Linux Computer Use backend and plugin manifest are packaged by default. The
-in-app UI controls are opt-in because they patch official OpenAI app bundle UI
-paths during app generation.
+The Linux Computer Use backend, plugin manifest, and Linux support patches are
+packaged by default. They preserve the official app's account and rollout
+eligibility, persistent plugin and allowed-app controls, and Codex tool approval,
+sandboxing, and auto-approval policy. This fork adds no separate consent setting
+or prompt. Disable or revoke the feature through those existing controls.
 
-Runtime readiness is separate from UI patching. Input synthesis usually
+Runtime readiness is separate from authorization. Input synthesis usually
 requires `ydotool`/`ydotoold`, `/dev/uinput` access, and a socket usable by your
 desktop user. Non-GNOME desktops usually also need the matching XDG Desktop
 Portal backend, such as the KDE or wlroots portal.
@@ -279,45 +281,6 @@ After building the app, inspect local readiness with:
 ./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux setup
 ./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux apps
 ./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux windows
-```
-
-Enable the UI patches for one build:
-
-```bash
-CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1 make build-app
-```
-
-To keep the opt-in across updater rebuilds, write the persisted setting read by
-the patcher at `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/settings.json`. This
-matters for updater runs because the `systemd --user` service does not inherit
-interactive shell environment variables.
-
-If the existing file is missing, invalid JSON, or not a JSON object, this writes
-a new JSON object containing only `"chatgpt-linux-computer-use-ui-enabled": true`.
-
-```bash
-settings_dir="${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt"
-mkdir -p "$settings_dir"
-python3 - "$settings_dir/settings.json" <<'PY'
-import json
-import os
-import pathlib
-import sys
-
-path = pathlib.Path(sys.argv[1])
-data = {}
-if path.exists():
-    try:
-        parsed = json.loads(path.read_text() or "{}")
-    except json.JSONDecodeError:
-        parsed = {}
-    if isinstance(parsed, dict):
-        data = parsed
-data["chatgpt-linux-computer-use-ui-enabled"] = True
-tmp = path.with_name(path.name + ".tmp")
-tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-os.replace(tmp, path)
-PY
 ```
 
 To remove the existing generated tree and redownload the DMG:

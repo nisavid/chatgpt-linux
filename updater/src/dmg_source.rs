@@ -4,7 +4,7 @@ use crate::cache_cleanup::{acquire_dmg_cache_lease, DmgCacheLease};
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
-use reqwest::{header, Client, Url};
+use reqwest::{header, redirect, Client, Url};
 use sha2::{Digest, Sha256};
 use std::{
     path::{Path, PathBuf},
@@ -17,6 +17,7 @@ const MAX_DMG_BYTES: u64 = 1024 * 1024 * 1024;
 
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const HTTP_READ_TIMEOUT: Duration = Duration::from_secs(60);
+const MAX_DMG_REDIRECTS: usize = 10;
 const DOWNLOAD_TEMP_PREFIX: &str = ".ChatGPT.dmg.download-";
 static DOWNLOAD_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -56,6 +57,11 @@ pub struct DownloadedDmg {
     pub(crate) lease: DmgCacheLease,
 }
 
+/// HTTP client whose redirect behavior preserves the official DMG URL policy.
+pub struct DmgHttpClient {
+    client: Client,
+}
+
 fn validate_dmg_url(dmg_url: &str) -> Result<Url> {
     let safe_url = sanitized_url_for_log(dmg_url);
     let url = Url::parse(dmg_url).with_context(|| format!("Invalid DMG URL: {safe_url}"))?;
@@ -80,6 +86,10 @@ fn validate_dmg_url(dmg_url: &str) -> Result<Url> {
 fn sanitized_url_for_log(dmg_url: &str) -> String {
     match Url::parse(dmg_url) {
         Ok(mut url) => {
+            if !url.username().is_empty() || url.password().is_some() {
+                let _ = url.set_username("redacted");
+                let _ = url.set_password(None);
+            }
             url.set_query(None);
             url.set_fragment(None);
             url.to_string()
@@ -88,26 +98,53 @@ fn sanitized_url_for_log(dmg_url: &str) -> String {
     }
 }
 
+fn dmg_redirect_policy() -> redirect::Policy {
+    redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= MAX_DMG_REDIRECTS {
+            return attempt.error("too many official DMG redirects");
+        }
+        match validate_dmg_url(attempt.url().as_str()) {
+            Ok(_) => attempt.follow(),
+            Err(error) => attempt.error(format!(
+                "refusing disallowed official DMG redirect: {error}"
+            )),
+        }
+    })
+}
+
+fn validate_final_dmg_url(url: &Url) -> Result<()> {
+    validate_dmg_url(url.as_str())
+        .map(|_| ())
+        .context("Official DMG response URL violated redirect policy")
+}
+
 /// Builds the HTTP client shared by official DMG metadata and DMG requests.
-pub fn http_client() -> Result<Client> {
-    Client::builder()
+pub fn http_client() -> Result<DmgHttpClient> {
+    let client = Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
         .read_timeout(HTTP_READ_TIMEOUT)
+        .redirect(dmg_redirect_policy())
         .build()
-        .context("Failed to build official DMG HTTP client")
+        .context("Failed to build official DMG HTTP client")?;
+    Ok(DmgHttpClient { client })
 }
 
 /// Fetches the official DMG headers used to detect candidate updates.
-pub async fn fetch_remote_metadata(client: &Client, dmg_url: &str) -> Result<RemoteMetadata> {
+pub async fn fetch_remote_metadata(
+    client: &DmgHttpClient,
+    dmg_url: &str,
+) -> Result<RemoteMetadata> {
     let url = validate_dmg_url(dmg_url)?;
     let safe_url = sanitized_url_for_log(dmg_url);
     let response = client
+        .client
         .head(url)
         .send()
         .await
         .with_context(|| format!("Failed HEAD request for {safe_url}"))?
         .error_for_status()
         .with_context(|| format!("HEAD request for {safe_url} returned an error status"))?;
+    validate_final_dmg_url(response.url())?;
 
     let etag = response
         .headers()
@@ -145,7 +182,7 @@ pub async fn fetch_remote_metadata(client: &Client, dmg_url: &str) -> Result<Rem
 
 /// Downloads the official DMG and derives a package version from its hash.
 pub async fn download_dmg(
-    client: &Client,
+    client: &DmgHttpClient,
     dmg_url: &str,
     destination_dir: &Path,
     version_timestamp: DateTime<Utc>,
@@ -161,7 +198,7 @@ pub async fn download_dmg(
 }
 
 async fn download_dmg_with_limit(
-    client: &Client,
+    client: &DmgHttpClient,
     dmg_url: &str,
     destination_dir: &Path,
     version_timestamp: DateTime<Utc>,
@@ -177,12 +214,14 @@ async fn download_dmg_with_limit(
     let lease = acquire_dmg_cache_lease(destination_dir).await?;
 
     let response = client
+        .client
         .get(url)
         .send()
         .await
         .with_context(|| format!("Failed GET request for {safe_url}"))?
         .error_for_status()
         .with_context(|| format!("GET request for {safe_url} returned an error status"))?;
+    validate_final_dmg_url(response.url())?;
     let content_length = response
         .headers()
         .get(header::CONTENT_LENGTH)
@@ -324,7 +363,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::builder().build()?;
+        let client = http_client()?;
         let metadata =
             fetch_remote_metadata(&client, &format!("{}/ChatGPT.dmg", server.uri())).await?;
         assert_eq!(metadata.etag.as_deref(), Some("\"abc\""));
@@ -338,6 +377,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_disallowed_redirect_before_contacting_target() -> Result<()> {
+        let origin = MockServer::start().await;
+        let target = MockServer::start().await;
+        let disallowed_target = target.uri().replace("127.0.0.1", "0.0.0.0");
+
+        Mock::given(method("HEAD"))
+            .and(path("/ChatGPT.dmg"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{disallowed_target}/metadata")),
+            )
+            .mount(&origin)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/ChatGPT.dmg"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{disallowed_target}/download")),
+            )
+            .mount(&origin)
+            .await;
+
+        let client = http_client()?;
+        let source_url = format!("{}/ChatGPT.dmg", origin.uri());
+        fetch_remote_metadata(&client, &source_url)
+            .await
+            .expect_err("metadata redirect outside the DMG URL policy must fail");
+
+        let temp = tempdir()?;
+        download_dmg(&client, &source_url, temp.path(), Utc::now())
+            .await
+            .expect_err("download redirect outside the DMG URL policy must fail");
+
+        assert!(
+            target
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .is_empty(),
+            "the HTTP client must reject a disallowed redirect before contacting its target"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn downloads_dmg_and_hashes_contents() -> Result<()> {
         let server = MockServer::start().await;
         let body = b"chatgpt-dmg-test-payload";
@@ -347,7 +431,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = Client::builder().build()?;
+        let client = http_client()?;
         let temp = tempdir()?;
         let downloaded = download_dmg(
             &client,
@@ -477,6 +561,10 @@ mod tests {
         assert_eq!(
             sanitized_url_for_log("https://example.com/ChatGPT.dmg?token=secret#frag"),
             "https://example.com/ChatGPT.dmg"
+        );
+        assert_eq!(
+            sanitized_url_for_log("https://user:secret@example.com/ChatGPT.dmg"),
+            "https://redacted@example.com/ChatGPT.dmg"
         );
     }
 

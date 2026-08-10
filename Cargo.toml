@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "generated-app-mutation-broker",
   "computer-use-linux",
   "notification-actions-linux",
   "read-aloud-linux",

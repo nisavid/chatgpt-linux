@@ -2,7 +2,231 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { TextDecoder } = require("node:util");
+const { GeneratedAppIntegrityError } = require("./generated-app-mutation-client.js");
 const { findExportedAlias } = require("./minified-js.js");
+
+const MAIN_BUILD_COMPONENTS = [Buffer.from(".vite"), Buffer.from("build")];
+const WEBVIEW_ASSET_COMPONENTS = [Buffer.from("webview"), Buffer.from("assets")];
+const REGULAR_FILE_TYPE = 0o100000;
+const FILE_TYPE_MASK = 0o170000;
+const OFFICIAL_ASSET_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const MAIN_BUNDLE_NAME_PATTERN = /^main(?:-[A-Za-z0-9_-]+)?\.js$/;
+const ICON_ASSET_NAME_PATTERN = /^app-[A-Za-z0-9_-]+\.png$/;
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const originalAssetBytes = Symbol("originalAssetBytes");
+
+function copyComponents(components) {
+  return components.map((component) => Buffer.from(component));
+}
+
+function validMetadata(metadata) {
+  return metadata != null &&
+    typeof metadata === "object" &&
+    Number.isInteger(metadata.mode) &&
+    metadata.mode >= 0 &&
+    metadata.mode <= 0xffff_ffff;
+}
+
+function isRegularFileMetadata(metadata) {
+  return validMetadata(metadata) && (metadata.mode & FILE_TYPE_MASK) === REGULAR_FILE_TYPE;
+}
+
+function invalidCapabilityResult(reason, operation, code = "protocol", cause) {
+  return new GeneratedAppIntegrityError(reason, { code, operation, cause });
+}
+
+function officialAssetEntry(entry) {
+  if (!Buffer.isBuffer(entry?.name) || !validMetadata(entry?.metadata)) {
+    throw invalidCapabilityResult("invalid asset directory entry", "list");
+  }
+  if (!isRegularFileMetadata(entry.metadata)) {
+    return null;
+  }
+  const name = entry.name.toString("ascii");
+  if (!Buffer.from(name, "ascii").equals(entry.name) || !OFFICIAL_ASSET_NAME_PATTERN.test(name)) {
+    return null;
+  }
+  return Object.freeze({ name, nameBytes: Buffer.from(entry.name) });
+}
+
+async function listOfficialAssetEntries(capability, directoryComponents) {
+  const listed = await capability.list(copyComponents(directoryComponents));
+  if (!Array.isArray(listed)) {
+    throw invalidCapabilityResult("invalid asset directory listing", "list");
+  }
+  return listed
+    .map(officialAssetEntry)
+    .filter((entry) => entry != null)
+    .sort((left, right) => Buffer.compare(left.nameBytes, right.nameBytes));
+}
+
+function decodeUtf8Source(content) {
+  if (!Buffer.isBuffer(content)) {
+    throw invalidCapabilityResult("asset read returned non-byte content", "read");
+  }
+  try {
+    return utf8Decoder.decode(content);
+  } catch (error) {
+    throw invalidCapabilityResult("asset source is not valid UTF-8", "read", "integrity", error);
+  }
+}
+
+async function readUtf8AssetSource(capability, directoryComponents, asset) {
+  const read = await capability.read([
+    ...copyComponents(directoryComponents),
+    Buffer.from(asset.nameBytes),
+  ]);
+  if (read == null || typeof read !== "object" || !validMetadata(read.metadata)) {
+    throw invalidCapabilityResult("asset read returned invalid metadata", "read");
+  }
+  if (!isRegularFileMetadata(read.metadata)) {
+    throw invalidCapabilityResult("asset read target is not a regular file", "read", "integrity");
+  }
+  if (!Buffer.isBuffer(read.operationId) || read.operationId.length !== 16) {
+    throw invalidCapabilityResult("asset read returned an invalid identity token", "read");
+  }
+  const source = decodeUtf8Source(read.content);
+  return Object.freeze({
+    assetName: asset.name,
+    operationId: Buffer.from(read.operationId),
+    [originalAssetBytes]: Buffer.from(read.content),
+    source,
+  });
+}
+
+async function findMainBundleWithCapability(capability) {
+  const entries = await listOfficialAssetEntries(capability, MAIN_BUILD_COMPONENTS);
+  const main = entries.find(({ name }) => MAIN_BUNDLE_NAME_PATTERN.test(name));
+  if (main == null) {
+    return null;
+  }
+  const read = await readUtf8AssetSource(capability, MAIN_BUILD_COMPONENTS, main);
+  return Object.freeze({
+    mainBundle: read.assetName,
+    operationId: read.operationId,
+    [originalAssetBytes]: read[originalAssetBytes],
+    source: read.source,
+  });
+}
+
+async function replaceMainBundleWithCapability(capability, main, patchedSource) {
+  if (
+    main == null ||
+    typeof main.mainBundle !== "string" ||
+    !MAIN_BUNDLE_NAME_PATTERN.test(main.mainBundle) ||
+    !Buffer.isBuffer(main.operationId) ||
+    main.operationId.length !== 16 ||
+    typeof main.source !== "string" ||
+    typeof patchedSource !== "string"
+  ) {
+    throw new TypeError("Invalid capability-backed main bundle replacement");
+  }
+  const currentBytes = Buffer.isBuffer(main[originalAssetBytes])
+    ? main[originalAssetBytes]
+    : Buffer.from(main.source, "utf8");
+  const replacement = Buffer.from(patchedSource, "utf8");
+  if (replacement.equals(currentBytes)) {
+    return false;
+  }
+  await capability.replace(
+    [...copyComponents(MAIN_BUILD_COMPONENTS), Buffer.from(main.mainBundle, "ascii")],
+    Buffer.from(main.operationId),
+    replacement,
+  );
+  return true;
+}
+
+async function findIconAssetWithCapability(capability) {
+  const entries = await listOfficialAssetEntries(capability, WEBVIEW_ASSET_COMPONENTS);
+  return entries.find(({ name }) => ICON_ASSET_NAME_PATTERN.test(name))?.name ?? null;
+}
+
+async function readMatchingWebviewAssetSourcesWithCapability(capability, filenamePattern) {
+  if (!(filenamePattern instanceof RegExp)) {
+    throw new TypeError("Webview asset filename pattern must be a RegExp");
+  }
+  const entries = (await listOfficialAssetEntries(capability, WEBVIEW_ASSET_COMPONENTS))
+    .filter(({ name }) => regexpTest(filenamePattern, name));
+  const sources = [];
+  for (const asset of entries) {
+    sources.push(await readUtf8AssetSource(capability, WEBVIEW_ASSET_COMPONENTS, asset));
+  }
+  return Object.freeze(sources);
+}
+
+function replacementBytes(patchedSource, assetName) {
+  if (typeof patchedSource !== "string") {
+    throw new TypeError(`Asset patch for ${assetName} must return a string`);
+  }
+  return Buffer.from(patchedSource, "utf8");
+}
+
+async function replaceWebviewAssetSourceWithCapability(capability, asset, replacement) {
+  await capability.replace(
+    [...copyComponents(WEBVIEW_ASSET_COMPONENTS), Buffer.from(asset.assetName, "ascii")],
+    Buffer.from(asset.operationId),
+    replacement,
+  );
+}
+
+async function patchAssetFilesWithCapability(
+  capability,
+  filenamePattern,
+  patchFn,
+  missingWarnMessage,
+) {
+  const sources = await readMatchingWebviewAssetSourcesWithCapability(capability, filenamePattern);
+  if (sources.length === 0) {
+    console.warn(missingWarnMessage);
+    return { matched: 0, changed: 0 };
+  }
+
+  const pendingReplacements = [];
+  for (const asset of sources) {
+    const replacement = replacementBytes(await patchFn(asset.source), asset.assetName);
+    if (!replacement.equals(asset[originalAssetBytes])) {
+      pendingReplacements.push({ asset, replacement });
+    }
+  }
+  for (const { asset, replacement } of pendingReplacements) {
+    await replaceWebviewAssetSourceWithCapability(capability, asset, replacement);
+  }
+  return { matched: sources.length, changed: pendingReplacements.length };
+}
+
+async function patchUniqueAssetFileWithCapability(
+  capability,
+  filenamePattern,
+  assetMatch,
+  patchFn,
+  missingWarnMessage,
+  ambiguousWarnMessage,
+) {
+  const sources = await readMatchingWebviewAssetSourcesWithCapability(capability, filenamePattern);
+  const matches = [];
+  for (const asset of sources) {
+    if (await assetMatch(asset.source, asset.assetName)) {
+      matches.push(asset);
+    }
+  }
+  if (matches.length === 0) {
+    console.warn(missingWarnMessage);
+    return { matched: 0, changed: 0, assetName: null };
+  }
+  if (matches.length !== 1) {
+    console.warn(`${ambiguousWarnMessage}: ${matches.map(({ assetName }) => assetName).join(", ")}`);
+    return { matched: matches.length, changed: 0, assetName: null };
+  }
+
+  const [asset] = matches;
+  const replacement = replacementBytes(await patchFn(asset.source), asset.assetName);
+  if (replacement.equals(asset[originalAssetBytes])) {
+    return { matched: 1, changed: 0, assetName: asset.assetName };
+  }
+  await replaceWebviewAssetSourceWithCapability(capability, asset, replacement);
+  return { matched: 1, changed: 1, assetName: asset.assetName };
+}
 
 function readDirectoryNames(dir) {
   if (!fs.existsSync(dir)) {
@@ -208,11 +432,17 @@ function findImportedAsset(webviewAssetsDir, importerAsset, description) {
 module.exports = {
   findCodexRequestWebviewAsset,
   findIconAsset,
+  findIconAssetWithCapability,
   findImportedAsset,
   findMainBundle,
+  findMainBundleWithCapability,
   findRequiredWebviewAsset,
   patchAssetFiles,
+  patchAssetFilesWithCapability,
   patchUniqueAssetFile,
+  patchUniqueAssetFileWithCapability,
   readDirectoryNames,
+  readMatchingWebviewAssetSourcesWithCapability,
   readWebviewAsset,
+  replaceMainBundleWithCapability,
 };

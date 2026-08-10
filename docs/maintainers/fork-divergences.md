@@ -90,8 +90,8 @@ old target from the merge result.
 | `linux-features/*/feature.json` | `port-integrations/*/integration.json`; old manifests are accepted only for legacy roots | Exists in the Linux-port upstream's old registry naming; port incoming manifest edits to the current manifest path. |
 | `linux-features/features.example.json` and `linux-features/features.json` | `port-integrations/integrations.example.json` and `port-integrations/integrations.json`; old names are compatibility fallbacks | Exists in the Linux-port upstream's old registry naming; port incoming config-shape changes to the current config names. |
 | `scripts/lib/linux-features.js` and `scripts/lib/linux-features.sh` | `scripts/lib/port-integrations.js` and `scripts/lib/port-integrations.sh` | Exists in the Linux-port upstream's old registry naming; port incoming helper changes to the current helper names. |
-| `CHATGPT_LINUX_FEATURES_ROOT`, `CHATGPT_LINUX_FEATURES_CONFIG`, `CHATGPT_LINUX_FEATURES`, `CHATGPT_LINUX_DISABLE_FEATURES` | `CHATGPT_PORT_INTEGRATIONS_ROOT`, `CHATGPT_PORT_INTEGRATIONS_CONFIG`, `CHATGPT_PORT_INTEGRATIONS`, `CHATGPT_DISABLE_PORT_INTEGRATIONS`; old variables are legacy aliases | Exists in the Linux-port upstream's old registry naming; port incoming environment handling to the current variables and preserve aliases only for compatibility. |
-| `CHATGPT_BOOTSTRAP_CLEANUP_FEATURES` | `CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS`; the old variable is a legacy alias | Exists in earlier local setup helper behavior; use the current variable in docs and tests. |
+| `CHATGPT_LINUX_FEATURES_ROOT`, `CHATGPT_LINUX_FEATURES_CONFIG`, `CHATGPT_LINUX_FEATURES`, `CHATGPT_LINUX_DISABLE_FEATURES`, `CHATGPT_LINUX_FEATURES_DIR`, and `CHATGPT_LINUX_FEATURE_HOOK_PHASE` | `CHATGPT_PORT_INTEGRATIONS_ROOT`, `CHATGPT_PORT_INTEGRATIONS_CONFIG`, `CHATGPT_PORT_INTEGRATIONS`, `CHATGPT_DISABLE_PORT_INTEGRATIONS`, `CHATGPT_PORT_INTEGRATIONS_DIR`, and `CHATGPT_PORT_INTEGRATION_HOOK_PHASE`; old variables are rejected with the exact current replacement | Exists in the Linux-port upstream's old registry naming; port incoming environment handling to the current variables without compatibility aliases. |
+| `CHATGPT_BOOTSTRAP_CLEANUP_FEATURES` | `CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS`; the old variable is rejected with the exact current replacement | Exists in earlier local setup helper behavior; use only the current variable in source, docs, and normal tests. |
 
 ## Divergence Inventory
 
@@ -269,7 +269,8 @@ updater config, persisted updater state, launch `PATH`, and known user-local
 package-manager paths. The launcher passes `--cli-path` only when a path is
 known, gives updater preflight a fast path before direct fallback, prompts for
 missing CLI installation where interactive, and exports `CODEX_CLI_PATH`
-before Electron starts.
+before Electron starts. A generated launch proxy pins the canonical executable
+but preserves `codex` as the invocation name for multicall binaries.
 
 **Upstream baseline:** Upstream already has launcher/updater CLI
 preflight. This fork refines discovery precedence, config integration, and
@@ -317,19 +318,20 @@ checkout builds or race pending updater install state.
 
 ### 9. ASAR, Port Integration, And Linux UI Patch Behavior
 
-**Fork delta:** ASAR patches remain fail-soft for volatile official app bundle
-shapes. The current fork delta includes local identity updates, sanitized
+**Fork delta:** Ordinary optional ASAR descriptor drift remains fail-soft for
+volatile official app bundle shapes. Generated-app mutation integrity failures
+fail closed. The current fork delta includes local identity updates, sanitized
 generated keybind literals, `CHATGPT_APP_LAUNCH_ACTION_SOCKET`, Linux window
 default refinements, opt-in multi-instance launch support, default-enabled
 Electron sandboxing with an explicit compatibility opt-out, and default-enabled
 supported port integrations: Open target discovery, Agent Workspaces, AppShots,
 wrapper updater, Copilot reasoning effort defaults, remote-control UI,
 mobile-control host patches, Read Aloud, Read Aloud MCP, and conversation mode.
-It also keeps the Linux Computer Use plugin manifest gate default-on while
-keeping Computer Use UI patches opt-in through
-`CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1` or the persisted
-`chatgpt-linux-computer-use-ui-enabled` setting. Remote-control UI and mobile
-remote-control host patches keep private device-key material under
+It also keeps Linux Computer Use support patching default-on. Live Computer Use
+authority requires trusted Linux support, current official eligibility, and a
+fresh exact installed-and-enabled local `computer-use@openai-bundled` record.
+Remote-control UI and mobile-control host patches keep private device-key
+material under
 `${XDG_CONFIG_HOME:-~/.config}/chatgpt`.
 
 **Upstream baseline:** Upstream already carries Linux ASAR patching. This fork
@@ -358,7 +360,55 @@ generation unless a required invariant fails.
 **Preservation checks:** Run the Node patch tests and shell smoke tests when
 ASAR patchers or launch flags change.
 
-### 10. Webview Server Lifecycle
+### 10. Generated-App Mutation Integrity
+
+**Fork delta:** Central main-bundle and webview-asset discovery, reads, and
+replacements use one descriptor-relative Rust mutation broker. Single-use read
+tokens bind replacement to relative path, file identity, and digest. Broker,
+protocol, lookup, identity, token, and replacement failures poison the session,
+stop later patch work, fail the child build, and cannot be downgraded through a
+descriptor's fail-soft policy. Replacement preserves permission mode and
+nanosecond modification time and rejects extended attributes.
+
+The helper is build-only. Source and Nix builds compile it once; native packages
+stage that exact executable and its generation-bound digest in the
+update-builder's `prebuilt-helpers/` lane. Packaged updater rebuilds use only
+the validated prebuilt helper under their cleared build environment. The helper
+is absent from `/opt/chatgpt` runtime payloads and user commands.
+
+Transactional app generation creates and verifies the sibling candidate as an
+owned, non-symlink `0700` directory before population. The inner build preserves
+and revalidates it even under `--fresh`. After integrity and official-DMG
+acceptance, the outer transaction revalidates the root, changes it to `0755`,
+and uses the existing recovery journal and atomic exchange for promotion.
+Rejected candidates stay private or are removed.
+
+**Upstream baseline:** The Linux-port upstream carries the generated app patch
+pipeline and transactional promotion model. This fork adds the central mutation
+capability, build-only delivery contract, poison propagation, and private
+candidate lifecycle.
+
+**Why it matters:** Generated official-app files are untrusted build inputs.
+Capability mediation prevents pathname escape and stale-read replacement from
+becoming accepted package content, while private candidates preserve the
+exclusive-writer premise until acceptance.
+
+**Current paths:** `generated-app-mutation-broker/`,
+`scripts/patches/lib/generated-app-mutation-client.js`,
+`scripts/patches/lib/assets.js`, `scripts/patches/engine.js`,
+`scripts/patches/runner.js`, `scripts/lib/generated-app-mutation-broker.sh`,
+`install.sh`, `scripts/lib/install-helpers.sh`,
+`scripts/lib/package-common.sh`, `updater/src/builder.rs`, and `flake.nix`.
+The gate contract is documented in
+`docs/maintainers/research/generated-app-mutation-integrity-boundary.md`.
+
+**Preservation checks:** Keep the broker out of runtime payloads; bind packaged
+prebuilt use to the generated app's exact digest; retain poison/fail-closed
+handling and private-root checks. Extracted-app descriptor callbacks,
+declarative resource copies, and shell staging hooks remain future Gates 3 and
+4; do not describe them as capability-mediated yet.
+
+### 11. Webview Server Lifecycle
 
 **Fork delta:** The launcher keeps webview server state under the local app
 identity and XDG state paths, preserves live app markers during warm-start or
@@ -380,24 +430,35 @@ launches must avoid LAN exposure, stale servers, and PID ownership races.
 **Preservation checks:** Use `docs/webview-server-evaluation.md` before
 changing the local server model, port behavior, or warm-start adoption.
 
-### 11. Linux Computer Use Integration Compatibility
+### 12. Linux Computer Use Integration Compatibility
 
 **Fork delta:** Upstream's Linux Computer Use backend and bundled plugin remain
 part of the packaged app. This fork preserves the
 `chatgpt` package identity, keeps the plugin manifest pointed at packaged
 assets, carries local Linux input/window-targeting hardening where needed,
 adapts configurable backend identity under the packaged resource layout, and
-documents the local opt-in for Computer Use UI patching without claiming that
-local installation changes OpenAI account policy or server-side availability.
+enables Linux support patching without claiming that local installation changes
+OpenAI account policy or server-side availability. The official local
+`computer-use@openai-bundled` plugin setting is the persistent user grant when
+installed and enabled; this fork adds no parallel consent setting or prompt.
+Every live request
+also requires current official eligibility and trusted Linux support. The app
+reads the exact plugin record afresh and exposes a private
+generation/token-bound authority that the Rust backend revalidates for every
+MCP tool call.
+Plugin disablement and eligibility loss rotate and revoke authority before the
+related config write or plugin reconciliation, so stale and late results deny.
 
 **Upstream baseline:** The Rust MCP backend, bundled plugin resources,
 accessibility tree capture, screenshot paths, and input automation come from
 upstream in the synced baseline.
 
 **Why it matters:** The package can stage local Computer Use support and register
-the backend on Linux, but useful operation still depends on host accessibility,
-screenshot, and input prerequisites. Local UI opt-in controls fork-side patching
-only; it is not a server-side entitlement change.
+the backend on Linux, but this does not create a grant or server-side
+entitlement. Codex tool approval, sandboxing, auto-approval, allowed-app
+selection, and local action validation remain in force. Host accessibility,
+screenshot, and input readiness can make an authorized action fail; they are
+not additional grants.
 
 **Current paths:** `computer-use-linux/src/`,
 `plugins/openai-bundled/plugins/computer-use/`,
@@ -406,10 +467,13 @@ only; it is not a server-side entitlement change.
 `docs/usage/build-and-run.md`, `CHANGELOG.md`.
 
 **Preservation checks:** Keep package staging and README wording scoped to the
-local compatibility delta, preserve the `chatgpt/settings.json` setting path,
-and clear that local installation does not bypass OpenAI feature flags.
+local compatibility delta. Preserve the three live authority inputs, fresh
+plugin read, generation/token rotation, revoke-before-write/reconcile ordering,
+and existing Codex/allowed-app controls. Make clear that local installation does
+not bypass OpenAI feature flags. Do not add a fork-owned Computer Use grant,
+consent setting, or recurring prompt.
 
-### 12. Release, Security, And Supply-Chain Verification
+### 13. Release, Security, And Supply-Chain Verification
 
 **Fork delta:** The fork adds and wires release/security workflow around the
 mutable official OpenAI ChatGPT DMG: trusted DMG hash input, packaged trusted DMG
@@ -427,7 +491,7 @@ that inherited supply chain.
 ChatGPT DMG URL. Release and updater work must leave reviewable evidence and
 avoid presenting unverified artifacts as trusted.
 
-**Current paths:** `.github/workflows/update-codex-hash.yml`,
+**Current paths:** `.github/workflows/update-chatgpt-hash.yml`,
 `.github/workflows/verify-apple-dmg.yml`, `.github/workflows/ci.yml`,
 `.github/workflows/updater.yml`, `Makefile`, `flake.nix`,
 `scripts/release-gate.sh`, `scripts/verify-apple-dmg.sh`,
@@ -440,7 +504,7 @@ avoid presenting unverified artifacts as trusted.
 `release-gate`. Security backlog items that change trust boundaries should use
 the `@codex-security` workflow before review-ready handoff.
 
-### 13. User-Local Install Experiment Identity And Layout
+### 14. User-Local Install Experiment Identity And Layout
 
 **Fork delta:** The experimental unprivileged install path uses `chatgpt`
 commands, service/timer names, desktop entry, and XDG user data paths. It stays
@@ -464,7 +528,7 @@ names or non-XDG paths while testing a different install model.
 **Preservation checks:** Keep the payload under
 `${XDG_DATA_HOME:-~/.local/share}/chatgpt`; do not use `~/.local/opt`.
 
-### 14. Maintainer Policy, Docs, And Agent Workflow
+### 15. Maintainer Policy, Docs, And Agent Workflow
 
 **Fork delta:** The fork adds and maintains policy/docs surfaces that are not
 part of upstream: always-loaded agent rules, a repo-local maintenance skill,

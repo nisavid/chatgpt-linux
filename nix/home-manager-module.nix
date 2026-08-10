@@ -93,7 +93,6 @@ in
       description = ''
         ChatGPT package to install. When unset, the module builds the
         selected configuration from
-        {option}`programs.chatgptLinux.computerUseUi.enable` and
         {option}`programs.chatgptLinux.portIntegrations`. The
         {option}`programs.chatgptLinux.remoteMobileControl.enable` option
         remains a compatibility shorthand for the `remote-mobile-control`
@@ -124,8 +123,6 @@ in
         discovering `codex` on {env}`PATH`.
       '';
     };
-
-    computerUseUi.enable = lib.mkEnableOption "the Linux Computer Use UI package variant";
 
     remoteMobileControl.enable = lib.mkEnableOption "the experimental Linux mobile remote-control package variant";
 

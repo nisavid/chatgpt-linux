@@ -137,13 +137,22 @@ Use `runtimeHooks` for launcher-visible hooks:
 {
   "runtimeHooks": {
     "env": "env",
-    "prelaunch": "prelaunch.sh",
+    "prelaunch": {
+      "source": "prelaunch.sh",
+      "retainWhenDisabled": true
+    },
     "electronArgs": "electron-args",
     "coldStart": "cold-start.sh",
     "afterExit": "after-exit.sh"
   }
 }
 ```
+
+Set `retainWhenDisabled` only on a marker-owned cleanup hook that must remove
+user-session artifacts after its integration is disabled. The retained hook is
+staged without the integration's resources or patches and must not activate the
+integration. It should exit once the owned payload is present again and must
+leave unmanaged files untouched.
 
 The runtime hook types map to:
 

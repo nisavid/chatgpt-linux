@@ -128,9 +128,9 @@
       "group": "area"
     },
     {
-      "name": "area: linux features",
+      "name": "area: port integrations",
       "color": "C5DEF5",
-      "description": "The opt-in linux-features framework or one of its modules.",
+      "description": "The port integration framework or one of its modules.",
       "group": "area"
     },
     {

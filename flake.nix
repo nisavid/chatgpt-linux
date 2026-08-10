@@ -76,6 +76,17 @@
           cp -R ${./computer-use-linux} "$out/computer-use-linux"
           chmod -R u+w "$out"
         '';
+        mutationBrokerBuildSource = pkgs.runCommandLocal "chatgpt-generated-app-mutation-broker-source" { } ''
+          mkdir -p "$out"
+          cp ${./Cargo.lock} "$out/Cargo.lock"
+          cat > "$out/Cargo.toml" <<'EOF'
+          [workspace]
+          members = ["generated-app-mutation-broker"]
+          resolver = "2"
+          EOF
+          cp -R ${./generated-app-mutation-broker} "$out/generated-app-mutation-broker"
+          chmod -R u+w "$out"
+        '';
         notificationActionsBuildSource = pkgs.runCommandLocal "chatgpt-notification-actions-linux-source" { } ''
           mkdir -p "$out"
           cp ${./Cargo.lock} "$out/Cargo.lock"
@@ -189,6 +200,37 @@
             install -Dm0755 "$release_dir/chatgpt-computer-use-linux" "$out/bin/chatgpt-computer-use-linux"
             install -Dm0755 "$release_dir/chatgpt-computer-use-cosmic" "$out/bin/chatgpt-computer-use-cosmic"
             install -Dm0755 "$release_dir/chatgpt-chrome-extension-host" "$out/bin/chatgpt-chrome-extension-host"
+            runHook postInstall
+          '';
+        };
+
+        chatgptGeneratedAppMutationBroker = pkgs.rustPlatform.buildRustPackage {
+          pname = "chatgpt-generated-app-mutation-broker";
+          version = "0.1.0";
+          src = mutationBrokerBuildSource;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          buildAndTestSubdir = "generated-app-mutation-broker";
+          cargoBuildFlags = [
+            "-p"
+            "generated-app-mutation-broker"
+            "--bin"
+            "chatgpt-generated-app-mutation-broker"
+          ];
+          doCheck = false;
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 \
+              "$release_dir/chatgpt-generated-app-mutation-broker" \
+              "$out/bin/chatgpt-generated-app-mutation-broker"
             runHook postInstall
           '';
         };
@@ -557,9 +599,8 @@ PY
           builtins.fromJSON (builtins.readFile ./scripts/ci/watchdog-port-integrations.json)
         );
 
-        enabledIntegrationIds = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
-          pkgs.lib.optionals enableComputerUseUi [ "computer-use-ui" ]
-          ++ nixPortIntegrations.normalize portIntegrationIds;
+        enabledIntegrationIds = { portIntegrationIds ? [ ] }:
+          nixPortIntegrations.normalize portIntegrationIds;
 
         packageSuffix = args:
           let
@@ -567,7 +608,7 @@ PY
           in
           if integrationIds == [ ] then "" else "-${pkgs.lib.concatStringsSep "-" integrationIds}";
 
-        mkChatGPTPayload = { enableComputerUseUi ? false, portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
+        mkChatGPTPayload = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
           effectivePortIntegrationsConfig =
             if portIntegrationsConfigOverride == null then
@@ -578,7 +619,7 @@ PY
           codexMicroEnabled = builtins.elem "codex-micro" effectivePortIntegrationIds;
         in
         pkgs.stdenv.mkDerivation {
-          pname = "chatgpt${packageSuffix { inherit enableComputerUseUi; portIntegrationIds = effectivePortIntegrationIds; }}-payload";
+          pname = "chatgpt${packageSuffix { portIntegrationIds = effectivePortIntegrationIds; }}-payload";
           version = chatgptVersion;
           src = sourceRoot;
           __structuredAttrs = true;
@@ -618,9 +659,6 @@ PY
             export CHATGPT_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
             export CHATGPT_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"
             ''}
-            ${pkgs.lib.optionalString enableComputerUseUi ''
-            export CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1
-            ''}
             export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
@@ -637,6 +675,7 @@ PY
             export CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-linux"
             export CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-cosmic"
             export CHATGPT_CHROME_EXTENSION_HOST_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-chrome-extension-host"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker"
             export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
             export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
             ${pkgs.lib.optionalString (builtins.elem "mcp-helper-reaper" effectivePortIntegrationIds) ''
@@ -671,7 +710,7 @@ PY
           '';
         };
 
-        buildChatGPT = { enableComputerUseUi ? false, portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
+        buildChatGPT = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
           effectivePortIntegrationsConfig =
             if portIntegrationsConfigOverride == null then
@@ -681,11 +720,9 @@ PY
           normalizedPortIntegrationIds = effectivePortIntegrationsConfig.enabled;
           codexMicroEnabled = builtins.elem "codex-micro" normalizedPortIntegrationIds;
           integrationArgs = {
-            inherit enableComputerUseUi;
             portIntegrationIds = normalizedPortIntegrationIds;
           };
           payload = mkChatGPTPayload {
-            inherit enableComputerUseUi;
             portIntegrationIds = normalizedPortIntegrationIds;
             portIntegrationsConfigOverride = effectivePortIntegrationsConfig;
           };
@@ -798,6 +835,16 @@ PY
               --prefix PATH : "/run/current-system/sw/bin" \
               --prefix PATH : "/etc/profiles/per-user/\$USER/bin"
 
+            leaked_mutation_broker="$(find \
+              "$out/opt/chatgpt" \
+              "$out/bin" \
+              "$out/share" \
+              -type f -name chatgpt-generated-app-mutation-broker -print -quit)"
+            if [ -n "$leaked_mutation_broker" ]; then
+              echo "build-only generated-app mutation broker leaked into runtime payload: $leaked_mutation_broker" >&2
+              exit 1
+            fi
+
             runHook postInstall
           '';
 
@@ -819,16 +866,7 @@ PY
 
         chatgpt = pkgs.lib.makeOverridable buildChatGPT { };
 
-        chatgptComputerUseUi = chatgpt.override {
-          enableComputerUseUi = true;
-        };
-
         chatgptRemoteMobileControl = chatgpt.override {
-          portIntegrationIds = [ "remote-mobile-control" ];
-        };
-
-        chatgptComputerUseUiRemoteMobileControl = chatgpt.override {
-          enableComputerUseUi = true;
           portIntegrationIds = [ "remote-mobile-control" ];
         };
 
@@ -870,6 +908,7 @@ PY
             export CHATGPT_INSTALL_DIR="''${CHATGPT_INSTALL_DIR:-$root_dir/chatgpt}"
             export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
             export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker"
             ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg" "$@"
 
             install_dir="''${CHATGPT_INSTALL_DIR:-$root_dir/chatgpt}"
@@ -882,13 +921,25 @@ PY
         packages = {
           default = chatgpt;
           chatgpt = chatgpt;
-          chatgpt-computer-use-ui = chatgptComputerUseUi;
           chatgpt-remote-mobile-control = chatgptRemoteMobileControl;
-          chatgpt-computer-use-ui-remote-mobile-control = chatgptComputerUseUiRemoteMobileControl;
           installer = installer;
         };
 
         checks = {
+          generated-app-mutation-broker = chatgptGeneratedAppMutationBroker;
+          generated-app-mutation-broker-installer = pkgs.runCommand "chatgpt-generated-app-mutation-broker-installer-check" { } ''
+            grep -F 'CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null
+            touch "$out"
+          '';
+          generated-app-mutation-broker-build-only = pkgs.runCommand "chatgpt-generated-app-mutation-broker-build-only-check" { } ''
+            leaked_mutation_broker="$(find \
+              ${chatgpt}/opt/chatgpt \
+              ${chatgpt}/bin \
+              ${chatgpt}/share \
+              -type f -name chatgpt-generated-app-mutation-broker -print -quit)"
+            test -z "$leaked_mutation_broker"
+            touch "$out"
+          '';
           notification-actions-linux = chatgptNotificationActionsBinary;
           notification-actions-installer = pkgs.runCommand "chatgpt-notification-actions-installer-check" { } ''
             grep -F 'CHATGPT_NOTIFICATION_ACTIONS_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null
@@ -948,19 +999,9 @@ PY
           program = "${chatgptRemoteMobileControl}/bin/chatgpt";
         };
 
-        apps.computer-use-ui-remote-mobile-control = {
-          type = "app";
-          program = "${chatgptComputerUseUiRemoteMobileControl}/bin/chatgpt";
-        };
-
         apps.installer = {
           type = "app";
           program = "${installer}/bin/chatgpt-installer";
-        };
-
-        apps.chatgpt-computer-use-ui = {
-          type = "app";
-          program = "${chatgptComputerUseUi}/bin/chatgpt";
         };
 
         devShells.default = pkgs.mkShell {

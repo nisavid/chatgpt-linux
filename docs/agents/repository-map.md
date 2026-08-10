@@ -95,9 +95,10 @@ preserving the source-of-truth routing agents need before editing.
 - `patch-report.js` / `rebuild-report.sh`
   Structured patch and rebuild reports used by upstream drift validation and
   rebuild-candidate diagnostics.
-- `patch-chrome-plugin.js` / `linux-update-bridge-patch.js`
-  Focused patch helpers for Chrome plugin Linux compatibility and the in-app
-  updater bridge.
+- `patch-chrome-plugin.js`
+  Focused patch helper for Chrome plugin Linux compatibility. The official
+  bundle owns its native Linux package updater; the wrapper-updater port
+  integration owns local `chatgpt-updater` controls.
 
 ## Patch Registry (`scripts/patches/`)
 
@@ -154,7 +155,9 @@ Detailed contract: `port-integrations/README.md` and
   `chatgpt/.chatgpt-linux/`.
 - Declarative resources and runtime hooks are tracked in
   `.chatgpt-linux/port-integrations-staged.json` and removed on the next install
-  when their owning integration is disabled.
+  when their owning integration is disabled. A marker-owned cleanup hook may set
+  `retainWhenDisabled: true`; retained hooks must remove only owned artifacts and
+  must not activate the disabled integration.
 - `packageHooks` run during native package staging with package/app root
   environment variables. They must be idempotent and narrowly scoped.
 - Native package update-builder bundles preserve the enabled integration id list
@@ -198,7 +201,7 @@ metadata under `/usr/share/`, and the update-builder bundle under
   upstream DMGs.
 - `dmg_source.rs`
   Official DMG polling, ETag cache, download, and hash verification.
-- `wrapper.rs` / `wrapper_apply.rs` / `changelog.rs` / `feature_picker.rs`
+- `wrapper.rs` / `wrapper_apply.rs` / `changelog.rs` / `integration_picker.rs`
   Wrapper-repo self-update path, separate from the upstream DMG flow.
 - `cache_cleanup.rs`
   Cleanup of updater-managed download/rebuild workspaces under the cache dir.
@@ -252,11 +255,12 @@ want a system-wide native package. The daily-driver flow remains `install.sh`
 plus a native `chatgpt` package and `chatgpt-updater`.
 
 - `install-user-local.sh`
-  Installs under `${XDG_DATA_HOME:-~/.local/share}/chatgpt`, creates wrappers
-  under `~/.local/bin`, and installs a user desktop entry.
+  Installs under `${XDG_DATA_HOME:-~/.local/share}/chatgpt`, creates the
+  public `~/.local/bin/chatgpt` launcher, and installs a user desktop entry.
 - `files/.local/bin/chatgpt`, `chatgpt-check-update`, `chatgpt-update`, and
   `chatgpt-version`
-  Installed launcher and update/version maintenance wrappers.
+  Launcher and private update/version maintenance payloads. Only `chatgpt` is
+  linked into the user's command path.
 - `files/share/common.sh`
   Shared helpers for installed maintenance scripts.
 - `files/.local/share/applications/chatgpt.desktop`

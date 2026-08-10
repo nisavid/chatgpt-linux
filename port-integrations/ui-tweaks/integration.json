@@ -12,7 +12,8 @@
     "prelaunch": {
       "source": "sync-desktop-icon.sh",
       "name": "dock-icon-cleanup.sh",
-      "mode": "0755"
+      "mode": "0755",
+      "retainWhenDisabled": true
     }
   },
   "tweaks": {

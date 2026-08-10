@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const {
+  escapeRegExp,
   findMatchingBrace,
   requireName,
 } = require("../lib/minified-js.js");
@@ -13,7 +14,7 @@ const {
 
 function applyLinuxChromePluginAutoInstallPatch(currentSource) {
   const gateRegex =
-    /\{([^{}]*?)(installWhenMissing:!0,)?name:([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*),([^{}]*?syncInstallStateWithChromeExtension:!0,isAvailable:\(\{buildFlavor:([A-Za-z_$][\w$]*),features:([A-Za-z_$][\w$]*)\}\)=>)((?:process\.platform===`linux`\|\|\()?\6\.externalBrowserUseAllowed&&[A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*\(\5\)\)?)\}/g;
+    /\{([^{}]*?)(installWhenMissing:!0,)?name:([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*),([^{}]*?syncInstallStateWithChromeExtension:!0,isAvailable:\(\{buildFlavor:([A-Za-z_$][\w$]*),features:([A-Za-z_$][\w$]*)\}\)=>)([^{}]+)\}/g;
 
   let sawChromeGate = false;
   const patched = currentSource.replace(
@@ -24,22 +25,42 @@ function applyLinuxChromePluginAutoInstallPatch(currentSource) {
       installWhenMissing,
       nameExpr,
       middleFields,
-      _buildFlavorVar,
-      _featuresVar,
+      buildFlavorVar,
+      featuresVar,
       expression,
     ) => {
+      const identifier = "[A-Za-z_$][\\w$]*";
+      const escapedBuildFlavorVar = escapeRegExp(buildFlavorVar);
+      const escapedFeaturesVar = escapeRegExp(featuresVar);
+      const eligiblePattern = `${identifier}\\.${identifier}\\(${escapedBuildFlavorVar}\\)`;
+      const featureEligibilityPattern =
+        `${escapedFeaturesVar}\\.externalBrowserUseAllowed`;
+      const linuxPlatformPattern = "process\\.platform===`linux`";
+      const officialMatch = expression.match(
+        new RegExp(`^${featureEligibilityPattern}&&(${eligiblePattern})$`),
+      );
+      const unsafeLinuxMatch = expression.match(
+        new RegExp(`^${linuxPlatformPattern}\\|\\|\\(${featureEligibilityPattern}&&(${eligiblePattern})\\)$`),
+      );
+      const linuxEligibleMatch = expression.match(
+        new RegExp(`^${featureEligibilityPattern}&&\\(${linuxPlatformPattern}\\|\\|(${eligiblePattern})\\)$`),
+      );
+      const buildFlavorEligible =
+        officialMatch?.[1] ?? unsafeLinuxMatch?.[1] ?? linuxEligibleMatch?.[1];
+      if (buildFlavorEligible == null) {
+        return gateSource;
+      }
+
       sawChromeGate = true;
       const hasInstallWhenMissing = installWhenMissing != null ||
         prefix.includes("installWhenMissing:!0");
-      const hasLinuxAvailability = expression.startsWith("process.platform===`linux`||(");
-      if (hasInstallWhenMissing && hasLinuxAvailability) {
+      if (hasInstallWhenMissing && linuxEligibleMatch != null) {
         return gateSource;
       }
 
       const installWhenMissingField = hasInstallWhenMissing ? (installWhenMissing ?? "") : "installWhenMissing:!0,";
-      const availabilityExpression = hasLinuxAvailability
-        ? expression
-        : `process.platform===\`linux\`||(${expression})`;
+      const availabilityExpression =
+        `${featuresVar}.externalBrowserUseAllowed&&(process.platform===\`linux\`||${buildFlavorEligible})`;
       return `{${prefix}${installWhenMissingField}name:${nameExpr},${middleFields}${availabilityExpression}}`;
     },
   );

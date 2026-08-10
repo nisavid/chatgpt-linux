@@ -16,7 +16,6 @@ in
       cfg.package
     else
       flakePackages.chatgpt.override {
-        enableComputerUseUi = cfg.computerUseUi.enable;
         portIntegrationIds = normalizedIntegrationIds;
       };
 }

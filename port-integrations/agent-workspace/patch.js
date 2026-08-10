@@ -15,6 +15,8 @@ const SETTINGS_ASSET = "agent-workspaces-linux.js";
 const SETTINGS_SLUG = "agent-workspaces";
 const SETTINGS_COMMAND_KEY = "chatgpt-linux-agent-workspace-command";
 const SETTINGS_PERMISSIONS_KEY = "chatgpt-linux-agent-workspace-permissions";
+const LEGACY_SETTINGS_COMMAND_KEY = "codex-linux-agent-workspace-command";
+const LEGACY_SETTINGS_PERMISSIONS_KEY = "codex-linux-agent-workspace-permissions";
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} - skipping ${patchName}`);
@@ -60,8 +62,53 @@ function useUserWritableNpmPrefixForInstallRuntime(source) {
   return source.replace(needle, replacement);
 }
 
+function migrateLegacyAgentWorkspaceState(source) {
+  const commandNeedle = `__codexCommand=this.globalState.get(\`${SETTINGS_COMMAND_KEY}\`)||__codexDefaultCommand();if(typeof __codexCommand!==\`string\`||__codexCommand.trim().length===0)__codexCommand=__codexDefaultCommand();__codexCommand=__codexExpandCommand(__codexCommand);`;
+  const commandReplacement = `__codexCommand=null;`;
+  const permissionNeedle = `__codexPermissionPath=__codexString(this.globalState.get(\`${SETTINGS_PERMISSIONS_KEY}\`));__codexPermissionPath&&(__codexPermissionPath=__codexExpandCommand(__codexPermissionPath));`;
+  const permissionReplacement = `__codexPermissionPath=null;`;
+  const configNeedle = `,__codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),`;
+  const migrationSource = [
+    `,__codexStateMigrationError=null;`,
+    `try{`,
+    `let __codexNormalizeState=(e,t)=>{if(e==null)return null;if(typeof e!==\`string\`||e.trim().length===0)throw Error(\`Invalid legacy ${"${t}"} state\`);return e.trim()},`,
+    `__codexCurrentCommand=__codexNormalizeState(this.globalState.get(\`${SETTINGS_COMMAND_KEY}\`),\`command\`),`,
+    `__codexLegacyCommand=__codexNormalizeState(this.globalState.get(\`${LEGACY_SETTINGS_COMMAND_KEY}\`),\`command\`),`,
+    `__codexCurrentPermission=__codexNormalizeState(this.globalState.get(\`${SETTINGS_PERMISSIONS_KEY}\`),\`permission\`),`,
+    `__codexLegacyPermission=__codexNormalizeState(this.globalState.get(\`${LEGACY_SETTINGS_PERMISSIONS_KEY}\`),\`permission\`);`,
+    `if(__codexCurrentCommand&&__codexLegacyCommand&&__codexCurrentCommand!==__codexLegacyCommand)throw Error(\`Conflicting legacy command state\`);`,
+    `if(__codexCurrentPermission&&__codexLegacyPermission&&__codexCurrentPermission!==__codexLegacyPermission)throw Error(\`Conflicting legacy permission state\`);`,
+    `let __codexEffectiveCommand=__codexCurrentCommand||__codexLegacyCommand,`,
+    `__codexEffectivePermission=__codexCurrentPermission||__codexLegacyPermission;`,
+    `__codexPermissionPath=__codexEffectivePermission?__codexExpandCommand(__codexEffectivePermission):null;`,
+    `if(__codexLegacyPermission){let e=__codexReadPermissionConfig(__codexPermissionPath);if(e.error)throw Error(\`Legacy permission file could not be loaded: ${"${e.error}"}\`)}`,
+    `let __codexPersistState=(e,t,n)=>{if(!t&&n){this.globalState.set(e,n);if(this.globalState.get(e)!==n)throw Error(\`Could not persist migrated agent workspace state\`)}},`,
+    `__codexDeleteLegacy=e=>{typeof this.globalState.delete===\`function\`?this.globalState.delete(e):this.globalState.set(e,void 0);if(this.globalState.get(e)!==void 0)throw Error(\`Could not remove legacy agent workspace state\`)};`,
+    `__codexPersistState(\`${SETTINGS_COMMAND_KEY}\`,__codexCurrentCommand,__codexLegacyCommand);`,
+    `__codexPersistState(\`${SETTINGS_PERMISSIONS_KEY}\`,__codexCurrentPermission,__codexLegacyPermission);`,
+    `if(__codexLegacyCommand)__codexDeleteLegacy(\`${LEGACY_SETTINGS_COMMAND_KEY}\`);`,
+    `if(__codexLegacyPermission)__codexDeleteLegacy(\`${LEGACY_SETTINGS_PERMISSIONS_KEY}\`);`,
+    `__codexCommand=__codexExpandCommand(__codexEffectiveCommand||__codexDefaultCommand());`,
+    `}catch(e){__codexStateMigrationError=e instanceof Error?e.message:String(e);__codexCommand=__codexDefaultCommand();__codexPermissionPath=null}`,
+    `;let __codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),`,
+  ].join("");
+  const actionNeedle = `,__codexActionName=__codexString(__codexAction);try{switch`;
+  const actionReplacement = `,__codexActionName=__codexString(__codexAction);if(__codexStateMigrationError)return{ok:!1,action:__codexActionName,message:__codexStateMigrationError};try{switch`;
+
+  if (!source.includes(commandNeedle) || !source.includes(permissionNeedle) || !source.includes(configNeedle) || !source.includes(actionNeedle)) {
+    throw new Error("could not add the agent workspace legacy state migration");
+  }
+  return source
+    .replace(commandNeedle, commandReplacement)
+    .replace(permissionNeedle, permissionReplacement)
+    .replace(configNeedle, migrationSource)
+    .replace(actionNeedle, actionReplacement);
+}
+
 function agentWorkspaceBridgeWithWorkspaceStartSource(args) {
-  return useUserWritableNpmPrefixForInstallRuntime(AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE)
+  return migrateLegacyAgentWorkspaceState(
+    useUserWritableNpmPrefixForInstallRuntime(AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE),
+  )
     .split("__CHATGPT_CHILD_PROCESS_VAR__").join(args.childProcessVar)
     .split("__CHATGPT_FS_VAR__").join(args.fsVar)
     .split("__CHATGPT_PATH_VAR__").join(args.pathVar);
@@ -2192,6 +2239,8 @@ module.exports = {
   SETTINGS_ASSET,
   SETTINGS_COMMAND_KEY,
   SETTINGS_PERMISSIONS_KEY,
+  LEGACY_SETTINGS_COMMAND_KEY,
+  LEGACY_SETTINGS_PERMISSIONS_KEY,
   SETTINGS_SLUG,
   applyAgentWorkspaceMainBridgePatch,
   applyAgentWorkspaceSettingsIndexPatch,

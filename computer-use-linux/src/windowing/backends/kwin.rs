@@ -7,11 +7,16 @@ use serde::Deserialize;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::mpsc;
 use tokio::time::timeout;
-use zbus::Proxy;
+use zbus::{
+    message::Header,
+    names::{BusName, OwnedUniqueName},
+    Proxy,
+};
 
 pub const KWIN_BACKEND: &str = "kwin";
 const KWIN_SCRIPT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -75,9 +80,12 @@ struct KwinScriptResult {
 
 async fn call_kwin_activate_script(uuid: &str) -> Result<()> {
     let uuid = uuid.to_string();
-    let json = call_kwin_script(|service_name, callback_object_path, plugin_name| {
-        write_kwin_activate_script(service_name, callback_object_path, plugin_name, &uuid)
-    })
+    let json = call_kwin_script(
+        KwinCallbackKind::Result,
+        |service_name, callback_object_path, plugin_name| {
+            write_kwin_activate_script(service_name, callback_object_path, plugin_name, &uuid)
+        },
+    )
     .await?;
     let result: KwinScriptResult =
         serde_json::from_str(&json).context("failed to parse KWin activation script output")?;
@@ -93,10 +101,10 @@ async fn call_kwin_activate_script(uuid: &str) -> Result<()> {
 }
 
 async fn call_kwin_window_script() -> Result<String> {
-    call_kwin_script(write_kwin_window_script).await
+    call_kwin_script(KwinCallbackKind::Windows, write_kwin_window_script).await
 }
 
-async fn call_kwin_script<F>(write_script: F) -> Result<String>
+async fn call_kwin_script<F>(expected_kind: KwinCallbackKind, write_script: F) -> Result<String>
 where
     F: FnOnce(&str, &str, &str) -> Result<std::path::PathBuf>,
 {
@@ -109,12 +117,28 @@ where
         .unique_name()
         .context("session bus did not assign a unique name")?
         .to_string();
+    let dbus_proxy = zbus::fdo::DBusProxy::new(&connection)
+        .await
+        .context("failed to create session-bus identity proxy")?;
+    let expected_sender = dbus_proxy
+        .get_name_owner(BusName::try_from(KWIN_SCRIPTING_SERVICE)?)
+        .await
+        .context("failed to resolve the KWin session-bus owner")?;
     let plugin_name = temporary_kwin_plugin_name();
     let callback_object_path = format!("{KWIN_CALLBACK_OBJECT_PATH_PREFIX}/{plugin_name}");
     let (sender, mut receiver) = mpsc::unbounded_channel();
     connection
         .object_server()
-        .at(callback_object_path.as_str(), KwinWindowCallback { sender })
+        .at(
+            callback_object_path.as_str(),
+            KwinWindowCallback {
+                sender,
+                expected_sender,
+                expected_kind,
+                plugin_name: plugin_name.clone(),
+                delivered: AtomicBool::new(false),
+            },
+        )
         .await
         .context("failed to register temporary KWin callback object")?;
 
@@ -183,22 +207,91 @@ where
     result
 }
 
-struct KwinWindowCallback {
-    sender: mpsc::UnboundedSender<String>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum KwinCallbackKind {
+    Windows,
+    Result,
 }
 
-#[zbus::interface(name = "com.openai.Codex.KWinWindowQuery")]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KwinCallbackEnvelope {
+    backend: String,
+    plugin_name: String,
+}
+
+struct KwinWindowCallback {
+    sender: mpsc::UnboundedSender<String>,
+    expected_sender: OwnedUniqueName,
+    expected_kind: KwinCallbackKind,
+    plugin_name: String,
+    delivered: AtomicBool,
+}
+
 impl KwinWindowCallback {
-    fn receive_windows(&self, json: &str) -> zbus::fdo::Result<()> {
+    fn accept(
+        &self,
+        actual_sender: Option<&str>,
+        kind: KwinCallbackKind,
+        json: &str,
+    ) -> zbus::fdo::Result<()> {
+        if actual_sender != Some(self.expected_sender.as_str()) {
+            return Err(zbus::fdo::Error::AccessDenied(
+                "KWin callback sender did not own org.kde.KWin".to_string(),
+            ));
+        }
+        if kind != self.expected_kind {
+            return Err(zbus::fdo::Error::AccessDenied(
+                "KWin callback method did not match the requested operation".to_string(),
+            ));
+        }
+        let envelope: KwinCallbackEnvelope = serde_json::from_str(json).map_err(|error| {
+            zbus::fdo::Error::InvalidArgs(format!("invalid KWin callback payload: {error}"))
+        })?;
+        if envelope.backend != KWIN_BACKEND || envelope.plugin_name != self.plugin_name {
+            return Err(zbus::fdo::Error::AccessDenied(
+                "KWin callback payload did not match the active script".to_string(),
+            ));
+        }
+        if self
+            .delivered
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Err(zbus::fdo::Error::AccessDenied(
+                "KWin callback response was already delivered".to_string(),
+            ));
+        }
         self.sender
             .send(json.to_string())
             .map_err(|error| zbus::fdo::Error::Failed(error.to_string()))
     }
+}
 
-    fn receive_result(&self, json: &str) -> zbus::fdo::Result<()> {
-        self.sender
-            .send(json.to_string())
-            .map_err(|error| zbus::fdo::Error::Failed(error.to_string()))
+#[zbus::interface(name = "com.openai.Codex.KWinWindowQuery")]
+impl KwinWindowCallback {
+    fn receive_windows(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        json: &str,
+    ) -> zbus::fdo::Result<()> {
+        self.accept(
+            header.sender().map(|sender| sender.as_str()),
+            KwinCallbackKind::Windows,
+            json,
+        )
+    }
+
+    fn receive_result(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        json: &str,
+    ) -> zbus::fdo::Result<()> {
+        self.accept(
+            header.sender().map(|sender| sender.as_str()),
+            KwinCallbackKind::Result,
+            json,
+        )
     }
 }
 
@@ -788,5 +881,58 @@ fn gdbus_introspect_contains(
             ok: false,
             detail: error.to_string(),
         },
+    }
+}
+
+#[cfg(test)]
+mod callback_tests {
+    use super::*;
+    use zbus::names::OwnedUniqueName;
+
+    fn callback() -> (KwinWindowCallback, mpsc::UnboundedReceiver<String>) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        (
+            KwinWindowCallback {
+                sender,
+                expected_sender: OwnedUniqueName::try_from(":1.42").unwrap(),
+                expected_kind: KwinCallbackKind::Windows,
+                plugin_name: "codex_kwin_window_query_test".to_string(),
+                delivered: std::sync::atomic::AtomicBool::new(false),
+            },
+            receiver,
+        )
+    }
+
+    #[test]
+    fn callback_accepts_only_expected_sender_kind_plugin_and_first_response() {
+        let (callback, mut receiver) = callback();
+        let valid =
+            r#"{"backend":"kwin","pluginName":"codex_kwin_window_query_test","windows":[]}"#;
+
+        assert!(callback
+            .accept(Some(":1.99"), KwinCallbackKind::Windows, valid)
+            .is_err());
+        assert!(receiver.try_recv().is_err());
+        assert!(callback
+            .accept(Some(":1.42"), KwinCallbackKind::Result, valid)
+            .is_err());
+        assert!(receiver.try_recv().is_err());
+        assert!(callback
+            .accept(
+                Some(":1.42"),
+                KwinCallbackKind::Windows,
+                r#"{"backend":"kwin","pluginName":"wrong","windows":[]}"#,
+            )
+            .is_err());
+        assert!(receiver.try_recv().is_err());
+
+        callback
+            .accept(Some(":1.42"), KwinCallbackKind::Windows, valid)
+            .unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), valid);
+        assert!(callback
+            .accept(Some(":1.42"), KwinCallbackKind::Windows, valid)
+            .is_err());
+        assert!(receiver.try_recv().is_err());
     }
 }

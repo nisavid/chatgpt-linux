@@ -5,8 +5,8 @@ use crate::{
     cli::{Cli, Commands},
     codex_cli,
     config::{RuntimeConfig, RuntimePaths},
-    diagnostics, dmg_source, feature_picker, install, install_rollback, liveness, logging, notify,
-    package_verification, redaction, restart, rollback,
+    diagnostics, dmg_source, install, install_rollback, integration_picker, liveness, logging,
+    notify, package_verification, redaction, restart, rollback,
     state::{CliStatus, DmgVerification, DmgVerificationResult, PersistedState, UpdateStatus},
     trust, wrapper, wrapper_apply,
 };
@@ -110,8 +110,8 @@ pub async fn run(cli: Cli) -> Result<()> {
         Commands::ApplyWrapperUpdate => {
             wrapper_apply::run_apply_wrapper_update(&config, &mut state, &paths).await
         }
-        Commands::PickFeatures { json } => {
-            feature_picker::run_pick_integrations(&config, &paths, json)
+        Commands::PickIntegrations { json } => {
+            integration_picker::run_pick_integrations(&config, &paths, json)
         }
         Commands::CliPreflight {
             cli_path,
@@ -1462,7 +1462,7 @@ async fn run_check_cycle_with_options(
             }
         };
 
-        if installed_upstream_dmg_matches(config, &downloaded.sha256) {
+        if installed_official_dmg_matches(config, &downloaded.sha256) {
             clear_dmg_update_candidate(
                 state,
                 paths,
@@ -1935,11 +1935,11 @@ fn expected_package_for_ready_install(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct InstalledBuildInfo {
-    upstream_dmg: Option<InstalledUpstreamDmg>,
+    official_dmg: Option<InstalledOfficialDmg>,
 }
 
 #[derive(Debug, Deserialize)]
-struct InstalledUpstreamDmg {
+struct InstalledOfficialDmg {
     sha256: Option<String>,
 }
 
@@ -1960,7 +1960,7 @@ fn complete_current_dmg_update_if_already_installed(
         return Ok(false);
     };
 
-    if !installed_upstream_dmg_matches(config, &candidate_sha256) {
+    if !installed_official_dmg_matches(config, &candidate_sha256) {
         return Ok(false);
     }
 
@@ -2017,14 +2017,14 @@ fn clear_dmg_update_notification_events(state: &mut PersistedState) {
     });
 }
 
-fn installed_upstream_dmg_matches(config: &RuntimeConfig, sha256: &str) -> bool {
-    installed_upstream_dmg_sha256(config).as_deref() == Some(sha256)
+fn installed_official_dmg_matches(config: &RuntimeConfig, sha256: &str) -> bool {
+    installed_official_dmg_sha256(config).as_deref() == Some(sha256)
 }
 
-fn installed_upstream_dmg_sha256(config: &RuntimeConfig) -> Option<String> {
+fn installed_official_dmg_sha256(config: &RuntimeConfig) -> Option<String> {
     installed_build_info_paths(config)
         .into_iter()
-        .find_map(|path| upstream_dmg_sha256_from_build_info(&path))
+        .find_map(|path| official_dmg_sha256_from_build_info(&path))
 }
 
 fn installed_build_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
@@ -2036,11 +2036,11 @@ fn installed_build_info_paths(config: &RuntimeConfig) -> Vec<PathBuf> {
     paths
 }
 
-fn upstream_dmg_sha256_from_build_info(path: &Path) -> Option<String> {
+fn official_dmg_sha256_from_build_info(path: &Path) -> Option<String> {
     let content = fs::read_to_string(path).ok()?;
     let build_info = serde_json::from_str::<InstalledBuildInfo>(&content).ok()?;
     build_info
-        .upstream_dmg?
+        .official_dmg?
         .sha256
         .filter(|value| !value.is_empty())
 }
@@ -2737,7 +2737,7 @@ mod tests {
             app_root.join(".chatgpt-linux/build-info.json"),
             format!(
                 r#"{{
-  "upstreamDmg": {{
+  "officialDmg": {{
     "sha256": "{sha256}"
   }}
 }}

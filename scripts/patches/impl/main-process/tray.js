@@ -2,6 +2,83 @@
 
 const { requireName } = require("../../lib/minified-js.js");
 
+function findMatchingParenthesis(source, openIndex) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = openIndex; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote != null) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function findTrayConstructor(source) {
+  const identifier = "[A-Za-z_$][\\w$]*";
+  const shapes = [
+    {
+      retained: true,
+      pattern: new RegExp(
+        `(?<tray>${identifier})=chatgptLinuxRegisterTray\\(new (?<electron>${identifier})\\.Tray\\(`,
+        "g",
+      ),
+    },
+    {
+      retained: false,
+      pattern: new RegExp(
+        `(?<tray>${identifier})=new (?<electron>${identifier})\\.Tray\\(`,
+        "g",
+      ),
+    },
+  ];
+  const candidates = [];
+
+  for (const shape of shapes) {
+    for (const match of source.matchAll(shape.pattern)) {
+      const openIndex = match.index + match[0].length - 1;
+      const closeIndex = findMatchingParenthesis(source, openIndex);
+      if (closeIndex === -1) {
+        continue;
+      }
+      const end = closeIndex + (shape.retained && source[closeIndex + 1] === ")" ? 2 : 1);
+      if (shape.retained && end !== closeIndex + 2) {
+        continue;
+      }
+      candidates.push({
+        start: match.index,
+        end,
+        trayVar: match.groups.tray,
+        electronVar: match.groups.electron,
+        constructorArgs: source.slice(openIndex + 1, closeIndex),
+        retained: shape.retained,
+      });
+    }
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 function applyLinuxTrayPatch(currentSource, iconPathExpression) {
   let patchedSource = currentSource;
 
@@ -70,16 +147,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     );
   }
 
-  const conditionalTrayConstructorPattern =
-    /([A-Za-z_$][\w$]*)=typeof chatgptLinuxRegisterTray===`function`\?chatgptLinuxRegisterTray\(new ([A-Za-z_$][\w$]*)\.Tray\(([^;]+?)\)\):new \2\.Tray\(\3\)/;
-  const retainedTrayConstructorPattern =
-    /([A-Za-z_$][\w$]*)=chatgptLinuxRegisterTray\(new ([A-Za-z_$][\w$]*)\.Tray\(([^;]+?)\)\)/;
-  const trayConstructorPattern =
-    /([A-Za-z_$][\w$]*)=new ([A-Za-z_$][\w$]*)\.Tray\(([^;)]+)\)/;
-  const constructorMatch =
-    patchedSource.match(conditionalTrayConstructorPattern) ??
-    patchedSource.match(retainedTrayConstructorPattern) ??
-    patchedSource.match(trayConstructorPattern);
+  const constructorMatch = findTrayConstructor(patchedSource);
   if (
     constructorMatch == null ||
     !patchedSource.includes("if(process.platform===`linux`){") ||
@@ -89,13 +157,14 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     return currentSource;
   }
 
-  const [, trayVar, electronVar, constructorArgs] = constructorMatch;
+  const { trayVar, electronVar, constructorArgs } = constructorMatch;
   const retainedConstructor =
     `${trayVar}=chatgptLinuxRegisterTray(new ${electronVar}.Tray(${constructorArgs}))`;
-  if (conditionalTrayConstructorPattern.test(patchedSource)) {
-    patchedSource = patchedSource.replace(conditionalTrayConstructorPattern, retainedConstructor);
-  } else if (!retainedTrayConstructorPattern.test(patchedSource)) {
-    patchedSource = patchedSource.replace(trayConstructorPattern, retainedConstructor);
+  if (!constructorMatch.retained) {
+    patchedSource =
+      patchedSource.slice(0, constructorMatch.start) +
+      retainedConstructor +
+      patchedSource.slice(constructorMatch.end);
   }
 
   if (!patchedSource.includes("chatgptLinuxRegisterTray=e=>")) {
@@ -117,7 +186,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
 }
 
 function buildLinuxBuildInfoHelpers(electronVar, fsVar, pathVar) {
-  return `function chatgptLinuxBuildInfoPaths(){let __codexBuildInfoPaths=[];try{__codexBuildInfoPaths.push((0,${pathVar}.join)(process.resourcesPath,\`chatgpt-linux-build-info.json\`)),__codexBuildInfoPaths.push((0,${pathVar}.join)(process.resourcesPath,\`..\`,\`.chatgpt-linux\`,\`build-info.json\`))}catch{}return __codexBuildInfoPaths}function chatgptLinuxReadBuildInfo(){for(let __codexBuildInfoPath of chatgptLinuxBuildInfoPaths())try{if(${fsVar}.existsSync(__codexBuildInfoPath)){let __codexBuildInfo=JSON.parse(${fsVar}.readFileSync(__codexBuildInfoPath,\`utf8\`));if(__codexBuildInfo&&typeof __codexBuildInfo===\`object\`&&!Array.isArray(__codexBuildInfo))return{info:__codexBuildInfo,path:__codexBuildInfoPath}}}catch{}return{info:null,path:null}}function chatgptLinuxBuildInfoValue(__codexBuildInfoValue,__codexBuildInfoFallback=\`unknown\`){return typeof __codexBuildInfoValue===\`string\`&&__codexBuildInfoValue.trim().length>0?__codexBuildInfoValue:Array.isArray(__codexBuildInfoValue)&&__codexBuildInfoValue.length>0?__codexBuildInfoValue.join(\`, \`):__codexBuildInfoValue==null?__codexBuildInfoFallback:String(__codexBuildInfoValue)}function chatgptLinuxBuildInfoCommitUrl(__codexBuildInfo){let __codexBuildInfoCommitUrl=__codexBuildInfo?.source?.commitUrl;return typeof __codexBuildInfoCommitUrl===\`string\`&&/^https:\\/\\/github\\.com\\/[^/\\s]+\\/[^/\\s]+\\/commit\\/[0-9a-f]{7,40}$/i.test(__codexBuildInfoCommitUrl)?__codexBuildInfoCommitUrl:null}function chatgptLinuxGetBuildInfo(){let __codexBuildInfoResult=chatgptLinuxReadBuildInfo();return{...__codexBuildInfoResult,commitUrl:chatgptLinuxBuildInfoCommitUrl(__codexBuildInfoResult.info)}}function chatgptLinuxBuildInfoDetail(__codexBuildInfo,__codexBuildInfoPath){if(!__codexBuildInfo)return\`No Linux build metadata file was found in this app install.\`;let __codexBuildInfoTarget=__codexBuildInfo.linuxTarget??{},__codexBuildInfoDistro=__codexBuildInfoTarget.distro??{},__codexBuildInfoDmg=__codexBuildInfo.upstreamDmg??{},__codexBuildInfoSource=__codexBuildInfo.source??{},__codexBuildInfoFeatures=__codexBuildInfo.linuxFeatures?.enabled??[],__codexBuildInfoProfile=__codexBuildInfo.packageProfile??{},__codexBuildInfoCommit=__codexBuildInfoSource.commit||__codexBuildInfoSource.shortCommit,__codexBuildInfoCommitValue=__codexBuildInfoCommit?__codexBuildInfoSource.dirty?\`\${__codexBuildInfoCommit} (dirty)\`:__codexBuildInfoCommit:\`unknown\`,__codexBuildInfoDistroValue=__codexBuildInfoDistro.prettyName||[__codexBuildInfoDistro.id,__codexBuildInfoDistro.versionId].filter(Boolean).join(\` \`)||\`unknown\`,__codexBuildInfoCommitLink=chatgptLinuxBuildInfoCommitUrl(__codexBuildInfo);return[\`Metadata file: \${chatgptLinuxBuildInfoValue(__codexBuildInfoPath)}\`,\`Linux package profile: \${chatgptLinuxBuildInfoValue(__codexBuildInfoProfile.label)}\`,\`Distro: \${__codexBuildInfoDistroValue}\`,\`Package manager: \${chatgptLinuxBuildInfoValue(__codexBuildInfoTarget.packageManager??__codexBuildInfoProfile.packageManager)}\`,\`Package format: \${chatgptLinuxBuildInfoValue(__codexBuildInfoTarget.packageFormat??__codexBuildInfoProfile.format)}\`,\`Enabled features: \${__codexBuildInfoFeatures.length>0?__codexBuildInfoFeatures.join(\`, \`):\`none\`}\`,\`Upstream app version: \${chatgptLinuxBuildInfoValue(__codexBuildInfoDmg.appVersion)}\`,\`Upstream DMG SHA256: \${chatgptLinuxBuildInfoValue(__codexBuildInfoDmg.sha256)}\`,\`Electron: \${chatgptLinuxBuildInfoValue(__codexBuildInfo.electronVersion)}\`,\`Linux source commit: \${__codexBuildInfoCommitValue}\`,...(__codexBuildInfoCommitLink?[\`Source commit URL: \${__codexBuildInfoCommitLink}\`]:[]),\`Source branch: \${chatgptLinuxBuildInfoValue(__codexBuildInfoSource.branch)}\`,\`Generated: \${chatgptLinuxBuildInfoValue(__codexBuildInfo.generatedAt)}\`].join(\`\\n\`)}async function chatgptLinuxOpenBuildInfoCommit(){let __codexBuildInfoResult=chatgptLinuxGetBuildInfo();return __codexBuildInfoResult.commitUrl?(await ${electronVar}.shell?.openExternal(__codexBuildInfoResult.commitUrl),{success:!0}):{success:!1}}async function chatgptLinuxShowBuildInfo(){try{let __codexBuildInfoResult=chatgptLinuxGetBuildInfo(),__codexBuildInfoCommitUrl=__codexBuildInfoResult.commitUrl,__codexBuildInfoPath=__codexBuildInfoResult.path,__codexBuildInfoButtons=[],__codexBuildInfoButtonIndex=0;__codexBuildInfoCommitUrl&&__codexBuildInfoButtons.push(\`Open Source Commit\`),__codexBuildInfoPath&&__codexBuildInfoButtons.push(\`Open Metadata File\`),__codexBuildInfoButtons.push(\`OK\`);let __codexBuildInfoBoxResponse=await ${electronVar}.dialog?.showMessageBox({type:\`info\`,buttons:__codexBuildInfoButtons,defaultId:__codexBuildInfoButtons.length-1,cancelId:__codexBuildInfoButtons.length-1,message:\`ChatGPT for Linux build information\`,detail:chatgptLinuxBuildInfoDetail(__codexBuildInfoResult.info,__codexBuildInfoPath)});if(__codexBuildInfoCommitUrl&&__codexBuildInfoBoxResponse?.response===__codexBuildInfoButtonIndex++){await ${electronVar}.shell?.openExternal(__codexBuildInfoCommitUrl);return}if(__codexBuildInfoPath&&__codexBuildInfoBoxResponse?.response===__codexBuildInfoButtonIndex++)await ${electronVar}.shell?.openPath?.(__codexBuildInfoPath)}catch{}}`;
+  return `function chatgptLinuxBuildInfoPaths(){let __chatgptBuildInfoPaths=[];try{__chatgptBuildInfoPaths.push((0,${pathVar}.join)(process.resourcesPath,\`chatgpt-linux-build-info.json\`)),__chatgptBuildInfoPaths.push((0,${pathVar}.join)(process.resourcesPath,\`..\`,\`.chatgpt-linux\`,\`build-info.json\`))}catch{}return __chatgptBuildInfoPaths}function chatgptLinuxReadBuildInfo(){for(let __chatgptBuildInfoPath of chatgptLinuxBuildInfoPaths())try{if(${fsVar}.existsSync(__chatgptBuildInfoPath)){let __chatgptBuildInfo=JSON.parse(${fsVar}.readFileSync(__chatgptBuildInfoPath,\`utf8\`));if(__chatgptBuildInfo&&typeof __chatgptBuildInfo===\`object\`&&!Array.isArray(__chatgptBuildInfo))return{info:__chatgptBuildInfo,path:__chatgptBuildInfoPath}}}catch{}return{info:null,path:null}}function chatgptLinuxBuildInfoValue(__chatgptBuildInfoValue,__chatgptBuildInfoFallback=\`unknown\`){return typeof __chatgptBuildInfoValue===\`string\`&&__chatgptBuildInfoValue.trim().length>0?__chatgptBuildInfoValue:Array.isArray(__chatgptBuildInfoValue)&&__chatgptBuildInfoValue.length>0?__chatgptBuildInfoValue.join(\`, \`):__chatgptBuildInfoValue==null?__chatgptBuildInfoFallback:String(__chatgptBuildInfoValue)}function chatgptLinuxBuildInfoCommitUrl(__chatgptBuildInfo){let __chatgptBuildInfoCommitUrl=__chatgptBuildInfo?.source?.commitUrl;return typeof __chatgptBuildInfoCommitUrl===\`string\`&&/^https:\\/\\/github\\.com\\/[^/\\s]+\\/[^/\\s]+\\/commit\\/[0-9a-f]{7,40}$/i.test(__chatgptBuildInfoCommitUrl)?__chatgptBuildInfoCommitUrl:null}function chatgptLinuxGetBuildInfo(){let __chatgptBuildInfoResult=chatgptLinuxReadBuildInfo();return{...__chatgptBuildInfoResult,commitUrl:chatgptLinuxBuildInfoCommitUrl(__chatgptBuildInfoResult.info)}}function chatgptLinuxBuildInfoDetail(__chatgptBuildInfo,__chatgptBuildInfoPath){if(!__chatgptBuildInfo)return\`No Linux build metadata file was found in this app install.\`;let __chatgptBuildInfoTarget=__chatgptBuildInfo.linuxTarget??{},__chatgptBuildInfoDistro=__chatgptBuildInfoTarget.distro??{},__chatgptBuildInfoDmg=__chatgptBuildInfo.officialDmg??{},__chatgptBuildInfoSource=__chatgptBuildInfo.source??{},__chatgptBuildInfoIntegrations=__chatgptBuildInfo.portIntegrations?.enabled??[],__chatgptBuildInfoProfile=__chatgptBuildInfo.packageProfile??{},__chatgptBuildInfoCommit=__chatgptBuildInfoSource.commit||__chatgptBuildInfoSource.shortCommit,__chatgptBuildInfoCommitValue=__chatgptBuildInfoCommit?__chatgptBuildInfoSource.dirty?\`\${__chatgptBuildInfoCommit} (dirty)\`:__chatgptBuildInfoCommit:\`unknown\`,__chatgptBuildInfoDistroValue=__chatgptBuildInfoDistro.prettyName||[__chatgptBuildInfoDistro.id,__chatgptBuildInfoDistro.versionId].filter(Boolean).join(\` \`)||\`unknown\`,__chatgptBuildInfoCommitLink=chatgptLinuxBuildInfoCommitUrl(__chatgptBuildInfo);return[\`Metadata file: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoPath)}\`,\`Linux package profile: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoProfile.label)}\`,\`Distro: \${__chatgptBuildInfoDistroValue}\`,\`Package manager: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoTarget.packageManager??__chatgptBuildInfoProfile.packageManager)}\`,\`Package format: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoTarget.packageFormat??__chatgptBuildInfoProfile.format)}\`,\`Enabled port integrations: \${__chatgptBuildInfoIntegrations.length>0?__chatgptBuildInfoIntegrations.join(\`, \`):\`none\`}\`,\`Official app version: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoDmg.appVersion)}\`,\`Official DMG SHA256: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoDmg.sha256)}\`,\`Electron: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfo.electronVersion)}\`,\`Linux source commit: \${__chatgptBuildInfoCommitValue}\`,...(__chatgptBuildInfoCommitLink?[\`Source commit URL: \${__chatgptBuildInfoCommitLink}\`]:[]),\`Source branch: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfoSource.branch)}\`,\`Generated: \${chatgptLinuxBuildInfoValue(__chatgptBuildInfo.generatedAt)}\`].join(\`\\n\`)}async function chatgptLinuxOpenBuildInfoCommit(){let __chatgptBuildInfoResult=chatgptLinuxGetBuildInfo();return __chatgptBuildInfoResult.commitUrl?(await ${electronVar}.shell?.openExternal(__chatgptBuildInfoResult.commitUrl),{success:!0}):{success:!1}}async function chatgptLinuxShowBuildInfo(){try{let __chatgptBuildInfoResult=chatgptLinuxGetBuildInfo(),__chatgptBuildInfoCommitUrl=__chatgptBuildInfoResult.commitUrl,__chatgptBuildInfoPath=__chatgptBuildInfoResult.path,__chatgptBuildInfoButtons=[],__chatgptBuildInfoButtonIndex=0;__chatgptBuildInfoCommitUrl&&__chatgptBuildInfoButtons.push(\`Open Source Commit\`),__chatgptBuildInfoPath&&__chatgptBuildInfoButtons.push(\`Open Metadata File\`),__chatgptBuildInfoButtons.push(\`OK\`);let __chatgptBuildInfoBoxResponse=await ${electronVar}.dialog?.showMessageBox({type:\`info\`,buttons:__chatgptBuildInfoButtons,defaultId:__chatgptBuildInfoButtons.length-1,cancelId:__chatgptBuildInfoButtons.length-1,message:\`ChatGPT for Linux build information\`,detail:chatgptLinuxBuildInfoDetail(__chatgptBuildInfoResult.info,__chatgptBuildInfoPath)});if(__chatgptBuildInfoCommitUrl&&__chatgptBuildInfoBoxResponse?.response===__chatgptBuildInfoButtonIndex++){await ${electronVar}.shell?.openExternal(__chatgptBuildInfoCommitUrl);return}if(__chatgptBuildInfoPath&&__chatgptBuildInfoBoxResponse?.response===__chatgptBuildInfoButtonIndex++)await ${electronVar}.shell?.openPath?.(__chatgptBuildInfoPath)}catch{}}`;
 }
 
 function addLinuxBuildInfoRequestHandler(currentSource) {
@@ -179,11 +248,11 @@ function applyLinuxBuildInfoTrayPatch(currentSource) {
     patchedSource = patchedSource
       .replace(
         `let ${electronVar}=await ${electronVar}.dialog?.showMessageBox`,
-        `let __codexBuildInfoBoxResponse=await ${electronVar}.dialog?.showMessageBox`,
+        `let __chatgptBuildInfoBoxResponse=await ${electronVar}.dialog?.showMessageBox`,
       )
       .replaceAll(
         `&&${electronVar}?.response===`,
-        "&&__codexBuildInfoBoxResponse?.response===",
+        "&&__chatgptBuildInfoBoxResponse?.response===",
       );
     changed = true;
   }

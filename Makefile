@@ -66,13 +66,14 @@ if [ -z "$$format" ]; then \
 fi; \
 printf '%s\n' "$$format"
 
-.PHONY: help check test build-updater maybe-build-updater update rebuild rebuild-install inspect-dmg inspect-upstream inspect-upstream-intel inspect-upstream-intel-devcontainer build-app build-app-fresh setup-native bootstrap-native install-native update-native rebuild-next run-app build-dev-app run-dev-app deb rpm pacman appimage package apple-dmg-verify release-gate install service-enable service-status clean clean-dist clean-state
+.PHONY: help check test build-updater build-mutation-broker maybe-build-updater update rebuild rebuild-install inspect-dmg inspect-upstream inspect-upstream-intel inspect-upstream-intel-devcontainer build-app build-app-fresh setup-native bootstrap-native install-native update-native rebuild-next run-app build-dev-app run-dev-app deb rpm pacman appimage package apple-dmg-verify release-gate install service-enable service-status clean clean-dist clean-state
 
 help:
 	@printf '\nChatGPT for Linux Make Targets\n\n'
 	@printf '  %-18s %s\n' "make check" "Run cargo check for chatgpt-updater"
 	@printf '  %-18s %s\n' "make test" "Run updater test suite"
 	@printf '  %-18s %s\n' "make build-updater" "Build chatgpt-updater in release mode"
+	@printf '  %-18s %s\n' "make build-mutation-broker" "Build the app-generation mutation broker in release mode"
 	@printf '  %-18s %s\n' "make update" "Find a DMG, rebuild, and replace chatgpt/ with backup"
 	@printf '  %-18s %s\n' "make rebuild" "Inspect a DMG and build a side-by-side candidate"
 	@printf '  %-18s %s\n' "make rebuild-install" "Find a DMG, rebuild, and install into chatgpt/"
@@ -164,6 +165,10 @@ test:
 build-updater:
 	@echo "[make] Building chatgpt-updater (release)"
 	cargo build $(CARGO_JOBS_ARG) --release -p chatgpt-updater
+
+build-mutation-broker:
+	@echo "[make] Building generated-app mutation broker (release)"
+	cargo build $(CARGO_JOBS_ARG) --locked --release -p generated-app-mutation-broker
 
 maybe-build-updater:
 	@case "$(PACKAGE_WITH_UPDATER)" in \

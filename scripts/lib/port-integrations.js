@@ -743,6 +743,8 @@ function modeString(mode) {
 function enabledPortIntegrationInstallPlan(options = {}) {
   const resources = [];
   const runtimeHooks = [];
+  const enabledIntegrations = loadEnabledPortIntegrations(options);
+  const enabledIntegrationIds = new Set(enabledIntegrations.map(({ id }) => id));
   const installTargetOwners = new Map([
     [STAGED_INTEGRATION_MANIFEST_RELATIVE_PATH, "port integration staging framework"],
   ]);
@@ -759,19 +761,7 @@ function enabledPortIntegrationInstallPlan(options = {}) {
     }
     installTargetOwners.set(target, owner);
   };
-  for (const integration of loadEnabledPortIntegrations(options)) {
-    for (const [index, resource] of normalizeEntryList(integration.manifest.resources, "resource", integration).entries()) {
-      const target = normalizeInstallTarget(resource.target, integration.id);
-      claimInstallTarget(target, `resource ${index + 1} for integration '${integration.id}'`);
-      resources.push({
-        id: integration.id,
-        source: resource.source,
-        target,
-        mode: resource.mode == null ? null : parseFileMode(resource.mode, 0o644),
-        index,
-      });
-    }
-
+  const addRuntimeHooks = (integration, { retainedOnly = false } = {}) => {
     const hooks = integration.manifest.runtimeHooks ?? {};
     if (hooks != null && (typeof hooks !== "object" || Array.isArray(hooks))) {
       throw new Error(`port integration '${integration.id}' runtimeHooks must be an object`);
@@ -782,6 +772,14 @@ function enabledPortIntegrationInstallPlan(options = {}) {
         throw new Error(`port integration '${integration.id}' has unsupported runtime hook '${hookKey}'`);
       }
       for (const [index, entry] of normalizeEntryList(hookSpec, `runtimeHooks.${hookKey}`, integration).entries()) {
+        if (entry.retainWhenDisabled != null && typeof entry.retainWhenDisabled !== "boolean") {
+          throw new Error(
+            `port integration '${integration.id}' runtimeHooks.${hookKey} ${index + 1} retainWhenDisabled must be boolean`,
+          );
+        }
+        if (retainedOnly && entry.retainWhenDisabled !== true) {
+          continue;
+        }
         const name = `${integration.id}-${entry.name ?? path.basename(entry.source)}`;
         const target = [".chatgpt-linux", runtimeHook.dir, name].join("/");
         claimInstallTarget(target, `runtimeHooks.${hookKey} ${index + 1} for integration '${integration.id}'`);
@@ -796,6 +794,25 @@ function enabledPortIntegrationInstallPlan(options = {}) {
           index,
         });
       }
+    }
+  };
+  for (const integration of enabledIntegrations) {
+    for (const [index, resource] of normalizeEntryList(integration.manifest.resources, "resource", integration).entries()) {
+      const target = normalizeInstallTarget(resource.target, integration.id);
+      claimInstallTarget(target, `resource ${index + 1} for integration '${integration.id}'`);
+      resources.push({
+        id: integration.id,
+        source: resource.source,
+        target,
+        mode: resource.mode == null ? null : parseFileMode(resource.mode, 0o644),
+        index,
+      });
+    }
+    addRuntimeHooks(integration);
+  }
+  for (const integration of discoverPortIntegrationManifests(options)) {
+    if (!enabledIntegrationIds.has(integration.id)) {
+      addRuntimeHooks(integration, { retainedOnly: true });
     }
   }
   return { resources, runtimeHooks };

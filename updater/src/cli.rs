@@ -30,8 +30,8 @@ pub enum Commands {
     /// Show a GUI checklist of optional port integrations and save the
     /// selection so the next wrapper rebuild honors it.
     /// Invoked by the in-app Update button at click time (display still alive).
-    #[command(name = "pick-integrations", alias = "pick-features")]
-    PickFeatures {
+    #[command(name = "pick-integrations")]
+    PickIntegrations {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -161,8 +161,8 @@ pub enum Commands {
 
 #[cfg(test)]
 mod tests {
-    use super::Cli;
-    use clap::CommandFactory;
+    use super::{Cli, Commands};
+    use clap::{CommandFactory, Parser};
 
     #[test]
     fn command_uses_canonical_chatgpt_updater_identity() {
@@ -173,5 +173,16 @@ mod tests {
             command.get_about().map(ToString::to_string).as_deref(),
             Some("Local update manager for ChatGPT on Linux")
         );
+    }
+
+    #[test]
+    fn integration_picker_rejects_the_removed_feature_alias() {
+        assert!(matches!(
+            Cli::try_parse_from(["chatgpt-updater", "pick-integrations"]),
+            Ok(Cli {
+                command: Commands::PickIntegrations { json: false }
+            })
+        ));
+        assert!(Cli::try_parse_from(["chatgpt-updater", "pick-features"]).is_err());
     }
 }

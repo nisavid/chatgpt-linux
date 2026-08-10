@@ -5,31 +5,106 @@ const path = require("node:path");
 
 const {
   escapeRegExp,
+  findExecutableJavaScriptSubstring,
+  findMatchingBrace,
   requireName,
 } = require("../../lib/minified-js.js");
 
-function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
-  const ancestorHelperName = "chatgptLinuxValidateBundledPluginAncestors";
-  const sourceHelperName = "chatgptLinuxValidateBundledPluginSource";
-  const stageHelperName = "chatgptLinuxPrepareBundledPluginStage";
-  const writableHelperName = "chatgptLinuxMakeBundledPluginTreeWritable";
-  if (
-    currentSource.includes(`async function ${ancestorHelperName}(`) &&
-    currentSource.includes(`async function ${sourceHelperName}(`) &&
-    currentSource.includes(`async function ${stageHelperName}(`) &&
-    currentSource.includes(`async function ${writableHelperName}(`)
-  ) {
-    return currentSource;
+const BUNDLED_PLUGIN_ANCESTOR_HELPER = "chatgptLinuxValidateBundledPluginAncestors";
+const BUNDLED_PLUGIN_SOURCE_HELPER = "chatgptLinuxValidateBundledPluginSource";
+const BUNDLED_PLUGIN_STAGE_HELPER = "chatgptLinuxPrepareBundledPluginStage";
+const BUNDLED_PLUGIN_WRITABLE_HELPER = "chatgptLinuxMakeBundledPluginTreeWritable";
+
+function executableRegexMatches(source, pattern) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  return [...source.matchAll(new RegExp(pattern.source, flags))].filter(
+    (match) => match.index != null &&
+      findExecutableJavaScriptSubstring(source, match[0], match.index) === match.index,
+  );
+}
+
+function bundledPluginCopyPermissionHelpers(pathVar) {
+  return [
+    `async function ${BUNDLED_PLUGIN_ANCESTOR_HELPER}(e,t){let n=await t.realpath(e),r=process.geteuid?.();if(!Number.isInteger(r))throw Error(\`Linux bundled plugin path is not trusted\`);for(let e=n;;){let n=await t.lstat(e),i=n.mode;if(n.isSymbolicLink()||!n.isDirectory()||n.uid!==r&&n.uid!==0||i&18&&!(n.uid===0&&i&512))throw Error(\`Linux bundled plugin path is not trusted\`);let a=(0,${pathVar}.dirname)(e);if(a===e)break;e=a}return n}`,
+    `async function ${BUNDLED_PLUGIN_SOURCE_HELPER}(e,t){let n=await ${BUNDLED_PLUGIN_ANCESTOR_HELPER}(e,t),r=process.geteuid(),i=async e=>{let n=await t.lstat(e);if(n.isSymbolicLink()||!n.isDirectory()&&!n.isFile()||n.uid!==r&&n.uid!==0||n.mode&18)throw Error(\`Linux bundled plugin source is not trusted\`);if(n.isDirectory())for(let n of await t.readdir(e))await i((0,${pathVar}.join)(e,n))};return await i(n),n}`,
+    `async function ${BUNDLED_PLUGIN_STAGE_HELPER}(e,t){let n=(0,${pathVar}.dirname)(e),r=n;for(;;)try{await t.lstat(r);break}catch(e){if(e?.code!==\`ENOENT\`)throw e;let t=(0,${pathVar}.dirname)(r);if(t===r)throw e;r=t}await ${BUNDLED_PLUGIN_ANCESTOR_HELPER}(r,t),await t.mkdir(n,{recursive:!0,mode:448}),await ${BUNDLED_PLUGIN_ANCESTOR_HELPER}(n,t),await t.mkdir(e,{mode:448});let i=process.geteuid(),a=await t.lstat(e);if(a.isSymbolicLink()||!a.isDirectory()||a.uid!==i)throw Error(\`Linux bundled plugin staging root is not private\`);await t.chmod(e,448),a=await t.lstat(e);if((a.mode&511)!==448)throw Error(\`Linux bundled plugin staging root is not private\`)}`,
+    `async function ${BUNDLED_PLUGIN_WRITABLE_HELPER}(e,t){let n=await t.lstat(e);if(n.isSymbolicLink())throw Error(\`Linux bundled plugin copy contains a symbolic link\`);await t.chmod(e,(n.mode|128)&~18);if(n.isDirectory())for(let n of await t.readdir(e))await ${BUNDLED_PLUGIN_WRITABLE_HELPER}((0,${pathVar}.join)(e,n),t)}`,
+  ].join("");
+}
+
+function containingAsyncFunctionName(source, index) {
+  const pattern = /async function ([A-Za-z_$][\w$]*)\([^)]*\)\{/g;
+  let containing = null;
+  for (const match of source.matchAll(pattern)) {
+    if (match.index == null || match.index > index) break;
+    if (findExecutableJavaScriptSubstring(source, match[0], match.index) !== match.index) {
+      continue;
+    }
+    const openIndex = match.index + match[0].length - 1;
+    const closeIndex = findMatchingBrace(source, openIndex);
+    if (openIndex < index && closeIndex >= index) containing = match[1];
+  }
+  return containing;
+}
+
+function hasLinuxBundledPluginCopyPermissionsContract(source) {
+  const copyBranches = executableRegexMatches(
+    source,
+    /if\(([A-Za-z_$][\w$]*)\.default\.platform!==`win32`\)\{if\(process\.platform===`linux`\)\{await ([A-Za-z_$][\w$]*)\.default\.cp\(await chatgptLinuxValidateBundledPluginSource\(([A-Za-z_$][\w$]*),\2\.default\),([A-Za-z_$][\w$]*),\{recursive:!0,verbatimSymlinks:!0\}\);await chatgptLinuxMakeBundledPluginTreeWritable\(\4,\2\.default\);return\}await \2\.default\.cp\(\3,\4,\{recursive:!0,verbatimSymlinks:!0\}\);return\}/g,
+  );
+  const stageCalls = executableRegexMatches(
+    source,
+    /await chatgptLinuxPrepareBundledPluginStage\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\.default\),await \2\.default\.mkdir\(\(0,([A-Za-z_$][\w$]*)\.join\)\(\1,\.\.\.([A-Za-z_$][\w$]*)\.slice\(0,-1\)\),\{recursive:!0,mode:448\}\)/g,
+  );
+  const parentCalls = executableRegexMatches(
+    source,
+    /await ([A-Za-z_$][\w$]*)\.default\.mkdir\(\(0,([A-Za-z_$][\w$]*)\.dirname\)\(([A-Za-z_$][\w$]*)\),\{recursive:!0,mode:448\}\),await ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*),\3\)/g,
+  );
+  if (copyBranches.length !== 1 || stageCalls.length !== 1 || parentCalls.length !== 1) {
+    return false;
   }
 
-  const pathVar = requireName(currentSource, "node:path");
-  if (pathVar == null) {
-    if (currentSource.includes("verbatimSymlinks")) {
-      console.warn(
-        "WARN: Could not find node:path binding — skipping Linux plugin permissions patch",
-      );
-    }
+  const copy = copyBranches[0];
+  const stage = stageCalls[0];
+  const parent = parentCalls[0];
+  const stageFunction = containingAsyncFunctionName(source, stage.index);
+  if (
+    copy.index == null ||
+    stage.index == null ||
+    parent.index == null ||
+    containingAsyncFunctionName(source, copy.index) !== parent[4] ||
+    stageFunction == null ||
+    stageFunction !== containingAsyncFunctionName(source, parent.index) ||
+    stage.index >= parent.index ||
+    copy[2] !== stage[2] ||
+    copy[2] !== parent[1] ||
+    stage[3] !== parent[2]
+  ) {
+    return false;
+  }
+  const helpers = bundledPluginCopyPermissionHelpers(stage[3]);
+  return findExecutableJavaScriptSubstring(source, helpers) >= 0;
+}
+
+function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
+  const ancestorHelperName = BUNDLED_PLUGIN_ANCESTOR_HELPER;
+  const sourceHelperName = BUNDLED_PLUGIN_SOURCE_HELPER;
+  const stageHelperName = BUNDLED_PLUGIN_STAGE_HELPER;
+  const writableHelperName = BUNDLED_PLUGIN_WRITABLE_HELPER;
+  if (hasLinuxBundledPluginCopyPermissionsContract(currentSource)) {
     return currentSource;
+  }
+  if (
+    [ancestorHelperName, sourceHelperName, stageHelperName, writableHelperName].some(
+      (name) => findExecutableJavaScriptSubstring(
+        currentSource,
+        `async function ${name}(`,
+      ) >= 0,
+    )
+  ) {
+    throw new Error(
+      "Required Linux bundled plugin permissions patch is only partially present",
+    );
   }
 
   const copyBranchRegex =
@@ -51,14 +126,15 @@ function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
     return currentSource;
   }
 
-  const stagingMkdirRegex = new RegExp(
-    `await ([A-Za-z_$][\\w$]*)\\.default\\.mkdir\\(\\(0,${escapeRegExp(pathVar)}\\.join\\)\\(([A-Za-z_$][\\w$]*),\\.\\.\\.([A-Za-z_$][\\w$]*)\\.slice\\(0,-1\\)\\),\\{recursive:!0\\}\\)`,
-  );
+  const stagingMkdirRegex =
+    /await ([A-Za-z_$][\w$]*)\.default\.mkdir\(\(0,([A-Za-z_$][\w$]*)\.join\)\(([A-Za-z_$][\w$]*),\.\.\.([A-Za-z_$][\w$]*)\.slice\(0,-1\)\),\{recursive:!0\}\)/;
   let patchedStagingMkdir = false;
+  let pathVar = null;
   const stagingPatchedSource = patchedSource.replace(
     stagingMkdirRegex,
-    (_match, fsPromisesVar, stageRootVar, manifestPartsVar) => {
+    (_match, fsPromisesVar, matchedPathVar, stageRootVar, manifestPartsVar) => {
       patchedStagingMkdir = true;
+      pathVar = matchedPathVar;
       return `await ${stageHelperName}(${stageRootVar},${fsPromisesVar}.default),await ${fsPromisesVar}.default.mkdir((0,${pathVar}.join)(${stageRootVar},...${manifestPartsVar}.slice(0,-1)),{recursive:!0,mode:448})`;
     },
   );
@@ -94,21 +170,22 @@ function applyLinuxBundledPluginCopyPermissionsPatch(currentSource) {
     return currentSource;
   }
 
-  const helpers = [
-    `async function ${ancestorHelperName}(e,t){let n=await t.realpath(e),r=process.geteuid?.();if(!Number.isInteger(r))throw Error(\`Linux bundled plugin path is not trusted\`);for(let e=n;;){let n=await t.lstat(e),i=n.mode;if(n.isSymbolicLink()||!n.isDirectory()||n.uid!==r&&n.uid!==0||i&18&&!(n.uid===0&&i&512))throw Error(\`Linux bundled plugin path is not trusted\`);let a=(0,${pathVar}.dirname)(e);if(a===e)break;e=a}return n}`,
-    `async function ${sourceHelperName}(e,t){let n=await ${ancestorHelperName}(e,t),r=process.geteuid(),i=async e=>{let n=await t.lstat(e);if(n.isSymbolicLink()||!n.isDirectory()&&!n.isFile()||n.uid!==r&&n.uid!==0||n.mode&18)throw Error(\`Linux bundled plugin source is not trusted\`);if(n.isDirectory())for(let n of await t.readdir(e))await i((0,${pathVar}.join)(e,n))};return await i(n),n}`,
-    `async function ${stageHelperName}(e,t){let n=(0,${pathVar}.dirname)(e),r=n;for(;;)try{await t.lstat(r);break}catch(e){if(e?.code!==\`ENOENT\`)throw e;let t=(0,${pathVar}.dirname)(r);if(t===r)throw e;r=t}await ${ancestorHelperName}(r,t),await t.mkdir(n,{recursive:!0,mode:448}),await ${ancestorHelperName}(n,t),await t.mkdir(e,{mode:448});let i=process.geteuid(),a=await t.lstat(e);if(a.isSymbolicLink()||!a.isDirectory()||a.uid!==i)throw Error(\`Linux bundled plugin staging root is not private\`);await t.chmod(e,448),a=await t.lstat(e);if((a.mode&511)!==448)throw Error(\`Linux bundled plugin staging root is not private\`)}`,
-    `async function ${writableHelperName}(e,t){let n=await t.lstat(e);if(n.isSymbolicLink())throw Error(\`Linux bundled plugin copy contains a symbolic link\`);await t.chmod(e,(n.mode|128)&~18);if(n.isDirectory())for(let n of await t.readdir(e))await ${writableHelperName}((0,${pathVar}.join)(e,n),t)}`,
-  ].join("");
+  const helpers = bundledPluginCopyPermissionHelpers(pathVar);
   const strictDirective = '"use strict";';
   const helperInsertionIndex = currentSource.startsWith(strictDirective)
     ? strictDirective.length
     : 0;
-  return (
+  const result = (
     fullyPatchedSource.slice(0, helperInsertionIndex) +
     helpers +
     fullyPatchedSource.slice(helperInsertionIndex)
   );
+  if (!hasLinuxBundledPluginCopyPermissionsContract(result)) {
+    throw new Error(
+      "Required Linux bundled plugin permissions patch did not produce a complete contract",
+    );
+  }
+  return result;
 }
 
 function applyLinuxBundledPluginReconcileStaleSnapshotPatch(currentSource) {
@@ -303,7 +380,7 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
       return currentSource;
     } else {
       const helper =
-        `function chatgptLinuxTrustedBrowserClientSha256s(__codexHashes,__codexResourcesPath=process.resourcesPath){if(process.platform!==\`linux\`)return __codexHashes;let __codexTrustedHashes=Array.isArray(__codexHashes)?[...__codexHashes]:[],__codexBasePath=__codexResourcesPath??"";if(__codexBasePath.length===0)return Array.from(new Set(__codexTrustedHashes));for(let __codexPluginName of[\`browser\`,\`chrome\`])try{let __codexBrowserClientPath=(0,${pathVar}.join)(__codexBasePath,\`plugins\`,\`openai-bundled\`,\`plugins\`,__codexPluginName,\`scripts\`,\`browser-client.mjs\`);(0,${fsVar}.existsSync)(__codexBrowserClientPath)&&__codexTrustedHashes.push((0,${cryptoVar}.createHash)(\`sha256\`).update((0,${fsVar}.readFileSync)(__codexBrowserClientPath)).digest(\`hex\`))}catch{}return Array.from(new Set(__codexTrustedHashes))}`;
+        `function chatgptLinuxTrustedBrowserClientSha256s(__chatgptHashes,__chatgptResourcesPath=process.resourcesPath){if(process.platform!==\`linux\`)return __chatgptHashes;let __chatgptTrustedHashes=Array.isArray(__chatgptHashes)?[...__chatgptHashes]:[],__chatgptBasePath=__chatgptResourcesPath??"";if(__chatgptBasePath.length===0)return Array.from(new Set(__chatgptTrustedHashes));for(let __chatgptPluginName of[\`browser\`,\`chrome\`])try{let __chatgptBrowserClientPath=(0,${pathVar}.join)(__chatgptBasePath,\`plugins\`,\`openai-bundled\`,\`plugins\`,__chatgptPluginName,\`scripts\`,\`browser-client.mjs\`);(0,${fsVar}.existsSync)(__chatgptBrowserClientPath)&&__chatgptTrustedHashes.push((0,${cryptoVar}.createHash)(\`sha256\`).update((0,${fsVar}.readFileSync)(__chatgptBrowserClientPath)).digest(\`hex\`))}catch{}return Array.from(new Set(__chatgptTrustedHashes))}`;
       const strictDirective = '"use strict";';
       const helperInsertionIndex = patchedSource.startsWith(strictDirective)
         ? strictDirective.length
@@ -486,19 +563,25 @@ function applyLinuxBrowserUseSocketDirectoryPatch(currentSource) {
 
 function buildLinuxExternalOpenHelpers() {
   return (
-    `function chatgptLinuxExternalOpenEnv(){let __codexEnv={...process.env};` +
-    `for(let __codexKey of[\`LD_LIBRARY_PATH\`,\`LD_PRELOAD\`,\`NODE_OPTIONS\`,\`NODE_PATH\`,\`NODE_REPL_EXTERNAL_MODULE\`,\`ELECTRON_RUN_AS_NODE\`,\`ELECTRON_NO_ASAR\`,\`ELECTRON_ENABLE_LOGGING\`,\`VSCODE_NODE_OPTIONS\`,\`VSCODE_NODE_REPL_EXTERNAL_MODULE\`,\`npm_config_node_options\`,\`NPM_CONFIG_NODE_OPTIONS\`,\`CHROME_DESKTOP\`,\`ELECTRON_RENDERER_URL\`,\`CHATGPT_ELECTRON_RESOURCES_PATH\`,\`CHATGPT_ELECTRON_USER_DATA_DIR\`,\`CHATGPT_LINUX_APP_ID\`,\`CHATGPT_LINUX_APP_DISPLAY_NAME\`,\`CHATGPT_LINUX_WEBVIEW_PORT\`])delete __codexEnv[__codexKey];` +
-    `return __codexEnv}` +
-    `function chatgptLinuxLaunchExternalUrl(__codexUrl){return new Promise((__codexResolve,__codexReject)=>{let __codexSettled=!1,__codexTimer;try{let __codexChild=require(\`node:child_process\`).spawn(\`xdg-open\`,[__codexUrl],{detached:!0,stdio:\`ignore\`,windowsHide:!0,env:chatgptLinuxExternalOpenEnv()});__codexTimer=setTimeout(()=>{__codexSettled=!0,__codexChild.unref?.(),__codexResolve()},400),__codexTimer.unref?.(),__codexChild.on(\`error\`,__codexError=>{__codexSettled||(clearTimeout(__codexTimer),__codexReject(__codexError))}),__codexChild.on(\`close\`,__codexCode=>{__codexSettled||(clearTimeout(__codexTimer),__codexCode===0?__codexResolve():__codexReject(Error(\`Linux external open failed\`)))})}catch(__codexError){clearTimeout(__codexTimer),__codexReject(__codexError)}})}` +
-    `function chatgptLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl){return chatgptLinuxLaunchExternalUrl(__codexUrl).catch(()=>__codexOriginalOpenExternal(__codexUrl))}` +
-    `function chatgptLinuxPatchExternalOpen(__codexElectron){if(process.platform!==\`linux\`||__codexElectron?.shell==null||typeof __codexElectron.shell.openExternal!==\`function\`)return __codexElectron;if(__codexElectron.shell.openExternal.__chatgptLinuxExternalOpenPatched)return __codexElectron;if(process.env.CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH===\`1\`)return __codexElectron;let __codexOriginalOpenExternal=__codexElectron.shell.openExternal.bind(__codexElectron.shell);async function __codexOpenExternal(__codexUrl,__codexOptions){if(typeof __codexUrl===\`string\`&&__codexOptions==null)return chatgptLinuxOpenExternalWithFallback(__codexOriginalOpenExternal,__codexUrl);return __codexOriginalOpenExternal(__codexUrl,__codexOptions)}__codexOpenExternal.__chatgptLinuxExternalOpenPatched=!0,__codexElectron.shell.openExternal=__codexOpenExternal;return __codexElectron}`
+    `function chatgptLinuxExternalOpenEnv(){let __chatgptEnv={...process.env};` +
+    `for(let __chatgptKey of[\`LD_LIBRARY_PATH\`,\`LD_PRELOAD\`,\`NODE_OPTIONS\`,\`NODE_PATH\`,\`NODE_REPL_EXTERNAL_MODULE\`,\`ELECTRON_RUN_AS_NODE\`,\`ELECTRON_NO_ASAR\`,\`ELECTRON_ENABLE_LOGGING\`,\`VSCODE_NODE_OPTIONS\`,\`VSCODE_NODE_REPL_EXTERNAL_MODULE\`,\`npm_config_node_options\`,\`NPM_CONFIG_NODE_OPTIONS\`,\`CHROME_DESKTOP\`,\`ELECTRON_RENDERER_URL\`,\`CHATGPT_ELECTRON_RESOURCES_PATH\`,\`CHATGPT_ELECTRON_USER_DATA_DIR\`,\`CHATGPT_LINUX_APP_ID\`,\`CHATGPT_LINUX_APP_DISPLAY_NAME\`,\`CHATGPT_LINUX_WEBVIEW_PORT\`])delete __chatgptEnv[__chatgptKey];` +
+    `return __chatgptEnv}` +
+    `function chatgptLinuxLaunchExternalUrl(__chatgptUrl){return new Promise((__chatgptResolve,__chatgptReject)=>{let __chatgptSettled=!1,__chatgptTimer;try{let __chatgptChild=require(\`node:child_process\`).spawn(\`xdg-open\`,[__chatgptUrl],{detached:!0,stdio:\`ignore\`,windowsHide:!0,env:chatgptLinuxExternalOpenEnv()});__chatgptTimer=setTimeout(()=>{__chatgptSettled=!0,__chatgptChild.unref?.(),__chatgptResolve()},400),__chatgptTimer.unref?.(),__chatgptChild.on(\`error\`,__chatgptError=>{__chatgptSettled||(clearTimeout(__chatgptTimer),__chatgptReject(__chatgptError))}),__chatgptChild.on(\`close\`,__chatgptCode=>{__chatgptSettled||(clearTimeout(__chatgptTimer),__chatgptCode===0?__chatgptResolve():__chatgptReject(Error(\`Linux external open failed\`)))})}catch(__chatgptError){clearTimeout(__chatgptTimer),__chatgptReject(__chatgptError)}})}` +
+    `function chatgptLinuxOpenExternalWithFallback(__chatgptOriginalOpenExternal,__chatgptUrl){return chatgptLinuxLaunchExternalUrl(__chatgptUrl).catch(()=>__chatgptOriginalOpenExternal(__chatgptUrl))}` +
+    `function chatgptLinuxPatchExternalOpen(__chatgptElectron){if(process.platform!==\`linux\`||__chatgptElectron?.shell==null||typeof __chatgptElectron.shell.openExternal!==\`function\`)return __chatgptElectron;if(__chatgptElectron.shell.openExternal.__chatgptLinuxExternalOpenPatched)return __chatgptElectron;if(process.env.CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH===\`1\`)return __chatgptElectron;let __chatgptOriginalOpenExternal=__chatgptElectron.shell.openExternal.bind(__chatgptElectron.shell);async function __chatgptOpenExternal(__chatgptUrl,__chatgptOptions){if(typeof __chatgptUrl===\`string\`&&__chatgptOptions==null)return chatgptLinuxOpenExternalWithFallback(__chatgptOriginalOpenExternal,__chatgptUrl);return __chatgptOriginalOpenExternal(__chatgptUrl,__chatgptOptions)}__chatgptOpenExternal.__chatgptLinuxExternalOpenPatched=!0,__chatgptElectron.shell.openExternal=__chatgptOpenExternal;return __chatgptElectron}`
   );
 }
 
 function applyLinuxExternalOpenEnvPatch(currentSource) {
-  const hasHelper = currentSource.includes("function chatgptLinuxPatchExternalOpen(");
-  const hasPatchedElectronRequire = /chatgptLinuxPatchExternalOpen\(require\(([`'"])electron\1\)\)/.test(
+  const hasHelper = findExecutableJavaScriptSubstring(
     currentSource,
+    "function chatgptLinuxPatchExternalOpen(",
+  ) >= 0;
+  const hasPatchedElectronRequire = ["`", "'", '"'].some((quote) =>
+    findExecutableJavaScriptSubstring(
+      currentSource,
+      `chatgptLinuxPatchExternalOpen(require(${quote}electron${quote}))`,
+    ) >= 0
   );
   let patchedAnyElectronRequire = false;
   const patchedSource = currentSource.replace(
@@ -510,12 +593,13 @@ function applyLinuxExternalOpenEnvPatch(currentSource) {
   );
 
   if (!patchedAnyElectronRequire) {
-    if (!(hasHelper && hasPatchedElectronRequire)) {
+    if (!hasPatchedElectronRequire) {
       console.warn(
         "WARN: Could not find Electron require initializer — skipping Linux external open environment patch",
       );
+      return currentSource;
     }
-    return currentSource;
+    if (hasHelper) return currentSource;
   }
 
   if (hasHelper) {
@@ -527,9 +611,9 @@ function applyLinuxExternalOpenEnvPatch(currentSource) {
     ? strictDirective.length
     : 0;
   return (
-    patchedSource.slice(0, helperInsertionIndex) +
+    (patchedAnyElectronRequire ? patchedSource : currentSource).slice(0, helperInsertionIndex) +
     buildLinuxExternalOpenHelpers() +
-    patchedSource.slice(helperInsertionIndex)
+    (patchedAnyElectronRequire ? patchedSource : currentSource).slice(helperInsertionIndex)
   );
 }
 

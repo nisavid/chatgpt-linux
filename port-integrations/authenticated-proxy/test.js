@@ -126,7 +126,10 @@ test("authenticated-proxy stages a launcher hook", () => {
       const plan = stageEnabledPortIntegrationInstall(appDir, { integrationsRoot });
       assert.deepEqual(
         plan.runtimeHooks.map((hook) => [hook.key, hook.target, hook.mode.toString(8)]),
-        [["launcher", ".chatgpt-linux/launcher.d/authenticated-proxy-authenticated-proxy.sh", "755"]],
+        [
+          ["launcher", ".chatgpt-linux/launcher.d/authenticated-proxy-authenticated-proxy.sh", "755"],
+          ["prelaunch", ".chatgpt-linux/prelaunch.d/ui-tweaks-dock-icon-cleanup.sh", "755"],
+        ],
       );
       assert.equal(
         fs.statSync(path.join(appDir, ".chatgpt-linux", "launcher.d", "authenticated-proxy-authenticated-proxy.sh")).mode & 0o777,

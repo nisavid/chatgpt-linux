@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -v CHATGPT_LINUX_FEATURES_CONFIG ]]; then
+    echo "CHATGPT_LINUX_FEATURES_CONFIG is no longer supported; use CHATGPT_PORT_INTEGRATIONS_CONFIG" >&2
+    exit 1
+fi
+
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
 source "${INSTALL_ROOT}/lib/common.sh"
@@ -123,19 +128,8 @@ log "Rebuilding wrapper..."
     mkdir -p "$STATE_DIR/tmp"
     # Honor a caller-provided integration config, such as the in-app Update
     # picker, over the repo-local default so a picked selection wins.
-    if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ]; then
-        export CHATGPT_LINUX_FEATURES_CONFIG="${CHATGPT_LINUX_FEATURES_CONFIG:-$CHATGPT_PORT_INTEGRATIONS_CONFIG}"
-    elif [ -n "${CHATGPT_LINUX_FEATURES_CONFIG:-}" ]; then
-        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$CHATGPT_LINUX_FEATURES_CONFIG"
-    elif [ -f "$SOURCE_REPO_DIR/port-integrations/integrations.json" ]; then
+    if [ -z "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ] && [ -f "$SOURCE_REPO_DIR/port-integrations/integrations.json" ]; then
         export CHATGPT_PORT_INTEGRATIONS_CONFIG="$SOURCE_REPO_DIR/port-integrations/integrations.json"
-    elif [ -f "$SOURCE_REPO_DIR/port-integrations/features.json" ]; then
-        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$SOURCE_REPO_DIR/port-integrations/features.json"
-    elif [ -f "$SOURCE_REPO_DIR/linux-features/features.json" ]; then
-        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$SOURCE_REPO_DIR/linux-features/features.json"
-    fi
-    if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ] && [ -z "${CHATGPT_LINUX_FEATURES_CONFIG:-}" ]; then
-        export CHATGPT_LINUX_FEATURES_CONFIG="$CHATGPT_PORT_INTEGRATIONS_CONFIG"
     fi
     TMPDIR="$STATE_DIR/tmp" \
     CHATGPT_INSTALL_ALLOW_RUNNING=0 \

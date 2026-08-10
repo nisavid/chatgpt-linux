@@ -36,9 +36,11 @@ Replay remain disabled by default.
   timeouts, unvalidated `window.location` assignments, or `postMessage("*")`
   patterns unless the source is constant and the reason is documented.
 - Treat values read from local state as attacker-controlled even when this fork
-  wrote them. Revalidate setting values at the action sink, especially command
-  paths, update flags, model preferences, mount paths, browser-data paths, and
-  permission policy files.
+  wrote them. Revalidate security-relevant values through the owning trusted
+  control plane or at the action sink, especially command paths, update flags,
+  model preferences, mount paths, browser-data paths, permission policy files,
+  targets, and action arguments. Do not create a second consent prompt or
+  persisted grant merely to duplicate an existing feature control.
 - Stage sensitive desktop artifacts in private owner-only paths and remove them
   deterministically. Screenshots, accessibility snapshots, browser-session
   copies, device keys, and captured app data must not live directly in shared
@@ -56,6 +58,26 @@ Replay remain disabled by default.
   Preserve no-replace atomic moves, collision refusal, symlink and file-type
   checks, same-filesystem validation, narrow volatile cleanup, bounded rewrites,
   crash-durable progress, and explicit reverse migration.
+- Keep central main-bundle and webview-asset mutation behind the generated-app
+  mutation capability. A read token is single-use and bound to the original
+  relative path, file identity, and digest. Any broker, protocol, lookup,
+  identity, token, or replacement-integrity failure poisons the patch session
+  and must fail the build rather than follow descriptor fail-soft policy.
+- Preserve replaced files' permission mode and nanosecond modification time.
+  Reject extended attributes instead of silently dropping them. Do not claim
+  that extracted-app descriptors, declarative resources, or shell staging hooks
+  are capability-mediated until their later migration gates are complete.
+- Keep the generated-app mutation broker build-only. Source and Nix builds may
+  compile it; packaged updater rebuilds must use the package-owned prebuilt
+  helper and its exact generation-bound digest. Never place it in the generated
+  runtime payload or expose it as a user command.
+- Create transactional candidate roots as owned, non-symlink `0700`
+  directories before population. Reverify the root in the child build and
+  before promotion, retain it under `--fresh`, and change it to `0755` only
+  after integrity and official-DMG acceptance succeed. Rejected candidates
+  remain private or are removed.
+  See [Generated-App Mutation Integrity Boundary](research/generated-app-mutation-integrity-boundary.md)
+  for the implemented and planned gate boundaries.
 - Keep package transitions metadata-only: replacing a former package does not
   authorize compatibility commands, desktop files, services, or filesystem
   shims.
@@ -63,6 +85,53 @@ Replay remain disabled by default.
   implementation scope to GitHub Issues and add it to
   [Security Backlog](security-backlog.md). Keep the threat model current when a
   change creates or removes a trust boundary.
+
+## Sensitive Desktop Authorization
+
+The owning feature control is the sole persistent user grant for a sensitive
+desktop capability. It survives app restarts and sessions until the user changes
+that feature's existing setting, approval, or policy. This fork does not add a
+parallel consent store or recurring first-use, session, or action prompt.
+Revocation must block future invocations; an action already issued may finish.
+
+For ChatGPT-originated actions, the trusted ChatGPT or Codex control plane must
+re-evaluate the owning control before dispatch or invalidate an existing helper
+session when the control changes. The local helper still validates the action,
+target, and host preconditions. A reachable socket, live helper, valid request,
+or positive readiness probe proves only feasibility, never authorization.
+Unavailable or stale control state fails closed. Official app prompts and OS
+portal prompts remain part of their owning systems and are not replaced.
+
+Direct same-user execution of a packaged CLI is an explicit operator action,
+like invoking another local terminal automation tool. It remains responsible
+for input validation and local safety, but it does not need to reproduce the
+ChatGPT product's feature-toggle UX.
+
+Apply the contract to each feature independently:
+
+- **Computer Use:** the official installed-and-enabled local
+  `computer-use@openai-bundled` plugin setting is the persistent user grant.
+  A live request also requires current official eligibility and trusted Linux
+  support; the app authority reads the exact plugin record afresh for every
+  request. The private generation/token-bound authority socket lets the Rust
+  backend revalidate every MCP tool call. Disabling the plugin or losing
+  official eligibility revokes before the related config write or reconcile,
+  rotates authority, and makes stale or late results deny. Codex tool approval,
+  sandboxing, auto-approval, allowed-app selection, and local action validation
+  still apply. Host accessibility, screenshot, and input readiness can make an
+  authorized action fail, but are not additional grants.
+- **AppShots:** its own feature setting, selected hotkey, and explicit capture
+  flow own authorization. Reuse of Computer Use inspection helpers does not
+  make the Computer Use toggle its owner.
+- **Remote control and mobile host:** OpenAI enrollment, MFA, connected-device,
+  host-exposure, and feature settings own authorization. Linux keys and local
+  reachability are supporting state, not grants.
+- **SSH command wrapping and other agent tools:** the integration's explicit
+  enablement plus Codex approval, sandboxing, and auto-approval policy own
+  authorization. A valid command or reachable remote transport is not enough.
+- **Global dictation, Dock icon, and other local actions:** the integration's
+  existing setting or explicit user action owns authorization. Helpers must
+  remain scoped to the resources and targets that feature owns.
 
 ## Default-Enabled Integration Review Points
 
@@ -114,9 +183,14 @@ Before default-enabling or materially changing a port integration, confirm:
 
 - The integration's control surface is documented in its README and linked from
   `port-integrations/README.md` when user-facing.
-- Runtime controls are enforced at the trusted sink, not only in generated UI.
+- Runtime controls are enforced by the owning trusted control plane or action
+  sink, not only in generated UI.
 - Any official app availability or hosted-service gate is preserved or replaced
   by a documented equivalent.
+- Central main-bundle and webview writes use the generated-app mutation
+  capability, and integrity failures cannot degrade into optional patch drift.
+  Extracted-app descriptors and integration staging remain explicitly outside
+  that claim until their migration gates are complete.
 - Sensitive artifacts use private state or temp paths, owner-only modes where
   applicable, and deterministic cleanup.
 - Tests cover the security-relevant branch, including stale already-patched

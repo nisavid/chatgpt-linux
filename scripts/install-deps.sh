@@ -7,6 +7,8 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/linux-target-detect.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/sevenzip-bootstrap.sh"
 
 sudo() {
     "$SCRIPT_DIR/sudo-with-alert.sh" "$@"
@@ -359,20 +361,27 @@ bootstrap_7zz() {
     # shellcheck disable=SC2064
     trap "rm -rf '$tmpdir'" EXIT
 
-    # Try pinned versions newest-first by downloading the tarball directly.
-    # Some CI/container networks handle 7-zip.org HEAD requests inconsistently,
-    # so validate the archive contents instead of relying on a separate probe.
-    local -a versions=(2600 2500 2409)
-    local version="" url="" candidate_url
+    # Try reviewed versions newest-first by downloading the tarball directly.
+    # Archive and executable bytes must match the source-controlled manifest.
+    local -a versions=(2600)
+    local version="" url="" candidate_url expected_sha256 expected_member_sha256 candidate
     for candidate in "${versions[@]}"; do
         candidate_url="https://www.7-zip.org/a/7z${candidate}-linux-${sevenzip_arch}.tar.xz"
-        if curl -fsL --retry 2 --retry-delay 2 -o "$tmpdir/7z.tar.xz" "$candidate_url" \
-            && tar -tf "$tmpdir/7z.tar.xz" 7zz >/dev/null 2>&1; then
+        expected_sha256="$(chatgpt_sevenzip_expected_sha256 "$candidate" "$sevenzip_arch")" \
+            || error "No reviewed archive digest for 7zz ${candidate}/${sevenzip_arch}"
+        expected_member_sha256="$(chatgpt_sevenzip_expected_member_sha256 "$candidate" "$sevenzip_arch")" \
+            || error "No reviewed executable digest for 7zz ${candidate}/${sevenzip_arch}"
+        if curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            -fsSL --retry 2 --retry-delay 2 -o "$tmpdir/7z.tar.xz" "$candidate_url"; then
+            chatgpt_verify_sevenzip_archive_sha256 "$tmpdir/7z.tar.xz" "$expected_sha256" \
+                || error "Downloaded 7zz ${candidate}/${sevenzip_arch} failed archive SHA-256 verification"
+            chatgpt_validate_sevenzip_archive "$tmpdir/7z.tar.xz" \
+                || error "Downloaded 7zz ${candidate}/${sevenzip_arch} has an unsafe archive shape"
             version="$candidate"
             url="$candidate_url"
             break
         fi
-        rm -f "$tmpdir/7z.tar.xz"
+        rm -f -- "$tmpdir/7z.tar.xz"
     done
 
     if [ -z "$url" ]; then
@@ -382,7 +391,10 @@ Install 7zz manually from https://www.7-zip.org/download.html and ensure it is o
     fi
 
     info "Installing 7zz ${version} from $url"
-    tar -C "$tmpdir" -xf "$tmpdir/7z.tar.xz" 7zz
+    chatgpt_extract_sevenzip_archive "$tmpdir/7z.tar.xz" "$tmpdir" \
+        || error "Could not safely extract authenticated 7zz ${version}/${sevenzip_arch}"
+    chatgpt_verify_sevenzip_archive_sha256 "$tmpdir/7zz" "$expected_member_sha256" \
+        || error "Extracted 7zz ${version}/${sevenzip_arch} failed executable SHA-256 verification"
 
     if [ "$install_dir" = "/usr/local/bin" ]; then
         sudo install -d -m 755 "$install_dir"

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import uuid
 
 
@@ -41,7 +42,7 @@ NIX_REQUIRED_CHECKS = {
 NIX_MERGE_TTL_SECONDS = 300
 NIX_MAX_TRANSIENT_ATTEMPTS = 3
 NIX_TRANSIENT_BACKOFF_SECONDS = (900, 1800)
-REPAIR_REQUIRED_CHECKS = NIX_REQUIRED_CHECKS | {"Build App Against Upstream DMG"}
+REPAIR_REQUIRED_CHECKS = NIX_REQUIRED_CHECKS | {"Build App Against Official DMG"}
 PROTECTED_CAMPAIGN_PHASES = {
     "accepted-head",
     "nix-preflight-green",
@@ -173,6 +174,147 @@ def migrate_v1_state(loaded: dict) -> dict:
     return migrated
 
 
+def scrub_legacy_sensitive_state(state: dict) -> None:
+    runs = state.get("nix_runs")
+    if not isinstance(runs, list):
+        return
+    for run in runs:
+        if isinstance(run, dict):
+            run.pop("failure_log_excerpt", None)
+
+
+def project_fields(value: object, fields: tuple[str, ...]) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    return {field: value.get(field) for field in fields if field in value}
+
+
+def status_url(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if parsed.scheme != "https" or not parsed.hostname:
+            return None
+        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+        netloc = f"{host}:{parsed.port}" if parsed.port is not None else host
+        return urllib.parse.urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+    except (ValueError, UnicodeError):
+        return None
+
+
+def status_http_identity(value: object) -> dict | None:
+    return project_fields(value, ("key", "etag", "last_modified", "content_length"))
+
+
+def status_repair_round(value: object) -> dict | None:
+    projected = project_fields(
+        value,
+        (
+            "round", "status", "created_at", "acquired_at", "base_sha", "branch",
+            "worktree", "pr_number", "head_sha", "accepted_head_sha", "merge_sha",
+        ),
+    )
+    if projected is not None and isinstance(value, dict) and "pr_url" in value:
+        projected["pr_url"] = status_url(value.get("pr_url"))
+    return projected
+
+
+def status_campaign(value: object) -> dict | None:
+    projected = project_fields(
+        value,
+        (
+            "sha256", "phase", "campaign_phase", "detected_at", "updated_at", "verdict",
+            "attempts", "dispatch_key", "base_sha", "branch", "worktree", "pr_number",
+            "head_sha", "accepted_main_sha", "nix_failure_class", "dmg_path",
+        ),
+    )
+    if projected is None or not isinstance(value, dict):
+        return projected
+    projected["http_identity"] = status_http_identity(value.get("http_identity"))
+    projected["pr_url"] = status_url(value.get("pr_url"))
+    projected["acceptance_evidence_present"] = value.get("acceptance_evidence") is not None
+    projected["integration_snapshot_present"] = value.get("integration_snapshot") is not None
+    projected["repair_rounds"] = [
+        round_projection
+        for item in value.get("repair_rounds") or []
+        if (round_projection := status_repair_round(item)) is not None
+    ]
+    return projected
+
+
+def status_projection(state: dict) -> dict:
+    refresh = project_fields(
+        state.get("nix_refresh"),
+        (
+            "expected_dmg_sha256", "expected_dmg_sri", "expected_main_sha", "dispatch_key",
+            "workflow_status", "last_dispatch_at", "dispatch_attempts", "pr_number",
+            "pr_head_sha", "check_status", "merge_failures", "blocked_reason", "blocked_count",
+            "blocked_notified", "workflow_run_id", "workflow_head_sha", "workflow_conclusion",
+            "last_seen_run_id", "transient_failures", "next_retry_at", "ci_last_seen_run_id",
+            "ci_transient_failures", "ci_next_retry_at", "ci_retry_dispatched_for",
+            "merge_failure_notified",
+        ),
+    )
+    if refresh is not None and isinstance(state.get("nix_refresh"), dict):
+        refresh["workflow_url"] = status_url(state["nix_refresh"].get("workflow_url"))
+
+    runs = []
+    for run in state.get("nix_runs") or []:
+        projected = project_fields(
+            run,
+            (
+                "run_id", "status", "conclusion", "head_sha", "created_at", "updated_at",
+                "classification", "recorded_at",
+            ),
+        )
+        if projected is not None and isinstance(run, dict):
+            projected["url"] = status_url(run.get("url"))
+            runs.append(projected)
+
+    notifications = [
+        projected
+        for item in state.get("pending_notifications") or []
+        if (projected := project_fields(
+            item,
+            ("id", "kind", "created_at", "acked_at", "superseded_by_sha256"),
+        )) is not None
+    ]
+
+    last_merged = project_fields(
+        state.get("last_merged_nix_pr"),
+        ("number", "head_sha", "merge_sha", "dmg_sha256", "merged_at", "recorded_at"),
+    )
+    if last_merged is not None and isinstance(state.get("last_merged_nix_pr"), dict):
+        last_merged["url"] = status_url(state["last_merged_nix_pr"].get("url"))
+
+    return {
+        "schema": state.get("schema"),
+        "http_identity": status_http_identity(state.get("http_identity")),
+        "last_observed_sha256": state.get("last_observed_sha256"),
+        "last_accepted_sha256": state.get("last_accepted_sha256"),
+        "probe_failures": state.get("probe_failures"),
+        "last_probe_at": state.get("last_probe_at"),
+        "worker_lease": project_fields(
+            state.get("worker_lease"),
+            ("run_id", "acquired_at", "heartbeat_at", "expires_at"),
+        ),
+        "active_campaign": status_campaign(state.get("active_campaign")),
+        "pending_campaign": status_campaign(state.get("pending_campaign")),
+        "last_completed_campaign": status_campaign(state.get("last_completed_campaign")),
+        "revalidation_required": state.get("revalidation_required"),
+        "pending_notifications": notifications,
+        "nix_runs": runs,
+        "nix_failure_class": state.get("nix_failure_class"),
+        "nix_refresh": refresh,
+        "nix_merge_lease": project_fields(
+            state.get("nix_merge_lease"),
+            ("run_id", "pr_number", "head_sha", "acquired_at", "expires_at"),
+        ),
+        "last_merged_nix_pr": last_merged,
+    }
+
+
 class Store:
     def __init__(self, root: Path):
         self.root = root.expanduser().resolve()
@@ -220,6 +362,7 @@ class Store:
         if isinstance(state.get("nix_refresh"), dict):
             nix_refresh.update(state["nix_refresh"])
         state["nix_refresh"] = nix_refresh
+        scrub_legacy_sensitive_state(state)
         return state
 
     def save(self, state: dict) -> None:
@@ -902,7 +1045,7 @@ def process_nix_refresh(
             details = nix_run_view(repository, run_id)
             failure_log = "" if str(details.get("conclusion") or "").lower() == "success" else nix_failure_log(repository, run_id)
             classification = "success" if not failure_log and str(details.get("conclusion") or "").lower() == "success" else classify_nix_run(details, failure_log)
-            record_nix_run(state, details, classification, failure_log)
+            record_nix_run(state, details, classification)
             refresh["last_seen_run_id"] = run_id
             refresh["workflow_run_id"] = run_id
             refresh["workflow_url"] = details.get("url")
@@ -990,7 +1133,7 @@ def process_nix_refresh(
                         now + NIX_TRANSIENT_BACKOFF_SECONDS[min(failures - 1, len(NIX_TRANSIENT_BACKOFF_SECONDS) - 1)]
                     )
                     if isinstance(details, dict):
-                        record_nix_run(state, details, "transient", failure_log)
+                        record_nix_run(state, details, "transient")
                 failures = int(refresh.get("ci_transient_failures") or 0)
                 if failures >= NIX_MAX_TRANSIENT_ATTEMPTS:
                     campaign["campaign_phase"] = "nix-blocked"
@@ -1018,7 +1161,7 @@ def process_nix_refresh(
                 store.save(state)
                 return
             if isinstance(details, dict):
-                record_nix_run(state, details, "source", failure_log)
+                record_nix_run(state, details, "source")
             state["nix_failure_class"] = "source"
             campaign["nix_failure_class"] = "source"
             campaign["campaign_phase"] = "nix-repair"
@@ -1120,7 +1263,7 @@ def process_nix_refresh(
         return
 
 
-def record_nix_run(state: dict, run: dict, classification: str, log_excerpt: str) -> None:
+def record_nix_run(state: dict, run: dict, classification: str) -> None:
     item = {
         "run_id": run.get("databaseId"),
         "status": run.get("status"),
@@ -1130,7 +1273,6 @@ def record_nix_run(state: dict, run: dict, classification: str, log_excerpt: str
         "created_at": run.get("createdAt"),
         "updated_at": run.get("updatedAt"),
         "classification": classification,
-        "failure_log_excerpt": log_excerpt[-4000:] if log_excerpt else None,
         "recorded_at": utc_iso(),
     }
     runs = state.setdefault("nix_runs", [])
@@ -2058,7 +2200,7 @@ def command_campaign_complete(args: argparse.Namespace, store: Store) -> int:
 
 def command_status(args: argparse.Namespace, store: Store) -> int:
     with store.locked():
-        print(json.dumps(store.load(), indent=2, sort_keys=True))
+        print(json.dumps(status_projection(store.load()), indent=2, sort_keys=True))
     return 0
 
 

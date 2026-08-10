@@ -3,6 +3,7 @@ use crate::atspi_tree::{
     set_element_value, snapshot_tree, AccessibilityAction, AccessibilityNode, AccessibleAppSummary,
     Bounds, FocusedElementSummary, ValueSetInvocation,
 };
+use crate::authorization::{AuthorizationDenial, AuthorizationLease};
 use crate::diagnostics::{doctor_report, setup_accessibility_report, DoctorReport, SetupReport};
 use crate::gnome_extension::{setup_window_targeting_report, WindowTargetingSetupReport};
 use crate::remote_desktop::{
@@ -61,8 +62,10 @@ const AVATAR_CURSOR_SOCKET_NAME: &str = "computer-use-cursor.sock";
 const AVATAR_CURSOR_SOCKET_MAX_BYTES: usize = 100;
 const AVATAR_CURSOR_NOTIFY_TIMEOUT: Duration = Duration::from_millis(100);
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ComputerUseLinux {
+    authorization: Arc<AuthorizationLease>,
+    mcp_dispatch_lock: Arc<tokio::sync::Mutex<()>>,
     last_nodes: Arc<Mutex<Vec<AccessibilityNode>>>,
     portal_pointer_session: Arc<Mutex<Option<PortalPointerSession>>>,
     portal_keyboard_session: Arc<Mutex<Option<PortalKeyboardSession>>>,
@@ -72,6 +75,22 @@ pub struct ComputerUseLinux {
     /// Cached logical desktop size (union of monitors) from the most recent
     /// full-frame capture; used for off-screen window/coordinate warnings.
     desktop_size: Arc<Mutex<Option<(u32, u32)>>>,
+}
+
+impl Default for ComputerUseLinux {
+    fn default() -> Self {
+        Self {
+            authorization: Arc::new(AuthorizationLease::default()),
+            mcp_dispatch_lock: Arc::new(tokio::sync::Mutex::new(())),
+            last_nodes: Arc::new(Mutex::new(Vec::new())),
+            portal_pointer_session: Arc::new(Mutex::new(None)),
+            portal_keyboard_session: Arc::new(Mutex::new(None)),
+            abs_pointer: Arc::new(Mutex::new(None)),
+            portal_keyboard_init_lock: Arc::new(tokio::sync::Mutex::new(())),
+            kde_clipboard_lock: Arc::new(tokio::sync::Mutex::new(())),
+            desktop_size: Arc::new(Mutex::new(None)),
+        }
+    }
 }
 
 #[tool_router]
@@ -1318,7 +1337,27 @@ impl ComputerUseLinux {
     version = "0.3.1-linux-alpha1",
     instructions = "Begin every turn that uses Computer Use by calling get_app_state. If diagnostics report disabled GNOME accessibility, call setup_accessibility before asking the user to retry. Use list_windows/focused_window before targeted keyboard input. If diagnostics report windowing.can_list_windows=false on GNOME, call setup_window_targeting to install the optional GNOME Shell extension backend, then ask the user to log out and back in if the setup report says a shell reload is required. This Linux backend can capture size-bounded screenshots through GNOME Shell, the Codex GNOME Shell extension, or XDG Desktop Portal, read AT-SPI trees with action/value metadata, invoke native AT-SPI actions, set AT-SPI values or editable text, list/focus compositor windows through registered Linux window backends when the session permits it, attach best-effort terminal tty/process metadata to terminal windows, send coordinate or element-targeted click/scroll/drag input through the Wayland remote desktop portal when available, and send layout-safe literal type_text through KDE clipboard integration on Plasma Wayland or through portal keysyms on other Wayland sessions before falling back to ydotool. Screenshot results include width/height for the returned image plus coordinate_width/coordinate_height and scale for desktop coordinate conversion; request more detail with max_width, max_height, max_bytes, format=jpeg, quality, or a smaller target/crop instead of relying on unbounded screenshots. Tools with readOnlyHint=false may mutate local desktop or application state; hosts should require approval for actions that can submit, delete, send, purchase, or overwrite data. For element-targeted actions, prefer element_index from the latest get_app_state result; click, perform_action, and set_value can also use semantic role/name/text/states selectors when the target is unique. type_text and press_key accept optional window_id, pid, app_id, wm_class, title, tty, terminal_pid, terminal_command, or terminal_cwd selectors and refuse targeted input if focus cannot be verified. After targeted keyboard input, results append focused-element feedback from AT-SPI (role, name, editable) and warn when no editable element holds focus — treat that warning as the input not landing. Screenshot, click, and input results warn when the target window or coordinate is partially or fully off-screen; use move_window/resize_window (GNOME Shell extension backend) to bring a window fully on-screen before retrying. scroll accepts the same window targeting and relative coordinates as click. get_app_state returns a compact readiness block by default; pass verbose=true for the full diagnostics dump. Electron apps expose no AT-SPI tree unless launched with --force-renderer-accessibility."
 )]
-impl ServerHandler for ComputerUseLinux {}
+impl ServerHandler for ComputerUseLinux {
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> std::result::Result<CallToolResult, ErrorData> {
+        match self
+            .run_mcp_authorized(|| async move {
+                let call =
+                    rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+                Self::tool_router().call(call).await
+            })
+            .await
+        {
+            Ok(result) => result,
+            Err(_) => Ok(CallToolResult::error(vec![Content::text(
+                "Computer Use authorization is not currently available from ChatGPT.",
+            )])),
+        }
+    }
+}
 
 pub async fn serve_mcp() -> Result<()> {
     ComputerUseLinux::default()
@@ -1993,9 +2032,11 @@ impl ComputerUseLinux {
     }
 
     fn clear_portal_pointer_session(&self) {
-        if let Ok(mut cached) = self.portal_pointer_session.lock() {
-            *cached = None;
-        }
+        let mut cached = self
+            .portal_pointer_session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *cached = None;
     }
 
     fn cached_portal_keyboard_session(&self) -> Option<PortalKeyboardSession> {
@@ -2006,9 +2047,44 @@ impl ComputerUseLinux {
     }
 
     fn clear_portal_keyboard_session(&self) {
-        if let Ok(mut cached) = self.portal_keyboard_session.lock() {
-            *cached = None;
+        let mut cached = self
+            .portal_keyboard_session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *cached = None;
+    }
+
+    fn clear_mcp_authorized_state(&self) {
+        self.clear_portal_pointer_session();
+        self.clear_portal_keyboard_session();
+        let mut abs_pointer = self
+            .abs_pointer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *abs_pointer = None;
+        drop(abs_pointer);
+        self.clear_cached_nodes();
+        let mut desktop_size = self
+            .desktop_size
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *desktop_size = None;
+    }
+
+    async fn run_mcp_authorized<T, F, Fut>(
+        &self,
+        dispatch: F,
+    ) -> std::result::Result<T, AuthorizationDenial>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = T>,
+    {
+        let _dispatch_guard = self.mcp_dispatch_lock.lock().await;
+        if let Err(denial) = self.authorization.revalidate().await {
+            self.clear_mcp_authorized_state();
+            return Err(denial);
         }
+        Ok(dispatch().await)
     }
 
     async fn ensure_portal_pointer_session(&self) -> Result<Option<PortalPointerSession>> {
@@ -2374,9 +2450,10 @@ impl ComputerUseLinux {
     }
 
     fn clear_cached_nodes(&self) {
-        if let Ok(mut cached) = self.last_nodes.lock() {
-            cached.clear();
-        }
+        self.last_nodes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
     }
 
     fn resolve_optional_target_point(
@@ -3271,7 +3348,7 @@ fn avatar_cursor_socket_path_from(
     (path.as_os_str().as_bytes().len() <= AVATAR_CURSOR_SOCKET_MAX_BYTES).then_some(path)
 }
 
-fn avatar_cursor_socket_path() -> Option<PathBuf> {
+pub(crate) fn avatar_cursor_socket_path() -> Option<PathBuf> {
     let runtime_dir = env::var("XDG_RUNTIME_DIR").ok();
     let app_id = env::var("CHATGPT_LINUX_APP_ID").ok();
     let legacy_app_id = env::var("CHATGPT_APP_ID").ok();
@@ -4006,7 +4083,10 @@ fn looks_like_desktop_app(name: &str, command: &str) -> bool {
 mod tests {
     use super::*;
     use crate::atspi_tree::{AccessibilityAction, Bounds};
+    use crate::authorization::AuthorizationDenial;
     use crate::windows::{WindowBounds, GNOME_SHELL_EXTENSION_BACKEND};
+    use std::os::unix::fs::PermissionsExt;
+    use tokio::sync::{mpsc, Notify};
 
     struct EnvVarGuard {
         key: &'static str,
@@ -4699,6 +4779,123 @@ mod tests {
             .unwrap_err();
 
         assert!(error.contains("No clickable bounds cached for element_index 7"));
+    }
+
+    #[test]
+    fn authorization_revocation_clears_mcp_side_effect_state() {
+        let backend = ComputerUseLinux::default();
+        backend.cache_nodes(&[node(7, None)]);
+        backend.cache_desktop_size(1920, 1080);
+
+        backend.clear_mcp_authorized_state();
+
+        assert!(backend.last_nodes.lock().unwrap().is_empty());
+        assert_eq!(*backend.desktop_size.lock().unwrap(), None);
+        assert!(backend.portal_pointer_session.lock().unwrap().is_none());
+        assert!(backend.portal_keyboard_session.lock().unwrap().is_none());
+        assert!(backend.abs_pointer.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn mcp_calls_serialize_revalidation_dispatch_and_denial_cleanup() {
+        let root = std::env::temp_dir().join(format!(
+            "chatgpt-cua-dispatch-{}-{}",
+            std::process::id(),
+            getrandom::u64().unwrap(),
+        ));
+        std::fs::create_dir(&root).unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let socket = root.join("authority.sock");
+        let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
+        let authority = tokio::spawn(async move {
+            for (generation, allow) in [(1_u64, true), (2_u64, false)] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                accepted_tx.send(generation).unwrap();
+                let mut request = Vec::new();
+                stream.read_to_end(&mut request).await.unwrap();
+                let request = std::str::from_utf8(&request).unwrap();
+                let nonce = request.split_ascii_whitespace().nth(2).unwrap();
+                let response = if allow {
+                    format!(
+                        "CHATGPT-CUA-AUTH/1 ALLOW {generation} {} {nonce}\n",
+                        "11".repeat(32),
+                    )
+                } else {
+                    format!("CHATGPT-CUA-AUTH/1 DENY {generation} {nonce}\n")
+                };
+                stream.write_all(response.as_bytes()).await.unwrap();
+                stream.shutdown().await.unwrap();
+            }
+        });
+
+        let backend = ComputerUseLinux {
+            authorization: Arc::new(AuthorizationLease::for_test(&root, socket)),
+            ..ComputerUseLinux::default()
+        };
+        let first_started = Arc::new(Notify::new());
+        let release_first = Arc::new(Notify::new());
+        let first_call_backend = backend.clone();
+        let publication_backend = backend.clone();
+        let first_started_for_call = Arc::clone(&first_started);
+        let release_first_for_call = Arc::clone(&release_first);
+        let first_call = tokio::spawn(async move {
+            first_call_backend
+                .run_mcp_authorized(move || async move {
+                    first_started_for_call.notify_one();
+                    release_first_for_call.notified().await;
+                    publication_backend.cache_nodes(&[node(7, None)]);
+                    publication_backend.cache_desktop_size(1920, 1080);
+                    "allowed-result"
+                })
+                .await
+        });
+
+        assert_eq!(accepted_rx.recv().await, Some(1));
+        first_started.notified().await;
+        assert!(backend.mcp_dispatch_lock.try_lock().is_err());
+
+        let second_started = Arc::new(Notify::new());
+        let second_call_backend = backend.clone();
+        let second_started_for_call = Arc::clone(&second_started);
+        let second_call = tokio::spawn(async move {
+            second_started_for_call.notify_one();
+            second_call_backend
+                .run_mcp_authorized(|| async { "must-not-dispatch" })
+                .await
+        });
+        second_started.notified().await;
+        assert!(accepted_rx.try_recv().is_err());
+
+        release_first.notify_one();
+        assert_eq!(first_call.await.unwrap(), Ok("allowed-result"));
+        assert_eq!(second_call.await.unwrap(), Err(AuthorizationDenial::Denied));
+        assert_eq!(accepted_rx.recv().await, Some(2));
+        authority.await.unwrap();
+        assert!(backend.last_nodes.lock().unwrap().is_empty());
+        assert_eq!(*backend.desktop_size.lock().unwrap(), None);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn authorization_revocation_clears_poisoned_cache_locks() {
+        let backend = ComputerUseLinux::default();
+        backend.cache_desktop_size(1920, 1080);
+        let desktop_size = Arc::clone(&backend.desktop_size);
+        let poisoner = std::thread::spawn(move || {
+            let _guard = desktop_size.lock().unwrap();
+            panic!("poison cache for cleanup test");
+        });
+        assert!(poisoner.join().is_err());
+
+        backend.clear_mcp_authorized_state();
+
+        let cached = backend
+            .desktop_size
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert_eq!(*cached, None);
     }
 
     #[test]

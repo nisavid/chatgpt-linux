@@ -318,7 +318,7 @@ repair_7z_dangerous_link_path_warnings() {
                 esac
 
                 link_path="$extract_dir/$link_rel"
-                link_parent="$(dirname "$link_path")"
+                link_parent="$(dirname -- "$link_path")"
                 target_path="$link_parent/$link_target"
 
                 if ! path_is_within_root "$app_dir" "$link_path" \
@@ -333,7 +333,7 @@ repair_7z_dangerous_link_path_warnings() {
                 fi
 
                 if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-                    if [ -L "$link_path" ] && [ "$(readlink "$link_path")" = "$link_target" ]; then
+                    if [ -L "$link_path" ] && [ "$(readlink -- "$link_path")" = "$link_target" ]; then
                         repaired_count=$((repaired_count + 1))
                         continue
                     fi
@@ -341,13 +341,13 @@ repair_7z_dangerous_link_path_warnings() {
                         failed_count=$((failed_count + 1))
                         continue
                     fi
-                    if ! rm -f "$link_path"; then
+                    if ! rm -f -- "$link_path"; then
                         failed_count=$((failed_count + 1))
                         continue
                     fi
                 fi
 
-                if ln -s "$link_target" "$link_path"; then
+                if ln -s -- "$link_target" "$link_path"; then
                     repaired_count=$((repaired_count + 1))
                 else
                     failed_count=$((failed_count + 1))

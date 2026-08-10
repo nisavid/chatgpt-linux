@@ -1,6 +1,5 @@
 "use strict";
 
-const fs = require("node:fs");
 const path = require("node:path");
 
 const {
@@ -17,9 +16,14 @@ const {
   enabledPortIntegrationIds,
 } = require("../lib/port-integrations.js");
 const {
-  findIconAsset,
-  findMainBundle,
+  findIconAssetWithCapability,
+  findMainBundleWithCapability,
+  readMatchingWebviewAssetSourcesWithCapability,
+  replaceMainBundleWithCapability,
 } = require("./lib/assets.js");
+const {
+  openGeneratedAppMutationRoot,
+} = require("./lib/generated-app-mutation-client.js");
 const {
   applyExtractedAppPatchDescriptors,
   applyMainBundlePatchDescriptors,
@@ -33,7 +37,14 @@ const {
   PHASE_MAIN_BUNDLE,
 } = require("./descriptor.js");
 const {
-  isComputerUseUiEnabled,
+  matchesLinuxComputerUseAuthorityContract,
+  matchesLinuxComputerUseAvatarCursorContract,
+  matchesLinuxComputerUseDisableOrderingContract,
+  matchesLinuxComputerUseFeatureContract,
+  matchesLinuxComputerUseHostPlatformContract,
+  matchesLinuxComputerUseInstallFlowContract,
+  matchesLinuxComputerUseRendererAvailabilityContract,
+  matchesLinuxNativeDesktopAppsContract,
 } = require("./impl/computer-use.js");
 
 const REQUIRED_OFFICIAL_DMG = "required-official-dmg";
@@ -79,7 +90,7 @@ function featurePatchOptions(options = {}) {
 function createMainBundleContext(iconAsset, options = {}) {
   const linux = options.linuxTarget ?? detectLinuxTargetContext(options.linuxTargetOptions);
   return {
-    enableComputerUseUi: isComputerUseUiEnabled(),
+    computerUseSupportPatching: options.computerUseSupportPatching !== false,
     iconAsset,
     iconPathExpression:
       iconAsset == null ? null : `process.resourcesPath+\`/../content/webview/assets/${iconAsset}\``,
@@ -88,6 +99,34 @@ function createMainBundleContext(iconAsset, options = {}) {
     corePatchRoot: options.corePatchRoot,
     featurePatchOptions: featurePatchOptions(options),
   };
+}
+
+async function matchingAssetSources(capability, pattern) {
+  return (await readMatchingWebviewAssetSourcesWithCapability(capability, pattern))
+    .map(({ source }) => source);
+}
+
+async function derivesLinuxComputerUseSupport(capability, mainSource) {
+  if (
+    !matchesLinuxComputerUseFeatureContract(mainSource) ||
+    !matchesLinuxComputerUseAuthorityContract(mainSource) ||
+    !matchesLinuxComputerUseAvatarCursorContract(mainSource) ||
+    !matchesLinuxNativeDesktopAppsContract(mainSource)
+  ) {
+    return false;
+  }
+
+  const settingsSources = await matchingAssetSources(
+    capability,
+    /^computer-use-settings-[^.]+\.js$/,
+  );
+  const appInitialSources = await matchingAssetSources(capability, /^app-initial-[^.]+\.js$/);
+  return settingsSources.filter(matchesLinuxComputerUseRendererAvailabilityContract).length === 1 &&
+    appInitialSources.filter((source) =>
+      matchesLinuxComputerUseHostPlatformContract(source) &&
+      matchesLinuxComputerUseDisableOrderingContract(source) &&
+      matchesLinuxComputerUseInstallFlowContract(source)
+    ).length === 1;
 }
 
 function setReportLinuxTarget(report, linux) {
@@ -124,7 +163,7 @@ function patchMainBundleSource(source, iconAsset, options = {}) {
   return applyMainBundlePatches(source, createMainBundleContext(iconAsset, options), null).patchedSource;
 }
 
-function patchExtractedApp(extractedDir, options = {}) {
+async function patchExtractedAppWithCapability(extractedDir, options, capability) {
   const report = options.report ?? null;
   const baseContext = createMainBundleContext(null, options);
   const integrationsOptions = featurePatchOptions(options);
@@ -138,40 +177,48 @@ function patchExtractedApp(extractedDir, options = {}) {
     report.enabledIntegrations = enabledPortIntegrationIds(integrationsOptions);
   }
 
-  const main = findMainBundle(extractedDir);
+  const main = await findMainBundleWithCapability(capability);
   if (report != null) {
     report.mainBundle = main?.mainBundle ?? null;
-    report.target = main == null ? null : path.join(main.buildDir, main.mainBundle);
+    report.target = main == null ? null : `.vite/build/${main.mainBundle}`;
   }
   if (main == null) {
-    const reason = `Could not find main bundle in ${path.join(extractedDir, ".vite", "build")}`;
+    const reason = "Could not find main bundle in .vite/build";
     console.warn(`WARN: ${reason} — skipping main-process UI patches`);
     recordMainProcessUiPatch(report, PATCH_STATUS_FAILED_REQUIRED, reason);
   }
 
-  const iconAsset = findIconAsset(extractedDir);
+  const iconAsset = await findIconAssetWithCapability(capability);
   if (report != null) {
     report.iconAsset = iconAsset;
   }
   if (iconAsset == null) {
     console.warn(
-      `WARN: Could not find app icon asset in ${path.join(extractedDir, "webview", "assets")} — skipping icon patches`,
+      "WARN: Could not find app icon asset in webview/assets — skipping icon patches",
+    );
+  }
+
+  const mainSource = main?.source ?? null;
+  const computerUseSupportPatching = mainSource != null &&
+    await derivesLinuxComputerUseSupport(capability, mainSource);
+  if (!computerUseSupportPatching) {
+    console.warn(
+      "WARN: Linux Computer Use patch contracts are incomplete — leaving Computer Use support unavailable",
     );
   }
 
   const assetContext = createMainBundleContext(iconAsset, {
     ...options,
     linuxTarget: baseContext.linux,
+    computerUseSupportPatching,
   });
   assetContext.report = report;
+  assetContext.generatedAppMutation = capability;
 
   if (main != null) {
-    const target = path.join(main.buildDir, main.mainBundle);
-    const source = fs.readFileSync(target, "utf8");
+    const source = mainSource;
     const { patchedSource, requiredCoreWarnings } = applyMainBundlePatches(source, assetContext, report);
-    if (patchedSource !== source) {
-      fs.writeFileSync(target, patchedSource, "utf8");
-    }
+    await replaceMainBundleWithCapability(capability, main, patchedSource);
     recordPatch(
       report,
       "main-process-ui",
@@ -194,7 +241,7 @@ function patchExtractedApp(extractedDir, options = {}) {
     PHASE_EXTRACTED_APP_PRE_WEBVIEW,
   );
 
-  applyWebviewAssetPatchDescriptors(
+  await applyWebviewAssetPatchDescriptors(
     extractedDir,
     patchDescriptors,
     assetContext,
@@ -211,11 +258,25 @@ function patchExtractedApp(extractedDir, options = {}) {
 
   const desktopName = assetContext.desktopName ?? report?.desktopName ?? null;
   console.log("Patched Linux window, shell, and appearance behavior:", {
-    target: main == null ? null : path.join(main.buildDir, main.mainBundle),
+    target: main == null ? null : `.vite/build/${main.mainBundle}`,
     mainBundle: main?.mainBundle ?? null,
     iconAsset,
     desktopName,
   });
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  const capability = await openGeneratedAppMutationRoot(extractedDir, {
+    brokerPath:
+      options.mutationBrokerPath ??
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: options.verifiedPrivateRoot ?? false,
+  });
+  try {
+    return await patchExtractedAppWithCapability(extractedDir, options, capability);
+  } finally {
+    await capability.close();
+  }
 }
 
 function allPatchPolicies(options = {}) {
@@ -241,7 +302,7 @@ function requiredPatchNamesForProfile(profile, options = {}) {
     return [];
   }
   const linux = options.linuxTarget ?? detectLinuxTargetContext(options.linuxTargetOptions);
-  const context = { linux, linuxTarget: linux, enableComputerUseUi: isComputerUseUiEnabled() };
+  const context = { linux, linuxTarget: linux, computerUseSupportPatching: true };
   return allPatchPolicies(options)
     .filter((patch) => patch.ciPolicy === REQUIRED_UPSTREAM)
     .filter((patch) => patch.appliesTo == null || patch.appliesTo(context) !== false)

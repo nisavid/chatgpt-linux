@@ -4,6 +4,51 @@
 # Sourced by install.sh. Do not run directly.
 # shellcheck shell=bash
 
+resolve_patch_mutation_broker() {
+    local validated
+
+    resolve_generated_app_mutation_broker || \
+        error "Could not resolve the generated-app mutation broker"
+    validated="$(validate_generated_app_mutation_broker \
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED")" || \
+        error "Resolved generated-app mutation broker did not pass validation"
+    [ "$validated" = "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" ] || \
+        error "Generated-app mutation broker path changed during validation"
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+    export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE
+}
+
+prepare_verified_private_patch_root() {
+    local root="$1"
+    local owner_uid
+    local permissions
+    local requested
+    local resolved
+
+    case "$root" in
+        /*) ;;
+        *) error "Generated-app mutation root must be absolute: $root"; return 1 ;;
+    esac
+    [ -d "$root" ] && [ ! -L "$root" ] || {
+        error "Generated-app mutation root must be a non-symlink directory: $root"
+        return 1
+    }
+    requested="$(realpath -m -s -- "$root")" || return 1
+    resolved="$(realpath -e -- "$root")" || return 1
+    [ "$requested" = "$resolved" ] || {
+        error "Generated-app mutation root must not traverse symlinked components: $root"
+        return 1
+    }
+
+    chmod 0700 -- "$root" || return 1
+    owner_uid="$(stat -c '%u' -- "$root")" || return 1
+    permissions="$(stat -c '%a' -- "$root")" || return 1
+    if [ "$owner_uid" != "$(id -u)" ] || [ "$permissions" != "700" ]; then
+        error "Generated-app mutation root must be owned by the current user with mode 0700: $root"
+        return 1
+    fi
+}
+
 print_patch_report_summary() {
     local patch_report="$1"
     [ -f "$patch_report" ] || return 0
@@ -73,10 +118,14 @@ patch_asar() {
     local -a patch_args=()
 
     [ -f "$resources_dir/app.asar" ] || error "app.asar not found in $resources_dir"
+    resolve_patch_mutation_broker
 
     info "Extracting app.asar..."
     cd "$WORK_DIR"
-    npx --yes asar extract "$resources_dir/app.asar" app-extracted
+    install -d -m 0700 "$WORK_DIR/app-extracted"
+    prepare_verified_private_patch_root "$WORK_DIR/app-extracted"
+    npx --yes asar extract "$resources_dir/app.asar" "$WORK_DIR/app-extracted"
+    prepare_verified_private_patch_root "$WORK_DIR/app-extracted"
 
     # Copy unpacked native modules if they exist
     if [ -d "$resources_dir/app.asar.unpacked" ]; then
@@ -96,6 +145,10 @@ patch_asar() {
     local patch_report_json="${CHATGPT_PATCH_REPORT_JSON:-$WORK_DIR/patch-report.json}"
     mkdir -p "$(dirname "$patch_report_json")"
     patch_args+=(--report-json "$patch_report_json")
+    patch_args+=(
+        --mutation-broker "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+        --verified-private-root
+    )
     if [ "${CHATGPT_ENFORCE_CRITICAL_PATCHES:-1}" != "0" ]; then
         patch_args+=(--enforce-critical)
     else
@@ -124,6 +177,7 @@ inspect_rebuild_candidate() {
     local rebuild_report
 
     [ -f "$resources_dir/app.asar" ] || error "app.asar not found in $resources_dir"
+    resolve_patch_mutation_broker
 
     report_dir="$(prepare_rebuild_report_dir "$report_dir")"
     patch_report="$report_dir/patch-report.json"
@@ -131,13 +185,20 @@ inspect_rebuild_candidate() {
 
     info "Inspecting app.asar without changing the active app..."
     cd "$WORK_DIR"
+    install -d -m 0700 "$inspect_dir"
+    prepare_verified_private_patch_root "$inspect_dir"
     npx --yes asar extract "$resources_dir/app.asar" "$inspect_dir"
+    prepare_verified_private_patch_root "$inspect_dir"
 
     if [ -d "$resources_dir/app.asar.unpacked" ]; then
         cp -r "$resources_dir/app.asar.unpacked/"* "$inspect_dir/" 2>/dev/null || true
     fi
 
-    node "$SCRIPT_DIR/scripts/patch-linux-window-ui.js" --report-json "$patch_report" "$inspect_dir"
+    node "$SCRIPT_DIR/scripts/patch-linux-window-ui.js" \
+        --report-json "$patch_report" \
+        --mutation-broker "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" \
+        --verified-private-root \
+        "$inspect_dir"
     write_rebuild_report_json "$rebuild_report" "$dmg_path" "$ELECTRON_VERSION" "$patch_report" ""
 
     info "Patch report: $patch_report"

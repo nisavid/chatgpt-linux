@@ -1081,6 +1081,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "generated-app-mutation-broker"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "libc",
+ "rustix",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

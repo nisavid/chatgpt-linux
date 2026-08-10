@@ -14,12 +14,7 @@ const linuxSettingsKeys = {
 const keybindsSettingsAsset = "keybinds-settings-linux.js";
 const linuxKeybindOverridesKey = "chatgpt-linux-keybind-overrides";
 
-const COMPUTER_USE_UI_ENV_VAR = "CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI";
-const COMPUTER_USE_UI_SETTINGS_KEY = "chatgpt-linux-computer-use-ui-enabled";
-
 module.exports = {
-  COMPUTER_USE_UI_ENV_VAR,
-  COMPUTER_USE_UI_SETTINGS_KEY,
   keybindsSettingsAsset,
   linuxKeybindOverridesKey,
   linuxSettingsKeys,

@@ -64,17 +64,20 @@ test_agent_workspace_permission_file_round_trips_and_rewrites_global_state() {
     local collision_root="$TEST_ROOT/agent-workspace-permissions-collision"
     local legacy_permissions
     local canonical_permissions
+    local workspace_command
     local output
     local status
     make_launcher_fixture "$fixture_root"
     legacy_permissions="$fixture_root/xdg/data/agent-workspace-linux/permissions/codex-agent-workspace-permissions.json"
     canonical_permissions="$fixture_root/xdg/data/agent-workspace-linux/permissions/chatgpt-agent-workspace-permissions.json"
+    workspace_command="/usr/local/bin/agent-workspace-linux"
     mkdir -p \
         "$fixture_root/xdg/config/chatgpt" \
         "$(dirname "$legacy_permissions")" \
         "$fixture_root/xdg/runtime"
     printf '%s\n' '{"network":{"mode":"local_only"}}' > "$legacy_permissions"
-    printf '{"chatgpt-linux-agent-workspace-permissions":"%s"}\n' "$legacy_permissions" > \
+    printf '{"codex-linux-agent-workspace-command":"%s","codex-linux-agent-workspace-permissions":"%s"}\n' \
+        "$workspace_command" "$legacy_permissions" > \
         "$fixture_root/xdg/config/chatgpt/globalState.json"
 
     set +e
@@ -92,6 +95,11 @@ test_agent_workspace_permission_file_round_trips_and_rewrites_global_state() {
 
     run_chatgpt "$fixture_root" --help >/dev/null
     assert_file_contains "$fixture_root/xdg/config/chatgpt/globalState.json" "$canonical_permissions"
+    assert_file_contains "$fixture_root/xdg/config/chatgpt/globalState.json" '"chatgpt-linux-agent-workspace-command"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt/globalState.json" '"chatgpt-linux-agent-workspace-permissions"'
+    if grep -Fq -- '"codex-linux-agent-workspace-' "$fixture_root/xdg/config/chatgpt/globalState.json"; then
+        fail "forward migration retained legacy agent-workspace state keys"
+    fi
     if grep -Fq -- "$legacy_permissions" "$fixture_root/xdg/config/chatgpt/globalState.json"; then
         fail "forward migration retained the legacy permission path in globalState"
     fi
@@ -103,6 +111,11 @@ test_agent_workspace_permission_file_round_trips_and_rewrites_global_state() {
     assert_file_contains "$legacy_permissions" '"mode":"local_only"'
     [ ! -e "$canonical_permissions" ] || fail "canonical permission file remains after reverse"
     assert_file_contains "$fixture_root/xdg/config/codex-app/globalState.json" "$legacy_permissions"
+    assert_file_contains "$fixture_root/xdg/config/codex-app/globalState.json" '"codex-linux-agent-workspace-command"'
+    assert_file_contains "$fixture_root/xdg/config/codex-app/globalState.json" '"codex-linux-agent-workspace-permissions"'
+    if grep -Fq -- '"chatgpt-linux-agent-workspace-' "$fixture_root/xdg/config/codex-app/globalState.json"; then
+        fail "reverse migration retained canonical agent-workspace state keys"
+    fi
     if grep -Fq -- "$canonical_permissions" "$fixture_root/xdg/config/codex-app/globalState.json"; then
         fail "reverse migration retained the canonical permission path in globalState"
     fi
@@ -228,6 +241,17 @@ test_migration_discards_volatile_files_rewrites_paths_and_preserves_user_data() 
     printf '%s\n' "{\"workspace\":\"$fixture_root/xdg/cache/codex-app-updater/work\",\"binary\":\"/usr/bin/codex-app-updater\",\"app\":\"/opt/codex-app\",\"codex-linux-auto-update-on-exit\":true,\"codex-linux-wrapper-updates-enabled\":false,\"codex-linux-integration-picker-on-update\":true,\"integration\":\"codex-wrapper-updater\"}" > "$old_config/config.json"
     printf '%s\n' "{\"path\":\"$fixture_root/home/.codex-cli-npm/lib/node_modules/@openai/.codex-linux-quarantine\"}" > \
         "$fixture_root/home/.codex-cli-npm/lib/node_modules/@openai/.codex-linux-quarantine/metadata.json"
+    cat > "$old_config/rewrite-scope.json" <<'EOF'
+{"note":"codex-wrapper-updater in user prose","lookalike":"/usr/bin/codex-apparel","integration":"codex-wrapper-updater","command":"/usr/bin/codex-app --help","codex-linux-warm-start-enabled":true}
+EOF
+    cat > "$old_config/rewrite-scope.toml" <<'EOF'
+codex-linux-wrapper-updates-enabled = true
+integration = "codex-wrapper-updater"
+binary = "/usr/bin/codex-app-updater"
+note = "codex-wrapper-updater in user prose"
+lookalike = "/usr/bin/codex-apparel"
+EOF
+    printf '%s\n' 'codex-wrapper-updater /usr/bin/codex-app in user prose' > "$old_config/notes.txt"
     printf '%s\n' 'conversation state' > "$old_state/session.json"
     printf '%s\n' 'config lock data' > "$old_config/user.lock"
     printf '%s\n' 'user temporary data' > "$old_data/tmp/draft.tmp"
@@ -258,6 +282,17 @@ test_migration_discards_volatile_files_rewrites_paths_and_preserves_user_data() 
     assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/config.json" "chatgpt-linux-wrapper-updates-enabled"
     assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/config.json" "chatgpt-linux-integration-picker-on-update"
     assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/config.json" "chatgpt-wrapper-updater"
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.json" 'codex-wrapper-updater in user prose'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.json" '/usr/bin/codex-apparel'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.json" '"integration": "chatgpt-wrapper-updater"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.json" '/usr/bin/chatgpt --help'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.json" '"chatgpt-linux-warm-start-enabled": true'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.toml" 'chatgpt-linux-wrapper-updates-enabled = true'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.toml" 'integration = "chatgpt-wrapper-updater"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.toml" 'binary = "/usr/bin/chatgpt-updater"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.toml" 'note = "codex-wrapper-updater in user prose"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/rewrite-scope.toml" 'lookalike = "/usr/bin/codex-apparel"'
+    assert_file_contains "$fixture_root/xdg/config/chatgpt-updater/notes.txt" 'codex-wrapper-updater /usr/bin/codex-app in user prose'
     [ ! -e "$fixture_root/home/.codex-cli-npm/lib/node_modules/@openai/.codex-linux-quarantine" ] ||
         fail "legacy CLI quarantine remains"
     assert_file_contains \
@@ -599,6 +634,37 @@ test_installer_generates_canonical_launcher_and_shared_helper() {
     [ ! -e "$app_dir/.codex-linux" ] || fail "installer generated legacy internal directory"
 }
 
+test_user_local_installer_migrates_before_creating_canonical_state() {
+    local fixture_root="$TEST_ROOT/user-local-installer"
+    mkdir -p \
+        "$fixture_root/home" \
+        "$fixture_root/xdg/config/codex-app" \
+        "$fixture_root/xdg/state/codex-app" \
+        "$fixture_root/xdg/cache/codex-app" \
+        "$fixture_root/xdg/data/codex-app"
+    printf '%s\n' legacy-config > "$fixture_root/xdg/config/codex-app/preferences.json"
+    printf '%s\n' legacy-state > "$fixture_root/xdg/state/codex-app/session.json"
+    printf '%s\n' legacy-data > "$fixture_root/xdg/data/codex-app/keep.txt"
+
+    env -i \
+        HOME="$fixture_root/home" \
+        PATH="/usr/bin:/bin" \
+        XDG_CONFIG_HOME="$fixture_root/xdg/config" \
+        XDG_STATE_HOME="$fixture_root/xdg/state" \
+        XDG_CACHE_HOME="$fixture_root/xdg/cache" \
+        XDG_DATA_HOME="$fixture_root/xdg/data" \
+        bash "$REPO_ROOT/contrib/user-local-install/install-user-local.sh" --from-update
+
+    [ ! -e "$fixture_root/xdg/config/codex-app" ] || fail "user-local install retained legacy config"
+    [ ! -e "$fixture_root/xdg/state/codex-app" ] || fail "user-local install retained legacy state"
+    [ ! -e "$fixture_root/xdg/data/codex-app" ] || fail "user-local install retained legacy data"
+    assert_file_contains "$fixture_root/xdg/config/chatgpt/preferences.json" legacy-config
+    assert_file_contains "$fixture_root/xdg/state/chatgpt/session.json" legacy-state
+    assert_file_contains "$fixture_root/xdg/data/chatgpt/keep.txt" legacy-data
+    [ -x "$fixture_root/xdg/data/chatgpt/bin/chatgpt" ] ||
+        fail "user-local install did not populate the migrated canonical data tree"
+}
+
 test_agent_workspace_permission_file_round_trips_and_rewrites_global_state
 test_first_launch_migrates_known_wrapper_state
 test_repeated_launch_is_idempotent
@@ -611,6 +677,7 @@ test_cross_filesystem_source_is_refused_without_partial_mutation
 test_obsolete_launcher_variable_fails_loudly_with_replacement
 test_obsolete_installer_variable_fails_loudly_with_replacement
 test_installer_generates_canonical_launcher_and_shared_helper
+test_user_local_installer_migrates_before_creating_canonical_state
 test_updater_cache_dmg_names_are_digest_verified_and_normalized
 test_unsafe_updater_downloads_path_is_refused_before_any_move
 test_destination_created_after_preflight_is_not_overwritten

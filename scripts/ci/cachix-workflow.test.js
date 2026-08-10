@@ -16,7 +16,9 @@ test("Cachix automatic population runs only for an actual ChatGPT DMG hash chang
   assert.match(workflow, /paths:\n\s+- flake\.nix/);
   assert.doesNotMatch(workflow, /schedule:/);
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /id: codex-dmg-hash/);
+  assert.match(workflow, /id: chatgpt-dmg-hash/);
+  assert.match(workflow, /\.\#checks\.x86_64-linux\.watchdog-port-integrations/);
+  assert.doesNotMatch(workflow, /watchdog-linux-features/);
   assert.match(workflow, /if: github\.event_name != 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /EVENT_NAME: \$\{\{ github\.event_name \}\}/);
   assert.match(workflow, /BEFORE_SHA: \$\{\{ github\.event\.before \}\}/);

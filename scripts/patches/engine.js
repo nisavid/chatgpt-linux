@@ -9,6 +9,7 @@ const {
   PATCH_STATUS_SKIPPED_OPTIONAL,
   PATCH_STATUS_SKIPPED_TARGET,
   captureWarnings,
+  captureWarningsAsync,
   isCriticalPolicy,
   patchStatusFromChange,
   recordPatch,
@@ -17,9 +18,13 @@ const {
   linuxTargetSummary,
 } = require("../lib/linux-target-context.js");
 const {
-  patchAssetFiles,
-  patchUniqueAssetFile,
+  patchAssetFilesWithCapability,
+  patchUniqueAssetFileWithCapability,
 } = require("./lib/assets.js");
+const {
+  GeneratedAppIntegrityError,
+  isGeneratedAppIntegrityError,
+} = require("./lib/generated-app-mutation-client.js");
 const {
   CI_POLICIES,
   PHASE_EXTRACTED_APP_POST_WEBVIEW,
@@ -179,9 +184,39 @@ function runDescriptorApply(descriptor, fn, fallbackValue) {
     try {
       return { ok: true, value: fn() };
     } catch (error) {
+      if (isGeneratedAppIntegrityError(error)) {
+        throw error;
+      }
       return { ok: false, error, value: fallbackValue };
     }
   });
+  const outcome = captured.value;
+  return {
+    value: outcome.value,
+    warnings: captured.warnings,
+    error: outcome.ok ? null : outcome.error,
+    strategies: drainStrategies(),
+  };
+}
+
+async function runDescriptorApplyAsync(descriptor, fn, fallbackValue) {
+  drainStrategies();
+  let captured;
+  try {
+    captured = await captureWarningsAsync(async () => {
+      try {
+        return { ok: true, value: await fn() };
+      } catch (error) {
+        if (isGeneratedAppIntegrityError(error)) {
+          throw error;
+        }
+        return { ok: false, error, value: fallbackValue };
+      }
+    });
+  } catch (error) {
+    drainStrategies();
+    throw error;
+  }
   const outcome = captured.value;
   return {
     value: outcome.value,
@@ -296,13 +331,13 @@ function applyMainBundlePatchDescriptors(source, descriptors, context, report) {
 function defaultWebviewMissingWarning(extractedDir, descriptor) {
   const missingDescription = descriptor.missingDescription ?? "webview asset bundle";
   const skipDescription = descriptor.skipDescription ?? descriptor.id;
-  return `WARN: Could not find ${missingDescription} in ${path.join(extractedDir, "webview", "assets")} — skipping ${skipDescription}`;
+  return `WARN: Could not find ${missingDescription} in webview/assets — skipping ${skipDescription}`;
 }
 
 function defaultWebviewAmbiguousWarning(extractedDir, descriptor) {
   const missingDescription = descriptor.missingDescription ?? "webview asset bundle";
   const skipDescription = descriptor.skipDescription ?? descriptor.id;
-  return `WARN: Found multiple ${missingDescription} contracts in ${path.join(extractedDir, "webview", "assets")} — skipping ${skipDescription}`;
+  return `WARN: Found multiple ${missingDescription} contracts in webview/assets — skipping ${skipDescription}`;
 }
 
 function assetPatchMetadata(patchResult, strategies) {
@@ -334,7 +369,14 @@ function recordAssetDescriptorPatch(report, descriptor, patchResult, warnings, c
   );
 }
 
-function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, report) {
+async function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, report) {
+  const capability = context?.generatedAppMutation;
+  if (capability == null) {
+    throw new GeneratedAppIntegrityError("generated-app mutation capability is unavailable", {
+      code: "capability-unavailable",
+      operation: "webview",
+    });
+  }
   for (const descriptor of descriptors.filter((patch) => patch.phase === PHASE_WEBVIEW_ASSET)) {
     if (!descriptorAppliesTo(descriptor, context)) {
       recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_TARGET, null, context);
@@ -353,12 +395,17 @@ function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, r
       defaultWebviewMissingWarning(extractedDir, descriptor);
     const ambiguousWarning = descriptor.ambiguousWarning ??
       defaultWebviewAmbiguousWarning(extractedDir, descriptor);
-    const { value: result, warnings, error, strategies } = runDescriptorApply(
+    const { value: result, warnings, error, strategies } = await runDescriptorApplyAsync(
       descriptor,
       () => descriptor.assetMatch == null
-        ? patchAssetFiles(extractedDir, pattern, (source) => descriptor.apply(source, context), missingWarning)
-        : patchUniqueAssetFile(
-          extractedDir,
+        ? patchAssetFilesWithCapability(
+          capability,
+          pattern,
+          (source) => descriptor.apply(source, context),
+          missingWarning,
+        )
+        : patchUniqueAssetFileWithCapability(
+          capability,
           pattern,
           (source, assetName) => descriptor.assetMatch(source, assetName, context),
           (source) => descriptor.apply(source, context),

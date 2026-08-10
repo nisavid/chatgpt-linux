@@ -7,6 +7,11 @@ log() {
     echo "[chatgpt-wrapper-updater] $*"
 }
 
+if [[ -v CHATGPT_LINUX_FEATURE_HOOK_PHASE ]]; then
+    echo "CHATGPT_LINUX_FEATURE_HOOK_PHASE is no longer supported; use CHATGPT_PORT_INTEGRATION_HOOK_PHASE" >&2
+    exit 1
+fi
+
 truthy() {
     case "${1:-}" in
         1|true|TRUE|yes|YES|on|ON) return 0 ;;
@@ -155,7 +160,7 @@ state_dir="$(resolve_state_dir)" || {
 }
 marker_dir="$state_dir/chatgpt-wrapper-updater"
 marker="$marker_dir/pending"
-phase="${CHATGPT_PORT_INTEGRATION_HOOK_PHASE:-${CHATGPT_LINUX_FEATURE_HOOK_PHASE:-manual}}"
+phase="${CHATGPT_PORT_INTEGRATION_HOOK_PHASE:-manual}"
 
 [ -f "$marker" ] || exit 0
 

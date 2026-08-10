@@ -25,13 +25,6 @@ git-ignored `integrations.json` file is not part of the flake source:
 nix run .#remote-mobile-control
 ```
 
-Integration-specific Nix outputs are additive. To combine this integration with the
-Computer Use UI opt-in:
-
-```bash
-nix run .#computer-use-ui-remote-mobile-control
-```
-
 What it changes:
 
 - Replaces the upstream native `remote-control-device-key.node` path with a
@@ -194,7 +187,6 @@ On NixOS, prefer the flake's Home Manager module instead of the launcher hook:
 
   programs.chatgptLinux = {
     enable = true;
-    computerUseUi.enable = true;
     remoteMobileControl.enable = true;
     remoteControl.enable = true;
   };

@@ -138,13 +138,12 @@ test("keeps the per-user socket patch when IAB discovery cannot be identified", 
 test("IAB discovery excludes extension sockets before connecting", async () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-iab-socket-scope-"));
   const clientPath = path.join(workspace, "browser-client.mjs");
-const fixture = `
-const Cb="/tmp/codex-browser-use";
+  const fixture = `
 const entries=["extension-123.sock","iab-session.sock","extension-stale.sock"];
-const yP=async()=>entries;
-const wP={resolve:(root,entry)=>root+"/"+entry};
-const _P=()=>"linux";
-export const EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>wP.resolve(Cb,e)),TV=async()=>[];
+const BE=async()=>entries;
+const NE={resolve:(root,entry)=>root+"/"+entry};
+const ys=()=>"/tmp/codex-browser-use";
+export const Q6=e=>e.platform==="win32"?t4(e):e4(e),e4=async e=>{let t=ys(e.platform);return(await BE(t)).map(n=>NE.resolve(t,n))},t4=async e=>[];
 `;
 
   try {
@@ -159,7 +158,9 @@ export const EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>w
     assert.equal(fs.readFileSync(clientPath, "utf8"), patched);
 
     const module = await import(`${pathToFileURL(clientPath).href}?patched=1`);
-    assert.deepEqual(await module.CV(), ["/tmp/codex-browser-use/iab-session.sock"]);
+    assert.deepEqual(await module.e4({ platform: "linux" }), [
+      "/tmp/codex-browser-use/iab-session.sock",
+    ]);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
@@ -187,9 +188,10 @@ test("leaves ambiguous IAB discovery chains unchanged", () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codex-iab-ambiguous-"));
   const clientPath = path.join(workspace, "browser-client.mjs");
   const chain = (suffix) =>
-    `EV${suffix}=()=>P${suffix}()==="win32"?TV${suffix}():CV${suffix}(),` +
-    `CV${suffix}=async()=>(await Y${suffix}(C${suffix})).map(e=>W${suffix}.resolve(C${suffix},e)),` +
-    `TV${suffix}=async()=>[]`;
+    `Q${suffix}=e=>e.platform==="win32"?T${suffix}(e):C${suffix}(e),` +
+    `C${suffix}=async e=>{let t=S${suffix}(e.platform);` +
+    `return(await Y${suffix}(t)).map(n=>W${suffix}.resolve(t,n))},` +
+    `T${suffix}=async e=>[]`;
   const fixture = `const root="/tmp/codex-browser-use";${chain("A")};${chain("B")};`;
 
   try {

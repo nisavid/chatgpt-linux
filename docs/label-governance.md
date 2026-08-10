@@ -87,7 +87,7 @@ Area identifies the source-of-truth surface a reviewer must inspect.
 | `area: appimage` | AppImage construction, runtime behavior, or desktop integration. |
 | `area: nix` | Flake outputs, Nix modules, fixed-output hashes, or Nix-only packaging. |
 | `area: upstream dmg` | Compatibility with, or drift in, the latest supported upstream DMG. |
-| `area: linux features` | The opt-in feature framework or one of its modules. |
+| `area: port integrations` | The port integration framework or one of its modules. |
 | `area: computer use` | Linux Computer Use backends, helpers, capture, input, or desktop control. |
 | `area: integrations` | Browser, desktop environment, portal, or other external integration boundaries. |
 | `area: ci and tooling` | GitHub Actions, validation scripts, developer tooling, fixtures, or repository governance. |
@@ -280,8 +280,8 @@ the new taxonomy or alter native GitHub state.
 
 ## Examples
 
-A confirmed latest-DMG regression in an opt-in feature could be classified as
-`type: bug`, `area: upstream dmg`, `area: linux features`,
+A confirmed latest-DMG regression in a port integration could be classified as
+`type: bug`, `area: upstream dmg`, `area: port integrations`,
 `status: ready for work`, and an evidence-based impact.
 
 A pull request that changes this label policy is `type: maintenance`,

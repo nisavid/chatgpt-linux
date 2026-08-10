@@ -1,14 +1,14 @@
 "use strict";
 
 const currentGroupSorter =
-  "function kos({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return yca(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}";
+  "function D8o({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return F6i(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}";
 const patchedGroupSorter =
-  "function kos({groups:e,items:t,projectOrder:n,sortMode:chatgptLinuxProjectSortMode}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return((chatgptLinuxRecencySortedGroups)=>chatgptLinuxProjectSortMode===`updated_at`?chatgptLinuxRecencySortedGroups:yca(chatgptLinuxRecencySortedGroups,n))(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e))}";
+  "function D8o({groups:e,items:t,projectOrder:n,sortMode:chatgptLinuxProjectSortMode}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return((chatgptLinuxRecencySortedGroups)=>chatgptLinuxProjectSortMode===`updated_at`?chatgptLinuxRecencySortedGroups:F6i(chatgptLinuxRecencySortedGroups,n))(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e))}";
 
 const currentGroupSorterCall =
-  "A=kos({groups:Oos({groups:O,items:f}),items:f,projectOrder:Cp(t,Il.PROJECT_ORDER)})";
+  "N=D8o({groups:A,items:f,projectOrder:Im(t,vu.PROJECT_ORDER)})";
 const patchedGroupSorterCall =
-  "A=kos({groups:Oos({groups:O,items:f}),items:f,projectOrder:Cp(t,Il.PROJECT_ORDER),sortMode:t(Tz).projectSortMode})";
+  "N=D8o({groups:A,items:f,projectOrder:Im(t,vu.PROJECT_ORDER),sortMode:M})";
 
 function countOccurrences(source, needle) {
   return source.split(needle).length - 1;

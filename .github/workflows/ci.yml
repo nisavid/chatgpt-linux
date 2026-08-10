@@ -42,7 +42,9 @@ jobs:
           bash -n tests/fixtures/create-packaged-app-fixture.sh
           bash -n tests/scripts_smoke.sh
           bash -n tests/package_identity.sh
+          bash -n tests/generated_app_mutation_broker.sh
           bash -n tests/state_migration.sh
+          bash -n tests/port_owned_env.sh
           bash -n launcher/start.sh.template
           bash -n scripts/lib/*.sh
           bash -n packaging/linux/chatgpt-updater-user-service.sh
@@ -59,8 +61,13 @@ jobs:
           bash -n scripts/ci/update-nix-hashes.sh
           bash -n scripts/ci/validate-nix-pins.sh
 
+      - name: Build generated-app mutation broker
+        run: cargo build --locked --release -p generated-app-mutation-broker
+
       - name: Check Node syntax and tests
         timeout-minutes: 10
+        env:
+          CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE: ${{ github.workspace }}/target/release/chatgpt-generated-app-mutation-broker
         run: |
           set -euo pipefail
           bash scripts/ci/run-node-checks.sh
@@ -82,14 +89,16 @@ jobs:
           set -euo pipefail
           bash tests/scripts_smoke.sh
           bash tests/package_identity.sh
+          bash tests/generated_app_mutation_broker.sh
           bash tests/state_migration.sh
+          bash tests/port_owned_env.sh
           {
             echo "## Rust and Smoke Tests"
             echo ""
             echo "- Shell syntax checks passed."
             echo "- Node syntax and tests passed."
             echo "- Rust formatting, clippy, check, and tests passed."
-            echo "- Script smoke, package identity, and state migration tests passed."
+            echo "- Script smoke, package identity, mutation-broker resolver, and state migration tests passed."
           } >> "$GITHUB_STEP_SUMMARY"
 
   package-deb:
@@ -308,9 +317,7 @@ jobs:
           outputs=(
             .#installer
             .#chatgpt
-            .#chatgpt-computer-use-ui
             .#chatgpt-remote-mobile-control
-            .#chatgpt-computer-use-ui-remote-mobile-control
             .#checks.x86_64-linux.nix-gsettings-schema-wrapper
             .#checks.x86_64-linux.watchdog-port-integrations
           )

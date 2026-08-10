@@ -116,8 +116,8 @@ Patch descriptors target three phases:
   `.vite/build/`.
 - **`webview-asset`:** generated webview JavaScript assets under
   `webview/assets/`.
-- **`extracted-app`:** structured files or bundles elsewhere in the extracted app
-  tree, such as `package.json` metadata or updater bridge code.
+- **`extracted-app`:** structured files or standalone bundles elsewhere in the
+  extracted app tree, such as `package.json` metadata or preload code.
 
 The official app's JavaScript is minified. The patcher therefore matches stable
 bundle shapes rather than pretty source code: string literals, platform
@@ -214,7 +214,8 @@ Typical payload patches do one of the following:
 - preserve this fork's package and desktop identity;
 - expose or hide integration UI according to local build settings and upstream
   account-side gates;
-- bridge the official app's update UI to the Linux package updater.
+- integrate local wrapper-update controls with `chatgpt-updater` while
+  preserving the official app's native Linux package-updater implementation.
 
 Because the app bundle is generated and minified, patches do not rely on source
 formatting. They search for stable syntax and runtime shapes. For example, a
@@ -270,8 +271,9 @@ The architecture has important trust and maintenance consequences:
   verification evidence.
 - The generated Electron app is upstream-derived code plus local patches, so
   bundle drift can break patch assumptions.
-- The local webview server, plugin resources, updater bridge, and desktop
-  automation helpers create local trust boundaries that need targeted review.
+- The local webview server, plugin resources, wrapper-updater integration, and
+  desktop automation helpers create local trust boundaries that need targeted
+  review.
 - Native packages should install generated app files under package-managed roots
   while keeping user config, cache, and state under XDG paths.
 

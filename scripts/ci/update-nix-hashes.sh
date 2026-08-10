@@ -12,9 +12,7 @@ APPCAST_URL="${APPCAST_URL:-https://persistent.oaistatic.com/codex-app-prod/appc
 
 PACKAGE_OUTPUTS=(
     ".#chatgpt"
-    ".#chatgpt-computer-use-ui"
     ".#chatgpt-remote-mobile-control"
-    ".#chatgpt-computer-use-ui-remote-mobile-control"
     ".#installer"
 )
 

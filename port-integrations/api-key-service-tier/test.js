@@ -8,7 +8,9 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { createPatchReport } = require("../../scripts/lib/patch-report.js");
-const { patchExtractedApp } = require("../../scripts/patches/runner.js");
+const {
+  patchExtractedApp: patchExtractedAppProduction,
+} = require("../../scripts/patches/runner.js");
 const { loadPortIntegrationPatchDescriptors } = require("../../scripts/lib/port-integrations.js");
 const {
   applyApiKeyServiceTierPatch,
@@ -43,6 +45,27 @@ function captureWarnings(callback) {
   }
 }
 
+async function captureWarningsAsync(callback) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  try {
+    return { value: await callback(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+}
+
 function allIntegrationIds() {
   return fs.readdirSync(integrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -61,6 +84,23 @@ function withIntegrationConfig(enabled, callback) {
     fs.writeFileSync(configPath, JSON.stringify({ enabled: enabled ? ["api-key-service-tier"] : [], disabled }));
     process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
     return callback();
+  } finally {
+    if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withIntegrationConfigAsync(enabled, callback) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "api-key-service-tier-"));
+  const configPath = path.join(tempDir, "integrations.json");
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const disabled = allIntegrationIds().filter((id) => id !== "api-key-service-tier");
+  if (!enabled) disabled.push("api-key-service-tier");
+  try {
+    fs.writeFileSync(configPath, JSON.stringify({ enabled: enabled ? ["api-key-service-tier"] : [], disabled }));
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
+    return await callback();
   } finally {
     if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
@@ -113,8 +153,8 @@ test("provider-only model and fallback compatibility exports are inert", () => {
   });
 });
 
-test("auth-gate descriptor applies and records a report entry", () => {
-  withIntegrationConfig(true, () => {
+test("auth-gate descriptor applies and records a report entry", async () => {
+  await withIntegrationConfigAsync(true, async () => {
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "api-key-service-tier-app-"));
     try {
       const assetsDir = path.join(tempApp, "webview", "assets");
@@ -122,7 +162,7 @@ test("auth-gate descriptor applies and records a report entry", () => {
       const assetPath = path.join(assetsDir, "app-initial-current.js");
       fs.writeFileSync(assetPath, gateSource);
       const report = createPatchReport();
-      captureWarnings(() => patchExtractedApp(tempApp, { report }));
+      await captureWarningsAsync(() => patchExtractedApp(tempApp, { report }));
       assert.equal(
         report.patches.find((entry) => entry.name === "integration:api-key-service-tier:api-key-service-tier-gate")?.status,
         "applied",
@@ -134,13 +174,13 @@ test("auth-gate descriptor applies and records a report entry", () => {
   });
 });
 
-test("missing auth-gate bundle records one optional skip", () => {
-  withIntegrationConfig(true, () => {
+test("missing auth-gate bundle records one optional skip", async () => {
+  await withIntegrationConfigAsync(true, async () => {
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "api-key-service-tier-missing-"));
     try {
       fs.mkdirSync(path.join(tempApp, "webview", "assets"), { recursive: true });
       const report = createPatchReport();
-      captureWarnings(() => patchExtractedApp(tempApp, { report }));
+      await captureWarningsAsync(() => patchExtractedApp(tempApp, { report }));
       const own = report.patches.filter((entry) => entry.name.startsWith("integration:api-key-service-tier:"));
       assert.deepEqual(own.map((entry) => [entry.name, entry.status]), [
         ["integration:api-key-service-tier:api-key-service-tier-gate", "skipped-optional"],

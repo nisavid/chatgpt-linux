@@ -7,6 +7,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod abs_pointer;
 mod atspi_tree;
+mod authorization;
 mod cosmic_helper;
 mod diagnostics;
 mod gnome_extension;

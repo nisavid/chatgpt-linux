@@ -418,10 +418,62 @@ PY
 }
 
 # ---- Install app.asar ----
+install_git_repository_watcher_dependency() {
+    local app_package_json="$WORK_DIR/app-extracted/package.json"
+    local resources_dir="$INSTALL_DIR/resources"
+    local managed_node="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"
+    local managed_npm="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/npm"
+    local worker_module_path="$resources_dir/app.asar/.vite/build/worker.js"
+    local watcher_version
+
+    [ -f "$app_package_json" ] || error "Missing extracted app package metadata: $app_package_json"
+    [ -x "$managed_node" ] || error "Managed Node.js runtime is missing node: $managed_node"
+    [ -x "$managed_npm" ] || error "Managed Node.js runtime is missing npm: $managed_npm"
+
+    watcher_version="$("$managed_node" - "$app_package_json" <<'NODE'
+const packageJson = require(process.argv[2]);
+const version = packageJson.dependencies?.["@parcel/watcher"];
+const exactSemver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+if (typeof version !== "string" || !exactSemver.test(version)) {
+  process.exit(1);
+}
+process.stdout.write(version);
+NODE
+)" || error "Official app does not declare an exact @parcel/watcher dependency"
+
+    info "Installing official Git repository watcher dependency: @parcel/watcher@$watcher_version"
+    "$managed_npm" install \
+        --prefix "$resources_dir" \
+        --ignore-scripts \
+        --no-save \
+        --package-lock=false \
+        --no-audit \
+        --no-fund \
+        "@parcel/watcher@$watcher_version" >&2 \
+        || error "Failed to install @parcel/watcher@$watcher_version"
+
+    [ -x "$INSTALL_DIR/electron" ] || error "Generated Electron runtime is missing: $INSTALL_DIR/electron"
+    ELECTRON_RUN_AS_NODE=1 "$INSTALL_DIR/electron" - "$worker_module_path" "$watcher_version" <<'NODE' \
+        || error "Generated app cannot load @parcel/watcher from its worker module path"
+const { createRequire } = require("node:module");
+const workerModulePath = process.argv[2];
+const expectedVersion = process.argv[3];
+const fromWorker = createRequire(workerModulePath);
+const watcher = fromWorker("@parcel/watcher");
+const watcherPackage = fromWorker("@parcel/watcher/package.json");
+if (watcherPackage.version !== expectedVersion || typeof watcher.subscribe !== "function") {
+  process.exit(1);
+}
+NODE
+
+    info "Official Git repository watcher dependency installed"
+}
+
 install_app() {
     cp "$WORK_DIR/app.asar" "$INSTALL_DIR/resources/"
     if [ -d "$WORK_DIR/app.asar.unpacked" ]; then
         cp -r "$WORK_DIR/app.asar.unpacked" "$INSTALL_DIR/resources/"
     fi
+    install_git_repository_watcher_dependency
     info "app.asar installed"
 }

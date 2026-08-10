@@ -18,7 +18,7 @@ const {
   createPatchReport,
 } = require("../../scripts/lib/patch-report.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
   patchMainBundleSource,
 } = require("../../scripts/patches/runner.js");
 const {
@@ -427,6 +427,18 @@ function withTempIntegrationRoot(enabled, fn) {
   }
 }
 
+async function withTempIntegrationRootAsync(enabled, fn) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-integration-test-"));
+  try {
+    fs.writeFileSync(path.join(root, "integrations.example.json"), JSON.stringify({ enabled: [] }, null, 2));
+    fs.writeFileSync(path.join(root, "integrations.json"), JSON.stringify({ enabled }, null, 2));
+    fs.cpSync(__dirname, path.join(root, "remote-mobile-control"), { recursive: true });
+    return await fn(root);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function applyPatchTwice(patchFn, source, ...args) {
   const patched = patchFn(source, ...args);
   assert.equal(patchFn(patched, ...args), patched);
@@ -445,6 +457,30 @@ function withIntegrationRootEnv(root, fn) {
       process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = previous;
     }
   }
+}
+
+async function withIntegrationRootEnvAsync(root, fn) {
+  const previous = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (previous == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = previous;
+    }
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
 }
 
 function captureWarnings(fn) {
@@ -2560,8 +2596,8 @@ test("Linux remote-control settings UX patch warns when SSH release handling dri
   assert.ok(warnings.some((warning) => warning.includes("SSH install release needles")));
 });
 
-test("remote mobile integration patch report records integration metadata and partial warnings", () => {
-  withTempIntegrationRoot(["remote-mobile-control"], (root) => {
+test("remote mobile integration patch report records integration metadata and partial warnings", async () => {
+  await withTempIntegrationRootAsync(["remote-mobile-control"], async (root) => {
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-mobile-report-"));
     try {
       const buildDir = path.join(tempApp, ".vite", "build");
@@ -2623,7 +2659,7 @@ test("remote mobile integration patch report records integration metadata and pa
       );
 
       const report = createPatchReport();
-      withIntegrationRootEnv(root, () => patchExtractedApp(tempApp, { report }));
+      await withIntegrationRootEnvAsync(root, () => patchExtractedApp(tempApp, { report }));
 
       assert.deepEqual(report.enabledIntegrations, ["remote-mobile-control"]);
       const settingsPatch = report.patches.find(
@@ -2950,6 +2986,7 @@ test("patched Linux device-key provider can create, sign with, and delete a key"
   try {
     const sharedConfigDirectory = path.join(configHome, "chatgpt");
     fs.mkdirSync(sharedConfigDirectory, { mode: 0o755 });
+    fs.chmodSync(sharedConfigDirectory, 0o755);
     const patched = applyLinuxRemoteControlDeviceKeyPatch(syntheticMainBundle());
     const context = {
       Buffer,
@@ -3467,6 +3504,7 @@ test("Linux device-key store enforces paths, permissions, and size bounds", asyn
     const directoryModeHome = path.join(root, "directory-mode");
     const directoryModePaths = remoteControlKeyStorePaths(directoryModeHome);
     fs.mkdirSync(directoryModePaths.directory, { recursive: true, mode: 0o755 });
+    fs.chmodSync(directoryModePaths.directory, 0o755);
     await assert.rejects(
       () => createPatchedDeviceKeyClient(directoryModeHome).createDeviceKey("test"),
       /directory permissions must be 0700/,
@@ -3532,9 +3570,9 @@ test("Linux device-key store enforces its schema and key-count boundary", async 
   }
 });
 
-test("remote mobile control feature participates in ASAR patching and reports", () => {
-  withTempIntegrationRoot(["remote-mobile-control"], (root) => {
-    withIntegrationRootEnv(root, () => {
+test("remote mobile control feature participates in ASAR patching and reports", async () => {
+  await withTempIntegrationRootAsync(["remote-mobile-control"], async (root) => {
+    await withIntegrationRootEnvAsync(root, async () => {
       const source = syntheticMainBundle();
       const patched = patchMainBundleSource(source, null);
       assert.match(patched, /chatgptLinuxRemoteControlDeviceKeyClient/);
@@ -3596,7 +3634,7 @@ test("remote mobile control feature participates in ASAR patching and reports", 
           syntheticAppMainActiveStatusBundle(),
         );
         const report = createPatchReport();
-        patchExtractedApp(tempApp, { report });
+        await patchExtractedApp(tempApp, { report });
 
         const patchedFile = fs.readFileSync(path.join(buildDir, "main.js"), "utf8");
         const patchedAppServerLaunchFile = fs.readFileSync(
@@ -3783,7 +3821,7 @@ test("remote mobile control feature participates in ASAR patching and reports", 
         );
 
         const secondReport = createPatchReport();
-        patchExtractedApp(tempApp, { report: secondReport });
+        await patchExtractedApp(tempApp, { report: secondReport });
         assert.ok(
           secondReport.patches.some((patch) =>
             patch.name === "integration:remote-mobile-control:linux-remote-mobile-completed-item-recovery" &&

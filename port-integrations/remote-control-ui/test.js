@@ -15,7 +15,7 @@ const {
   createPatchReport,
 } = require("../../scripts/lib/patch-report.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
 } = require("../../scripts/patches/runner.js");
 const {
   descriptors: integrationPatches,
@@ -75,6 +75,64 @@ function captureWarns(fn) {
   } finally {
     console.warn = originalWarn;
   }
+}
+
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function withTempIntegrationConfigAsync(enabled, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-control-integration-test-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    fs.writeFileSync(
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
+      JSON.stringify({ enabled, disabled: ["open-target-discovery"] }, null, 2),
+    );
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
 }
 
 test("remote-control UI integration is enabled by default", () => {
@@ -215,9 +273,9 @@ test("remote-control UI descriptors match the current app chunks", () => {
   );
 });
 
-test("remote-control UI integration patches matching webview assets and records patch report entries", () => {
-  withTempIntegrationConfig(["remote-control-ui"], (root) => {
-    withPortIntegrationRootEnv(root, () => {
+test("remote-control UI integration patches matching webview assets and records patch report entries", async () => {
+  await withTempIntegrationConfigAsync(["remote-control-ui"], async (root) => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-remote-control-integration-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
@@ -238,7 +296,7 @@ test("remote-control UI integration patches matching webview assets and records 
         );
 
         const report = createPatchReport();
-        const { warnings } = captureWarns(() => patchExtractedApp(tempApp, { report }));
+        const { warnings } = await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         assert.ok(
           warnings.every((warning) => !warning.includes("remote control UI")),
           warnings.join("\n"),

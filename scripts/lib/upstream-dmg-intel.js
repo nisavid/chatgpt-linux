@@ -1616,7 +1616,7 @@ function renderActionPlanMarkdown(driftReport, candidateProtected, mapDrift = nu
         lines.push(`Added path samples: ${evidencePathList(item.evidenceDrift.addedPathSamples)}`);
       }
     } else if (item.classification === "PAYLOAD_CHANGED") {
-      lines.push("Action: review payload diffs, refresh protected needles, and run the owning Linux feature/backend tests.");
+      lines.push("Action: review payload diffs, refresh protected needles, and run the owning port integration or backend tests.");
       if (item.evidenceDrift?.changedPathSamples?.length > 0) {
         lines.push("Changed payload files:");
         lines.push(changedPayloadList(item.evidenceDrift.changedPathSamples, 8));
@@ -1624,9 +1624,9 @@ function renderActionPlanMarkdown(driftReport, candidateProtected, mapDrift = nu
     } else if (item.classification === "REMOVED") {
       lines.push("Action: verify whether upstream intentionally removed this surface before deleting Linux compatibility code.");
     } else if (item.classification === "NEW_UPSTREAM_CAPABILITY") {
-      lines.push("Action: decide whether Linux needs a port, shim, explicit unsupported gate, or new optional feature.");
+      lines.push("Action: decide whether Linux needs a port, shim, explicit unsupported gate, or new optional port integration.");
     } else if (item.classification === "PATCH_BROKEN") {
-      lines.push("Action: repair the patch descriptor or feature patch before accepting the DMG.");
+      lines.push("Action: repair the patch descriptor or port integration patch before accepting the DMG.");
     } else if (item.classification === "PATCH_REVIEW") {
       lines.push("Action: review optional patch warning/skip details; do not block DMG acceptance unless a protected surface is also missing or broken.");
     } else if (item.classification === "LINUX_SUBSTRATE_GAP") {

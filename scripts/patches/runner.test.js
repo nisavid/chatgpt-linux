@@ -11,7 +11,7 @@ const {
   patchExtractedApp,
 } = require("./runner.js");
 
-test("runner executes descriptor phases explicitly and sorts order only within each phase", () => {
+test("runner executes descriptor phases explicitly and sorts order only within each phase", async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-runner-phase-order-"));
   try {
     const appDir = path.join(tempRoot, "app");
@@ -21,6 +21,7 @@ test("runner executes descriptor phases explicitly and sorts order only within e
     const patchDir = path.join(coreRoot, "all-linux", "sample");
     fs.mkdirSync(buildDir, { recursive: true });
     fs.mkdirSync(assetsDir, { recursive: true });
+    fs.chmodSync(appDir, 0o700);
     fs.mkdirSync(patchDir, { recursive: true });
     fs.writeFileSync(path.join(buildDir, "main.js"), "main");
     fs.writeFileSync(path.join(assetsDir, "app-test.js"), "asset");
@@ -44,9 +45,11 @@ test("runner executes descriptor phases explicitly and sorts order only within e
     );
 
     const report = createPatchReport();
-    patchExtractedApp(appDir, {
+    await patchExtractedApp(appDir, {
       report,
       corePatchRoot: coreRoot,
+      mutationBrokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+      verifiedPrivateRoot: true,
       featuresConfigPath: path.join(__dirname, "..", "..", "linux-features", "features.example.json"),
     });
 

@@ -107,14 +107,14 @@ test("main bundle helper does not shadow minified module variables", () => {
 
   const patched = applyMainBundlePatch(source);
 
-  assert.match(patched, /chatgptLinuxWrapFs\(\)\.existsSync\(__codexWrapStatePath\)/);
-  assert.match(patched, /chatgptLinuxWrapFs\(\)\.readFileSync\(__codexWrapStatePath,`utf8`\)/);
-  assert.match(patched, /chatgptLinuxWrapFs\(\)\.mkdirSync\(chatgptLinuxWrapPath\(\)\.dirname\(__codexWrapMarkerPath\),\{recursive:!0\}\)/);
-  assert.match(patched, /chatgptLinuxWrapFs\(\)\.writeFileSync\(__codexWrapMarkerPath,new Date\(\)\.toISOString\(\)\)/);
-  assert.match(patched, /let __codexWrapCheckProcess=chatgptLinuxWrapChildProcess\(\)\.spawn\(/);
+  assert.match(patched, /chatgptLinuxWrapFs\(\)\.existsSync\(__chatgptWrapStatePath\)/);
+  assert.match(patched, /chatgptLinuxWrapFs\(\)\.readFileSync\(__chatgptWrapStatePath,`utf8`\)/);
+  assert.match(patched, /chatgptLinuxWrapFs\(\)\.mkdirSync\(chatgptLinuxWrapPath\(\)\.dirname\(__chatgptWrapMarkerPath\),\{recursive:!0\}\)/);
+  assert.match(patched, /chatgptLinuxWrapFs\(\)\.writeFileSync\(__chatgptWrapMarkerPath,new Date\(\)\.toISOString\(\)\)/);
+  assert.match(patched, /let __chatgptWrapCheckProcess=chatgptLinuxWrapChildProcess\(\)\.spawn\(/);
   assert.doesNotMatch(patched, /let p=chatgptLinuxWrapStatePath\(\)/);
   assert.doesNotMatch(patched, /let c=c\.spawn\(/);
-  assert.doesNotMatch(patched, /__codexChild/);
+  assert.doesNotMatch(patched, /__chatgptChild/);
 });
 
 test("webview runtime renders dev-mode and installed SHA chip", () => {
@@ -240,6 +240,7 @@ test("integration exposes optional patches and declarative apply hooks when enab
         [
           ["prelaunch", ".chatgpt-linux/prelaunch.d/chatgpt-wrapper-updater-apply-pending.sh", "755"],
           ["afterExit", ".chatgpt-linux/after-exit.d/chatgpt-wrapper-updater-apply-pending.sh", "755"],
+          ["prelaunch", ".chatgpt-linux/prelaunch.d/ui-tweaks-dock-icon-cleanup.sh", "755"],
         ],
       );
       assert.equal(
@@ -292,6 +293,22 @@ test("apply hook preserves marker on failure and clears it on success", () => {
   });
   assert.equal(succeeded.status, 0, succeeded.stderr);
   assert.equal(fs.existsSync(marker), false);
+});
+
+test("apply hook rejects the obsolete port-owned hook phase variable", () => {
+  const result = spawnSync(resolveBashPath(), [path.join(integrationDir, "apply-pending.sh")], {
+    env: {
+      ...process.env,
+      CHATGPT_LINUX_FEATURE_HOOK_PHASE: "prelaunch",
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(
+    result.stderr,
+    /CHATGPT_LINUX_FEATURE_HOOK_PHASE is no longer supported; use CHATGPT_PORT_INTEGRATION_HOOK_PHASE/,
+  );
 });
 
 test("apply hook clears stale marker when package has no updater", () => {

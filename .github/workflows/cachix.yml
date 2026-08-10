@@ -26,8 +26,8 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.codex-dmg-hash.outputs.changed }}
-      current: ${{ steps.codex-dmg-hash.outputs.current }}
+      changed: ${{ steps.chatgpt-dmg-hash.outputs.changed }}
+      current: ${{ steps.chatgpt-dmg-hash.outputs.current }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
 
       - name: Compare ChatGPT DMG hashes
-        id: codex-dmg-hash
+        id: chatgpt-dmg-hash
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
@@ -121,10 +121,8 @@ jobs:
 
           outputs=(
             .#chatgpt
-            .#chatgpt-computer-use-ui
             .#chatgpt-remote-mobile-control
-            .#chatgpt-computer-use-ui-remote-mobile-control
-            .#checks.x86_64-linux.watchdog-linux-features
+            .#checks.x86_64-linux.watchdog-port-integrations
             .#installer
           )
 

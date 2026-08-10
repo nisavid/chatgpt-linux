@@ -44,17 +44,28 @@ function readReportResult(filePath) {
 }
 
 function integrityFailures(report) {
+  const failures = [];
+  if (report?.mutationIntegrity?.status === "failed") {
+    failures.push({
+      code: "generated-app-mutation-integrity",
+      check: "core",
+      name: "generated-app mutation",
+      status: "failed",
+      reason: report.mutationIntegrity.reason ?? "Generated-app mutation integrity failed",
+    });
+  }
   const findings = report?.postPatchIntegrity?.findings;
   if (!Array.isArray(findings) || findings.length === 0) {
-    return [];
+    return failures;
   }
-  return findings.map((finding) => ({
+  failures.push(...findings.map((finding) => ({
     code: "post-patch-integrity",
     check: "core",
     name: finding.symbol ?? finding.path ?? "post-patch integrity",
     status: "failed",
     reason: finding.reason ?? "Post-patch integrity check failed",
-  }));
+  })));
+  return failures;
 }
 
 function validationBlockers(check, failures) {
@@ -107,13 +118,13 @@ function httpIdentity(metadata) {
 }
 
 function buildDmgInfo({ dmgPath, metadata, buildInfo }) {
-  const upstreamDmg = buildInfo?.upstreamDmg ?? {};
+  const officialDmg = buildInfo?.officialDmg ?? {};
   return {
     path: dmgPath ? path.resolve(dmgPath) : metadata?.path ?? null,
     url: metadata?.url ?? null,
-    sha256: dmgPath && fs.existsSync(dmgPath) ? sha256File(dmgPath) : metadata?.sha256 ?? upstreamDmg.sha256 ?? null,
-    sizeBytes: dmgPath && fs.existsSync(dmgPath) ? fs.statSync(dmgPath).size : metadata?.sizeBytes ?? metadata?.size_bytes ?? upstreamDmg.sizeBytes ?? null,
-    appVersion: upstreamDmg.appVersion ?? metadata?.appVersion ?? metadata?.app_version ?? null,
+    sha256: dmgPath && fs.existsSync(dmgPath) ? sha256File(dmgPath) : metadata?.sha256 ?? officialDmg.sha256 ?? null,
+    sizeBytes: dmgPath && fs.existsSync(dmgPath) ? fs.statSync(dmgPath).size : metadata?.sizeBytes ?? metadata?.size_bytes ?? officialDmg.sizeBytes ?? null,
+    appVersion: officialDmg.appVersion ?? metadata?.appVersion ?? metadata?.app_version ?? null,
     httpIdentity: httpIdentity(metadata),
   };
 }

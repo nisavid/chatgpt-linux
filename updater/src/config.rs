@@ -410,10 +410,10 @@ pub fn settings_wrapper_updates_override() -> Option<bool> {
     settings_bool_override(WRAPPER_UPDATES_SETTING_KEY)
 }
 
-const FEATURE_CONFIG_FILE: &str = "port-integrations.json";
-const PACKAGED_FEATURE_CONFIG_DIR: &str = ".chatgpt-linux";
-const BUNDLED_FEATURE_CONFIG_FILE: &str = "integrations.json";
-const FEATURE_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integration-picker-on-update";
+const PORT_INTEGRATIONS_CONFIG_FILE: &str = "port-integrations.json";
+const PACKAGED_PORT_INTEGRATIONS_CONFIG_DIR: &str = ".chatgpt-linux";
+const BUNDLED_PORT_INTEGRATIONS_CONFIG_FILE: &str = "integrations.json";
+const INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integration-picker-on-update";
 
 /// Resolves the stable per-user port-integration config path
 /// (`<config>/<appId>/port-integrations.json`), alongside `settings.json`. The
@@ -423,7 +423,7 @@ const FEATURE_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integration-pi
 pub fn integration_config_path() -> Option<PathBuf> {
     let settings = app_settings_path()?;
     let dir = settings.parent()?;
-    Some(dir.join(FEATURE_CONFIG_FILE))
+    Some(dir.join(PORT_INTEGRATIONS_CONFIG_FILE))
 }
 
 /// Returns the port-integration config that should drive a rebuild. A saved
@@ -435,15 +435,15 @@ pub fn effective_integration_config_path(config: &RuntimeConfig) -> Option<PathB
         .or_else(|| {
             let packaged = config
                 .builder_bundle_root
-                .join(PACKAGED_FEATURE_CONFIG_DIR)
-                .join(FEATURE_CONFIG_FILE);
+                .join(PACKAGED_PORT_INTEGRATIONS_CONFIG_DIR)
+                .join(PORT_INTEGRATIONS_CONFIG_FILE);
             packaged.is_file().then_some(packaged)
         })
         .or_else(|| {
             let bundled = config
                 .builder_bundle_root
                 .join("port-integrations")
-                .join(BUNDLED_FEATURE_CONFIG_FILE);
+                .join(BUNDLED_PORT_INTEGRATIONS_CONFIG_FILE);
             bundled.is_file().then_some(bundled)
         })
 }
@@ -451,7 +451,7 @@ pub fn effective_integration_config_path(config: &RuntimeConfig) -> Option<PathB
 /// Reads the user's "ask which integrations to enable on update" preference.
 /// Absent means callers use their default.
 pub fn settings_integration_picker_on_update_override() -> Option<bool> {
-    settings_bool_override(FEATURE_PICKER_ON_UPDATE_SETTING_KEY)
+    settings_bool_override(INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY)
 }
 
 /// Persists the "Ask which integrations to enable on update" preference to the app
@@ -459,7 +459,7 @@ pub fn settings_integration_picker_on_update_override() -> Option<bool> {
 /// key). Used to honor the picker's "Don't ask again" row. Never panics; returns
 /// the IO/serialization error so the caller can log-and-continue.
 pub fn write_integration_picker_on_update(value: bool) -> Result<()> {
-    write_settings_bool(FEATURE_PICKER_ON_UPDATE_SETTING_KEY, value)
+    write_settings_bool(INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY, value)
 }
 
 /// Read-modify-writes a boolean key into the app `settings.json`, preserving all

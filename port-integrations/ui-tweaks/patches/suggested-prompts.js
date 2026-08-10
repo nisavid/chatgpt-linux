@@ -34,7 +34,7 @@ function appPageEligibilityPattern() {
 }
 
 function mainEligibilityPattern() {
-  return /return\{enabled:([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\.account\),staleTimeMs:\1\.([A-Za-z_$][\w$]*)\(\3\.account\)\}/gu;
+  return /return ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\?\{enabled:!0,staleTimeMs:([A-Za-z_$][\w$]*)\}:\{enabled:!1\}/gu;
 }
 
 function settingsEligibilityPattern() {
@@ -154,8 +154,8 @@ function applySuggestedPromptsMainPatch(source) {
 
     return source.replace(
       mainEligibilityPattern(),
-      (_match, namespace, enabledMethod, accountName, staleMethod) =>
-        `return{enabled:${namespace}.${enabledMethod}(${accountName}.account)&&function ${MAIN_ELIGIBILITY_MARKER}(){return!0}(),staleTimeMs:${namespace}.${staleMethod}(${accountName}.account)}`,
+      (_match, eligibilityMethod, accountName, staleTimeName) =>
+        `return ${eligibilityMethod}(${accountName})&&function ${MAIN_ELIGIBILITY_MARKER}(){return!0}()?{enabled:!0,staleTimeMs:${staleTimeName}}:{enabled:!1}`,
     );
   } catch (error) {
     console.warn(

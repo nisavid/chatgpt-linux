@@ -50,6 +50,10 @@ assert_contains packaging/linux/chatgpt-updater.service \
     'ExecStartPre=/opt/chatgpt/.chatgpt-linux/state-migration.py --forward'
 assert_contains packaging/linux/chatgpt-updater.service \
     'ExecStart=/usr/bin/chatgpt-updater daemon'
+assert_contains packaging/linux/chatgpt-updater.service \
+    'Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin'
+assert_not_contains packaging/linux/chatgpt-updater.service '%h/.local/bin'
+assert_not_contains packaging/linux/chatgpt-updater.service '/usr/local/'
 assert_contains packaging/linux/chatgpt.desktop '/usr/bin/chatgpt %u'
 assert_contains packaging/linux/chatgpt.desktop 'Icon=chatgpt'
 assert_contains packaging/linux/chatgpt.desktop '/usr/bin/chatgpt-updater check-now'
@@ -190,9 +194,87 @@ test_desktop_marker_ownership() {
     rm -rf "$temp_dir"
 }
 
+# The sourced helper consumes dynamically scoped variables inside a subshell.
+# shellcheck disable=SC2030,SC2031,SC2034
+test_external_updater_binary_is_authoritative() {
+    local temp_dir
+    local status
+    temp_dir="$(mktemp -d)"
+    mkdir -p "$temp_dir/source/updater/src" "$temp_dir/prebuilt" "$temp_dir/bin"
+    printf '%s\n' '#!/bin/sh' 'exit 0' > "$temp_dir/prebuilt/chatgpt-updater"
+    chmod 0755 "$temp_dir/prebuilt/chatgpt-updater"
+    sleep 1
+    printf '%s\n' '[workspace]' > "$temp_dir/source/Cargo.toml"
+    printf '%s\n' '# newer updater source' > "$temp_dir/source/updater/src/main.rs"
+    printf '%s\n' \
+        '#!/bin/sh' \
+        "touch '$temp_dir/cargo-ran'" \
+        'exit 1' > "$temp_dir/bin/cargo"
+    chmod 0755 "$temp_dir/bin/cargo"
+
+    set +e
+    (
+        # shellcheck source=../scripts/lib/package-common.sh
+        source "$REPO_DIR/scripts/lib/package-common.sh"
+        # These dynamically scope inputs consumed by the sourced package helper.
+        local REPO_DIR="$temp_dir/source"
+        local UPDATER_BINARY_SOURCE="$temp_dir/prebuilt/chatgpt-updater"
+        local PACKAGE_WITH_UPDATER=1
+        local PATH="$temp_dir/bin:/usr/bin:/bin"
+        ensure_updater_binary
+    )
+    status=$?
+    set -e
+
+    [ "$status" -eq 0 ] || fail 'external updater binary was rejected as stale'
+    [ ! -e "$temp_dir/cargo-ran" ] || fail 'external updater binary triggered a Cargo rebuild'
+    rm -rf "$temp_dir"
+}
+
+# The sourced helper consumes dynamically scoped variables inside a subshell.
+# shellcheck disable=SC2030,SC2031,SC2034
+test_repo_local_updater_symlink_retains_stale_source_rebuild() {
+    local temp_dir
+    local status
+    temp_dir="$(mktemp -d)"
+    mkdir -p "$temp_dir/source/updater/src" "$temp_dir/source/target/release" "$temp_dir/prebuilt" "$temp_dir/bin"
+    printf '%s\n' '#!/bin/sh' 'exit 0' > "$temp_dir/prebuilt/chatgpt-updater"
+    chmod 0755 "$temp_dir/prebuilt/chatgpt-updater"
+    ln -s "$temp_dir/prebuilt/chatgpt-updater" "$temp_dir/source/target/release/chatgpt-updater"
+    sleep 1
+    printf '%s\n' '[workspace]' > "$temp_dir/source/Cargo.toml"
+    printf '%s\n' '# newer updater source' > "$temp_dir/source/updater/src/main.rs"
+    printf '%s\n' \
+        '#!/bin/sh' \
+        "touch '$temp_dir/cargo-ran'" \
+        'exit 1' > "$temp_dir/bin/cargo"
+    chmod 0755 "$temp_dir/bin/cargo"
+
+    set +e
+    (
+        # shellcheck source=../scripts/lib/package-common.sh
+        source "$REPO_DIR/scripts/lib/package-common.sh"
+        local REPO_DIR="$temp_dir/source"
+        local UPDATER_BINARY_SOURCE="$temp_dir/source/target/release/chatgpt-updater"
+        local PACKAGE_WITH_UPDATER=1
+        local PATH="$temp_dir/bin:/usr/bin:/bin"
+        ensure_updater_binary
+    )
+    status=$?
+    set -e
+
+    # The rebuild seam is the contract under test; the fixture's existing
+    # symlink may still satisfy the helper's final executable check.
+    : "$status"
+    [ -e "$temp_dir/cargo-ran" ] || fail 'stale repo-local updater symlink did not trigger Cargo'
+    rm -rf "$temp_dir"
+}
+
 test_service_enablement_migration
 test_service_enablement_policy
 test_desktop_marker_ownership
+test_external_updater_binary_is_authoritative
+test_repo_local_updater_symlink_retains_stale_source_rebuild
 
 for legacy_port_env in \
     CODEX_APP_PACKAGE_VERSION \

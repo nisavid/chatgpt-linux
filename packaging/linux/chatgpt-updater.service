@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 ExecStartPre=/opt/chatgpt/.chatgpt-linux/state-migration.py --forward
 ExecStart=/usr/bin/chatgpt-updater daemon
 Restart=on-failure

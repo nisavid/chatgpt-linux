@@ -43,3 +43,18 @@ _Avoid_: renaming these interfaces for visual consistency
 The former `codex-app` and `codex-app-updater` package, runtime, and XDG
 names that migrate to canonical `chatgpt` and `chatgpt-updater` names.
 _Avoid_: applying this term to Linux-port upstream installations
+
+**Port integration**:
+A configurable build-time module that adapts official app behavior or supplies
+a local runtime helper for this Linux port.
+_Avoid_: Linux feature, optional patch
+
+**Owning feature control**:
+The existing ChatGPT, Codex, or port-integration setting, approval, or policy
+that authorizes a feature's sensitive actions until the user changes it.
+_Avoid_: universal Computer Use grant, fork consent, session grant
+
+**Local support readiness**:
+The current Linux host and generated app's ability to execute an authorized
+feature successfully; it is not a separate authorization decision.
+_Avoid_: availability grant, usability permission

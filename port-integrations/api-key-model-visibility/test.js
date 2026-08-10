@@ -12,6 +12,9 @@ const {
   normalizePatchDescriptors,
 } = require("../../scripts/patches/engine.js");
 const {
+  openGeneratedAppMutationRoot,
+} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
+const {
   loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
 const {
@@ -76,6 +79,15 @@ function withTempDir(callback) {
   }
 }
 
+async function withTempDirAsync(callback) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "api-key-model-visibility-"));
+  try {
+    return await callback(tempDir);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function integrationSelection(integrationsRoot, enabled) {
   const disabled = fs.readdirSync(integrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -102,6 +114,47 @@ function withFeatureConfig(enabled, callback) {
       }
     }
   });
+}
+
+async function withFeatureConfigAsync(enabled, callback) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  return withTempDirAsync(async (tempDir) => {
+    const configPath = path.join(tempDir, "integrations.json");
+    fs.writeFileSync(configPath, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = configPath;
+    try {
+      return await callback(path.resolve(__dirname, ".."));
+    } finally {
+      if (originalConfig == null) {
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+      } else {
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      }
+    }
+  });
+}
+
+async function applyWebviewAssetPatchDescriptorsWithMutation(
+  root,
+  descriptors,
+  context,
+  report,
+) {
+  fs.chmodSync(root, 0o700);
+  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
+    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+  try {
+    return await applyWebviewAssetPatchDescriptors(
+      root,
+      descriptors,
+      { ...context, generatedAppMutation },
+      report,
+    );
+  } finally {
+    await generatedAppMutation.close();
+  }
 }
 
 test("api-key-model-visibility stays disabled until listed in integrations.json", () => {
@@ -202,9 +255,9 @@ test("extended upstream model gates fail soft instead of patching mid-expression
   assert.equal(applyApiKeyModelVisibilityPatch(source), source);
 });
 
-test("enabled descriptor patches a matching extracted webview asset", () => {
-  withFeatureConfig(["api-key-model-visibility"], (integrationsRoot) => {
-    withTempDir((extractedDir) => {
+test("enabled descriptor patches a matching extracted webview asset", async () => {
+  await withFeatureConfigAsync(["api-key-model-visibility"], async (integrationsRoot) => {
+    await withTempDirAsync(async (extractedDir) => {
       const assetsDir = path.join(extractedDir, "webview", "assets");
       const assetPath = path.join(assetsDir, "app-initial-fixture.js");
       fs.mkdirSync(assetsDir, { recursive: true });
@@ -213,7 +266,12 @@ test("enabled descriptor patches a matching extracted webview asset", () => {
       const normalized = normalizePatchDescriptors(
         loadPortIntegrationPatchDescriptors({ integrationsRoot }),
       );
-      applyWebviewAssetPatchDescriptors(extractedDir, normalized, {}, null);
+      await applyWebviewAssetPatchDescriptorsWithMutation(
+        extractedDir,
+        normalized,
+        {},
+        null,
+      );
 
       assert.match(fs.readFileSync(assetPath, "utf8"), /chatgptLinuxApiKeyModelVisibility/);
     });

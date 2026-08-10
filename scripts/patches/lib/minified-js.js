@@ -2,6 +2,14 @@
 
 const TRAY_GUARD_LOOKAHEAD = 1200;
 const HANDLER_PREFIX_LOOKBACK = 12000;
+const CONTROL_PAREN_KEYWORDS = new Set([
+  "catch", "for", "if", "switch", "while", "with",
+]);
+const REGEX_PREFIX_KEYWORDS = new Set([
+  "await", "break", "case", "continue", "debugger", "delete", "do",
+  "default", "else", "extends", "in", "instanceof", "new", "of", "return", "throw",
+  "typeof", "void", "yield",
+]);
 
 function requireName(source, moduleName) {
   const escaped = moduleName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -106,6 +114,156 @@ function findMatchingBrace(source, openIndex) {
   return -1;
 }
 
+function findExecutableJavaScriptSubstring(source, needle, fromIndex = 0) {
+  let quote = null;
+  let escaped = false;
+  let canStartRegex = true;
+  let pendingControlParen = false;
+  let pendingBreakOrContinue = false;
+  let pendingBreakOrContinueLabel = false;
+  const parenContexts = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (quote != null) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+        canStartRegex = false;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", index + 2);
+      if (end < 0) return -1;
+      if (
+        (pendingBreakOrContinue || pendingBreakOrContinueLabel) &&
+        /[\r\n\u2028\u2029]/u.test(source.slice(index + 2, end))
+      ) {
+        pendingBreakOrContinue = false;
+        pendingBreakOrContinueLabel = false;
+        canStartRegex = true;
+      }
+      index = end + 1;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      const end = source.indexOf("\n", index + 2);
+      if (end < 0) return -1;
+      if (pendingBreakOrContinue || pendingBreakOrContinueLabel) {
+        pendingBreakOrContinue = false;
+        pendingBreakOrContinueLabel = false;
+        canStartRegex = true;
+      }
+      index = end;
+      continue;
+    }
+    if (index >= fromIndex && source.startsWith(needle, index)) return index;
+    if (/\s/.test(char)) {
+      if (
+        (pendingBreakOrContinue || pendingBreakOrContinueLabel) &&
+        /[\r\n\u2028\u2029]/u.test(char)
+      ) {
+        pendingBreakOrContinue = false;
+        pendingBreakOrContinueLabel = false;
+        canStartRegex = true;
+      }
+      continue;
+    }
+    if (char === "/" && canStartRegex) {
+      let inCharacterClass = false;
+      let regexEscaped = false;
+      for (index += 1; index < source.length; index += 1) {
+        const regexChar = source[index];
+        if (regexEscaped) {
+          regexEscaped = false;
+        } else if (regexChar === "\\") {
+          regexEscaped = true;
+        } else if (regexChar === "[") {
+          inCharacterClass = true;
+        } else if (regexChar === "]") {
+          inCharacterClass = false;
+        } else if (regexChar === "/" && !inCharacterClass) {
+          while (/[A-Za-z]/.test(source[index + 1] ?? "")) index += 1;
+          break;
+        }
+      }
+      canStartRegex = false;
+      continue;
+    }
+    if (char === "/") {
+      if (next === "=") index += 1;
+      canStartRegex = true;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(char)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9_$]/.test(source[end] ?? "")) end += 1;
+      const token = source.slice(index, end);
+      if (pendingBreakOrContinue) {
+        pendingBreakOrContinue = false;
+        pendingBreakOrContinueLabel = true;
+        canStartRegex = false;
+        index = end - 1;
+        continue;
+      }
+      if (pendingControlParen && token === "await") {
+        canStartRegex = true;
+        index = end - 1;
+        continue;
+      }
+      pendingControlParen = CONTROL_PAREN_KEYWORDS.has(token);
+      pendingBreakOrContinue = token === "break" || token === "continue";
+      pendingBreakOrContinueLabel = false;
+      canStartRegex = pendingControlParen || REGEX_PREFIX_KEYWORDS.has(token);
+      index = end - 1;
+      continue;
+    }
+    if (/[0-9]/.test(char)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9._]/.test(source[end] ?? "")) end += 1;
+      canStartRegex = false;
+      index = end - 1;
+      continue;
+    }
+    if (source.startsWith("...", index)) {
+      index += 2;
+      canStartRegex = true;
+      continue;
+    }
+    if (char === "(") {
+      parenContexts.push(pendingControlParen ? "control" : "expression");
+      pendingControlParen = false;
+      canStartRegex = true;
+      continue;
+    }
+    pendingControlParen = false;
+    pendingBreakOrContinue = false;
+    pendingBreakOrContinueLabel = false;
+    if (char === ")") {
+      canStartRegex = parenContexts.pop() === "control";
+      continue;
+    }
+    if (char === "]") {
+      canStartRegex = false;
+      continue;
+    }
+    if (char === "}") {
+      canStartRegex = true;
+      continue;
+    }
+    canStartRegex = "([{,;:?=+!*%&|^~<>-".includes(char);
+  }
+  return -1;
+}
+
 function findLastRegexMatch(source, regex) {
   regex.lastIndex = 0;
   let lastMatch = null;
@@ -184,6 +342,7 @@ module.exports = {
   escapeRegExp,
   findCallBlock,
   findDisposableVar,
+  findExecutableJavaScriptSubstring,
   findExportedAlias,
   findLastRegexMatch,
   findLinuxGlobalStateExpression,

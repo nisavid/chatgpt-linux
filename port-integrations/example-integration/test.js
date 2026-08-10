@@ -16,7 +16,7 @@ const {
 } = require("../../scripts/lib/port-integrations.js");
 const { createPatchReport } = require("../../scripts/lib/patch-report.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
   patchMainBundleSource,
 } = require("../../scripts/patches/runner.js");
 
@@ -33,6 +33,31 @@ function withTempIntegrationRoot(config, fn) {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+}
+
+async function withTempIntegrationRootAsync(config, fn) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-example-integration-test-"));
+  try {
+    fs.writeFileSync(path.join(root, "integrations.example.json"), JSON.stringify({ enabled: [], disabled: [] }, null, 2));
+    const integrationConfig = Array.isArray(config) ? { enabled: config } : config;
+    if (integrationConfig != null) {
+      fs.writeFileSync(path.join(root, "integrations.json"), JSON.stringify(integrationConfig, null, 2));
+    }
+    fs.cpSync(__dirname, path.join(root, "example-integration"), { recursive: true });
+    return await fn(root);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
 }
 
 function withTempCheckoutIntegrationRoot(fn) {
@@ -270,8 +295,8 @@ test("example integration exposes its patch and stage hook when enabled", () => 
   });
 });
 
-test("example integration participates in main bundle patching and patch reports", () => {
-  withTempIntegrationRoot(["example-integration"], (root) => {
+test("example integration participates in main bundle patching and patch reports", async () => {
+  await withTempIntegrationRootAsync(["example-integration"], async (root) => {
     const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-example-integration-app-"));
     try {
       assert.equal(
@@ -287,7 +312,7 @@ test("example integration participates in main bundle patching and patch reports
       fs.writeFileSync(path.join(buildDir, "main.js"), "chatgptLinuxExampleIntegrationDisabled()");
 
       const report = createPatchReport();
-      patchExtractedApp(tempApp, {
+      await patchExtractedApp(tempApp, {
         corePatchRoot: path.join(root, "core-patches"),
         integrationsRoot: root,
         report,

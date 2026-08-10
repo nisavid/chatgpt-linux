@@ -12,6 +12,7 @@ run_node_syntax_checks() {
     local file
 
     while IFS= read -r file; do
+        [ -f "$file" ] || continue
         # GNOME Shell requires extension.js while its source is native ESM.
         # Node 18 otherwise parses every .js file as CommonJS and makes the
         # local Ubuntu 24.04 matrix fail after all Rust tests have completed.
@@ -20,7 +21,7 @@ run_node_syntax_checks() {
         else
             node --check "$file"
         fi
-    done < <(git ls-files '*.js')
+    done < <(git ls-files --cached --others --exclude-standard '*.js')
 }
 
 run_node_tests() {
@@ -28,6 +29,14 @@ run_node_tests() {
     local status
     local -a node_test_args=(--test)
     local -a test_files=()
+
+    # Patcher tests exercise the production descriptor-relative mutation path
+    # against the real broker. Resolve one exact host binary for the suite.
+    # shellcheck source=../lib/generated-app-mutation-broker.sh
+    . "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh"
+    SCRIPT_DIR="$REPO_DIR" resolve_generated_app_mutation_broker
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+    export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE
 
     node scripts/ci/manage-labels.js --check
 
@@ -37,8 +46,9 @@ run_node_tests() {
     fi
 
     while IFS= read -r file; do
+        [ -f "$file" ] || continue
         test_files+=("$file")
-    done < <(git ls-files '*.test.js' 'port-integrations/*/test.js')
+    done < <(git ls-files --cached --others --exclude-standard '*.test.js' 'port-integrations/*/test.js')
 
     if [ "${#test_files[@]}" -eq 0 ]; then
         return 0

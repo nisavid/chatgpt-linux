@@ -27,7 +27,7 @@ const {
   createPatchReport,
 } = require("../../scripts/lib/patch-report.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
   patchMainBundleSource,
 } = require("../../scripts/patches/runner.js");
 
@@ -84,6 +84,29 @@ function captureWarns(fn) {
   } finally {
     console.warn = originalWarn;
   }
+}
+
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
 }
 
 function currentAppSettingsStore(targets) {
@@ -182,11 +205,11 @@ function downgradeOpenTargetGuard(source) {
   const legacyTerminalCwd =
     `function chatgptLinuxTerminalCwd(e){let t=chatgptLinuxResolveExistingTarget(e)??e;if(typeof t!==\`string\`||t.length===0)return process.env.HOME||\`/\`;try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
   const guardedDesktopArgs =
-    `function chatgptLinuxDesktopArgs(e,t){t=chatgptLinuxOpenTargetPath(t);let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
+    `function chatgptLinuxDesktopArgs(e,t){t=chatgptLinuxOpenTargetPath(t);let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/%[fFuUdDnN]/u.test(a))throw Error(\`Unsafe embedded desktop-entry field code\`);if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const legacyDesktopArgs =
     `function chatgptLinuxDesktopArgs(e,t){let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const guardedLaunchDesktopEntry =
-    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){t=chatgptLinuxOpenTargetPath(t);let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}await chatgptLinuxLaunchDetached(n,chatgptLinuxDesktopArgs(r,t),a)}";
+    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){t=chatgptLinuxOpenTargetPath(t);let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}let s=chatgptLinuxDesktopArgs(r,t),l=(0,chatgptLinuxNodePath().basename)(n),c=new Set([`sh`,`bash`,`dash`,`zsh`,`fish`]);if(c.has(l)&&s.some(e=>e===`-c`||e===`-C`||e===`--command`||/^-[^-]*c/u.test(e)))throw Error(`Unsafe shell-based desktop entry fallback`);await chatgptLinuxLaunchDetached(n,s,a)}";
   const legacyLaunchDesktopEntry =
     "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}await chatgptLinuxLaunchDetached(n,chatgptLinuxDesktopArgs(r,t),a)}";
   const guardedIdePlatform =
@@ -280,6 +303,39 @@ function withPortIntegrationRootEnv(root, fn) {
   process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
+async function withTempIntegrationConfigAsync(config, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-config-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    const configData = Array.isArray(config) ? { enabled: config } : { enabled: [], ...config };
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
   } finally {
     if (originalRoot == null) {
       delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
@@ -702,6 +758,55 @@ test("open-target discovery falls back to the Exec command", async () => {
     await platform.open({ command: editorCommand, path: projectDir });
 
     assert.deepEqual(spawnRecorder.calls.at(-1), { command: editorCommand, args: ["--goto", projectDir] });
+  });
+});
+
+test("open-target discovery rejects embedded path fields and shell-command fallback", async () => {
+  await withTempDir(async (tmp) => {
+    const dataHome = path.join(tmp, "share");
+    const appsDir = path.join(dataHome, "applications");
+    const shellCommand = makeExecutable(path.join(tmp, "bin"), "sh");
+    const desktopFile = path.join(appsDir, "workspace-shell.desktop");
+    const projectDir = path.join(tmp, "project;touch-not-data");
+    const spawnRecorder = createSpawnRecorder();
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(
+      desktopFile,
+      [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Workspace Shell IDE",
+        `Exec=${shellCommand} -c \"open-editor\" %f`,
+        "Categories=Development;IDE;",
+      ].join("\n"),
+    );
+
+    const helpers = evaluatePatched(
+      openTargetsBundle,
+      {
+        HOME: tmp,
+        PATH: path.dirname(shellCommand),
+        XDG_DATA_HOME: dataHome,
+        XDG_DATA_DIRS: path.join(tmp, "empty"),
+      },
+      "({desktopArgs:chatgptLinuxDesktopArgs,platform:Xg.find((target)=>target.platforms.linux?.label===`Workspace Shell IDE`).platforms.linux})",
+      spawnRecorder,
+    );
+
+    for (const field of ["%f", "%u", "%d", "%n"]) {
+      assert.throws(
+        () => helpers.desktopArgs([`prefix-${field}`], projectDir),
+        /Unsafe embedded desktop-entry field code/u,
+      );
+    }
+    assert.deepEqual(helpers.desktopArgs(["--goto", "%f"], projectDir), ["--goto", projectDir]);
+
+    await assert.rejects(
+      helpers.platform.open({ command: shellCommand, path: projectDir }),
+      /Unsafe shell-based desktop entry fallback/u,
+    );
+    assert.deepEqual(spawnRecorder.calls, []);
   });
 });
 
@@ -1795,15 +1900,15 @@ test("open-target discovery targets only the current native selector bundle", ()
   );
 });
 
-test("open-target discovery participates in integration loading and patch reports", () => {
-  withTempIntegrationConfig({ enabled: ["open-target-discovery"] }, (root) => {
+test("open-target discovery participates in integration loading and patch reports", async () => {
+  await withTempIntegrationConfigAsync({ enabled: ["open-target-discovery"] }, async (root) => {
     assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), DEFAULT_INTEGRATION_IDS);
     assert.ok(
       loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
         .some((patch) => patch.id === "integration:open-target-discovery:main-bundle-open-target-discovery"),
     );
 
-    withPortIntegrationRootEnv(root, () => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
@@ -1817,7 +1922,7 @@ test("open-target discovery participates in integration loading and patch report
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
 
         const report = createPatchReport();
-        captureWarns(() => patchExtractedApp(tempApp, { report }));
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         const patched = fs.readFileSync(path.join(buildDir, "main.js"), "utf8");
 
         assert.match(patched, /linux:\{label:`Terminal`/);
@@ -1828,7 +1933,7 @@ test("open-target discovery participates in integration loading and patch report
         );
 
         const secondReport = createPatchReport();
-        captureWarns(() => patchExtractedApp(tempApp, { report: secondReport }));
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report: secondReport }));
         assert.equal(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), patched);
         assert.ok(
           secondReport.patches.some(
@@ -1844,9 +1949,9 @@ test("open-target discovery participates in integration loading and patch report
   });
 });
 
-test("open-target discovery reports current command lookup drift as an enabled integration failure", () => {
-  withTempIntegrationConfig({ enabled: ["open-target-discovery"] }, (root) => {
-    withPortIntegrationRootEnv(root, () => {
+test("open-target discovery reports current command lookup drift as an enabled integration failure", async () => {
+  await withTempIntegrationConfigAsync({ enabled: ["open-target-discovery"] }, async (root) => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-drift-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
@@ -1862,7 +1967,7 @@ test("open-target discovery reports current command lookup drift as an enabled i
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
 
         const report = createPatchReport();
-        captureWarns(() => patchExtractedApp(tempApp, { report }));
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         const integrationPatch = report.patches.find(
           (patch) => patch.name === "integration:open-target-discovery:main-bundle-open-target-discovery",
         );

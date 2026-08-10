@@ -19,12 +19,14 @@ const {
   createPatchReport,
 } = require("../../scripts/lib/patch-report.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
 } = require("../../scripts/patches/runner.js");
 const {
   SETTINGS_ASSET,
   SETTINGS_COMMAND_KEY,
   SETTINGS_PERMISSIONS_KEY,
+  LEGACY_SETTINGS_COMMAND_KEY,
+  LEGACY_SETTINGS_PERMISSIONS_KEY,
   SETTINGS_SLUG,
   applyAgentWorkspaceMainBridgePatch,
   applyAgentWorkspaceSettingsCatalogPatch,
@@ -110,6 +112,66 @@ function captureWarns(fn) {
   }
 }
 
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+}
+
+async function withTempIntegrationConfigAsync(enabled, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-integration-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    const enabledSet = new Set(enabled);
+    fs.writeFileSync(
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
+      JSON.stringify({
+        enabled,
+        disabled: defaultEnabledIntegrationIds.filter((id) => !enabledSet.has(id)),
+      }, null, 2),
+    );
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
 function syntheticMainBundle() {
   return [
     "let c=require(`node:child_process`),o=require(`node:fs`),i=require(`node:path`);",
@@ -165,6 +227,9 @@ function buildBridgeHarness({ env = {}, globalState = new Map(), execFile, spawn
     },
     set(key, value) {
       globalState.set(key, value);
+    },
+    delete(key) {
+      globalState.delete(key);
     },
   };
   return { handlers: host.handlers(), execCalls, spawnCalls };
@@ -440,6 +505,13 @@ test("agent-workspace integration exposes optional bridge, settings, resources, 
           "prelaunch",
           path.join("agent-workspace", "install-skill.sh"),
           ".chatgpt-linux/prelaunch.d/agent-workspace-install-skill.sh",
+          0o755,
+        ],
+        [
+          "ui-tweaks",
+          "prelaunch",
+          path.join("ui-tweaks", "sync-desktop-icon.sh"),
+          ".chatgpt-linux/prelaunch.d/ui-tweaks-dock-icon-cleanup.sh",
           0o755,
         ],
       ],
@@ -862,6 +934,89 @@ test("main bridge reads page-owned permission file and applies it to CLI calls",
     assert.equal(spawnCalls[0].options.stdio, "ignore");
     assert.equal(spawnCalls[0].unref, true);
     assert.equal(execCalls.length, 2);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("main bridge moves legacy command and permission state before launching", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-legacy-state-"));
+  try {
+    const permissionsPath = path.join(tempDir, "permissions.json");
+    const commandPath = path.join(tempDir, "agent-workspace-linux");
+    fs.writeFileSync(permissionsPath, JSON.stringify({ network: { mode: "disabled" } }));
+    fs.writeFileSync(commandPath, "#!/bin/sh\n", { mode: 0o755 });
+    const globalState = new Map([
+      [LEGACY_SETTINGS_COMMAND_KEY, commandPath],
+      [LEGACY_SETTINGS_PERMISSIONS_KEY, permissionsPath],
+    ]);
+    const { handlers, execCalls, spawnCalls } = buildBridgeHarness({ globalState });
+
+    const response = await handlers["linux-agent-workspace"]({ action: "profileList" });
+
+    assert.equal(response.ok, true);
+    assert.equal(execCalls.length, 1);
+    assert.equal(spawnCalls.length, 0);
+    assert.equal(execCalls[0].command, commandPath);
+    assert.deepEqual(Array.from(execCalls[0].args), ["--permissions", permissionsPath, "profile", "list"]);
+    assert.equal(globalState.get(SETTINGS_COMMAND_KEY), commandPath);
+    assert.equal(globalState.get(SETTINGS_PERMISSIONS_KEY), permissionsPath);
+    assert.equal(globalState.has(LEGACY_SETTINGS_COMMAND_KEY), false);
+    assert.equal(globalState.has(LEGACY_SETTINGS_PERMISSIONS_KEY), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("main bridge fails closed on conflicting legacy command state", async () => {
+  const globalState = new Map([
+    [SETTINGS_COMMAND_KEY, "/current/agent-workspace-linux"],
+    [LEGACY_SETTINGS_COMMAND_KEY, "/legacy/agent-workspace-linux"],
+  ]);
+  const { handlers, execCalls, spawnCalls } = buildBridgeHarness({ globalState });
+
+  const response = await handlers["linux-agent-workspace"]({ action: "profileList" });
+
+  assert.equal(response.ok, false);
+  assert.match(response.message, /conflicting legacy command state/i);
+  assert.equal(execCalls.length, 0);
+  assert.equal(spawnCalls.length, 0);
+  assert.equal(globalState.get(SETTINGS_COMMAND_KEY), "/current/agent-workspace-linux");
+  assert.equal(globalState.get(LEGACY_SETTINGS_COMMAND_KEY), "/legacy/agent-workspace-linux");
+});
+
+test("main bridge fails closed on conflicting legacy permission state", async () => {
+  const globalState = new Map([
+    [SETTINGS_PERMISSIONS_KEY, "/current/permissions.json"],
+    [LEGACY_SETTINGS_PERMISSIONS_KEY, "/legacy/permissions.json"],
+  ]);
+  const { handlers, execCalls, spawnCalls } = buildBridgeHarness({ globalState });
+
+  const response = await handlers["linux-agent-workspace"]({ action: "workspaceOpenViewer" });
+
+  assert.equal(response.ok, false);
+  assert.match(response.message, /conflicting legacy permission state/i);
+  assert.equal(execCalls.length, 0);
+  assert.equal(spawnCalls.length, 0);
+  assert.equal(globalState.get(SETTINGS_PERMISSIONS_KEY), "/current/permissions.json");
+  assert.equal(globalState.get(LEGACY_SETTINGS_PERMISSIONS_KEY), "/legacy/permissions.json");
+});
+
+test("main bridge rejects a missing legacy permission file without migrating or launching", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-missing-legacy-state-"));
+  try {
+    const permissionsPath = path.join(tempDir, "missing-permissions.json");
+    const globalState = new Map([[LEGACY_SETTINGS_PERMISSIONS_KEY, permissionsPath]]);
+    const { handlers, execCalls, spawnCalls } = buildBridgeHarness({ globalState });
+
+    const response = await handlers["linux-agent-workspace"]({ action: "profileList" });
+
+    assert.equal(response.ok, false);
+    assert.match(response.message, /legacy permission file could not be loaded/i);
+    assert.equal(execCalls.length, 0);
+    assert.equal(spawnCalls.length, 0);
+    assert.equal(globalState.has(SETTINGS_PERMISSIONS_KEY), false);
+    assert.equal(globalState.get(LEGACY_SETTINGS_PERMISSIONS_KEY), permissionsPath);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -1671,14 +1826,14 @@ test("settings asset patches add navigation, route, visibility, and title", () =
   assert.equal(applyAgentWorkspaceSettingsPagePatch(settingsVisibility), settingsVisibility);
 });
 
-test("agent-workspace integration participates in ASAR patching and reports", () => {
-  withTempIntegrationConfig(["agent-workspace"], (integrationsRoot) => {
-    withPortIntegrationRootEnv(integrationsRoot, () => {
+test("agent-workspace integration participates in ASAR patching and reports", async () => {
+  await withTempIntegrationConfigAsync(["agent-workspace"], async (integrationsRoot) => {
+    await withPortIntegrationRootEnvAsync(integrationsRoot, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-agent-workspace-app-"));
       try {
         const { buildDir, assetsDir } = writeSyntheticExtractedApp(tempApp);
         const report = createPatchReport();
-        const { warnings } = captureWarns(() => patchExtractedApp(tempApp, { report }));
+        const { warnings } = await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
 
         assert.ok(
           warnings.every((warning) => !warning.includes("Agent Workspaces")),

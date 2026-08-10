@@ -199,7 +199,7 @@ VOLATILE_NAMES = {
 }
 VOLATILE_SUFFIXES = (".pid", ".sock", ".socket", ".lock", ".tmp", ".temp", ".part")
 TEMP_DIRECTORY_NAMES = {"tmp", "temp", ".tmp", "partials"}
-TEXT_SUFFIXES = {".conf", ".ini", ".json", ".log", ".toml", ".txt"}
+SCHEMA_SUFFIXES = {".conf", ".ini", ".json", ".toml"}
 MAX_REWRITE_BYTES = 8 * 1024 * 1024
 
 
@@ -311,6 +311,11 @@ def rewrite_pairs(operations: list[dict[str, Any]], direction: str) -> list[tupl
         ("codex-linux-auto-update-on-exit", "chatgpt-linux-auto-update-on-exit"),
         ("codex-linux-wrapper-updates-enabled", "chatgpt-linux-wrapper-updates-enabled"),
         ("codex-linux-integration-picker-on-update", "chatgpt-linux-integration-picker-on-update"),
+        ("codex-linux-agent-workspace-command", "chatgpt-linux-agent-workspace-command"),
+        (
+            "codex-linux-agent-workspace-permissions",
+            "chatgpt-linux-agent-workspace-permissions",
+        ),
         ("codex-wrapper-updater", "chatgpt-wrapper-updater"),
         ("codex-linux-warm-start-enabled", "chatgpt-linux-warm-start-enabled"),
         (
@@ -323,6 +328,100 @@ def rewrite_pairs(operations: list[dict[str, Any]], direction: str) -> list[tupl
     return sorted(set(pairs), key=lambda pair: len(pair[0]), reverse=True)
 
 
+def path_rewrite_pairs(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return [
+        (old_value, new_value)
+        for old_value, new_value in pairs
+        if old_value.startswith(("/", "."))
+    ]
+
+
+def exact_rewrite_map(pairs: list[tuple[str, str]]) -> dict[str, str]:
+    return dict(pairs)
+
+
+def rewrite_path_references(value: str, pairs: list[tuple[str, str]]) -> str:
+    rewritten = value
+    for old_value, new_value in path_rewrite_pairs(pairs):
+        pattern = re.compile(
+            rf"(?<![A-Za-z0-9_.-]){re.escape(old_value)}(?![A-Za-z0-9_.-])"
+        )
+        rewritten = pattern.sub(lambda _match: new_value, rewritten)
+    return rewritten
+
+
+def rewrite_json_value(value: Any, pairs: list[tuple[str, str]], path: Path) -> Any:
+    replacements = exact_rewrite_map(pairs)
+    if isinstance(value, dict):
+        rewritten: dict[str, Any] = {}
+        for key, child in value.items():
+            rewritten_key = replacements.get(key, key)
+            if rewritten_key in rewritten:
+                raise MigrationError(
+                    f"refusing persisted-key collision while rewriting {path}: {key} -> {rewritten_key}"
+                )
+            rewritten[rewritten_key] = rewrite_json_value(child, pairs, path)
+        return rewritten
+    if isinstance(value, list):
+        return [rewrite_json_value(child, pairs, path) for child in value]
+    if isinstance(value, str):
+        if value in replacements:
+            return replacements[value]
+        return rewrite_path_references(value, pairs)
+    return value
+
+
+def rewrite_json_document(original: str, pairs: list[tuple[str, str]], path: Path) -> str:
+    try:
+        value = json.loads(original)
+    except json.JSONDecodeError:
+        return original
+    rewritten = rewrite_json_value(value, pairs, path)
+    if rewritten == value:
+        return original
+    suffix = "\n" if original.endswith("\n") else ""
+    return json.dumps(rewritten, ensure_ascii=False, indent=2) + suffix
+
+
+CONFIG_ASSIGNMENT = re.compile(
+    r"^(?P<indent>\s*)(?P<key>[A-Za-z0-9_.-]+)(?P<separator>\s*[:=]\s*)"
+    r"(?P<value>.*?)(?P<ending>\r?\n)?$"
+)
+
+
+def rewrite_config_scalar(value: str, pairs: list[tuple[str, str]]) -> str:
+    rewritten = rewrite_path_references(value, pairs)
+    for old_value, new_value in pairs:
+        pattern = re.compile(
+            rf"^(?P<leading>\s*)(?P<quote>['\"]?){re.escape(old_value)}"
+            r"(?P=quote)(?P<trailing>\s*(?:[#;].*)?)$"
+        )
+        match = pattern.fullmatch(rewritten)
+        if match is not None:
+            return (
+                f"{match.group('leading')}{match.group('quote')}{new_value}"
+                f"{match.group('quote')}{match.group('trailing')}"
+            )
+    return rewritten
+
+
+def rewrite_config_document(original: str, pairs: list[tuple[str, str]]) -> str:
+    replacements = exact_rewrite_map(pairs)
+    lines: list[str] = []
+    for line in original.splitlines(keepends=True):
+        match = CONFIG_ASSIGNMENT.fullmatch(line)
+        if match is None:
+            lines.append(line)
+            continue
+        key = match.group("key")
+        lines.append(
+            f"{match.group('indent')}{replacements.get(key, key)}"
+            f"{match.group('separator')}{rewrite_config_scalar(match.group('value'), pairs)}"
+            f"{match.group('ending') or ''}"
+        )
+    return "".join(lines)
+
+
 def rewrite_known_paths(root: Path, pairs: list[tuple[str, str]]) -> None:
     if not root.is_dir() or root.is_symlink():
         return
@@ -333,7 +432,8 @@ def rewrite_known_paths(root: Path, pairs: list[tuple[str, str]]) -> None:
         ]
         for name in files:
             path = current_path / name
-            if path.is_symlink() or path.suffix.lower() not in TEXT_SUFFIXES:
+            suffix = path.suffix.lower()
+            if path.is_symlink() or suffix not in SCHEMA_SUFFIXES:
                 continue
             file_stat = path.stat()
             if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_size > MAX_REWRITE_BYTES:
@@ -342,9 +442,10 @@ def rewrite_known_paths(root: Path, pairs: list[tuple[str, str]]) -> None:
                 original = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            rewritten = original
-            for old_value, new_value in pairs:
-                rewritten = rewritten.replace(old_value, new_value)
+            if suffix == ".json":
+                rewritten = rewrite_json_document(original, pairs, path)
+            else:
+                rewritten = rewrite_config_document(original, pairs)
             if rewritten == original:
                 continue
             temporary = path.with_name(f".{path.name}.migration-tmp.{os.getpid()}")

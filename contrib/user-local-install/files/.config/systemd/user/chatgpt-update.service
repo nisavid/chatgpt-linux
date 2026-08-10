@@ -3,4 +3,4 @@ Description=Update ChatGPT app user-local install
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/chatgpt-update --quiet
+@CHATGPT_USER_LOCAL_UPDATE_EXEC_START@

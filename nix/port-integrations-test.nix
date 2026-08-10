@@ -150,20 +150,17 @@ let
   };
   combinedConfig = {
     enable = true;
-    computerUseUi.enable = true;
     remoteMobileControl.enable = true;
     portIntegrations = testIntegrationIds;
   };
 
   expectedCombined = packages.chatgpt.override {
-    enableComputerUseUi = true;
     portIntegrationIds = normalizedTestIntegrationIds;
   };
   expectedCodexMicro = packages.chatgpt.override {
     portIntegrationIds = [ "codex-micro" ];
   };
   reorderedCombined = packages.chatgpt.override {
-    enableComputerUseUi = true;
     portIntegrationIds = [
       "remote-mobile-control"
       "frameless-titlebar"

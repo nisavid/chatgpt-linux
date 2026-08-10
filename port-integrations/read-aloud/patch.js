@@ -32,8 +32,10 @@ const GENERAL_SETTINGS_CHILDREN_WITH_ROW =
   `children:[S,C,w,T,${GENERAL_SETTINGS_ROW_CALL},D,O,k,A,j,M,N,P,L]`;
 const GENERAL_SETTINGS_CHILDREN_WITH_OLD_ROW =
   `children:[S,C,w,T,D,O,k,${GENERAL_SETTINGS_ROW_CALL},A,j,M,N,P,L]`;
+const CURRENT_ASSISTANT_ASSET_PATTERN =
+  /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/;
 const ASSISTANT_RENDER_CANDIDATE_PATTERN =
-  /\.(?:jsx|jsxs)\)\([A-Za-z_$][\w$]*,\{(?=[^{}]{0,2000}\bitem:)(?=[^{}]{0,2000}\bassistantCopyText:)(?=[^{}]{0,2000}\bconversationId:)/u;
+  /\bhistoryEntityKey:[^{}]{0,2000}\bassistantCopyText:/u;
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} - skipping ${patchName}`);
@@ -149,6 +151,21 @@ function readAloudButtonRowSource(jsxVar, itemVar, copyVar, conversationVar, eve
   return `(0,${jsxVar}.jsx)("div",{className:"chatgpt-linux-read-aloud-row",children:${readAloudIconButtonSource(jsxVar, itemVar, copyVar, conversationVar, eventVar)}})`;
 }
 
+function currentAssistantRenderCallPattern() {
+  return /\(0,([A-Za-z_$][\w$]*)\.jsx\)\(([A-Za-z_$][\w$]*),\{(?=[^{}]*\bitem:)(?=[^{}]*\bhistoryEntityKey:)(?=[^{}]*\bisHeartbeatAutomationRequest:)(?=[^{}]*\bisHeartbeatAutomationTurn:)(?=[^{}]*\bconversationId:)(?=[^{}]*\bconversationDetailLevel:)(?=[^{}]*\bisTurnInProgress:)(?=[^{}]*\btoolActivityTurnKey:)(?=[^{}]*\bturnId:)(?=[^{}]*\bassistantCopyText:)(?=[^{}]*\bshowAssistantMessageActionRow:)([^{}]*)\}\)/gu;
+}
+
+function currentAssistantProp(props, name, { optional = false } = {}) {
+  const value = new RegExp(`(?:^|,)${name}:([^,]+)`, "u").exec(props)?.[1] ?? null;
+  if (value == null) {
+    return null;
+  }
+  const identifier = "[A-Za-z_$][\\w$]*";
+  return new RegExp(optional ? `^${identifier}(?:\\?\\?void 0)?$` : `^${identifier}$`, "u").test(value)
+    ? value
+    : null;
+}
+
 function applyIndexRuntimePatch(source) {
   return ensureReadAloudRuntime(source);
 }
@@ -164,24 +181,17 @@ function applyAssistantRenderPatch(source) {
   if (source.includes(`globalThis.${HELPER_MARKER}?.(`)) {
     return source;
   }
-  const jsxCallPattern =
-    /\(0,([A-Za-z_$][\w$]*)\.jsx\)\(([A-Za-z_$][\w$]*),\{(?=[^{}]*\bitem:)(?=[^{}]*\bassistantCopyText:)(?=[^{}]*\bconversationId:)(?=[^{}]*\brenderCodeBlocksAsWritingBlocks:)([^{}]*)\}\)/g;
-  const readProp = (props, name) =>
-    new RegExp(`(?:^|,)${name}:([A-Za-z_$][\\w$]*)`).exec(props)?.[1] ?? null;
-  const patched = source.replace(
-    jsxCallPattern,
-    (match, jsxVar, _component, props) => {
-      const itemVar = readProp(props, "item");
-      const copyVar = readProp(props, "assistantCopyText");
-      const conversationVar = readProp(props, "conversationId");
-      if (itemVar == null || copyVar == null || conversationVar == null) {
-        return match;
-      }
-      return `(0,${jsxVar}.jsxs)(${jsxVar}.Fragment,{children:[${match},${readAloudButtonRowSource(jsxVar, itemVar, copyVar, conversationVar, "e")}]})`;
-    },
-  );
-  if (patched !== source) {
-    return patched;
+  const matches = [...source.matchAll(currentAssistantRenderCallPattern())];
+  if (matches.length === 1) {
+    const match = matches[0];
+    const props = match[3];
+    const itemVar = currentAssistantProp(props, "item");
+    const copyVar = currentAssistantProp(props, "assistantCopyText", { optional: true });
+    const conversationVar = currentAssistantProp(props, "conversationId");
+    if (itemVar != null && copyVar != null && conversationVar != null) {
+      const replacement = `(0,${match[1]}.jsxs)(${match[1]}.Fragment,{children:[${match[0]},${readAloudButtonRowSource(match[1], itemVar, copyVar, conversationVar, "e")}]})`;
+      return `${source.slice(0, match.index)}${replacement}${source.slice(match.index + match[0].length)}`;
+    }
   }
 
   if (ASSISTANT_RENDER_CANDIDATE_PATTERN.test(source)) {
@@ -793,8 +803,8 @@ module.exports = {
       phase: "webview-asset",
       order: 20620,
       ciPolicy: "optional",
-      pattern: /^app-initial-[A-Za-z0-9_-]+\.js$/,
-      missingDescription: "current primary thread assistant bundle",
+      pattern: CURRENT_ASSISTANT_ASSET_PATTERN,
+      missingDescription: "current local conversation turn bundle",
       skipDescription: "read aloud assistant runtime patch",
       apply: applyWebviewPatch,
     },

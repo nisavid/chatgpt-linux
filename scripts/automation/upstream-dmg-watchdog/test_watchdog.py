@@ -148,7 +148,7 @@ class WatchdogTests(unittest.TestCase):
 
     def repair_checks(self, outcome: str = "SUCCESS") -> list[dict]:
         return self.checks(outcome) + [{
-            "name": "Build App Against Upstream DMG", "status": "COMPLETED", "conclusion": outcome,
+            "name": "Build App Against Official DMG", "status": "COMPLETED", "conclusion": outcome,
         }]
 
     def nix_pr(self, sri: str, *, head: str = "a" * 40, **overrides) -> dict:
@@ -369,6 +369,37 @@ class WatchdogTests(unittest.TestCase):
         self.assertEqual(state["nix_refresh"]["pr_number"], 925)
         self.assertEqual(state["pending_notifications"], [])
         self.assertEqual(state["nix_runs"], [])
+
+    def test_status_projects_safe_fields_and_next_save_scrubs_legacy_failure_logs(self):
+        secret = "https://demo-user:DEMO_CREDENTIAL_NOT_REAL@example.invalid/failure?token=derived"
+        headers = self.headers("legacy.headers", "etag-legacy", self.dmg_a)
+        self.probe(headers, self.dmg_a)
+        state = self.load_state()
+        state["active_campaign"]["last_error"] = secret
+        state["nix_refresh"]["last_error"] = f"Authorization: Bearer {secret}"
+        state["nix_runs"] = [{
+            "run_id": 77,
+            "status": "completed",
+            "conclusion": "failure",
+            "head_sha": "f" * 40,
+            "url": "https://github.com/nisavid/chatgpt-linux/actions/runs/77",
+            "classification": "source",
+            "failure_log_excerpt": secret,
+            "recorded_at": "2026-07-31T00:00:00Z",
+        }]
+        (self.state / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        status = self.run_cli("status").stdout
+        projected = json.loads(status)
+        self.assertNotIn(secret, status)
+        self.assertNotIn("Authorization: Bearer", status)
+        self.assertEqual(projected["active_campaign"]["sha256"], state["active_campaign"]["sha256"])
+        self.assertEqual(projected["nix_runs"][0]["run_id"], 77)
+        self.assertNotIn("failure_log_excerpt", projected["nix_runs"][0])
+
+        self.probe(headers, self.dmg_a, now=1100)
+        saved = self.load_state()
+        self.assertNotIn("failure_log_excerpt", saved["nix_runs"][0])
 
     def test_missing_stable_identity_retries_without_campaign(self):
         headers = self.root / "bad.headers"
@@ -767,7 +798,7 @@ class WatchdogTests(unittest.TestCase):
             "--headers-file", str(headers), "--now", "1005", env=env, check=False,
         )
         self.assertEqual(waiting.returncode, 8)
-        self.assertIn("Build App Against Upstream DMG", waiting.stdout)
+        self.assertIn("Build App Against Official DMG", waiting.stdout)
 
         merged = {
             **pr,
@@ -827,13 +858,18 @@ class WatchdogTests(unittest.TestCase):
                 "headSha": "f" * 40, "url": "https://run/55",
                 "jobs": [{"steps": [{"name": "Refresh Nix upstream hash", "conclusion": "failure"}]}],
             }},
-            "run_logs": {"55": "enabled-integration-drift"},
+            "run_logs": {"55": (
+                "enabled-integration-drift\n"
+                "https://demo-user:DEMO_CREDENTIAL_NOT_REAL@example.invalid/failure"
+            )},
         })
         result = self.nix_probe(headers, env, now=1100)
         self.assertTrue(result.stdout.strip().startswith(f"NIX_REPAIR_READY {sha} 55 EVENT_ID="))
         state = self.load_state()
         self.assertEqual(state["active_campaign"]["campaign_phase"], "nix-repair")
         self.assertEqual(state["nix_runs"][-1]["classification"], "source")
+        self.assertNotIn("failure_log_excerpt", state["nix_runs"][-1])
+        self.assertNotIn("DEMO_CREDENTIAL_NOT_REAL", json.dumps(state))
 
     def test_network_log_overrides_a_build_step_as_transient(self):
         headers = self.headers("a.headers", "etag-a", self.dmg_a)

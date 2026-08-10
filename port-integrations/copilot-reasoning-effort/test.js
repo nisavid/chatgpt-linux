@@ -11,6 +11,9 @@ const {
   normalizePatchDescriptors,
 } = require("../../scripts/patches/engine.js");
 const {
+  openGeneratedAppMutationRoot,
+} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
+const {
   loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
 const {
@@ -76,6 +79,15 @@ function withTempDir(fn) {
   }
 }
 
+async function withTempDirAsync(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-copilot-reasoning-integration-"));
+  try {
+    return await fn(dir);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const defaultEnabledIntegrationIds = [
   "agent-workspace",
   "appshots",
@@ -110,6 +122,52 @@ function withTempIntegrationConfig(enabled, fn, disabled = null) {
       }
     }
   });
+}
+
+async function withTempIntegrationConfigAsync(enabled, fn, disabled = null) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  return withTempDirAsync(async (tmp) => {
+    process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tmp, "integrations.json");
+    const enabledSet = new Set(enabled);
+    const effectiveDisabled =
+      disabled ?? defaultEnabledIntegrationIds.filter((id) => !enabledSet.has(id));
+    fs.writeFileSync(
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG,
+      JSON.stringify({ enabled, disabled: effectiveDisabled }, null, 2),
+    );
+    try {
+      return await fn();
+    } finally {
+      if (originalConfig == null) {
+        delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+      } else {
+        process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      }
+    }
+  });
+}
+
+async function applyWebviewAssetPatchDescriptorsWithMutation(
+  root,
+  descriptors,
+  context,
+  report,
+) {
+  fs.chmodSync(root, 0o700);
+  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
+    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+  try {
+    return await applyWebviewAssetPatchDescriptors(
+      root,
+      descriptors,
+      { ...context, generatedAppMutation },
+      report,
+    );
+  } finally {
+    await generatedAppMutation.close();
+  }
 }
 
 function writeAsset(extractedDir, name, source) {
@@ -250,12 +308,12 @@ test("integration descriptor loader exposes the Copilot webview asset patches un
   });
 });
 
-test("enabled integration descriptors patch the current app chunks", () => {
+test("enabled integration descriptors patch the current app chunks", async () => {
   const integrationsRoot = path.resolve(__dirname, "..");
   const currentChunk = "app-initial-DRyZ1Lin.js";
 
-  withTempIntegrationConfig(["copilot-reasoning-effort"], () => {
-    withTempDir((extractedDir) => {
+  await withTempIntegrationConfigAsync(["copilot-reasoning-effort"], async () => {
+    await withTempDirAsync(async (extractedDir) => {
       writeAsset(
         extractedDir,
         currentChunk,
@@ -265,7 +323,12 @@ test("enabled integration descriptors patch the current app chunks", () => {
       const descriptors = normalizePatchDescriptors(
         loadCopilotIntegrationPatchDescriptors(integrationsRoot),
       );
-      applyWebviewAssetPatchDescriptors(extractedDir, descriptors, {}, null);
+      await applyWebviewAssetPatchDescriptorsWithMutation(
+        extractedDir,
+        descriptors,
+        {},
+        null,
+      );
       const patched = readAsset(extractedDir, currentChunk);
 
       assert.match(patched, /copilot-default-reasoning-effort/);

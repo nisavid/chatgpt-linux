@@ -47,6 +47,12 @@ managed_icon_is_owned() {
     local owner_path="$icon.chatgpt-owned"
 
     [ -f "$icon" ] && [ ! -L "$icon" ] || return 1
+    managed_icon_owner_is_owned "$owner_path"
+}
+
+managed_icon_owner_is_owned() {
+    local owner_path="$1"
+
     [ -f "$owner_path" ] && [ ! -L "$owner_path" ] || return 1
     grep -qxF "$icon_owner_marker" "$owner_path"
 }
@@ -68,6 +74,12 @@ cleanup_managed_desktop() {
                 echo "WARN: Could not remove managed Dock icon resource: $icon" >&2
             else
                 rm -f -- "$icon.chatgpt-owned"
+                changed=1
+            fi
+        elif [ ! -e "$icon" ] && [ ! -L "$icon" ] && managed_icon_owner_is_owned "$icon.chatgpt-owned"; then
+            if ! rm -f -- "$icon.chatgpt-owned"; then
+                echo "WARN: Could not remove orphaned Dock icon ownership marker: $icon.chatgpt-owned" >&2
+            else
                 changed=1
             fi
         fi
@@ -94,18 +106,67 @@ case "$selection" in
 esac
 icon_target="$icons_dir/$app_id-dock-$selection.png"
 
+desktop_exec_matches_identity() {
+    local exec_value="$1"
+    local allow_app_run="$2"
+    local token
+    local command=""
+    local skip_next=0
+    local -a exec_tokens=()
+
+    read -r -a exec_tokens <<< "$exec_value"
+    for token in "${exec_tokens[@]}"; do
+        if [ "$skip_next" -eq 1 ]; then
+            skip_next=0
+            continue
+        fi
+        case "$token" in
+            env) ;;
+            -u|--unset) skip_next=1 ;;
+            -u*) ;;
+            --) ;;
+            *=*) ;;
+            *) command="$token"; break ;;
+        esac
+    done
+    [ -n "$command" ] || return 1
+
+    if [ "$(basename -- "$command")" = "$app_id" ]; then
+        return 0
+    fi
+    case "$command" in
+        */"$app_id"/start.sh) return 0 ;;
+        AppRun)
+            [ "$allow_app_run" -eq 1 ]
+            return
+            ;;
+    esac
+    return 1
+}
+
 desktop_source_matches_identity() {
     local source="$1"
     local line
     local token
     local value
+    local section=""
+    local desktop_exec_seen=0
+    local allow_app_run=0
 
     [ "$(basename -- "$source")" = "$app_id.desktop" ] || return 1
+    if [ -n "${APPDIR:-}" ] && [ "$source" = "$APPDIR/$app_id.desktop" ]; then
+        allow_app_run=1
+    fi
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
+            \[*\]) section="$line" ;;
             StartupWMClass=*) [ "${line#*=}" = "$app_id" ] || return 1 ;;
             X-GNOME-WMClass=*) [ "${line#*=}" = "$app_id" ] || return 1 ;;
             Exec=*)
+                if [ "$section" = "[Desktop Entry]" ] && [ "$desktop_exec_seen" -eq 0 ]; then
+                    desktop_exec_matches_identity "${line#Exec=}" "$allow_app_run" || return 1
+                    desktop_exec_seen=1
+                fi
                 if [ "$app_id" != "chatgpt" ] && [[ "$line" != *"$app_id"* ]]; then
                     return 1
                 fi
@@ -126,6 +187,7 @@ desktop_source_matches_identity() {
             esac
         done
     done < "$source"
+    [ "$desktop_exec_seen" -eq 1 ]
 }
 
 if [ -e "$desktop_target" ] || [ -L "$desktop_target" ]; then
@@ -158,7 +220,13 @@ fi
 mkdir -p "$applications_dir" "$icons_dir"
 owner_target="$icon_target.chatgpt-owned"
 if [ -e "$icon_target" ] || [ -L "$icon_target" ] || [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
-    managed_icon_is_owned "$icon_target" || exit 0
+    if managed_icon_is_owned "$icon_target"; then
+        :
+    elif [ ! -e "$icon_target" ] && [ ! -L "$icon_target" ] && managed_icon_owner_is_owned "$owner_target"; then
+        rm -f -- "$owner_target" || exit 0
+    else
+        exit 0
+    fi
 fi
 desktop_tmp="$(mktemp "$applications_dir/.$app_id.desktop.XXXXXX")"
 icon_tmp="$(mktemp "$icons_dir/.$app_id-dock-selection.XXXXXX")"
@@ -180,18 +248,20 @@ awk -v icon="$icon_target" -v marker="$marker" '
 chmod 0644 "$desktop_tmp"
 
 changed=0
-if [ ! -f "$icon_target" ] || ! cmp -s "$icon_tmp" "$icon_target"; then
-    if [ -e "$icon_target" ] || [ -L "$icon_target" ] || [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
-        managed_icon_is_owned "$icon_target" || exit 0
-    fi
-    mv -f -- "$icon_tmp" "$icon_target"
-    changed=1
-fi
 if [ ! -f "$owner_target" ] || ! cmp -s "$owner_tmp" "$owner_target"; then
     if [ -e "$owner_target" ] || [ -L "$owner_target" ]; then
         managed_icon_is_owned "$icon_target" || exit 0
     fi
     mv -f -- "$owner_tmp" "$owner_target"
+    changed=1
+fi
+if [ ! -f "$icon_target" ] || ! cmp -s "$icon_tmp" "$icon_target"; then
+    if [ -e "$icon_target" ] || [ -L "$icon_target" ]; then
+        managed_icon_is_owned "$icon_target" || exit 0
+    else
+        managed_icon_owner_is_owned "$owner_target" || exit 0
+    fi
+    mv -f -- "$icon_tmp" "$icon_target"
     changed=1
 fi
 if [ ! -f "$desktop_target" ] || ! cmp -s "$desktop_tmp" "$desktop_target"; then

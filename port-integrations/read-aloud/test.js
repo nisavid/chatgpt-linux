@@ -26,6 +26,9 @@ const {
   applyWebviewAssetPatchDescriptors,
   normalizePatchDescriptors,
 } = require("../../scripts/patches/engine.js");
+const {
+  openGeneratedAppMutationRoot,
+} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
 const { createPatchReport } = require("../../scripts/lib/patch-report.js");
 const {
   applyLinuxExternalOpenEnvPatch,
@@ -46,6 +49,29 @@ function captureWarnings(fn) {
     return { result: fn(), warnings };
   } finally {
     console.warn = originalWarn;
+  }
+}
+
+async function applyWebviewAssetPatchDescriptorsWithMutation(
+  root,
+  descriptors,
+  context,
+  report,
+) {
+  fs.chmodSync(root, 0o700);
+  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
+    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+  try {
+    return await applyWebviewAssetPatchDescriptors(
+      root,
+      descriptors,
+      { ...context, generatedAppMutation },
+      report,
+    );
+  } finally {
+    await generatedAppMutation.close();
   }
 }
 
@@ -88,6 +114,9 @@ function createLinuxReadAloudSettings(post) {
 function settlePromises() {
   return new Promise((resolve) => setImmediate(resolve));
 }
+
+const currentAssistantRenderSource =
+  "return (0,t8.jsx)(K6c,{item:n,historyEntityKey:o,isHeartbeatAutomationRequest:qe.some(e=>e.heartbeatTrigger!=null),isHeartbeatAutomationTurn:p?.automationKind===`heartbeat`,conversationId:d,getVisualizeTurnTriggerType:f,hostId:_,conversationDetailLevel:I,isTurnInProgress:c,cwd:g,resolvedApps:k,renderMcpApps:L,reportEntityType:v,toolActivityTurnKey:F,turnId:x??void 0,projectlessOutputDirectory:P?null:E,assistantCopyText:b??void 0,assistantAfter:T,autoReviewStats:A,hookStats:j,completedThreadGoal:M,hasArtifacts:fe,alwaysShowAssistantMessageActions:re,showAssistantMessageActionRow:ie,allowAddSelectedTextToChat:!w,onAssistantFileLinkOpen:k,onForkTurn:B})";
 
 function createDeferredSettingsWrites({ writeKey, enabled = false, speed = 1.05 }) {
   const writes = [];
@@ -955,14 +984,13 @@ test("main handler downloads setup files atomically", async () => {
 });
 
 test("assistant render patch adds an explicit read aloud button under the message", () => {
-  const source = "return (0,$.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,autoReviewStats:y,hookStats:b,completedThreadGoal:x,after:g,conversationId:o,cwd:u,forceCodeBlockWordWrap:V,hasArtifacts:F,onAddSelectedTextToChat:H,onFileLinkOpen:v,onFork:D,renderCodeBlocksAsWritingBlocks:V})";
-  const patched = twice(applyAssistantRenderPatch, source);
+  const patched = twice(applyAssistantRenderPatch, currentAssistantRenderSource);
   assert.match(patched, /chatgpt-linux-read-aloud-button/);
   assert.match(patched, /chatgpt-linux-read-aloud-icon/);
   assert.match(patched, /viewBox:"0 0 24 24"/);
   assert.doesNotMatch(patched, /children:"Read aloud"/);
-  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
-  assert.match(patched, /\$\.Fragment/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,b\?\?void 0,d,e\.currentTarget\)/);
+  assert.match(patched, /t8\.Fragment/);
 });
 
 test("assistant render patch ignores normalized assistant items without render props", () => {
@@ -974,7 +1002,10 @@ test("assistant render patch ignores normalized assistant items without render p
 });
 
 test("assistant render patch still warns when an assistant render candidate drifts", () => {
-  const source = "return (0,Q.jsx)(Ov,{item:n,assistantCopyText:p,conversationId:o,renderOptions:{writingBlocks:V}})";
+  const source = currentAssistantRenderSource.replace(
+    "showAssistantMessageActionRow:ie",
+    "assistantActionRowVisible:ie",
+  );
   const { result: patched, warnings } = captureWarnings(() => applyAssistantRenderPatch(source));
 
   assert.equal(patched, source);
@@ -983,7 +1014,7 @@ test("assistant render patch still warns when an assistant render candidate drif
 });
 
 test("assistant render patch ignores the current shared component definition", () => {
-  const source = "function Bzn({item:e,assistantCopyText:n,conversationId:l,renderCodeBlocksAsWritingBlocks:C=!1}){return e.completed&&n!=null?l:null}";
+  const source = "function Bzn({item:e,assistantCopyText:n,conversationId:l,isTurnInProgress:C=!1}){return e.completed&&n!=null?l:null}";
   const { result: patched, warnings } = captureWarnings(() => applyAssistantRenderPatch(source));
 
   assert.equal(patched, source);
@@ -991,36 +1022,22 @@ test("assistant render patch ignores the current shared component definition", (
 });
 
 test("assistant render patch preserves the current JSX runtime alias", () => {
-  const source = "return (0,Q.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,autoReviewStats:y,hookStats:b,completedThreadGoal:x,after:g,conversationId:o,cwd:u,forceCodeBlockWordWrap:V,hasArtifacts:F,onAddSelectedTextToChat:H,onFileLinkOpen:v,onFork:D,renderCodeBlocksAsWritingBlocks:V})";
+  const source = currentAssistantRenderSource.replaceAll("t8", "Q");
   const patched = twice(applyAssistantRenderPatch, source);
 
   assert.match(patched, /Q\.Fragment/);
   assert.match(patched, /\(0,Q\.jsx\)\("button"/);
-  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,p,o,e\.currentTarget\)/);
+  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,b\?\?void 0,d,e\.currentTarget\)/);
 });
 
-test("assistant render patch covers the current shared assistant message call", () => {
-  const source = "return (0,t8.jsx)(K6c,{item:n,alwaysShowActions:re,assistantCopyText:b,turnId:x,processTargets:S,autoReviewStats:A,hookStats:j,threadDetailLevel:p,completedThreadGoal:M,after:T,electronAfter:E,conversationId:d,getVisualizeTurnTriggerType:f,cwd:g,hostId:_,reportEntityType:v,markdownMediaCacheKey:e,projectlessOutputDirectory:de,forceCodeBlockWordWrap:we,hasArtifacts:fe,onAddResponseTextAnnotation:r,onFileLinkOpen:k,onFork:B,renderCodeBlocksAsWritingBlocks:we,showActionRow:ie,showTimestampWithoutActions:ae,timestampHoverOnly:oe,showProcessBadges:i,allowCopyWhileStreaming:q})";
-  const patched = twice(applyAssistantRenderPatch, source);
-
-  assert.match(patched, /t8\.Fragment/);
-  assert.match(patched, /\(0,t8\.jsx\)\("button"/);
-  assert.match(patched, /globalThis\.chatgptLinuxReadAloudClick\?\.\(n,b,d,e\.currentTarget\)/);
-});
-
-test("assistant runtime descriptor targets current shared assistant bundles", () => {
+test("assistant runtime descriptor targets the current local conversation turn bundle", () => {
   const descriptor = featurePatches.find((patch) => patch.id === "assistant-runtime");
   assert.ok(descriptor);
-  assert.equal(
-    descriptor.pattern.test(
-      "app-initial-BHB6SClA.js",
-    ),
-    true,
-  );
+  assert.equal(descriptor.pattern.test("local-conversation-turn-DF8fx5gl.js"), true);
   for (const legacyName of [
+    "app-initial-BHB6SClA.js",
     "index-current.js",
     "local-conversation-thread-current.js",
-    "local-conversation-turn-current.js",
     "app-initial~app-main~onboarding-page-zcfEkMl-.js",
     "app-initial~app-main~onboarding-page~hotkey-window-thread-page~editor-diff-page~thread-app-~current.js",
   ]) {
@@ -1028,14 +1045,14 @@ test("assistant runtime descriptor targets current shared assistant bundles", ()
   }
 });
 
-test("assistant runtime descriptor fails soft and atomically when the current render contract drifts", () => {
+test("assistant runtime descriptor fails soft and atomically when the current render contract drifts", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-drift-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
     const assetPath = path.join(
       assetsDir,
-      "app-initial-BHB6SClA.js",
+      "local-conversation-turn-DF8fx5gl.js",
     );
     const source = "console.log(`assistant render contract moved`);";
     fs.writeFileSync(assetPath, source);
@@ -1045,7 +1062,7 @@ test("assistant runtime descriptor fails soft and atomically when the current re
     ]);
     const report = createPatchReport();
 
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
 
     assert.equal(fs.readFileSync(assetPath, "utf8"), source);
     assert.equal(report.patches.length, 1);
@@ -1056,19 +1073,16 @@ test("assistant runtime descriptor fails soft and atomically when the current re
   }
 });
 
-test("assistant runtime descriptor reports applied then already-applied for the current contract", () => {
+test("assistant runtime descriptor reports applied then already-applied for the current contract", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-read-aloud-current-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
     const assetPath = path.join(
       assetsDir,
-      "app-initial-BHB6SClA.js",
+      "local-conversation-turn-DF8fx5gl.js",
     );
-    fs.writeFileSync(
-      assetPath,
-      "return (0,DX.jsx)(Jft,{item:n,assistantCopyText:_,conversationId:l,renderCodeBlocksAsWritingBlocks:ie})",
-    );
+    fs.writeFileSync(assetPath, currentAssistantRenderSource.replaceAll("t8", "DX"));
     const descriptor = featurePatches.find((patch) => patch.id === "assistant-runtime");
     const descriptors = normalizePatchDescriptors([
       { ...descriptor, integrationId: "read-aloud", sourceKind: "integration" },
@@ -1076,8 +1090,8 @@ test("assistant runtime descriptor reports applied then already-applied for the 
     const firstReport = createPatchReport();
     const secondReport = createPatchReport();
 
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, firstReport);
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, secondReport);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, firstReport);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, secondReport);
 
     const patched = fs.readFileSync(assetPath, "utf8");
     assert.match(patched, /chatgpt-linux-read-aloud-button/);

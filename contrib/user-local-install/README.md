@@ -6,7 +6,7 @@ It adds:
 
 - a stable install root under `${XDG_DATA_HOME:-~/.local/share}/chatgpt`
 - self-contained maintenance scripts under `${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin`
-- thin launch/check/update/version wrappers under `~/.local/bin`
+- one public `chatgpt` launcher under `~/.local/bin`; maintenance helpers stay private to the install root
 - a desktop entry under `${XDG_DATA_HOME:-~/.local/share}/applications`
 - an icon extracted from the local `ChatGPT.dmg`
 - metadata tracking for the wrapper repo and cached `ChatGPT.dmg`
@@ -18,7 +18,7 @@ The package is laid out as reusable payload files. The installer copies them int
 
 - `${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin/`
 - `${XDG_DATA_HOME:-~/.local/share}/chatgpt/lib/`
-- `~/.local/bin/` wrappers
+- the `~/.local/bin/chatgpt` launcher
 - `${XDG_DATA_HOME:-~/.local/share}/applications/chatgpt.desktop`
 - `files/.config/systemd/user/chatgpt-update.service`
 - `files/.config/systemd/user/chatgpt-update.timer`
@@ -29,7 +29,7 @@ If installing manually, copy the files to:
 
 - `${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin/`
 - `${XDG_DATA_HOME:-~/.local/share}/chatgpt/lib/`
-- `~/.local/bin/` wrappers that exec into `${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin/`
+- `~/.local/bin/chatgpt`, which execs the private launcher under `${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin/`
 - `${XDG_DATA_HOME:-~/.local/share}/applications/`
 - `${XDG_CONFIG_HOME:-~/.config}/systemd/user/`
 
@@ -71,7 +71,7 @@ To return to the default generated launcher behavior, pass `--no-force-x11`:
 The installer:
 
 1. copies standalone helper scripts into `${XDG_DATA_HOME:-~/.local/share}/chatgpt`
-2. installs thin wrappers into `~/.local/bin`
+2. installs only the public `chatgpt` launcher into `~/.local/bin`
 3. copies systemd unit files to `~/.config/systemd/user/`
 4. makes the scripts executable
 5. reloads the user `systemd` daemon if available
@@ -81,14 +81,15 @@ The installer:
 
 ## Commands
 
-After installation:
+After installation, the only public command from this user-local path is:
 
 ```bash
 chatgpt
-chatgpt-check-update
-chatgpt-update
-chatgpt-version
 ```
+
+Update checking, rebuilds, and version inspection remain private helpers under
+`${XDG_DATA_HOME:-~/.local/share}/chatgpt/bin`. The opt-in timer calls the
+private update helper directly.
 
 ## Notes
 
@@ -97,6 +98,6 @@ chatgpt-version
   official OpenAI `ChatGPT.dmg` headers.
 - The helper scripts are copied into `${XDG_DATA_HOME:-~/.local/share}/chatgpt` and do not run from the git checkout directly.
 - The X11/XWayland preference is stored in `${XDG_CONFIG_HOME:-~/.config}/chatgpt/user-local.env` and is preserved across updater refreshes.
-- The weekly timer runs `chatgpt-update --quiet`. It is opt-in: pass `--enable-timer` to `install-user-local.sh` to activate it, or run `systemctl --user enable --now chatgpt-update.timer` manually after install.
+- The weekly timer runs the private `chatgpt-update --quiet` helper from the install root. It is opt-in: pass `--enable-timer` to `install-user-local.sh` to activate it, or run `systemctl --user enable --now chatgpt-update.timer` manually after install.
 - Automated rebuilds never bypass the running-app or DMG acceptance gates. They may build a candidate while ChatGPT is open, but promotion waits for the in-app after-exit flow or fails safely for a manual/timer run. Retry after closing the app.
 - A successful transactional update retains only the immediately previous app backup. Older exact managed backups are pruned; manually named paths, files, and symlinks are left alone.

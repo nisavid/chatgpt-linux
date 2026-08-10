@@ -225,33 +225,69 @@ function mainHelperSource() {
   ].join("");
 }
 
-function mainBundleArraySchemaFactory(source) {
-  const factories = new Set(
-    Array.from(source.matchAll(/n\.([A-Za-z_$][\w$]*)\(n\.hl\(\)\)/gu), (match) => match[1]),
+function currentMainBundleSchema(source) {
+  const schemaMatches = Array.from(
+    source.matchAll(
+      /var ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.ol\(\{sshAlias:\2\.ul\(\)\.nullable\(\),sshHost:\2\.ul\(\),sshPort:\2\.al\(\)\.nullable\(\),identity:\2\.ul\(\)\.nullable\(\)(?:,chatgptLinuxSshCommandWrapper:\2\.[A-Za-z_$][\w$]*\(\2\.ul\(\)\)\.optional\(\))?\}\);/gu,
+    ),
   );
-  if (factories.size !== 1) {
+  if (schemaMatches.length !== 1) {
     console.warn(
-      "WARN: Expected one current main-bundle array schema factory; found " +
-      factories.size +
+      "WARN: Expected one current main-bundle SSH host schema; found " +
+      schemaMatches.length +
       " - skipping SSH command-wrapper patch",
     );
     return null;
   }
-  return factories.values().next().value;
+  const [, schemaName, namespace] = schemaMatches[0];
+  const escapedNamespace = namespace.replaceAll("$", "\\$");
+  const arrayFactories = new Set(
+    Array.from(
+      source.matchAll(
+        new RegExp(
+          `${escapedNamespace}\\.([A-Za-z_$][\\w$]*)\\(${escapedNamespace}\\.ul\\(\\)\\)`,
+          "gu",
+        ),
+      ),
+      (match) => match[1],
+    ),
+  );
+  if (arrayFactories.size !== 1) {
+    console.warn(
+      "WARN: Expected one current main-bundle array schema factory; found " +
+      arrayFactories.size +
+      " - skipping SSH command-wrapper patch",
+    );
+    return null;
+  }
+  const arrayFactory = arrayFactories.values().next().value;
+  const cleanSchemaSource =
+    `var ${schemaName}=${namespace}.ol({sshAlias:${namespace}.ul().nullable(),` +
+    `sshHost:${namespace}.ul(),sshPort:${namespace}.al().nullable(),` +
+    `identity:${namespace}.ul().nullable()});`;
+  return {
+    arrayFactory,
+    cleanSchemaSource,
+    namespace,
+    patchedSchemaSource:
+      cleanSchemaSource.slice(0, -3) +
+      `,${WRAPPER_PROPERTY}:${namespace}.${arrayFactory}(${namespace}.ul()).optional()});`,
+    schemaName,
+  };
 }
 
 function applyMainBundlePatch(source) {
-  const arraySchemaFactory = mainBundleArraySchemaFactory(source);
-  if (arraySchemaFactory == null) return source;
+  const schema = currentMainBundleSchema(source);
+  if (schema == null) return source;
   const replacements = [
     [
-      "n.Bn({args:[`ssh`,...pC(c),...hC(this.options.sshConnection),QS(e,s)],spawnInsideWsl:!1})",
-      `n.Bn({args:[\`ssh\`,...pC(c),...hC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(QS(e,s),this.options.sshConnection.${WRAPPER_PROPERTY})],spawnInsideWsl:!1})`,
+      "n.Fn({args:[`ssh`,...jC(c),...NC(this.options.sshConnection),mC(e,s)],spawnInsideWsl:!1})",
+      `n.Fn({args:[\`ssh\`,...jC(c),...NC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(mC(e,s),this.options.sshConnection.${WRAPPER_PROPERTY})],spawnInsideWsl:!1})`,
       "SSH management command",
     ],
     [
-      "(0,x.spawn)(n.Kn.resolve(`ssh`)??`ssh`,[`-T`,...pC(this.options.getConnectTimeoutSeconds?.()),...hC(this.options.sshConnection),QS(t,r)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})",
-      `(0,x.spawn)(n.Kn.resolve(\`ssh\`)??\`ssh\`,[\`-T\`,...pC(this.options.getConnectTimeoutSeconds?.()),...hC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(QS(t,r),this.options.sshConnection.${WRAPPER_PROPERTY})],{env:i.t(process.env),stdio:[\`pipe\`,\`pipe\`,\`pipe\`]})`,
+      "(0,x.spawn)(n.Vn.resolve(`ssh`)??`ssh`,[`-T`,...jC(this.options.getConnectTimeoutSeconds?.()),...NC(this.options.sshConnection),mC(r,a)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})",
+      `(0,x.spawn)(n.Vn.resolve(\`ssh\`)??\`ssh\`,[\`-T\`,...jC(this.options.getConnectTimeoutSeconds?.()),...NC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(mC(r,a),this.options.sshConnection.${WRAPPER_PROPERTY})],{env:i.t(process.env),stdio:[\`pipe\`,\`pipe\`,\`pipe\`]})`,
       "SSH app-server proxy command",
     ],
     [
@@ -260,8 +296,8 @@ function applyMainBundlePatch(source) {
       "SSH transport host mapping",
     ],
     [
-      "function Zae(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`",
-      `function Zae(e){let t=e.alias?.trim(),n=JSON.stringify(chatgptLinuxSshCommandWrapperArgs(e.${WRAPPER_PROPERTY}));return t?\`alias:\${t}:\${n}\`:[\`direct\`,e.host,String(e.port??\`\`),e.identity?.trim()??\`\`,n].join(\``,
+      "function woe(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`",
+      `function woe(e){let t=e.alias?.trim(),n=JSON.stringify(chatgptLinuxSshCommandWrapperArgs(e.${WRAPPER_PROPERTY}));return t?\`alias:\${t}:\${n}\`:[\`direct\`,e.host,String(e.port??\`\`),e.identity?.trim()??\`\`,n].join(\``,
       "SSH startup-gate identity",
     ],
     [
@@ -290,8 +326,8 @@ function applyMainBundlePatch(source) {
       "SSH host metadata",
     ],
     [
-      "var Fde=n.fl({sshAlias:n.hl().nullable(),sshHost:n.hl(),sshPort:n.dl().nullable(),identity:n.hl().nullable()});",
-      `var Fde=n.fl({sshAlias:n.hl().nullable(),sshHost:n.hl(),sshPort:n.dl().nullable(),identity:n.hl().nullable(),${WRAPPER_PROPERTY}:n.${arraySchemaFactory}(n.hl()).optional()});`,
+      schema.cleanSchemaSource,
+      schema.patchedSchemaSource,
       "SSH host metadata schema",
     ],
     [
@@ -302,9 +338,9 @@ function applyMainBundlePatch(source) {
   ];
   return applyCompletePatch(source, {
     label: "main bundle",
-    helperAnchor: "function QS(",
+    helperAnchor: "function mC(",
     helperMarkers: MAIN_HELPER_MARKERS,
-    requiredAnchors: ["function QS("],
+    requiredAnchors: ["function mC("],
     helperSource: mainHelperSource,
     replacements,
   });
@@ -335,8 +371,8 @@ function applyWebviewPatch(source) {
       "hostname connection save",
     ],
     [
-      "sshPort:null,identity:null}}function Ri(",
-      `sshPort:null,identity:null,${WRAPPER_PROPERTY}:chatgptLinuxParseSshCommandWrapper(e.${WRAPPER_TEXT_PROPERTY})}}function Ri(`,
+      "sshPort:null,identity:null}}function Fi(",
+      `sshPort:null,identity:null,${WRAPPER_PROPERTY}:chatgptLinuxParseSshCommandWrapper(e.${WRAPPER_TEXT_PROPERTY})}}function Fi(`,
       "alias connection save",
     ],
     [
@@ -345,21 +381,21 @@ function applyWebviewPatch(source) {
       "wrapper validation",
     ],
     [
-      "children:[O,ee,te]})",
-      `children:[O,ee,te,(0,K.jsx)(v.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,K.jsx)(Gi,{label:(0,K.jsxs)(K.Fragment,{children:[(0,K.jsx)(R,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,K.jsx)(\`span\`,{className:\`font-normal text-token-text-secondary\`,children:(0,K.jsx)(R,{id:\`settings.remoteConnections.dialog.field.commandWrapper.optional\`,defaultMessage:\`(optional)\`,description:\`Marker for the optional SSH remote command wrapper field\`})})]}),description:(0,K.jsx)(R,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:u})})]})`,
+      "children:[k,ee,te]})",
+      `children:[k,ee,te,(0,q.jsx)(v.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,q.jsx)(Hi,{label:(0,q.jsxs)(q.Fragment,{children:[(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,q.jsx)(\`span\`,{className:\`font-normal text-token-text-secondary\`,children:(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.commandWrapper.optional\`,defaultMessage:\`(optional)\`,description:\`Marker for the optional SSH remote command wrapper field\`})})]}),description:(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:u})})]})`,
       "wrapper settings field",
     ],
     [
-      "function Ki(e){switch(e){case`displayNameRequired`:",
-      "function Ki(e){switch(e){case`invalidSshCommandWrapper`:return(0,K.jsx)(R,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
+      "function Ui(e){switch(e){case`displayNameRequired`:",
+      "function Ui(e){switch(e){case`invalidSshCommandWrapper`:return(0,q.jsx)(G,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
       "wrapper validation message",
     ],
   ];
   return applyCompletePatch(source, {
     label: "webview bundle",
-    helperAnchor: "function Fi(){",
+    helperAnchor: "function Mi(){",
     helperMarkers: WEBVIEW_HELPER_MARKERS,
-    requiredAnchors: ["function Fi(){", "function Vi(e){"],
+    requiredAnchors: ["function Mi(){", "function Ri(e){"],
     helperSource: webviewHelperSource,
     replacements,
   });

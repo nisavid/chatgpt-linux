@@ -174,8 +174,9 @@ you created. User configuration and state are preserved for reinstall.
   hashes, scans generated Electron output, validates package metadata, writes
   checksums, and supports detached signatures.
 - **Computer Use packaging compatibility.** The Linux-port upstream's Linux
-  Computer Use backend is staged under this fork's package identity while UI
-  opt-in, account rollout, and host accessibility gates stay separate.
+  Computer Use backend is staged under this fork's package identity while the
+  official persistent control, account rollout, and host accessibility gates
+  stay separate.
 
 ## Current State
 
@@ -192,9 +193,9 @@ you created. User configuration and state are preserved for reinstall.
   `make setup-native` shows the current set. Integration-specific settings,
   account rollouts, MFA, connected-client, audio, and host-network requirements
   still apply.
-- **NixOS:** the flake exposes the default app, Computer Use UI compatibility
-  outputs, remote-mobile compatibility aliases, and installer outputs with
-  pinned DMG metadata.
+- **NixOS:** the flake exposes the default app, remote-mobile compatibility
+  alias, and installer output with pinned DMG metadata. Computer Use support is
+  part of the default app and remains subject to its official controls.
 - **OpenAI-gated:** installing this fork cannot bypass server-side feature flags
   or account policy.
 
@@ -245,8 +246,10 @@ npm i -g --prefix ~/.local --include=optional @openai/codex
 ```
 
 The Linux optional dependency supplies the platform binary. The launcher uses
-`CODEX_CLI_PATH` first, then its normal lookup order, and logs the resolved path
-plus a best-effort version for GUI `PATH` troubleshooting.
+`CODEX_CLI_PATH` first, then its normal lookup order. It pins the resolved
+executable while preserving `codex` as the invocation name for multicall
+installations, and logs the selected source, pinned target, and best-effort
+version for GUI `PATH` troubleshooting.
 
 Build from a DMG you already downloaded:
 
@@ -449,9 +452,7 @@ non-default integration choices that would otherwise be read from the git-ignore
 `port-integrations/integrations.json`:
 
 ```bash
-nix run github:nisavid/chatgpt-linux#chatgpt-computer-use-ui
 nix run github:nisavid/chatgpt-linux#chatgpt-remote-mobile-control
-nix run github:nisavid/chatgpt-linux#chatgpt-computer-use-ui-remote-mobile-control
 nix run github:nisavid/chatgpt-linux#installer
 ```
 
@@ -466,7 +467,6 @@ app-server managed by systemd, import the flake module:
 
   programs.chatgptLinux = {
     enable = true;
-    computerUseUi.enable = true;
     remoteMobileControl.enable = true;
     remoteControl.enable = true;
   };
@@ -500,22 +500,19 @@ a standard US/QWERTY layout before debugging lower-level input services. Some
 apps also expose only sparse AT-SPI trees even when the backend is ready;
 screenshot and pointer paths can still work for those apps.
 
-The plugin manifest gate is applied by default so the backend can register on
-Linux. The in-app Computer Use UI controls are opt-in because they touch
-rollout-gated UI paths in the official OpenAI app bundle. Enable them for a
-build with:
+The plugin manifest and Linux support patches are applied by default so the
+backend can register when the official app is eligible. OpenAI account and
+rollout policy, ChatGPT's persistent Computer Use and allowed-app controls, and
+Codex tool approval, sandboxing, and auto-approval policy remain authoritative.
+This fork adds no duplicate consent prompt or setting. Disable or revoke
+Computer Use through those existing controls; future ChatGPT-originated actions
+must then be rejected. OS portal prompts may still appear when the desktop owns
+that permission.
 
-```bash
-CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1 make build-app
-```
+Linux support and host readiness determine whether an authorized action can
+succeed. They are not separate permissions and do not bypass OpenAI policy.
 
-This local opt-in only controls Linux UI patching in the generated app. It does
-not bypass OpenAI account policy, server-side availability, or host accessibility
-and input prerequisites. To keep the opt-in across updater rebuilds, set the
-persisted `chatgpt-linux-computer-use-ui-enabled` setting described in the
-[Build and Run Guide](docs/usage/build-and-run.md).
-
-After building the app, check backend readiness with:
+After building the app, check local readiness with:
 
 ```bash
 ./chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux doctor
@@ -589,7 +586,7 @@ and log locations.
 | Understand how the DMG conversion works | [Port Architecture](docs/port-architecture.md) |
 | Diagnose launch, CLI, webview, or updater issues | [Troubleshooting](docs/usage/troubleshooting.md) |
 | Decide where to report an issue or feature request | [Support and Issue Routing](docs/usage/support-routing.md) |
-| Set up or debug Linux Computer Use | [Build and Run Guide](docs/usage/build-and-run.md#linux-computer-use-ui-opt-in) and [Troubleshooting](docs/usage/troubleshooting.md) |
+| Set up or debug Linux Computer Use | [Build and Run Guide](docs/usage/build-and-run.md#linux-computer-use-controls-and-readiness) and [Troubleshooting](docs/usage/troubleshooting.md) |
 | Browse all repo docs by role and task | [Documentation Index](docs/README.md) |
 | Contribute a change | [Contributing](CONTRIBUTING.md) |
 | Follow release notes | [Changelog](CHANGELOG.md) |

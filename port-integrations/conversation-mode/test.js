@@ -19,8 +19,11 @@ const {
   normalizePatchDescriptors,
 } = require("../../scripts/patches/engine.js");
 const {
-  patchExtractedApp,
+  patchExtractedApp: patchExtractedAppProduction,
 } = require("../../scripts/patches/runner.js");
+const {
+  openGeneratedAppMutationRoot,
+} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
 const {
   applyAssistantRenderPatch,
   applyComposerControlPatch,
@@ -83,6 +86,84 @@ function captureWarns(fn) {
   }
 }
 
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function withTempIntegrationConfigAsync(enabled, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-integration-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ enabled }, null, 2));
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+}
+
+async function applyWebviewAssetPatchDescriptorsWithMutation(
+  root,
+  descriptors,
+  context,
+  report,
+) {
+  fs.chmodSync(root, 0o700);
+  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
+    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+  try {
+    return await applyWebviewAssetPatchDescriptors(
+      root,
+      descriptors,
+      { ...context, generatedAppMutation },
+      report,
+    );
+  } finally {
+    await generatedAppMutation.close();
+  }
+}
+
 const mainBundleSource =
   "function chatgptLinuxReadAloudHandle(e={}){return e.action===`config`?chatgptLinuxReadAloudConfig():e.action===`setup`?chatgptLinuxReadAloudSetup(e):e.action===`stop`?chatgptLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?chatgptLinuxReadAloudSpeak(e.text):chatgptLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>chatgptLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
 
@@ -92,15 +173,16 @@ const explicitButtonMainBundleSource =
 const currentAppInitialAsset = "app-initial-current.js";
 const currentComposerAsset = currentAppInitialAsset;
 const currentDictationAsset = currentAppInitialAsset;
+const currentAssistantAsset = "local-conversation-turn-current.js";
 
 const dictationSource =
-  "function Sit({onTranscriptInsert:i,onTranscriptSend:a}){let h={current:null},g={current:null},y={current:[]},b={current:null};let P=async({action:t,analytics:n,handlers:r})=>{let a=`hello`;a.length>0&&(df.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:a}),n.performance.mark(`transcript_dispatched`),t===`send`?r.onTranscriptSend(a):r.onTranscriptInsert(a))},F=async()=>{let e=b.current??`insert`,r=h.current,i=y.current;y.current=[],r&&(r.ondataavailable=null,r.onstop=null),h.current=null,j(),Q(),u(!1);await P({action:e,analytics:{performance:{mark(){}}},audio:i,handlers:{onTranscriptInsert:i,onTranscriptSend:a}})},L=e=>{b.current=e;let t=h.current;t.state!==`inactive`&&t.stop()};return{startDictation:async()=>{let e=Cit(),g.current=e;let t=await e.stream,q={performance:{mark(){}}};let n=new MediaRecorder(t);if(h.current=n,y.current=[],n.ondataavailable=e=>{e.data.size>0&&y.current.push(e.data)},n.onstop=()=>{F()},n.start(),q.performance.mark(`recording_started`),u(!0),b.current!=null){n.stop();return}},stopDictation:L}}function Cit(){let e=!1,t=null,n=()=>{e=!0,t?.getTracks().forEach(e=>{e.stop()}),t=null};return{dispose:n,stream:Knt({channelCount:1}).then(r=>(t=r,e&&n(),r))}}";
+  "function Sit({onTranscriptInsert:i,onTranscriptSend:a}){let _={current:null},A={current:null},x={current:[]},S={current:null};let H=async({action:t,analytics:n,handlers:r,recordingPersistence:a})=>{let l=`hello`;l.length>0&&(a==null?df.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:l}):a.setTranscript(l),n.performance.mark(`transcript_dispatched`),t===`send`?r.onTranscriptSend(l):r.onTranscriptInsert(l))},U=async()=>{let e=S.current??`insert`;let i=_.current,a=A.current;A.current=null;let o=x.current;if(x.current=[],i&&(i.ondataavailable=null,i.onstop=null),_.current=null,I(),B(),a?.finalize(e===`abort`||o.length===0,100),e===`abort`||o.length===0)return;await H({action:e,analytics:{performance:{mark(){}}},audio:o,handlers:{onTranscriptInsert:i,onTranscriptSend:a},recordingPersistence:a})};return{startDictation:async()=>{let r=aft(),e=await r.stream,n={performance:{mark(){}}};let i=new MediaRecorder(e);_.current=i;let a=oit({createdAtMs:1});if(A.current=a,x.current=[],i.ondataavailable=e=>{e.data.size>0&&(x.current.push(e.data),a?.appendChunk(e.data,i.mimeType||e.data.type||`audio/webm`))},i.onstop=()=>{U()},a==null?i.start():i.start(sit),n.performance.mark(`recording_started`),f(!0),S.current!=null){i.stop();return}}}}function aft(){let e=!1,t=null,n=()=>{e=!0,t?.getTracks().forEach(e=>{e.stop()}),t=null};return{dispose:n,stream:Out({channelCount:1}).then(r=>(t=r,e&&n(),r))}}";
 
 const currentComposerControlSource =
   "function Vka(e){let{isResponseInProgress:x,onStop:T,submitBlockReason:E,voiceControls:A}=e,j=Nn(Bk),M=RZ(),N=Rk(j),P=LEa(j.value,t),{canRetryDictation:B,dictationShortcutLabel:V,isDictating:U,isDictationButtonVisible:W,isDictationSupported:G,isTranscribing:ee,isVoiceFooterVisible:te,recordingDurationMs:ne,retryDictation:K,startDictation:re,stopDictation:ie,realtimeSession:ae,waveformCanvasRef:oe}=A;let je=(0,x7.jsx)(_ka,{conversationId:N,hostId:g,cwdOverride:_}),ke=(0,x7.jsx)(Twe,{isTranscribing:ee,recordingDurationMs:ne,waveformCanvasRef:oe,stopDictation:ie});let Ae=(0,x7.jsx)(Ewe,{idleIcon:U,isVisible:W,disabled:!G,isTranscribing:ee,canRetryDictation:B,shortcutLabel:V,retryDictation:K,startDictation:re,stopDictation:ie});return Ae}";
 
 const assistantRenderSource =
-  "return (0,t8.jsx)(K6c,{item:n,alwaysShowActions:re,assistantCopyText:b,turnId:x,processTargets:S,autoReviewStats:A,hookStats:j,threadDetailLevel:p,after:T,conversationId:d,cwd:g,renderCodeBlocksAsWritingBlocks:we})";
+  "return (0,t8.jsx)(K6c,{item:n,historyEntityKey:o,isHeartbeatAutomationRequest:qe.some(e=>e.heartbeatTrigger!=null),isHeartbeatAutomationTurn:p?.automationKind===`heartbeat`,conversationId:d,getVisualizeTurnTriggerType:f,hostId:_,conversationDetailLevel:I,isTurnInProgress:c,cwd:g,resolvedApps:k,renderMcpApps:L,reportEntityType:v,toolActivityTurnKey:F,turnId:x??void 0,projectlessOutputDirectory:P?null:E,assistantCopyText:b??void 0,assistantAfter:T,autoReviewStats:A,hookStats:j,completedThreadGoal:M,hasArtifacts:fe,alwaysShowAssistantMessageActions:re,showAssistantMessageActionRow:ie,allowAddSelectedTextToChat:!w,onAssistantFileLinkOpen:k,onForkTurn:B})";
 
 const conversationGlobals = [
   "chatgptLinuxConversationAvailable",
@@ -136,15 +218,17 @@ test("composer descriptor targets the current app-initial bundle", () => {
   assert.equal(descriptor.pattern.test("composer-old.js"), false);
 });
 
-test("current DMG co-locates dictation, composer, and assistant ownership", () => {
+test("current DMG splits assistant ownership from dictation and composer", () => {
   const dictation = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
   const composer = integrationPatches.find((patch) => patch.id === "composer-control");
   const assistant = integrationPatches.find((patch) => patch.id === "assistant-observer");
-  const asset = "app-initial-BHB6SClA.js";
+  const appInitial = "app-initial-Biw83Aiz.js";
+  const assistantTurn = "local-conversation-turn-DF8fx5gl.js";
 
-  assert.equal(dictation.pattern.test(asset), true);
-  assert.equal(composer.pattern.test(asset), true);
-  assert.equal(assistant.pattern.test(asset), true);
+  assert.equal(dictation.pattern.test(appInitial), true);
+  assert.equal(composer.pattern.test(appInitial), true);
+  assert.equal(assistant.pattern.test(appInitial), false);
+  assert.equal(assistant.pattern.test(assistantTurn), true);
   assert.equal(dictation.pattern.test("onboarding-page-Bv4pLarm.js"), false);
   assert.equal(composer.pattern.test("new-thread-panel-page-Xl0DC1bk.js"), false);
 });
@@ -2029,11 +2113,11 @@ test("dictation endpoint patch adds VAD stop-on-silence and send action", () => 
   assert.match(patched, /chatgptLinuxConversationCleanup/);
   assert.match(patched, /chatgptLinuxConversationEndpoint/);
   assert.match(patched, /chatgptLinuxConversationShouldSendTranscript/);
-  assert.match(patched, /q\.performance\.mark\(`recording_started`\)/);
+  assert.match(patched, /n\.performance\.mark\(`recording_started`\)/);
   assert.match(patched, /n\.performance\.mark\(`transcript_dispatched`\)/);
   assert.match(patched, /t!==`discard`/);
-  assert.match(patched, /t===`send`\?r\.onTranscriptSend\(a\):r\.onTranscriptInsert\(a\)/);
-  assert.match(patched, /stop:\(\)=>\{b\.current=`send`;n\.state!==`inactive`&&n\.stop\(\)\}/);
+  assert.match(patched, /t===`send`\?r\.onTranscriptSend\(l\):r\.onTranscriptInsert\(l\)/);
+  assert.match(patched, /stop:\(\)=>\{S\.current=`send`;i\.state!==`inactive`&&i\.stop\(\)\}/);
 });
 
 test("dictation endpoint patch fails soft and atomically when the current recorder contract drifts", () => {
@@ -2046,7 +2130,7 @@ test("dictation endpoint patch fails soft and atomically when the current record
   assert.doesNotMatch(patched, /chatgptLinuxConversation/);
 });
 
-test("current dictation drift is reported as skipped instead of already applied", () => {
+test("current dictation drift is reported as skipped instead of already applied", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-drift-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
@@ -2060,7 +2144,7 @@ test("current dictation drift is reported as skipped instead of already applied"
     ]);
     const report = createPatchReport();
 
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
 
     assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
     assert.equal(report.patches.length, 1);
@@ -2159,7 +2243,7 @@ test("composer control patch fails soft when the current conversation binding dr
   assert.doesNotMatch(patched, /chatgptLinuxConversationToggle/);
 });
 
-test("current composer marker drift is reported as skipped instead of already applied", () => {
+test("current composer marker drift is reported as skipped instead of already applied", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-composer-drift-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
@@ -2173,7 +2257,7 @@ test("current composer marker drift is reported as skipped instead of already ap
     ]);
     const report = createPatchReport();
 
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
 
     assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
     assert.equal(report.patches.length, 1);
@@ -2190,35 +2274,34 @@ test("composer patch ignores adjacent composer chunks", () => {
 
 test("assistant render patch observes assistant text for automatic speech", () => {
   const patched = twice(applyAssistantRenderPatch, assistantRenderSource);
-  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,b,d,x,typeof c!="undefined"\?c:null\)/);
+  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,b\?\?void 0,d,x\?\?void 0,c\)/);
   assert.match(patched, /t8\.Fragment/);
 });
 
 test("assistant render patch preserves the current JSX runtime alias", () => {
-  const source =
-    "return (0,Q.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,after:g,conversationId:o,cwd:u,renderCodeBlocksAsWritingBlocks:V})";
+  const source = assistantRenderSource.replaceAll("t8", "Q");
   const patched = twice(applyAssistantRenderPatch, source);
 
-  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,p,o,m,typeof c!="undefined"\?c:null\)/);
+  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,b\?\?void 0,d,x\?\?void 0,c\)/);
   assert.match(patched, /Q\.Fragment/);
 });
 
-test("assistant observer targets only the current primary thread bundle", () => {
+test("assistant observer targets only the current local conversation turn bundle", () => {
   const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
   assert.ok(descriptor);
-  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("local-conversation-turn-DF8fx5gl.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), false);
   assert.equal(descriptor.pattern.test("app-initial~app-main~onboarding-page-D4eTO0KG.js"), false);
-  assert.equal(descriptor.pattern.test("local-conversation-turn-old.js"), false);
   assert.equal(descriptor.pattern.test("local-conversation-thread-old.js"), false);
   assert.equal(descriptor.pattern.test("index-old.js"), false);
 });
 
-test("current assistant observer drift is reported as skipped instead of already applied", () => {
+test("current assistant observer drift is reported as skipped instead of already applied", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-assistant-drift-"));
   try {
     const assetsDir = path.join(root, "webview", "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
-    const assetPath = path.join(assetsDir, currentAppInitialAsset);
+    const assetPath = path.join(assetsDir, currentAssistantAsset);
     const drifted = "console.log(`current assistant renderer drifted`);";
     fs.writeFileSync(assetPath, drifted);
     const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
@@ -2227,7 +2310,7 @@ test("current assistant observer drift is reported as skipped instead of already
     ]);
     const report = createPatchReport();
 
-    applyWebviewAssetPatchDescriptors(root, descriptors, {}, report);
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
 
     assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
     assert.equal(report.patches.length, 1);
@@ -2238,9 +2321,9 @@ test("current assistant observer drift is reported as skipped instead of already
   }
 });
 
-test("conversation mode patches matching app assets and records report entries", () => {
-  withTempIntegrationConfig([], (root) => {
-    withPortIntegrationRootEnv(root, () => {
+test("conversation mode patches matching app assets and records report entries", async () => {
+  await withTempIntegrationConfigAsync([], async (root) => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
@@ -2251,11 +2334,12 @@ test("conversation mode patches matching app assets and records report entries",
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
         fs.writeFileSync(
           path.join(assetsDir, currentDictationAsset),
-          `${dictationSource};${currentComposerControlSource};${assistantRenderSource}`,
+          `${dictationSource};${currentComposerControlSource}`,
         );
+        fs.writeFileSync(path.join(assetsDir, currentAssistantAsset), assistantRenderSource);
 
         const report = createPatchReport();
-        const { warnings } = captureWarns(() => patchExtractedApp(tempApp, { report }));
+        const { warnings } = await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         assert.ok(
           warnings.every((warning) => !warning.includes("conversation mode")),
           warnings.join("\n"),
@@ -2273,7 +2357,7 @@ test("conversation mode patches matching app assets and records report entries",
           /chatgptLinuxConversationToggle/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, currentDictationAsset), "utf8"),
+          fs.readFileSync(path.join(assetsDir, currentAssistantAsset), "utf8"),
           /chatgptLinuxConversationAssistant/,
         );
         for (const name of [

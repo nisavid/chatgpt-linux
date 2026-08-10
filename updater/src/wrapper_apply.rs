@@ -1030,6 +1030,15 @@ mod tests {
         let source_node = config.builder_bundle_root.join("node-runtime/bin/node");
         std::fs::create_dir_all(source_node.parent().unwrap())?;
         std::fs::write(&source_node, b"managed node")?;
+        let source_broker = config
+            .builder_bundle_root
+            .join("prebuilt-helpers/chatgpt-generated-app-mutation-broker");
+        std::fs::create_dir_all(source_broker.parent().unwrap())?;
+        std::fs::write(&source_broker, b"generation-bound broker")?;
+        std::fs::write(
+            source_broker.with_extension("sha256"),
+            b"fixture digest manifest\n",
+        )?;
 
         let wrapper_src = root.path().join("wrapper-src");
         std::fs::create_dir_all(&wrapper_src)?;
@@ -1039,6 +1048,18 @@ mod tests {
         assert_eq!(
             std::fs::read(wrapper_src.join("node-runtime/bin/node"))?,
             b"managed node"
+        );
+        assert_eq!(
+            std::fs::read(
+                wrapper_src.join("prebuilt-helpers/chatgpt-generated-app-mutation-broker")
+            )?,
+            b"generation-bound broker"
+        );
+        assert_eq!(
+            std::fs::read(
+                wrapper_src.join("prebuilt-helpers/chatgpt-generated-app-mutation-broker.sha256")
+            )?,
+            b"fixture digest manifest\n"
         );
         Ok(())
     }

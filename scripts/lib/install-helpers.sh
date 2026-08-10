@@ -175,8 +175,29 @@ dmg_refresh_mode_is_pinned() {
     esac
 }
 
+assert_private_transaction_candidate_root() {
+    local candidate_root="$1"
+    local owner_uid
+    local permissions
+    local requested
+    local resolved
+
+    [ -d "$candidate_root" ] && [ ! -L "$candidate_root" ] || \
+        error "Transaction candidate must be a non-symlink directory: $candidate_root"
+    requested="$(realpath -m -s -- "$candidate_root")" || return 1
+    resolved="$(realpath -e -- "$candidate_root")" || return 1
+    [ "$requested" = "$resolved" ] || \
+        error "Transaction candidate must not traverse symlinked components: $candidate_root"
+    owner_uid="$(stat -c '%u' -- "$candidate_root")" || return 1
+    permissions="$(stat -c '%a' -- "$candidate_root")" || return 1
+    [ "$owner_uid" = "$(id -u)" ] && [ "$permissions" = "700" ] || \
+        error "Transaction candidate must be owned by the current user with mode 0700: $candidate_root"
+}
+
 prepare_install() {
-    if [ "$FRESH_INSTALL" -eq 1 ] && [ -d "$INSTALL_DIR" ]; then
+    if [ "${CHATGPT_INSTALL_TRANSACTION_ACTIVE:-0}" = "1" ]; then
+        assert_private_transaction_candidate_root "$INSTALL_DIR"
+    elif [ "$FRESH_INSTALL" -eq 1 ] && [ -d "$INSTALL_DIR" ]; then
         info "Removing existing install directory: $INSTALL_DIR"
         rm -rf "$INSTALL_DIR"
     fi

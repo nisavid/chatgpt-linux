@@ -10,16 +10,21 @@ const {
   patchExtractedApp,
 } = require("./patches/runner.js");
 const {
+  isGeneratedAppIntegrityError,
+} = require("./patches/lib/generated-app-mutation-client.js");
+const {
   createInventory,
   findPostPatchIntegrityFindings,
 } = require("./lib/upstream-dmg-intel.js");
 
-const USAGE = "Usage: patch-linux-window-ui.js [--report-json path] [--enforce-critical] <extracted-app-asar-dir>";
+const USAGE = "Usage: patch-linux-window-ui.js [--report-json path] [--enforce-critical] [--mutation-broker path] [--verified-private-root] <extracted-app-asar-dir>";
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   let reportJson = null;
   let enforceCritical = false;
+  let mutationBrokerPath = process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE ?? null;
+  let verifiedPrivateRoot = false;
   const positional = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -33,6 +38,15 @@ function main() {
       index += 1;
     } else if (arg === "--enforce-critical") {
       enforceCritical = true;
+    } else if (arg === "--mutation-broker") {
+      mutationBrokerPath = args[index + 1];
+      if (!mutationBrokerPath) {
+        console.error(USAGE);
+        process.exit(1);
+      }
+      index += 1;
+    } else if (arg === "--verified-private-root") {
+      verifiedPrivateRoot = true;
     } else if (arg === "--help" || arg === "-h") {
       console.log(USAGE);
       process.exit(0);
@@ -50,8 +64,13 @@ function main() {
 
   // Enforcement needs the report data even when no --report-json was requested.
   const report = reportJson == null && !enforceCritical ? null : createPatchReport();
+  let mutationFailure = null;
   try {
-    patchExtractedApp(extractedDir, { report });
+    await patchExtractedApp(extractedDir, {
+      report,
+      mutationBrokerPath,
+      verifiedPrivateRoot,
+    });
     if (report != null) {
       const inventory = createInventory({ sourcePath: extractedDir });
       const findings = findPostPatchIntegrityFindings(inventory);
@@ -61,9 +80,26 @@ function main() {
         findings,
       };
     }
+  } catch (error) {
+    if (!isGeneratedAppIntegrityError(error)) {
+      throw error;
+    }
+    mutationFailure = error;
+    if (report != null) {
+      report.mutationIntegrity = {
+        status: "failed",
+        operation: error.operation,
+        code: error.code,
+        reason: "generated-app mutation integrity failure",
+      };
+    }
   } finally {
     // Write the report before gating so CI artifact upload sees it even on failure.
     writePatchReport(reportJson, report);
+  }
+
+  if (mutationFailure != null) {
+    throw mutationFailure;
   }
 
   if (enforceCritical) {
@@ -83,5 +119,12 @@ function main() {
 }
 
 if (require.main === module) {
-  main();
+  main().catch((error) => {
+    if (isGeneratedAppIntegrityError(error)) {
+      console.error("Generated-app mutation integrity failure; candidate patching stopped.");
+    } else {
+      console.error(error);
+    }
+    process.exitCode = 1;
+  });
 }

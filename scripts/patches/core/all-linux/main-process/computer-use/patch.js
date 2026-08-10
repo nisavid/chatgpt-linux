@@ -4,6 +4,7 @@ const {
   mainBundlePatch,
 } = require("../../../../descriptor.js");
 const {
+  applyLinuxComputerUseAuthorityPatch,
   applyLinuxComputerUseAvatarCursorBridgePatch,
   applyLinuxComputerUseFeaturePatch,
   applyLinuxNativeDesktopAppsHandlerPatch,
@@ -12,18 +13,24 @@ const {
 
 module.exports = [
   mainBundlePatch({
+    id: "linux-computer-use-request-authority",
+    phase: "main-bundle",
+    order: 120,
+    ciPolicy: "required-official-dmg",
+    apply: applyLinuxComputerUseAuthorityPatch,
+  }),
+  mainBundlePatch({
     id: "linux-computer-use-avatar-cursor",
     phase: "main-bundle",
     order: 125,
-    ciPolicy: "optional",
+    ciPolicy: "required-official-dmg",
     apply: applyLinuxComputerUseAvatarCursorBridgePatch,
   }),
   mainBundlePatch({
     id: "linux-computer-use-ui-feature",
     phase: "main-bundle",
     order: 130,
-    ciPolicy: "opt-in",
-    enabled: (context) => context.enableComputerUseUi,
+    ciPolicy: "required-official-dmg",
     apply: applyLinuxComputerUseFeaturePatch,
   }),
   mainBundlePatch({
@@ -31,14 +38,14 @@ module.exports = [
     phase: "main-bundle",
     order: 140,
     ciPolicy: "optional",
+    enabled: (context) => context.computerUseSupportPatching !== false,
     apply: applyLinuxComputerUsePluginGatePatch,
   }),
   mainBundlePatch({
     id: "linux-computer-use-native-desktop-apps",
     phase: "main-bundle",
     order: 150,
-    ciPolicy: "opt-in",
-    enabled: (context) => context.enableComputerUseUi,
+    ciPolicy: "required-official-dmg",
     apply: applyLinuxNativeDesktopAppsHandlerPatch,
   }),
 ];

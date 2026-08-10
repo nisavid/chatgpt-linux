@@ -2,7 +2,7 @@
 
 const RUNTIME_VERSION = "omarchy-theme-v1";
 const STYLE_LINK_ID = "chatgpt-linux-omarchy-theme-link";
-const THEME_CSS_ENDPOINT = "/__codex_user_stylesheet.css";
+const THEME_CSS_ENDPOINT = "/__chatgpt_user_stylesheet.css";
 
 function omarchyThemeRuntimeSource() {
   return [

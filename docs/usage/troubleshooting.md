@@ -63,7 +63,7 @@ pending package.
 | `ConnectTimeoutError` or slow Electron downloads during `@electron/rebuild` | Retry `make build-app`. If the network path is consistently blocked, set `ELECTRON_MIRROR` for the Electron runtime and `ELECTRON_HEADERS_URL` for Electron headers. |
 | Stale install or cached DMG | Run `./install.sh --fresh` to remove the generated app tree and redownload the DMG. |
 | Usage help | Run `./install.sh --help` or `./chatgpt/start.sh --help`. |
-| Computer Use plugin invisible in UI | Confirm the UI patch is enabled: either build with `CHATGPT_LINUX_ENABLE_COMPUTER_USE_UI=1`, or set `"chatgpt-linux-computer-use-ui-enabled": true` in `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/settings.json`, then remember account-side rollout can still hide official OpenAI app bundle UI paths. |
+| Computer Use plugin invisible in UI | Rebuild from current sources and inspect the patch report for Linux support-patch drift. The support patches are applied by default, but OpenAI account and rollout eligibility plus the official persistent plugin control still determine whether the UI appears. |
 | Computer Use `doctor` reports `ydotool not running` | Start the distro-provided daemon (`ydotoold` or, on some Fedora releases, `ydotool.service`), then add your user to an input-capable group for `/dev/uinput` and the daemon socket. Common group names include `input`, `uinput`, `plugdev`, and `wheel`; check your distro. |
 | Computer Use `doctor` reports `ydotool_socket: Permission denied` | Adjust the `ydotoold` service/socket so the desktop user can connect, commonly by making the socket group-readable by an input-capable group such as `input`, `uinput`, `plugdev`, or `wheel`. |
 | Computer Use `doctor` reports `ydotool_socket: Protocol wrong type for socket` | The daemon socket may be a Unix datagram socket rather than a stream socket. Upgrade or rebuild to a backend with datagram-aware ydotool socket checks, then rerun `doctor`; this error does not by itself prove that `ydotoold` is absent or unusable. |
@@ -155,6 +155,11 @@ path. An explicit `--cli-path` can also be used with `chatgpt-updater
 cli-preflight`; later `status` output reports the current resolver source as
 `env`, `config`, `persisted`, `path`, `known_path`, or `unknown` when no CLI was
 found.
+
+The launcher log records the selected Codex CLI source, its pinned canonical
+target, and the detected version. A `codex` symlink may intentionally resolve
+to a multicall binary; the generated launch proxy preserves the `codex`
+invocation name when Electron starts app-server.
 
 `chatgpt-updater` stays unprivileged until it installs the rebuilt package.
 The final installation uses:
