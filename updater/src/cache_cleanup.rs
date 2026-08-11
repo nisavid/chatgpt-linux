@@ -23,6 +23,12 @@ pub struct DmgCacheLease {
     _file: fs::File,
 }
 
+impl Drop for DmgCacheLease {
+    fn drop(&mut self) {
+        let _ = self._file.unlock();
+    }
+}
+
 pub async fn acquire_dmg_cache_lease(downloads_dir: &Path) -> Result<DmgCacheLease> {
     let downloads_dir = downloads_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
@@ -470,6 +476,7 @@ mod tests {
         let downloads = temp.path().join("downloads");
         let current = managed_dmg(&downloads, 'd');
         let lease = acquire_dmg_cache_lease(&downloads).await?;
+        let inherited_lease_fd = lease._file.try_clone()?;
         fs::write(&current, b"current")?;
 
         let blocked = prune_dmg_cache(temp.path(), &PersistedState::new(true))?;
@@ -483,6 +490,7 @@ mod tests {
         assert!(!completed.skipped_locked);
         assert_eq!(completed.pruned_dmgs, 0);
         assert!(current.exists());
+        drop(inherited_lease_fd);
         Ok(())
     }
 
