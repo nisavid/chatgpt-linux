@@ -783,7 +783,10 @@ PY
             export CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-linux"
             export CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-cosmic"
             export CHATGPT_CHROME_EXTENSION_HOST_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-chrome-extension-host"
-            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptReleaseHelpers}/bin/chatgpt-generated-app-mutation-broker"
+            mutation_broker_build="$TMPDIR/chatgpt-generated-app-mutation-broker"
+            cp "${chatgptReleaseHelpers}/bin/chatgpt-generated-app-mutation-broker" "$mutation_broker_build"
+            chmod 0500 "$mutation_broker_build"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$mutation_broker_build"
             export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
             export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
             ${pkgs.lib.optionalString mcpHelperReaperEnabled ''
