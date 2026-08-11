@@ -55,7 +55,7 @@ const webviewFixture = [
   "function Ni(e){return{displayName:e.displayName,targetKind:e.sshAlias?.trim()?`alias`:`hostname`,sshHost:e.sshAlias?.trim()||e.sshHost,sshPort:e.sshPort==null?``:String(e.sshPort),authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
   "function Pi(e,{connectionAnalyticsId:t}={}){let n=e.displayName.trim(),r=e.sshHost.trim(),i=e.targetKind===`alias`?r:null;return i==null?{hostId:tn(n),connectionAnalyticsId:t,displayName:n,source:`codex-managed`,alias:null,hostname:r,sshPort:Ii(e.sshPort),identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:It(i),connectionAnalyticsId:t,displayName:n,source:`discovered`,alias:i,hostname:null,sshPort:null,identity:null}}",
   "function Fi({draft:e,editingHostId:t,existingConnections:n}){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
-  "function Ri(e){let v,q,G,Hi,u,k,ee,te,j;j=(0,q.jsx)(x,{children:(0,q.jsxs)(`div`,{children:[k,ee,te]})});return j}",
+  "function Ri(e){let v,q,G,Hi,u,k,A,j,te;te=(0,q.jsx)(Qt,{children:(0,q.jsxs)(`div`,{children:[k,A,j]})});return te}",
   "function Ui(e){switch(e){case`displayNameRequired`:return null}}",
 ].join("");
 
