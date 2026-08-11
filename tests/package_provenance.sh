@@ -455,8 +455,12 @@ test_packaged_source_epoch_without_git() {
 
 test_package_node_override_ignores_generated_app_runtime() {
     local fixture="$TEST_TMP/node-override"
+    local host_node
     local marker="$fixture/generated-node-ran"
     local selected
+    host_node="$(readlink -f -- "$(type -P node)")"
+    [ -f "$host_node" ] && [ ! -L "$host_node" ] && [ -x "$host_node" ] || \
+        fail "could not resolve the host Node executable"
     mkdir -p "$fixture/app/resources/node-runtime/bin"
     printf '#!/bin/sh\ntouch %q\nexit 97\n' "$marker" \
         >"$fixture/app/resources/node-runtime/bin/node"
@@ -464,10 +468,10 @@ test_package_node_override_ignores_generated_app_runtime() {
 
     # The child shell deliberately expands its own positional parameter.
     # shellcheck disable=SC2016
-    selected="$(APP_DIR="$fixture/app" CHATGPT_PACKAGE_NODE_SOURCE="$(readlink -f /usr/bin/node)" \
+    selected="$(APP_DIR="$fixture/app" CHATGPT_PACKAGE_NODE_SOURCE="$host_node" \
         "$BASH" -c 'source "$1"; package_node_binary' _ \
         "$REPO_DIR/scripts/lib/package-common.sh")"
-    [ "$selected" = "$(readlink -f /usr/bin/node)" ] || \
+    [ "$selected" = "$host_node" ] || \
         fail "package Node override did not select the trusted system runtime"
     [ ! -e "$marker" ] || fail "package Node override executed the generated-app runtime"
 }
