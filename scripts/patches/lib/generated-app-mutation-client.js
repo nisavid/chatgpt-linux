@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
@@ -378,6 +379,51 @@ function openBrokerExecutable(brokerPath) {
   return fd;
 }
 
+function brokerStatMatches(before, after) {
+  return ["dev", "ino", "mode", "nlink", "uid", "gid", "rdev", "size", "mtimeNs", "ctimeNs"]
+    .every((field) => before[field] === after[field]);
+}
+
+function digestOpenBrokerExecutable(fd) {
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile() || before.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error("broker executable size is unsafe");
+    }
+
+    const hash = crypto.createHash("sha256");
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    const expectedSize = Number(before.size);
+    let position = 0;
+    while (position < expectedSize) {
+      const bytesRead = fs.readSync(
+        fd,
+        buffer,
+        0,
+        Math.min(buffer.length, expectedSize - position),
+        position,
+      );
+      if (bytesRead === 0) {
+        throw new Error("broker executable changed while hashing");
+      }
+      hash.update(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (!brokerStatMatches(before, after)) {
+      throw new Error("broker executable changed while hashing");
+    }
+    return hash.digest("hex");
+  } catch (error) {
+    throw integrityError(error, {
+      code: "unsafe-broker",
+      operation: "digest",
+      reason: "broker executable could not be hashed from a stable descriptor",
+    });
+  }
+}
+
 function openPrivateRoot(rootPath) {
   const flags =
     fs.constants.O_RDONLY |
@@ -475,6 +521,7 @@ async function openGeneratedAppMutationRoot(
   }
   let child;
   let childClose;
+  let brokerDigest;
   try {
     child = spawn("/proc/self/fd/5", [], {
       cwd: "/",
@@ -484,6 +531,7 @@ async function openGeneratedAppMutationRoot(
     });
     childClose = trackChildClose(child);
     await waitForSpawn(child);
+    brokerDigest = digestOpenBrokerExecutable(brokerFd);
   } catch (error) {
     try {
       child?.kill("SIGKILL");
@@ -554,6 +602,7 @@ async function openGeneratedAppMutationRoot(
   }
 
   const client = {
+    brokerDigest,
     list(components) {
       let frame;
       try {

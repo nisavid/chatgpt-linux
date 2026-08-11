@@ -11318,17 +11318,52 @@ test("patcher CLI writes --report-json output", () => {
 
     const result = spawnSync(
       process.execPath,
-      [path.join(__dirname, "patch-linux-window-ui.js"), "--report-json", reportPath, tempRoot],
-      { encoding: "utf8" },
+      [
+        path.join(__dirname, "patch-linux-window-ui.js"),
+        "--report-json",
+        reportPath,
+        "--mutation-broker-digest-fd",
+        "3",
+        tempRoot,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe", "pipe"] },
     );
 
     assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      result.output[3],
+      `${cryptoHash(fs.readFileSync(process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE))}\n`,
+    );
     const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
     assert.equal(report.mainBundle, "main.js");
     assert.ok(report.patches.some((patch) => patch.name === "main-process-ui"));
     assert.equal(report.postPatchIntegrity.findingCount, 1);
     assert.match(report.postPatchIntegrity.findings[0].symbol, /chatgptLinuxAgentWorkspaceSettingsIcon/);
     assert.match(report.postPatchIntegrity.findings[0].path, /settings-page-bad-linux-patch\.js$/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("patcher CLI writes no broker digest when mutation fails", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-patch-digest-failure-test-"));
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(__dirname, "patch-linux-window-ui.js"),
+        "--mutation-broker",
+        "/bin/false",
+        "--mutation-broker-digest-fd",
+        "3",
+        tempRoot,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe", "pipe"] },
+    );
+
+    assert.equal(result.status, 1);
+    assert.equal(result.output[3], "");
+    assert.match(result.stderr, /Generated-app mutation integrity failure/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -11603,12 +11638,15 @@ test("patcher CLI --enforce-critical exits non-zero with an aggregated message",
         "--enforce-critical",
         "--report-json",
         reportPath,
+        "--mutation-broker-digest-fd",
+        "3",
         tempRoot,
       ],
-      { encoding: "utf8" },
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe", "pipe"] },
     );
 
     assert.equal(result.status, 1);
+    assert.equal(result.output[3], "");
     assert.match(result.stderr, /Critical patch failures \(\d+\):/);
     assert.match(result.stderr, /failed-required/);
     // The report must still be written for CI artifact upload despite the failure.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require("node:fs");
 const {
   createPatchReport,
   criticalFailuresFromReport,
@@ -17,13 +18,14 @@ const {
   findPostPatchIntegrityFindings,
 } = require("./lib/upstream-dmg-intel.js");
 
-const USAGE = "Usage: patch-linux-window-ui.js [--report-json path] [--enforce-critical] [--mutation-broker path] [--verified-private-root] <extracted-app-asar-dir>";
+const USAGE = "Usage: patch-linux-window-ui.js [--report-json path] [--enforce-critical] [--mutation-broker path] [--mutation-broker-digest-fd fd] [--verified-private-root] <extracted-app-asar-dir>";
 
 async function main() {
   const args = process.argv.slice(2);
   let reportJson = null;
   let enforceCritical = false;
   let mutationBrokerPath = process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE ?? null;
+  let mutationBrokerDigestFd = null;
   let verifiedPrivateRoot = false;
   const positional = [];
 
@@ -45,6 +47,19 @@ async function main() {
         process.exit(1);
       }
       index += 1;
+    } else if (arg === "--mutation-broker-digest-fd") {
+      const value = args[index + 1];
+      if (
+        mutationBrokerDigestFd != null ||
+        typeof value !== "string" ||
+        !/^(?:[3-9]|[1-9][0-9]+)$/.test(value) ||
+        !Number.isSafeInteger(Number(value))
+      ) {
+        console.error(USAGE);
+        process.exit(1);
+      }
+      mutationBrokerDigestFd = Number(value);
+      index += 1;
     } else if (arg === "--verified-private-root") {
       verifiedPrivateRoot = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -65,8 +80,9 @@ async function main() {
   // Enforcement needs the report data even when no --report-json was requested.
   const report = reportJson == null && !enforceCritical ? null : createPatchReport();
   let mutationFailure = null;
+  let patchResult = null;
   try {
-    await patchExtractedApp(extractedDir, {
+    patchResult = await patchExtractedApp(extractedDir, {
       report,
       mutationBrokerPath,
       verifiedPrivateRoot,
@@ -114,6 +130,17 @@ async function main() {
           "Set CHATGPT_ENFORCE_CRITICAL_PATCHES=0 to bypass (emergency builds only).",
       );
       process.exit(1);
+    }
+  }
+
+  if (mutationBrokerDigestFd != null) {
+    const digest = patchResult?.brokerDigest;
+    if (typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) {
+      throw new Error("Mutation broker did not return a valid descriptor-bound digest");
+    }
+    const receipt = Buffer.from(`${digest}\n`, "ascii");
+    if (fs.writeSync(mutationBrokerDigestFd, receipt) !== receipt.length) {
+      throw new Error("Could not write the complete mutation broker digest receipt");
     }
   }
 }

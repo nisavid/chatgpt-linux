@@ -273,10 +273,11 @@ async function patchExtractedApp(extractedDir, options = {}) {
     verifiedPrivateRoot: options.verifiedPrivateRoot ?? false,
   });
   try {
-    return await patchExtractedAppWithCapability(extractedDir, options, capability);
+    await patchExtractedAppWithCapability(extractedDir, options, capability);
   } finally {
     await capability.close();
   }
+  return Object.freeze({ brokerDigest: capability.brokerDigest });
 }
 
 function allPatchPolicies(options = {}) {

@@ -112,15 +112,25 @@ generated_app_mutation_broker_sha256() {
 write_generated_app_mutation_broker_digest() {
     local app_dir="$1"
     local broker="$2"
-    local digest
+    local executed_digest="${3:-}"
+    local actual_digest
     local digest_path="$app_dir/$GENERATED_APP_MUTATION_BROKER_DIGEST_RELATIVE_PATH"
     local temporary
 
+    if [[ ! "$executed_digest" =~ ^[0-9a-f]{64}$ ]]; then
+        printf 'Executed generated-app mutation broker digest is malformed.\n' >&2
+        return 1
+    fi
     broker="$(validate_generated_app_mutation_broker "$broker")" || return 1
-    digest="$(generated_app_mutation_broker_sha256 "$broker")" || return 1
+    actual_digest="$(generated_app_mutation_broker_sha256 "$broker")" || return 1
+    if [ "$actual_digest" != "$executed_digest" ]; then
+        printf 'Generated-app mutation broker path changed after patch execution: %s\n' \
+            "$broker" >&2
+        return 1
+    fi
     mkdir -p "$(dirname "$digest_path")"
     temporary="$(mktemp "$(dirname "$digest_path")/.generated-app-mutation-broker.XXXXXX")" || return 1
-    printf '%s  %s\n' "$digest" "$GENERATED_APP_MUTATION_BROKER_BINARY" > "$temporary"
+    printf '%s  %s\n' "$executed_digest" "$GENERATED_APP_MUTATION_BROKER_BINARY" > "$temporary"
     chmod 0644 "$temporary"
     mv -f "$temporary" "$digest_path"
 }

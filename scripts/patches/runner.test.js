@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -45,13 +46,20 @@ test("runner executes descriptor phases explicitly and sorts order only within e
     );
 
     const report = createPatchReport();
-    await patchExtractedApp(appDir, {
+    const result = await patchExtractedApp(appDir, {
       report,
       corePatchRoot: coreRoot,
       mutationBrokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
       verifiedPrivateRoot: true,
       featuresConfigPath: path.join(__dirname, "..", "..", "linux-features", "features.example.json"),
     });
+
+    const executedDigest = crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE))
+      .digest("hex");
+    assert.deepEqual(result, { brokerDigest: executedDigest });
+    assert.equal(Object.isFrozen(result), true);
 
     const names = report.patches.map((patch) => patch.name);
     assert.ok(names.indexOf("main-low-order") < names.indexOf("main-high-order"));

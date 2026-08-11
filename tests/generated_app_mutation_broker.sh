@@ -24,6 +24,11 @@ make_executable() {
     chmod 0700 "$destination"
 }
 
+emit_patch_digest_receipt() {
+    printf '%s' "$1" >&3
+    return "${2:-0}"
+}
+
 test_validates_absolute_regular_executable() {
     local root="$TEST_ROOT/valid"
     local broker="$root/chatgpt-generated-app-mutation-broker"
@@ -90,17 +95,91 @@ test_generation_digest_binds_package_helper() {
     local original="$root/original/chatgpt-generated-app-mutation-broker"
     local changed="$root/changed/chatgpt-generated-app-mutation-broker"
     local staged="$root/staged/chatgpt-generated-app-mutation-broker"
+    local actual_digest
+    local executed_digest
     make_executable "$original"
     make_executable "$changed"
     printf x >> "$changed"
 
-    write_generated_app_mutation_broker_digest "$app_dir" "$original"
+    error() {
+        printf '%s\n' "$*" >&2
+        return 1
+    }
+    # shellcheck source=../scripts/lib/asar-patch.sh
+    . "$REPO_DIR/scripts/lib/asar-patch.sh"
+    actual_digest="$(generated_app_mutation_broker_sha256 "$original")"
+    executed_digest="$(
+        capture_patch_mutation_broker_digest \
+            emit_patch_digest_receipt \
+            "$actual_digest"$'\n'
+    )" || fail "valid descriptor-bound digest handoff failed"
+    write_generated_app_mutation_broker_digest "$app_dir" "$original" "$executed_digest"
     stage_generation_bound_mutation_broker "$app_dir" "$original" "$staged"
     cmp -s "$original" "$staged" || fail "staged broker differs from generation broker"
 
     if stage_generation_bound_mutation_broker "$app_dir" "$changed" "$staged" \
         >/dev/null 2>&1; then
         fail "package staging accepted a broker changed after generation"
+    fi
+}
+
+test_generation_digest_rejects_rebound_broker_path() {
+    local root="$TEST_ROOT/digest-rebound"
+    local app_dir="$root/app"
+    local broker="$root/current/chatgpt-generated-app-mutation-broker"
+    local replacement="$root/replacement/chatgpt-generated-app-mutation-broker"
+    local executed_digest
+    make_executable "$broker"
+    make_executable "$replacement"
+    printf x >> "$replacement"
+    executed_digest="$(generated_app_mutation_broker_sha256 "$broker")"
+    mv -f "$replacement" "$broker"
+
+    if write_generated_app_mutation_broker_digest "$app_dir" "$broker" "$executed_digest" \
+        >/dev/null 2>&1; then
+        fail "manifest writer accepted a broker path rebound after execution"
+    fi
+    [ ! -e "$app_dir/$GENERATED_APP_MUTATION_BROKER_DIGEST_RELATIVE_PATH" ] || \
+        fail "manifest writer published a digest after broker path rebound"
+}
+
+test_patch_digest_receipt_validation_is_strict() {
+    local digest
+    local validated
+    digest="$(printf 'a%.0s' {1..64})"
+
+    error() {
+        printf '%s\n' "$*" >&2
+        return 1
+    }
+    # shellcheck source=../scripts/lib/asar-patch.sh
+    . "$REPO_DIR/scripts/lib/asar-patch.sh"
+
+    validated="$(
+        capture_patch_mutation_broker_digest \
+            emit_patch_digest_receipt \
+            "$digest"$'\n'
+    )" || \
+        fail "valid patch digest receipt was rejected"
+    assert_eq "$digest" "$validated"
+    for invalid in \
+        "" \
+        "${digest^^}"$'\n' \
+        "${digest%?}"$'\n' \
+        "$digest "$'\n' \
+        "$digest"$'\n\n' \
+        "$digest"$'\n'"$digest"$'\n'; do
+        if capture_patch_mutation_broker_digest \
+            emit_patch_digest_receipt \
+            "$invalid" >/dev/null 2>&1; then
+            fail "invalid patch digest receipt was accepted"
+        fi
+    done
+    if capture_patch_mutation_broker_digest \
+        emit_patch_digest_receipt \
+        "$digest"$'\n' \
+        23 >/dev/null 2>&1; then
+        fail "failed patch command returned a digest receipt"
     fi
 }
 
@@ -112,6 +191,9 @@ test_installer_resolves_and_records_generation_broker() {
         || fail "ASAR patcher does not resolve the broker once per generation"
     grep -Fq 'write_generated_app_mutation_broker_digest' "$REPO_DIR/install.sh" \
         || fail "installer does not bind generated app to broker digest"
+    grep -Fq '"$CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED"' \
+        "$REPO_DIR/install.sh" \
+        || fail "installer does not pass the executed broker digest to the manifest writer"
     grep -Fq '"$INSTALL_DIR"' "$REPO_DIR/install.sh" \
         || fail "installer does not bind the installed app to the generation broker"
 }
@@ -143,6 +225,8 @@ test_asar_patcher_uses_verified_private_root() {
         || fail "ASAR patcher does not pass the resolved broker to the patch CLI"
     grep -Fq -- '--verified-private-root' "$REPO_DIR/scripts/lib/asar-patch.sh" \
         || fail "ASAR patcher does not declare its private-root invariant"
+    grep -Fq -- '--mutation-broker-digest-fd 3' "$REPO_DIR/scripts/lib/asar-patch.sh" \
+        || fail "ASAR patcher does not request the descriptor-bound digest receipt"
 }
 
 test_prebuilt_override_avoids_cargo() {
@@ -218,6 +302,8 @@ test_missing_cargo_fails_closed
 test_prebuilt_override_avoids_cargo
 test_source_build_is_locked_and_scoped
 test_generation_digest_binds_package_helper
+test_generation_digest_rejects_rebound_broker_path
+test_patch_digest_receipt_validation_is_strict
 test_installer_resolves_and_records_generation_broker
 test_asar_patcher_uses_verified_private_root
 printf 'Generated-app mutation broker resolver tests passed.\n'

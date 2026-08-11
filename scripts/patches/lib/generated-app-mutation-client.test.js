@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -134,6 +135,37 @@ for (;;) {
     Buffer.from([7, 8, 9]),
   );
   assert.deepEqual(replaced.operationId, read.operationId);
+  await client.close();
+});
+
+test("client digest remains bound to the broker descriptor after path replacement", async (t) => {
+  const { parent, root } = makePrivateRoot(t);
+  const readyPath = path.join(parent, "broker-ready");
+  const brokerPath = writeBroker(
+    parent,
+    `${brokerPrelude}
+fs.writeFileSync(${JSON.stringify(readyPath)}, "yes");
+if (readFrame() == null) process.exit(0);
+`,
+  );
+  const executedDigest = crypto.createHash("sha256").update(fs.readFileSync(brokerPath)).digest("hex");
+  const replacementPath = path.join(parent, "replacement-broker");
+  fs.writeFileSync(
+    replacementPath,
+    `#!/usr/bin/node\n${brokerPrelude}\nprocess.exit(73);\n`,
+    { mode: 0o700 },
+  );
+
+  const client = await openGeneratedAppMutationRoot(root, { brokerPath });
+  await waitForPath(readyPath);
+  fs.renameSync(replacementPath, brokerPath);
+
+  assert.equal(client.brokerDigest, executedDigest);
+  assert.notEqual(
+    client.brokerDigest,
+    crypto.createHash("sha256").update(fs.readFileSync(brokerPath)).digest("hex"),
+  );
+  assert.equal(Object.isFrozen(client), true);
   await client.close();
 });
 

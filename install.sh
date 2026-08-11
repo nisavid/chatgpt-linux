@@ -391,7 +391,8 @@ main() {
     patch_asar "$app_dir"
     write_generated_app_mutation_broker_digest \
         "$INSTALL_DIR" \
-        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" \
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED"
     select_linux_icon_source
     download_electron
     extract_webview "$INSTALL_DIR"

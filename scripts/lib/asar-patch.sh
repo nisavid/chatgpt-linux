@@ -49,6 +49,35 @@ prepare_verified_private_patch_root() {
     fi
 }
 
+validate_patch_mutation_broker_digest() {
+    local receipt="$1"
+    local terminator=$'\n.'
+    local digest
+
+    case "$receipt" in
+        *"$terminator") digest="${receipt%"$terminator"}" ;;
+        *) return 1 ;;
+    esac
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s\n' "$digest"
+}
+
+capture_patch_mutation_broker_digest() {
+    local receipt
+
+    if receipt="$(
+        set +e
+        "$@" 3>&1 1>&2
+        patch_status=$?
+        printf '.'
+        exit "$patch_status"
+    )"; then
+        validate_patch_mutation_broker_digest "$receipt"
+    else
+        return 1
+    fi
+}
+
 print_patch_report_summary() {
     local patch_report="$1"
     [ -f "$patch_report" ] || return 0
@@ -149,12 +178,25 @@ patch_asar() {
         --mutation-broker "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
         --verified-private-root
     )
+    patch_args+=(--mutation-broker-digest-fd 3)
     if [ "${CHATGPT_ENFORCE_CRITICAL_PATCHES:-1}" != "0" ]; then
         patch_args+=(--enforce-critical)
     else
         warn "Critical patch enforcement disabled (CHATGPT_ENFORCE_CRITICAL_PATCHES=0)"
     fi
-    node "$SCRIPT_DIR/scripts/patch-linux-window-ui.js" "${patch_args[@]}" "$WORK_DIR/app-extracted"
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED=""
+    if CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED="$(
+        capture_patch_mutation_broker_digest \
+            node \
+            "$SCRIPT_DIR/scripts/patch-linux-window-ui.js" \
+            "${patch_args[@]}" \
+            "$WORK_DIR/app-extracted"
+    )"; then
+        :
+    else
+        error "Patch runner did not return one valid generated-app mutation broker digest receipt"
+        return 1
+    fi
     CHATGPT_PATCH_REPORT_RESOLVED="$patch_report_json"
     print_patch_report_summary "$patch_report_json"
 
