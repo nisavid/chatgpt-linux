@@ -290,11 +290,13 @@ function applyLinuxGlobalDictationMainProcessPatch(source) {
     let patched = replaceUnique(
       source,
       registerPattern,
-      (original) =>
-        original.replace(
-          "{",
-          "{if(process.platform===`linux`&&chatgptLinuxGlobalDictationUsesWayland())return chatgptLinuxGlobalDictationPortalRegistration(e,t);",
-        ),
+      (original) => {
+        const openingBraceIndex = original.indexOf("{");
+        if (openingBraceIndex < 0) {
+          throw new Error("global shortcut registration body was not found");
+        }
+        return `${original.slice(0, openingBraceIndex + 1)}if(process.platform===\`linux\`&&chatgptLinuxGlobalDictationUsesWayland())return chatgptLinuxGlobalDictationPortalRegistration(e,t);${original.slice(openingBraceIndex + 1)}`;
+      },
       "global shortcut registration function",
     );
     patched = `${helperSource()}${patched}`;

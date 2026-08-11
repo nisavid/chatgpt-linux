@@ -1069,14 +1069,22 @@ mod tests {
 
     #[test]
     fn complete_socket_path_is_guarded_against_the_linux_limit() {
-        let short = socket_path_for(Path::new("/tmp/codex-browser-use-1000"), 42, 7).unwrap();
+        let process_id = std::process::id();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        let short =
+            socket_path_for(Path::new("/tmp/codex-browser-use-1000"), process_id, nonce).unwrap();
         assert_eq!(
             short,
-            PathBuf::from("/tmp/codex-browser-use-1000/extension-42-7.sock")
+            PathBuf::from(format!(
+                "/tmp/codex-browser-use-1000/extension-{process_id}-{nonce}.sock"
+            ))
         );
 
         let long_dir = PathBuf::from("/tmp").join("x".repeat(MAX_UNIX_SOCKET_PATH_BYTES));
-        let error = socket_path_for(&long_dir, 42, 7).unwrap_err();
+        let error = socket_path_for(&long_dir, process_id, nonce).unwrap_err();
         assert!(error.to_string().contains("unix socket path exceeds"));
     }
 

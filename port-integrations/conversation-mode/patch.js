@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  serializeJavaScriptValue,
+} = require("../../scripts/patches/lib/minified-js.js");
+
 const HANDLER_NAME = "linux-read-aloud";
 const RUNTIME_VERSION = "conversation-mode-v26";
 const CURRENT_APP_INITIAL_ASSET_PATTERN = /^app-initial-[A-Za-z0-9_-]+\.js$/;
@@ -36,8 +40,8 @@ function applyReadAloudMainBundlePatch(source) {
 
 function conversationRuntimeSource() {
   return [
-    `;(()=>{const VERSION=${JSON.stringify(RUNTIME_VERSION)};if(globalThis.chatgptLinuxConversationVersion===VERSION)return;globalThis.chatgptLinuxConversationVersion=VERSION;`,
-    `const METHOD=${JSON.stringify(HANDLER_NAME)};let seq=0,pending=new Map,state={active:false,controls:null,activeConversationId:null,epoch:0,listening:false,muted:false,transcribing:false,awaitingUserTranscript:false,allowAssistant:false,finalizing:false,assistantKey:null,assistantFallbackKey:null,assistantFinalSpoken:false,assistantText:"",assistantSpokenText:"",assistantKeys:[],spokenAssistant:new Map,spokenAssistantTexts:[],queue:[],speaking:false,speechTimer:null,speechCooldownUntil:0,interruptCleanup:null,interruptPendingEpoch:0,interruptSerial:0,restartTimer:null,flushTimer:null,seenAssistantKeys:new Set,lastConversationId:null,lastSentText:"",lastSentAt:0,cursorSentAtMs:0,spokenEchoText:"",spokenEchoAt:0,stopButton:null,muteButton:null,composerAura:null,surfaceObserver:null};`,
+    `;(()=>{const VERSION=${serializeJavaScriptValue(RUNTIME_VERSION)};if(globalThis.chatgptLinuxConversationVersion===VERSION)return;globalThis.chatgptLinuxConversationVersion=VERSION;`,
+    `const METHOD=${serializeJavaScriptValue(HANDLER_NAME)};let seq=0,pending=new Map,state={active:false,controls:null,activeConversationId:null,epoch:0,listening:false,muted:false,transcribing:false,awaitingUserTranscript:false,allowAssistant:false,finalizing:false,assistantKey:null,assistantFallbackKey:null,assistantFinalSpoken:false,assistantText:"",assistantSpokenText:"",assistantKeys:[],spokenAssistant:new Map,spokenAssistantTexts:[],queue:[],speaking:false,speechTimer:null,speechCooldownUntil:0,interruptCleanup:null,interruptPendingEpoch:0,interruptSerial:0,restartTimer:null,flushTimer:null,seenAssistantKeys:new Set,lastConversationId:null,lastSentText:"",lastSentAt:0,cursorSentAtMs:0,spokenEchoText:"",spokenEchoAt:0,stopButton:null,muteButton:null,composerAura:null,surfaceObserver:null};`,
     `function onMessage(e){let t=e?.data;if(!t||typeof t!="object"||t.type!=="fetch-response")return;let n=pending.get(t.requestId);if(!n)return;pending.delete(t.requestId);clearTimeout(n.timer);if(t.responseType==="success"){let e=null;try{e=t.bodyJsonString?JSON.parse(t.bodyJsonString):null}catch{}n.resolve({status:t.status,body:e})}else n.reject(Error(t.error||"fetch failed"))}`,
     `window.addEventListener("message",onMessage);`,
     `function dispatch(payload){let bridge=window.electronBridge,event=new CustomEvent("codex-message-from-view",{detail:payload});if(bridge?.sendMessageFromView){event.__codexForwardedViaBridge=!0;bridge.sendMessageFromView(payload).catch(()=>{})}window.dispatchEvent(event)}`,

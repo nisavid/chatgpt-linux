@@ -5,27 +5,35 @@ const {
   findExecutableJavaScriptSubstring,
   inferModuleAlias,
   requireName,
+  serializeJavaScriptValue,
 } = require("./minified-js.js");
+
+test("serializeJavaScriptValue escapes script-breaking characters", () => {
+  const serialized = serializeJavaScriptValue("</script>\u2028next\u2029");
+  assert.equal(serialized, '"\\u003c/script\\u003e\\u2028next\\u2029"');
+  assert.equal(JSON.parse(serialized), "</script>\u2028next\u2029");
+});
 
 test("findExecutableJavaScriptSubstring ignores comments, strings, and regex literals", () => {
   const needle = "function trustedHelper(";
+  const regexNeedle = String.raw`function trustedHelper\(`;
   const decoys = [
     `/*${needle}*/`,
     `//${needle}\nlet other=1`,
     `let decoy="${needle}"`,
     `let decoy='${needle}'`,
-    `let decoy=/${needle.replace(/[()]/g, "\\$&")}/`,
-    `return /${needle.replace(/[()]/g, "\\$&")}/`,
-    `if(true)/${needle.replace(/[()]/g, "\\$&")}/.test("")`,
-    `while(false)/${needle.replace(/[()]/g, "\\$&")}/.test("")`,
-    `if(false){}else /${needle.replace(/[()]/g, "\\$&")}/.test("")`,
-    `async function f(){for await(const x of [1])/${needle.replace(/[()]/g, "\\$&")}/.test("")}`,
-    `function f(){outer:while(true){break outer\n/${needle.replace(/[()]/g, "\\$&")}/.test("")}}`,
-    `let x=1;x/ /${needle.replace(/[()]/g, "\\$&")}/.test("")`,
-    `class C extends /${needle.replace(/[()]/g, "\\$&")}/.constructor{}`,
-    `function f(){return [.../${needle.replace(/[()]/g, "\\$&")}/]}`,
-    `function f(){return g(.../${needle.replace(/[()]/g, "\\$&")}/)}`,
-    `function f(){return {.../${needle.replace(/[()]/g, "\\$&")}/}}`,
+    `let decoy=/${regexNeedle}/`,
+    `return /${regexNeedle}/`,
+    `if(true)/${regexNeedle}/.test("")`,
+    `while(false)/${regexNeedle}/.test("")`,
+    `if(false){}else /${regexNeedle}/.test("")`,
+    `async function f(){for await(const x of [1])/${regexNeedle}/.test("")}`,
+    `function f(){outer:while(true){break outer\n/${regexNeedle}/.test("")}}`,
+    `let x=1;x/ /${regexNeedle}/.test("")`,
+    `class C extends /${regexNeedle}/.constructor{}`,
+    `function f(){return [.../${regexNeedle}/]}`,
+    `function f(){return g(.../${regexNeedle}/)}`,
+    `function f(){return {.../${regexNeedle}/}}`,
   ];
   for (const source of decoys) {
     assert.equal(findExecutableJavaScriptSubstring(source, needle), -1);

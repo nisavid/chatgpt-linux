@@ -58,6 +58,21 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const JAVASCRIPT_LITERAL_ESCAPES = Object.freeze({
+  "<": "\\u003c",
+  ">": "\\u003e",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029",
+});
+
+function serializeJavaScriptValue(value) {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    throw new TypeError("JavaScript source value is not serializable");
+  }
+  return serialized.replace(/[<>\u2028\u2029]/gu, (character) => JAVASCRIPT_LITERAL_ESCAPES[character]);
+}
+
 function findCallBlock(source, marker) {
   const markerStart = source.indexOf(marker);
   if (markerStart === -1) {
@@ -349,4 +364,5 @@ module.exports = {
   findMatchingBrace,
   inferModuleAlias,
   requireName,
+  serializeJavaScriptValue,
 };
