@@ -313,9 +313,6 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cosmic-protocols-0.2.0" = "sha256-ymn+BUTTzyHquPn4hvuoA3y1owFj8LVrmsPu2cdkFQ8=";
-            };
           };
 
           buildAndTestSubdir = "read-aloud-linux";
