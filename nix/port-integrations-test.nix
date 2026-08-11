@@ -28,8 +28,8 @@ let
   ];
   normalizedTestIntegrationIds = [
     "appshots"
-    "codex-micro"
     "chatgpt-wrapper-updater"
+    "codex-micro"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"
@@ -44,8 +44,8 @@ let
   watchdogIntegrationIds = (builtins.fromJSON (builtins.readFile ../scripts/ci/watchdog-port-integrations.json)).enabled;
   normalizedWatchdogIntegrationIds = [
     "appshots"
-    "codex-micro"
     "chatgpt-wrapper-updater"
+    "codex-micro"
     "directory-only-working-tree-watch"
     "frameless-titlebar"
     "global-dictation"
