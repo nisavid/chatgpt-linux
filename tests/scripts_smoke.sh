@@ -882,6 +882,15 @@ test_update_builder_source_info_uses_only_isolated_git() {
     local source_info="$workspace/.chatgpt-linux/source-info.json"
     local path_git_marker="$workspace/path-git-ran"
     local fsmonitor_marker="$workspace/fsmonitor-ran"
+    local package_node
+    package_node="$(command -v node)"
+    if [ ! -f "$package_node" ] || [ -L "$package_node" ] || [ ! -x "$package_node" ]; then
+        for package_node in /usr/bin/node /bin/node; do
+            [ -f "$package_node" ] && [ ! -L "$package_node" ] && [ -x "$package_node" ] && break
+        done
+    fi
+    [ -f "$package_node" ] && [ ! -L "$package_node" ] && [ -x "$package_node" ] \
+        || fail "Expected a regular Node executable for the isolated Git fixture"
 
     mkdir -p "$workspace/updater" "$workspace/bin"
     printf '%s\n' '[package]' 'name = "chatgpt-updater"' 'version = "0.10.4"' > "$workspace/updater/Cargo.toml"
@@ -898,6 +907,7 @@ test_update_builder_source_info_uses_only_isolated_git() {
     (
         export REPO_DIR="$workspace"
         export PATH="$workspace/bin:/usr/bin:/bin"
+        export CHATGPT_PACKAGE_NODE_SOURCE="$package_node"
         # shellcheck disable=SC1091
         source "$SCRIPT_DIR/../scripts/lib/package-common.sh"
         stage_update_builder_source_info "$workspace"
