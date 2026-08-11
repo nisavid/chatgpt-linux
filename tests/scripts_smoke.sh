@@ -11961,6 +11961,7 @@ test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
     make_fake_app "$app_dir"
     mkdir -p "$update_builder/prebuilt-helpers" "$workspace/bin" "$install_dir"
     printf '%s\n' '{"enabled":["global-dictation","read-aloud-mcp"],"disabled":[]}' > "$config"
+    ln -s "$(PATH="$HOST_TOOL_PATH" type -P node)" "$workspace/bin/node"
     printf '%s\n' '#!/bin/sh' "touch '$cargo_marker'" 'exit 1' > "$workspace/bin/cargo"
     chmod 0755 "$workspace/bin/cargo"
 
