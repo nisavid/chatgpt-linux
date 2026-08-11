@@ -32,6 +32,20 @@ block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
 ]
+payload_block = text[
+    text.index("mkChatGPTPayload ="):
+    text.index("payload = mkChatGPTPayload")
+]
+private_broker_copy = (
+    'mutation_broker_build="$TMPDIR/chatgpt-generated-app-mutation-broker"'
+)
+store_broker_export = (
+    'export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${'
+)
+assert private_broker_copy in block
+assert private_broker_copy in payload_block
+assert store_broker_export not in block
+assert store_broker_export not in payload_block
 install = block.index('"$source_dir/install.sh"')
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
