@@ -1325,7 +1325,9 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
             app_dir.join(".chatgpt-linux/generated-app-mutation-broker.sha256"),
             format!("{broker_digest}  {MUTATION_BROKER_HELPER}\n"),
         )?;
-        let status = StdCommand::new(host_tool("python3")?)
+        let python = trusted_system_program(TRUSTED_PYTHON_PATHS)
+            .context("A trusted system Python 3 executable is required for receipt fixtures")?;
+        let status = StdCommand::new(python)
             .arg(&helper)
             .args([
                 "write-generation-receipt",
@@ -1410,6 +1412,9 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
 
     #[test]
     fn installed_generation_receipt_rejects_tampered_receipt_app_and_broker_digest() -> Result<()> {
+        let _env_guard = crate::test_util::env_lock();
+        let _restore_env = crate::test_util::EnvRestoreGuard::capture(&["PATH"]);
+        std::env::set_var("PATH", "/nonexistent");
         let runtime = tokio::runtime::Runtime::new()?;
         let expected_digest = "2".repeat(64);
         let build_path = std::env::join_paths(system_bin_dirs())?;

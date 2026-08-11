@@ -8,6 +8,10 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  writeNativeNodeTestExecutable,
+} = require("../../../tests/helpers/native-node-test-executable.js");
+
+const {
   GeneratedAppIntegrityError,
   isGeneratedAppIntegrityError,
   openGeneratedAppMutationRoot,
@@ -23,8 +27,7 @@ function makePrivateRoot(t) {
 
 function writeBroker(parent, source) {
   const brokerPath = path.join(parent, "fake-broker");
-  fs.writeFileSync(brokerPath, `#!/usr/bin/node\n${source}`, { mode: 0o700 });
-  return brokerPath;
+  return writeNativeNodeTestExecutable(brokerPath, source);
 }
 
 const brokerPrelude = String.raw`
@@ -150,10 +153,9 @@ if (readFrame() == null) process.exit(0);
   );
   const executedDigest = crypto.createHash("sha256").update(fs.readFileSync(brokerPath)).digest("hex");
   const replacementPath = path.join(parent, "replacement-broker");
-  fs.writeFileSync(
+  writeNativeNodeTestExecutable(
     replacementPath,
-    `#!/usr/bin/node\n${brokerPrelude}\nprocess.exit(73);\n`,
-    { mode: 0o700 },
+    `${brokerPrelude}\nprocess.exit(73);\n`,
   );
 
   const client = await openGeneratedAppMutationRoot(root, { brokerPath });

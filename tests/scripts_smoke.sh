@@ -1393,7 +1393,6 @@ test_pacman_builder_without_updater_transition_hook() {
         "$ampersand_tmpdir" \
         "$integrations_root/polkit-runtime"
     make_stub_bin_dir "$bin_dir"
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["polkit-runtime"]' make_fake_app "$app_dir"
     printf 'MAKEFLAGS="-j12"\n' > "$base_makepkg_conf"
     printf '%s\n' '{"enabled":["polkit-runtime"]}' > "$integration_config"
     printf '%s\n' '# Polkit Runtime' > "$integrations_root/polkit-runtime/README.md"
@@ -1408,6 +1407,9 @@ test_pacman_builder_without_updater_transition_hook() {
   }
 }
 JSON
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["polkit-runtime"]' \
+        make_fake_app "$app_dir"
 
     cat > "$bin_dir/makepkg" <<'SCRIPT'
 #!/usr/bin/env bash

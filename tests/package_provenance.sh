@@ -491,6 +491,48 @@ test_package_git_ignores_ambient_config() {
     [ ! -e "$fsmonitor_marker" ] || fail "package Git executed ambient core.fsmonitor config"
 }
 
+test_packaged_app_fixture_binds_resolved_mutation_broker() {
+    local app_dir="$TEST_TMP/packaged-app-fixture"
+    local integrations_config="$app_dir.port-integrations.json"
+
+    "$REPO_DIR/tests/fixtures/create-packaged-app-fixture.sh" "$app_dir"
+
+    [ -f "$integrations_config" ] || \
+        fail "packaged-app fixture did not write its package-staging integration config"
+    [ "$(
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$integrations_config" \
+            node "$REPO_DIR/scripts/lib/port-integrations.js" --enabled
+    )" = "" ] || fail "packaged-app fixture package-staging integration config is not empty"
+
+    (
+        # shellcheck source=scripts/lib/generated-app-mutation-broker.sh
+        source "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh"
+        resolve_generated_app_mutation_broker || \
+            fail "could not resolve packaged-app fixture mutation broker"
+
+        local actual_digest manifest_digest receipt
+        local staged_broker="$TEST_TMP/staged-helpers/chatgpt-generated-app-mutation-broker"
+        actual_digest="$(
+            generated_app_mutation_broker_sha256 \
+                "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+        )"
+        manifest_digest="$(read_generated_app_mutation_broker_digest "$app_dir")"
+        receipt="$(read_generation_bound_mutation_broker_receipt "$app_dir")"
+
+        [ "$manifest_digest" = "$actual_digest" ] || \
+            fail "packaged-app fixture manifest does not bind the resolved broker"
+        [ "${receipt%% *}" = "$actual_digest" ] || \
+            fail "packaged-app fixture receipt does not bind the resolved broker"
+        stage_generation_bound_mutation_broker \
+            "$app_dir" \
+            "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" \
+            "$staged_broker" || \
+            fail "packaged-app fixture rejected its generation-bound broker"
+        [ "$(generated_app_mutation_broker_sha256 "$staged_broker")" = "$actual_digest" ] || \
+            fail "staged packaged-app fixture broker digest changed"
+    )
+}
+
 assert_shared_staging_entrypoint() {
     local builder count
     for builder in scripts/build-deb.sh scripts/build-rpm.sh scripts/build-pacman.sh; do
@@ -758,6 +800,7 @@ main() {
     test_packaged_source_epoch_without_git
     test_package_node_override_ignores_generated_app_runtime
     test_package_git_ignores_ambient_config
+    test_packaged_app_fixture_binds_resolved_mutation_broker
     assert_shared_staging_entrypoint
     test_available_native_package_fixture
     printf 'package provenance tests passed\n'

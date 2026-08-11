@@ -123,6 +123,8 @@ jobs:
           tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
       - name: Build Debian package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
 
       - name: Inspect Debian package
@@ -157,6 +159,7 @@ jobs:
       - name: Create feature-enabled packaged app fixture
         env:
           CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
         run: |
           set -euo pipefail
           rm -rf chatgpt dist
@@ -165,7 +168,7 @@ jobs:
       - name: Build feature-enabled Debian package
         env:
           CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
-          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/tests/fixtures/port-integrations/integrations-enabled.json
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
 
       - name: Inspect feature-enabled Debian package
@@ -195,11 +198,10 @@ jobs:
           set -euo pipefail
           rm -rf chatgpt dist
           tests/fixtures/create-packaged-app-fixture.sh chatgpt
-          printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
 
       - name: Build Codex Micro Debian package
         env:
-          CHATGPT_PORT_INTEGRATIONS_CONFIG: /tmp/codex-micro-integrations.json
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
 
       - name: Inspect Codex Micro Debian package
@@ -243,7 +245,9 @@ jobs:
       - name: Configure Cachix for Nix build substitutions
         uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
-          name: chatgpt-linux
+          # Retain the existing external cache until the post-merge repository
+          # and Cachix migration in issue #123 is complete.
+          name: codex-desktop-linux
           skipPush: true
 
       - name: Install validation dependencies
@@ -485,6 +489,8 @@ jobs:
           tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
       - name: Build RPM package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
 
       - name: Inspect RPM package
@@ -519,6 +525,7 @@ jobs:
       - name: Create feature-enabled packaged app fixture
         env:
           CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
         run: |
           set -euo pipefail
           rm -rf chatgpt dist
@@ -527,7 +534,7 @@ jobs:
       - name: Build feature-enabled RPM package
         env:
           CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
-          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/tests/fixtures/port-integrations/integrations-enabled.json
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
 
       - name: Inspect feature-enabled RPM package
@@ -558,11 +565,10 @@ jobs:
           set -euo pipefail
           rm -rf chatgpt dist
           tests/fixtures/create-packaged-app-fixture.sh chatgpt
-          printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
 
       - name: Build Codex Micro RPM package
         env:
-          CHATGPT_PORT_INTEGRATIONS_CONFIG: /tmp/codex-micro-integrations.json
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
 
       - name: Inspect Codex Micro RPM package
@@ -612,7 +618,9 @@ jobs:
                 tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
                 cargo build --release -p chatgpt-updater
-                PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-pacman.sh
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
 
                 pkg_file="$(find dist -maxdepth 1 -name "chatgpt-*.pkg.tar.*" -print -quit)"
                 test -n "$pkg_file"
@@ -635,11 +643,12 @@ jobs:
                 bash tests/package_release_gate.sh pacman
 
                 rm -rf chatgpt dist
+                CHATGPT_PORT_INTEGRATIONS_ROOT=/work/tests/fixtures/port-integrations \
                 CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="[\"package-integration-fixture\"]" \
                   tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
                 CHATGPT_PORT_INTEGRATIONS_ROOT=/work/tests/fixtures/port-integrations \
-                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/tests/fixtures/port-integrations/integrations-enabled.json \
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
                 PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
                   ./scripts/build-pacman.sh
 
@@ -660,10 +669,8 @@ jobs:
                 rm -rf chatgpt dist
                 CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="[\"codex-micro\"]" \
                   tests/fixtures/create-packaged-app-fixture.sh chatgpt
-                printf "%s\n" "{\"enabled\":[\"codex-micro\"]}" \
-                  > /tmp/codex-micro-integrations.json
 
-                CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
                 PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
                   ./scripts/build-pacman.sh
 

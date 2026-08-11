@@ -28,7 +28,9 @@ jobs:
     timeout-minutes: 90
     env:
       NIX_CONFIG: experimental-features = nix-command flakes
-      CACHIX_CACHE_NAME: chatgpt-linux
+      # Retain the existing external cache until the post-merge repository
+      # and Cachix migration in issue #123 is complete.
+      CACHIX_CACHE_NAME: codex-desktop-linux
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
       NIX_VERIFY_OUTPUTS: |
         .#chatgpt

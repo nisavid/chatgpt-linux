@@ -16,7 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CACHIX_CACHE_NAME: chatgpt-linux
+  # GitHub cannot rename this external namespace. Keep the existing cache
+  # until the post-merge migration required by issue #123 is complete.
+  CACHIX_CACHE_NAME: codex-desktop-linux
   CARGO_TERM_COLOR: always
   NIX_CONFIG: experimental-features = nix-command flakes
 
@@ -112,7 +114,7 @@ jobs:
           ## Cachix
 
           `CACHIX_AUTH_TOKEN` is not configured, so this run will build without pushing to Cachix.
-          Add a write token for the `chatgpt-linux` Cachix cache as a repository secret to populate it automatically.
+          Add a write token for the retained `codex-desktop-linux` Cachix cache as a repository secret to populate it automatically.
           EOF
 
       - name: Build, upload, and collect cacheable Nix outputs

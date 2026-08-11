@@ -7,11 +7,15 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
+const {
+  writeNativeNodeTestExecutable,
+} = require("../../tests/helpers/native-node-test-executable.js");
+
 function writeRejectingBroker(parent, secret) {
   const brokerPath = path.join(parent, "rejecting-broker");
-  fs.writeFileSync(
+  return writeNativeNodeTestExecutable(
     brokerPath,
-    `#!/usr/bin/node
+    `
 "use strict";
 const fs=require("node:fs");
 const header=Buffer.alloc(4);
@@ -25,9 +29,7 @@ const length=Buffer.alloc(4);length.writeUInt32BE(payload.length);
 fs.writeSync(1,Buffer.concat([length,payload]));
 process.exit(23);
 `,
-    { mode: 0o700 },
   );
-  return brokerPath;
 }
 
 test("patcher CLI records a generic mutation failure and exits before later work", () => {
