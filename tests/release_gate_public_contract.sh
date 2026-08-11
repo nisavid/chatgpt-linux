@@ -22,6 +22,42 @@ CHATGPT_RELEASE_GATE_LIBRARY=1
 . "$REPO_DIR/scripts/release-gate.sh"
 
 PROVENANCE_HELPER="$REPO_DIR/scripts/lib/package-provenance.py"
+python3 - "$REPO_DIR/flake.nix" <<'PY' || \
+    fail "Nix release-app receipt finalization contract is incomplete"
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+block = text[
+    text.index("mkChatGPTReleaseApp ="):
+    text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
+]
+install = block.index('"$source_dir/install.sh"')
+discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
+elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
+post_install = block.index("runHook postInstall")
+store_mode_normalization = block.index(
+    'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
+    post_install,
+)
+discard_postprocessing_receipt = block.index(
+    'rm -rf -- "$generation_receipt_root"',
+    store_mode_normalization,
+)
+write_receipt = block.index("write-generation-receipt")
+validate_receipt = block.index("validate-generation-receipt")
+assert install < discard_early_receipt < elf_postprocessing
+assert (
+    elf_postprocessing
+    < post_install
+    < store_mode_normalization
+    < discard_postprocessing_receipt
+    < write_receipt
+    < validate_receipt
+)
+assert "chatgptReleaseAppReceiptValidation = pkgs.runCommand" in text
+assert "release-app-generation-receipt = chatgptReleaseAppReceiptValidation" in text
+PY
 RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"
 SUBMITTED_APP_DIR="$TEST_TMP/submitted-app"
 REFERENCE_APP_STORE_PATH="$TEST_TMP/reference-output"
@@ -33,7 +69,16 @@ mkdir -p \
     "$REFERENCE_APP_DIR/.chatgpt-linux"
 printf 'reviewed runtime bytes\n' >"$SUBMITTED_APP_DIR/runtime"
 printf '{"schemaVersion":1}\n' >"$SUBMITTED_APP_DIR/.chatgpt-linux/build-info.json"
+BROKER_DIGEST="$(printf '0%.0s' {1..64})"
+printf '%s  chatgpt-generated-app-mutation-broker\n' "$BROKER_DIGEST" \
+    >"$SUBMITTED_APP_DIR/.chatgpt-linux/generated-app-mutation-broker.sha256"
 cp -aT "$SUBMITTED_APP_DIR" "$REFERENCE_APP_DIR"
+python3 "$PROVENANCE_HELPER" write-generation-receipt \
+    --app "$SUBMITTED_APP_DIR" \
+    --broker-sha256 "$BROKER_DIGEST" >/dev/null
+python3 "$PROVENANCE_HELPER" write-generation-receipt \
+    --app "$REFERENCE_APP_DIR" \
+    --broker-sha256 "$BROKER_DIGEST" >/dev/null
 
 build_reviewed_nix_output() {
     [ "$1" = "chatgpt-release-app" ] || fail "unexpected Nix output request: $1"

@@ -809,6 +809,10 @@ PY
             export CHATGPT_REBUILD_REPORT_JSON="$TMPDIR/release-rebuild-report.json"
             ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
 
+            generation_receipt_root="$out/opt/.chatgpt-generation-receipts"
+            rm -rf -- "$generation_receipt_root"
+            test ! -e "$generation_receipt_root"
+
             test -f "$CHATGPT_INSTALL_DIR/resources/app.asar"
             test ! -e "$CHATGPT_INSTALL_DIR/resources/app-extracted"
 
@@ -855,10 +859,45 @@ PY
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
 
             runHook postInstall
+
+            find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555 {} +
+            while IFS= read -r -d $'\0' file; do
+              if [ -x "$file" ]; then
+                chmod 0555 "$file"
+              else
+                chmod 0444 "$file"
+              fi
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+
+            rm -rf -- "$generation_receipt_root"
+            test ! -e "$generation_receipt_root"
+            broker_digest="$(sed -n \
+              's/^\([0-9a-f]\{64\}\)  chatgpt-generated-app-mutation-broker$/\1/p' \
+              "$CHATGPT_INSTALL_DIR/.chatgpt-linux/generated-app-mutation-broker.sha256")"
+            test -n "$broker_digest"
+            ${pkgs.python3}/bin/python3 \
+              "$source_dir/scripts/lib/package-provenance.py" \
+              write-generation-receipt \
+              --app "$CHATGPT_INSTALL_DIR" \
+              --broker-sha256 "$broker_digest" >/dev/null
+            ${pkgs.python3}/bin/python3 \
+              "$source_dir/scripts/lib/package-provenance.py" \
+              validate-generation-receipt \
+              --app "$CHATGPT_INSTALL_DIR" >/dev/null
           '';
         };
 
         chatgptReleaseApp = mkChatGPTReleaseApp { };
+        chatgptReleaseAppReceiptValidation = pkgs.runCommand
+          "chatgpt-release-app-generation-receipt-check"
+          { nativeBuildInputs = [ pkgs.python3 ]; }
+          ''
+            ${pkgs.python3}/bin/python3 \
+              ${sourceRoot}/scripts/lib/package-provenance.py \
+              validate-generation-receipt \
+              --app ${chatgptReleaseApp}/opt/chatgpt >/dev/null
+            touch "$out"
+          '';
         releaseSandboxCanary = pkgs.runCommandLocal "chatgpt-release-sandbox-canary" { } ''
           if [ "${if releaseSandboxCanaryPathIsValid then "1" else "0"}" != 1 ]; then
             echo "release sandbox canary path is missing or invalid" >&2
@@ -1197,6 +1236,7 @@ PY
 
         checks = {
           generated-app-mutation-broker = chatgptGeneratedAppMutationBroker;
+          release-app-generation-receipt = chatgptReleaseAppReceiptValidation;
           release-helpers = chatgptReleaseHelpers;
           generated-app-mutation-broker-installer = pkgs.runCommand "chatgpt-generated-app-mutation-broker-installer-check" { } ''
             grep -F 'CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null

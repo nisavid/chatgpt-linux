@@ -14,9 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   before signed canonical provenance binds the DMG, source, full port
   integration inputs, payload, install controls, updater, and package digest.
   RPM verification also requires byte equality with the deterministic reference.
-  Public packages require the updater and an exact independently approved
-  signing-key fingerprint. Explicit rehearsals remain ineligible for public
-  release.
+  Public packages require `PACKAGE_WITH_UPDATER=1`, static helpers from
+  `release-helpers`, and an exact `CHATGPT_RELEASE_GPG_FINGERPRINT`. Explicit
+  rehearsals remain ineligible for public release. The permanent signer
+  trust-root, custody, rotation, and revocation policy remains to be established.
 
 - Optional port integrations for Agent Workspaces, AppShots, and ChatGPT
   wrapper update controls were imported from the Linux-port upstream under this
@@ -51,11 +52,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - App generation and updater rebuilds install the official app's exact
   `@parcel/watcher` dependency graph from a repository-approved offline archive
-  set. Version drift, archive or lockfile mismatch, lifecycle scripts, and live
-  registry fallback now fail closed before the dependency is promoted.
+  set. Host selection allows only `linux-x64-glibc` on `x86_64`,
+  `linux-arm64-glibc` on `aarch64` or `arm64`, and `linux-arm-glibc` on ARMv7
+  hard-float `armv7l`; unsupported hosts fail before npm or module load. Version
+  drift, archive or lockfile mismatch, lifecycle scripts, and live registry
+  fallback fail closed before the dependency is promoted.
 - Generated-app mutation-broker manifests are derived from the exact executable
-  descriptor used by the patch client and reject a rebound helper pathname
-  before package staging.
+  descriptor used by the patch client. A sibling content-addressed generation
+  receipt binds that broker to the full app manifest and build info; native
+  package staging requires and revalidates the receipt while copying app bytes.
 - `chatgpt-updater` no longer embeds its source checkout path; CI verifies
   byte-identical release builds from distinct absolute source roots.
 

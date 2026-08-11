@@ -14,15 +14,16 @@ You need:
 - `tar`;
 - `make`;
 - `g++` or equivalent C++ build tooling;
-- Rust and `cargo` for `chatgpt-updater` and the build-only generated-app
-  mutation broker. Nix and packaged updater rebuilds supply validated prebuilt
-  broker binaries instead of using an ambient Cargo toolchain.
+- Rust and `cargo` for local source builds of `chatgpt-updater` and for app
+  generation when `CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE` does not name
+  a validated prebuilt broker.
 
 Public releases additionally require a root-managed multi-user Nix daemon, a
 root-owned canonical Nix store, `sandbox = true`, GnuPG, a trusted system Node.js
 runtime, and the package tools for the selected native format. The public gate
-builds its app and native-helper references through Nix; it does not trust an
-ambient Cargo or Rustup configuration.
+builds the static updater and mutation broker in the `release-helpers` Nix
+output from the reviewed source snapshot. Packaged updater rebuilds use the
+package-owned prebuilt broker.
 
 The installer downloads and bundles a managed Linux Node.js runtime for the
 generated app, Browser Use, Codex CLI install/update flow, and updater rebuilds.
@@ -348,6 +349,17 @@ You can also run builders directly:
 ./scripts/build-appimage.sh
 ```
 
+App generation writes a sibling external receipt at
+`.chatgpt-generation-receipts/<app-manifest-sha256>.json`. It binds the exact
+mutation broker, generated app manifest, and `.chatgpt-linux/build-info.json`.
+Keep the generated app and receipt root together. Debian, RPM, and pacman
+builders validate the receipt before copying any app bytes into package staging.
+
+The approved offline `@parcel/watcher` bundle supports Linux glibc on x86_64,
+arm64/aarch64, and ARMv7 hard-float hosts. Unsupported platforms,
+architectures, libc variants, and ARM ABIs fail before npm or the native module
+load runs.
+
 Set `PACKAGE_WITH_UPDATER=0` when you need a native package that does not
 install `chatgpt-updater`, its `systemd --user` service, or the privileged
 update support files:
@@ -470,10 +482,10 @@ defaults to public-release mode: it verifies the reviewed official OpenAI
 ChatGPT DMG, snapshots the reviewed source, builds `chatgpt-release-app` and
 `release-helpers` through the root-managed sandboxed Nix daemon, and requires
 the submitted app to match the independent reference exactly. Candidate
-packages must be built from that reference; the gate verifies each payload and
-its install controls. RPM bytes must match the deterministic reference. Public
-packages
-must include `chatgpt-updater`. The gate writes
+packages must be built from that reference; the gate uses it as the independent
+app and package authority and verifies each payload and its install controls.
+RPM bytes must match the deterministic reference. Public packages require
+`PACKAGE_WITH_UPDATER=1` and include `chatgpt-updater`. The gate writes
 `dist/SHA256SUMS` and `dist/RELEASE-PROVENANCE.json`, and requires both files to
 be signed by the exact primary fingerprint supplied through
 `CHATGPT_RELEASE_GPG_FINGERPRINT`. Set
@@ -483,8 +495,9 @@ public-release eligibility. Signed gates also publish
 key. Verify its fingerprint through an independently trusted project channel;
 the co-published key alone does not establish signer identity. `make install`
 installs the newest built native package.
-`make clean` removes generated build artifacts: `chatgpt/`, `ChatGPT.dmg`, and
-`dist/`. `make clean-state` removes updater runtime state under XDG directories.
+`make clean` removes generated build artifacts: `chatgpt/`, its sibling
+`.chatgpt-generation-receipts/` directory, `ChatGPT.dmg`, and `dist/`.
+`make clean-state` removes updater runtime state under XDG directories.
 
 ## How The Build Works
 
@@ -496,9 +509,11 @@ The build flow is:
 4. rebuild native Node.js modules for Linux;
 5. download a Linux Electron runtime;
 6. write `chatgpt/start.sh`;
-7. optionally package `chatgpt/` as a Debian, RPM, pacman, or AppImage
+7. publish the external content-addressed receipt that binds the mutation
+   broker, generated app manifest, and build info;
+8. optionally package `chatgpt/` as a Debian, RPM, pacman, or AppImage
    artifact;
-8. when installed from a native package, run `chatgpt-updater` as a
+9. when installed from a native package, run `chatgpt-updater` as a
    `systemd --user` service for local update checks and package rebuilds.
 
 The macOS ChatGPT app is an Electron application. Most of the app bundle is

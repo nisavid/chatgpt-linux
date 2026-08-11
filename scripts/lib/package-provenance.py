@@ -18,6 +18,15 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 COPY_CHUNK_SIZE = 1024 * 1024
+GENERATION_RECEIPT_DIRECTORY = ".chatgpt-generation-receipts"
+GENERATION_RECEIPT_SCHEMA_VERSION = 1
+MUTATION_BROKER_BINARY = "chatgpt-generated-app-mutation-broker"
+MUTATION_BROKER_MANIFEST = ".chatgpt-linux/generated-app-mutation-broker.sha256"
+BUILD_INFO_FILE = ".chatgpt-linux/build-info.json"
+NIX_STORE_ROOT = Path("/nix/store")
+NIX_STORE_OUTPUT_PATTERN = re.compile(
+    r"[0-9abcdfghijklmnpqrsvwxyz]{32}-[A-Za-z0-9+._?=-]+"
+)
 
 
 class ProvenanceError(RuntimeError):
@@ -110,6 +119,72 @@ def relative_name(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
+def canonical_nix_store_output_root(path: Path) -> Path | None:
+    raw_path = os.fspath(path)
+    if not isinstance(raw_path, str):
+        raw_path = os.fsdecode(raw_path)
+    if not os.path.isabs(raw_path) or os.path.normpath(raw_path) != raw_path:
+        return None
+    candidate = Path(raw_path)
+    try:
+        relative = candidate.relative_to(NIX_STORE_ROOT)
+    except ValueError:
+        return None
+    if not relative.parts or NIX_STORE_OUTPUT_PATTERN.fullmatch(relative.parts[0]) is None:
+        return None
+    return NIX_STORE_ROOT / relative.parts[0]
+
+
+def _lstat_path(path: Path) -> os.stat_result:
+    return path.lstat()
+
+
+def root_owned_readonly_metadata(metadata: os.stat_result, *, directory: bool) -> bool:
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    return (
+        expected_type(metadata.st_mode)
+        and metadata.st_uid == 0
+        and (metadata.st_mode & 0o022) == 0
+    )
+
+
+def immutable_nix_store_path_is_trusted(
+    path: Path,
+    *,
+    directory: bool,
+    expected_metadata: os.stat_result | None = None,
+) -> bool:
+    output_root = canonical_nix_store_output_root(path)
+    if output_root is None:
+        return False
+    try:
+        relative = path.relative_to(output_root)
+    except ValueError:
+        return False
+
+    candidates = [output_root]
+    current = output_root
+    for part in relative.parts:
+        current /= part
+        candidates.append(current)
+
+    for index, candidate in enumerate(candidates):
+        target_is_directory = directory if index == len(candidates) - 1 else True
+        try:
+            metadata = _lstat_path(candidate)
+        except OSError:
+            return False
+        if not root_owned_readonly_metadata(metadata, directory=target_is_directory):
+            return False
+        if (
+            index == len(candidates) - 1
+            and expected_metadata is not None
+            and stat_identity(metadata) != stat_identity(expected_metadata)
+        ):
+            return False
+    return True
+
+
 def manifest_entries(root: Path) -> list[dict[str, Any]]:
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
     if hasattr(os, "O_NOFOLLOW"):
@@ -120,8 +195,17 @@ def manifest_entries(root: Path) -> list[dict[str, Any]]:
         raise ProvenanceError(f"manifest root must be a non-symlink directory: {root}: {error}") from error
 
     entries: list[dict[str, Any]] = []
+    immutable_nix_store_root = immutable_nix_store_path_is_trusted(
+        root,
+        directory=True,
+        expected_metadata=os.fstat(root_descriptor),
+    )
 
-    def visit(directory_descriptor: int, parts: tuple[str, ...]) -> None:
+    def visit(
+        directory_descriptor: int,
+        parts: tuple[str, ...],
+        immutable_nix_store_ancestry: bool,
+    ) -> None:
         before = os.fstat(directory_descriptor)
         names = sorted_directory_names(directory_descriptor)
         for name in names:
@@ -139,7 +223,12 @@ def manifest_entries(root: Path) -> list[dict[str, Any]]:
                         raise ProvenanceError(f"manifest directory changed while opening: {relative}")
                     entry["type"] = "directory"
                     entries.append(entry)
-                    visit(child_descriptor, (*parts, name))
+                    visit(
+                        child_descriptor,
+                        (*parts, name),
+                        immutable_nix_store_ancestry
+                        and root_owned_readonly_metadata(opened, directory=True),
+                    )
                     current = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
                     if stat_identity(opened) != stat_identity(current):
                         raise ProvenanceError(f"manifest directory changed while reading: {relative}")
@@ -149,7 +238,10 @@ def manifest_entries(root: Path) -> list[dict[str, Any]]:
                 opened, digest, size = stable_file_digest(directory_descriptor, name, metadata)
                 entry.update({"sha256": digest, "size": size, "type": "file"})
                 entries.append(entry)
-                if opened.st_nlink != 1:
+                if opened.st_nlink != 1 and not (
+                    immutable_nix_store_ancestry
+                    and root_owned_readonly_metadata(opened, directory=False)
+                ):
                     raise ProvenanceError(f"hard-linked files are not allowed in package payloads: {relative}")
             elif stat.S_ISLNK(metadata.st_mode):
                 target = os.readlink(name, dir_fd=directory_descriptor)
@@ -167,7 +259,7 @@ def manifest_entries(root: Path) -> list[dict[str, Any]]:
             raise ProvenanceError(f"manifest directory changed while reading: {label}")
 
     try:
-        visit(root_descriptor, ())
+        visit(root_descriptor, (), immutable_nix_store_root)
     finally:
         os.close(root_descriptor)
     entries.sort(key=lambda entry: os.fsencode(entry["path"]))
@@ -511,6 +603,205 @@ def validate_digest(value: Any, label: str) -> None:
         raise ProvenanceError(f"{label} must be a lowercase hexadecimal SHA-256 digest")
 
 
+def trusted_readonly_metadata(
+    path: Path,
+    label: str,
+    *,
+    directory: bool,
+    private_if_user_owned: bool = False,
+) -> os.stat_result:
+    try:
+        metadata = path.lstat()
+    except OSError as error:
+        raise ProvenanceError(f"could not inspect {label}: {error}") from error
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    if not expected_type(metadata.st_mode):
+        raise ProvenanceError(f"{label} must be a non-symlink {'directory' if directory else 'file'}: {path}")
+    if metadata.st_mode & 0o022:
+        raise ProvenanceError(f"{label} must not be group- or world-writable: {path}")
+    if metadata.st_uid not in {os.geteuid(), 0}:
+        raise ProvenanceError(f"{label} has an untrusted owner: {path}")
+    if (
+        private_if_user_owned
+        and metadata.st_uid != 0
+        and metadata.st_uid == os.geteuid()
+        and stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise ProvenanceError(f"user-owned {label} must be private: {path}")
+    if (
+        not directory
+        and metadata.st_nlink != 1
+        and not immutable_nix_store_path_is_trusted(
+            path,
+            directory=False,
+            expected_metadata=metadata,
+        )
+    ):
+        raise ProvenanceError(f"{label} must have exactly one hard link: {path}")
+    return metadata
+
+
+def read_regular_bytes_nofollow(
+    path: Path,
+    label: str,
+    *,
+    private_if_user_owned: bool = False,
+) -> bytes:
+    listed = trusted_readonly_metadata(
+        path,
+        label,
+        directory=False,
+        private_if_user_owned=private_if_user_owned,
+    )
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if stat_identity(opened) != stat_identity(listed):
+            raise ProvenanceError(f"{label} changed while opening: {path}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, COPY_CHUNK_SIZE)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        current = path.lstat()
+        if stat_identity(opened) != stat_identity(after) or stat_identity(opened) != stat_identity(current):
+            raise ProvenanceError(f"{label} changed while reading: {path}")
+    finally:
+        os.close(descriptor)
+    return b"".join(chunks)
+
+
+def read_regular_json_nofollow(
+    path: Path,
+    label: str,
+    *,
+    private_if_user_owned: bool = False,
+) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            read_regular_bytes_nofollow(
+                path,
+                label,
+                private_if_user_owned=private_if_user_owned,
+            ).decode("utf-8")
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ProvenanceError(f"could not parse {label}: {error}") from error
+    if not isinstance(value, dict):
+        raise ProvenanceError(f"{label} must contain a JSON object")
+    return value
+
+
+def read_generation_broker_manifest(app_dir: Path) -> str:
+    manifest_path = app_dir / MUTATION_BROKER_MANIFEST
+    try:
+        line = read_regular_bytes_nofollow(
+            manifest_path,
+            "generated-app broker manifest",
+        ).decode("ascii")
+    except (OSError, UnicodeDecodeError, ProvenanceError) as error:
+        raise ProvenanceError(f"could not read generated-app broker manifest: {error}") from error
+    match = re.fullmatch(rf"([0-9a-f]{{64}})  {re.escape(MUTATION_BROKER_BINARY)}\n", line)
+    if match is None:
+        raise ProvenanceError("generated-app broker manifest is malformed")
+    return match.group(1)
+
+
+def generation_receipt_root(app_dir: Path) -> Path:
+    return app_dir.absolute().parent / GENERATION_RECEIPT_DIRECTORY
+
+
+def generation_receipt_payload(app_dir: Path, broker_digest: str) -> dict[str, Any]:
+    validate_digest(broker_digest, "generation receipt brokerSha256")
+    local_digest = read_generation_broker_manifest(app_dir)
+    if local_digest != broker_digest:
+        raise ProvenanceError("generated-app broker manifest does not match the executed broker digest")
+    build_info = app_dir / BUILD_INFO_FILE
+    build_info_bytes = read_regular_bytes_nofollow(build_info, "generated-app build info")
+    manifest = build_manifest(app_dir)
+    return {
+        "appManifestSha256": manifest["manifestSha256"],
+        "brokerSha256": broker_digest,
+        "buildInfoSha256": sha256_bytes(build_info_bytes),
+        "schemaVersion": GENERATION_RECEIPT_SCHEMA_VERSION,
+    }
+
+
+def write_generation_receipt(app_dir: Path, broker_digest: str) -> Path:
+    payload = generation_receipt_payload(app_dir, broker_digest)
+    root = generation_receipt_root(app_dir)
+    try:
+        root.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    trusted_readonly_metadata(
+        root,
+        "generation receipt root",
+        directory=True,
+        private_if_user_owned=True,
+    )
+    receipt_path = root / f"{payload['appManifestSha256']}.json"
+    serialized = canonical_bytes(payload)
+    if receipt_path.exists():
+        current = read_regular_json_nofollow(
+            receipt_path,
+            "generation receipt",
+            private_if_user_owned=True,
+        )
+        if canonical_bytes(current) != serialized:
+            raise ProvenanceError(f"generation receipt already exists with different content: {receipt_path}")
+        return receipt_path
+    write_exclusive(receipt_path, serialized, 0o600)
+    trusted_readonly_metadata(
+        receipt_path,
+        "generation receipt",
+        directory=False,
+        private_if_user_owned=True,
+    )
+    directory_descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+    return receipt_path
+
+
+def validate_generation_receipt(app_dir: Path) -> dict[str, Any]:
+    manifest = build_manifest(app_dir)
+    root = generation_receipt_root(app_dir)
+    trusted_readonly_metadata(
+        root,
+        "generation receipt root",
+        directory=True,
+        private_if_user_owned=True,
+    )
+    receipt_path = root / f"{manifest['manifestSha256']}.json"
+    receipt = read_regular_json_nofollow(
+        receipt_path,
+        "generation receipt",
+        private_if_user_owned=True,
+    )
+    if receipt.get("schemaVersion") != GENERATION_RECEIPT_SCHEMA_VERSION:
+        raise ProvenanceError("unsupported generation receipt schema")
+    for field in ("appManifestSha256", "brokerSha256", "buildInfoSha256"):
+        validate_digest(receipt.get(field), f"generation receipt {field}")
+    if receipt["appManifestSha256"] != manifest["manifestSha256"]:
+        raise ProvenanceError("generation receipt does not match the current app manifest")
+    local_digest = read_generation_broker_manifest(app_dir)
+    if receipt["brokerSha256"] != local_digest:
+        raise ProvenanceError("generation receipt does not match the app-local broker manifest")
+    build_info = app_dir / BUILD_INFO_FILE
+    build_info_bytes = read_regular_bytes_nofollow(build_info, "generated-app build info")
+    if receipt["buildInfoSha256"] != sha256_bytes(build_info_bytes):
+        raise ProvenanceError("generation receipt does not match generated-app build info")
+    return receipt
+
+
 def validate_signing_fingerprint(value: Any, label: str) -> None:
     if not isinstance(value, str) or re.fullmatch(r"[0-9A-F]{40}(?:[0-9A-F]{24})?", value) is None:
         raise ProvenanceError(f"{label} must be an uppercase primary OpenPGP fingerprint")
@@ -679,6 +970,20 @@ def command_snapshot_tree(arguments: argparse.Namespace) -> None:
     sys.stdout.buffer.write(canonical_bytes(record))
 
 
+def command_write_generation_receipt(arguments: argparse.Namespace) -> None:
+    receipt_path = write_generation_receipt(Path(arguments.app), arguments.broker_sha256)
+    print(receipt_path)
+
+
+def command_validate_generation_receipt(arguments: argparse.Namespace) -> None:
+    receipt = validate_generation_receipt(Path(arguments.app))
+    print(
+        receipt["brokerSha256"],
+        receipt["appManifestSha256"],
+        receipt["buildInfoSha256"],
+    )
+
+
 def command_provenance(arguments: argparse.Namespace) -> None:
     try:
         payload = json.loads(Path(arguments.input).read_text(encoding="utf-8"))
@@ -773,6 +1078,15 @@ def parser() -> argparse.ArgumentParser:
     snapshot_tree_parser.add_argument("source")
     snapshot_tree_parser.add_argument("destination")
     snapshot_tree_parser.set_defaults(handler=command_snapshot_tree)
+
+    write_receipt_parser = subparsers.add_parser("write-generation-receipt")
+    write_receipt_parser.add_argument("--app", required=True)
+    write_receipt_parser.add_argument("--broker-sha256", required=True)
+    write_receipt_parser.set_defaults(handler=command_write_generation_receipt)
+
+    validate_receipt_parser = subparsers.add_parser("validate-generation-receipt")
+    validate_receipt_parser.add_argument("--app", required=True)
+    validate_receipt_parser.set_defaults(handler=command_validate_generation_receipt)
 
     provenance_parser = subparsers.add_parser("provenance")
     provenance_parser.add_argument("input")

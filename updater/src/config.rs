@@ -165,12 +165,6 @@ impl RuntimeConfig {
     /// Builds the default runtime configuration for the resolved paths.
     pub fn default_with_paths(paths: &RuntimePaths) -> Self {
         let packaged_bundle_root = PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT);
-        let builder_bundle_root = if packaged_bundle_root.exists() {
-            packaged_bundle_root
-        } else {
-            development_builder_bundle_root()
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")))
-        };
 
         let config = Self {
             dmg_url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg".to_string(),
@@ -180,7 +174,7 @@ impl RuntimeConfig {
             notifications: true,
             developer_mode: false,
             workspace_root: paths.cache_dir.clone(),
-            builder_bundle_root,
+            builder_bundle_root: packaged_bundle_root,
             app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
@@ -204,6 +198,7 @@ impl RuntimeConfig {
             .with_context(|| format!("Failed to read {}", paths.config_file.display()))?;
         let overlay = toml::from_str::<RuntimeConfigOverlay>(&content)
             .with_context(|| format!("Failed to parse {}", paths.config_file.display()))?;
+        let configured_builder_bundle_root = overlay.builder_bundle_root.clone();
         let mut config = Self::default_with_paths(paths);
         config.apply_overlay(overlay);
         if config.check_interval_hours == 0 {
@@ -215,7 +210,12 @@ impl RuntimeConfig {
             );
             config.check_interval_hours = DEFAULT_CHECK_INTERVAL_HOURS;
         }
-        config.enforce_packaged_builder_root(Path::new(PACKAGED_BUILDER_BUNDLE_ROOT));
+        config.builder_bundle_root = select_builder_bundle_root(
+            Path::new(PACKAGED_BUILDER_BUNDLE_ROOT),
+            config.developer_mode,
+            configured_builder_bundle_root,
+            development_builder_bundle_root(),
+        );
         config
             .validate()
             .with_context(|| format!("Invalid configuration {}", paths.config_file.display()))?;
@@ -267,13 +267,13 @@ impl RuntimeConfig {
         }
     }
 
-    fn enforce_packaged_builder_root(&mut self, packaged_root: &Path) {
-        if packaged_root.exists() && !self.developer_mode {
-            self.builder_bundle_root = packaged_root.to_path_buf();
-        }
-    }
-
     fn validate(&self) -> Result<()> {
+        if !self.developer_mode {
+            anyhow::ensure!(
+                self.builder_bundle_root == Path::new(PACKAGED_BUILDER_BUNDLE_ROOT),
+                "non-developer updater configuration must use the packaged update-builder path"
+            );
+        }
         let interval = self.check_interval_duration()?;
         self.check_interval_chrono_duration()?;
         Instant::now()
@@ -309,6 +309,21 @@ fn development_builder_bundle_root() -> Option<PathBuf> {
         let candidate = ancestor.join("updater").join("Cargo.toml");
         candidate.is_file().then(|| ancestor.to_path_buf())
     })
+}
+
+fn select_builder_bundle_root(
+    packaged_root: &Path,
+    developer_mode: bool,
+    configured_root: Option<PathBuf>,
+    development_root: Option<PathBuf>,
+) -> PathBuf {
+    if !developer_mode {
+        packaged_root.to_path_buf()
+    } else {
+        configured_root
+            .or(development_root)
+            .unwrap_or_else(|| packaged_root.to_path_buf())
+    }
 }
 
 const APP_SETTINGS_FILE: &str = "settings.json";
@@ -774,6 +789,90 @@ app_executable_path = "/opt/chatgpt/electron"
     }
 
     #[test]
+    fn non_developer_selection_always_uses_packaged_path() {
+        let temp = tempdir().expect("tempdir");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
+        let configured_root = temp.path().join("configured-builder");
+        let checkout_root = temp.path().join("checkout");
+
+        assert_eq!(
+            select_builder_bundle_root(
+                &packaged_root,
+                false,
+                Some(configured_root),
+                Some(checkout_root),
+            ),
+            packaged_root
+        );
+    }
+
+    #[test]
+    fn developer_selection_prefers_configured_then_checkout_root() {
+        let temp = tempdir().expect("tempdir");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
+        let configured_root = temp.path().join("configured-builder");
+        let checkout_root = temp.path().join("checkout");
+
+        assert_eq!(
+            select_builder_bundle_root(
+                &packaged_root,
+                true,
+                Some(configured_root.clone()),
+                Some(checkout_root.clone()),
+            ),
+            configured_root
+        );
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, None, Some(checkout_root.clone())),
+            checkout_root
+        );
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, None, None),
+            packaged_root
+        );
+    }
+
+    #[test]
+    fn non_developer_overlay_cannot_replace_packaged_builder_root() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(
+            &paths.config_file,
+            r#"
+developer_mode = false
+builder_bundle_root = "/tmp/untrusted-chatgpt-builder"
+"#,
+        )?;
+
+        let config = RuntimeConfig::load_or_default(&paths)?;
+
+        assert!(!config.developer_mode);
+        assert_eq!(
+            config.builder_bundle_root,
+            PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn non_developer_validation_rejects_non_packaged_builder_root() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        let mut config = RuntimeConfig::default_with_paths(&paths);
+        config.builder_bundle_root = temp.path().join("untrusted-builder");
+
+        let error = config
+            .validate()
+            .expect_err("non-developer configuration must retain the packaged builder path");
+
+        assert!(error
+            .to_string()
+            .contains("must use the packaged update-builder path"));
+        Ok(())
+    }
+
+    #[test]
     fn loads_default_when_config_is_missing() -> Result<()> {
         let temp = tempdir()?;
         let paths = RuntimePaths {
@@ -789,7 +888,10 @@ app_executable_path = "/opt/chatgpt/electron"
         assert_eq!(config.initial_check_delay_seconds, 30);
         assert!(config.auto_install_on_app_exit);
         assert_eq!(config.workspace_root, paths.cache_dir);
-        assert!(config.builder_bundle_root.is_absolute());
+        assert_eq!(
+            config.builder_bundle_root,
+            PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT)
+        );
         assert!(!config.generated_artifact_cleanup.enabled);
         assert_eq!(
             config.generated_artifact_cleanup.min_free_bytes,
@@ -980,26 +1082,11 @@ entries = ["dist", "target", "ChatGPT.dmg"]
         let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
-        let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
-            initial_check_delay_seconds: 5,
-            check_interval_hours: 12,
-            auto_install_on_app_exit: false,
-            notifications: false,
-            developer_mode: false,
-            workspace_root: temp.path().join("workspace"),
-            builder_bundle_root: configured_root,
-            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
-            cli_path: None,
-            enable_wrapper_updates: false,
-            wrapper_remote: String::new(),
-            wrapper_branch: "main".to_string(),
-            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
-        };
 
-        config.enforce_packaged_builder_root(&packaged_root);
-
-        assert_eq!(config.builder_bundle_root, packaged_root);
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, false, Some(configured_root), None),
+            packaged_root
+        );
     }
 
     #[test]
@@ -1008,26 +1095,11 @@ entries = ["dist", "target", "ChatGPT.dmg"]
         let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
-        let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
-            initial_check_delay_seconds: 5,
-            check_interval_hours: 12,
-            auto_install_on_app_exit: false,
-            notifications: false,
-            developer_mode: true,
-            workspace_root: temp.path().join("workspace"),
-            builder_bundle_root: configured_root.clone(),
-            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
-            cli_path: None,
-            enable_wrapper_updates: false,
-            wrapper_remote: String::new(),
-            wrapper_branch: "main".to_string(),
-            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
-        };
 
-        config.enforce_packaged_builder_root(&packaged_root);
-
-        assert_eq!(config.builder_bundle_root, configured_root);
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, Some(configured_root.clone()), None,),
+            configured_root
+        );
     }
 
     #[test]

@@ -97,8 +97,18 @@ const archives = fs.readdirSync(path.join(root, "archives"))
     };
   });
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   watcherVersion: "2.5.6",
+  targets: [
+    {
+      id: "linux-x64-glibc",
+      platform: "linux",
+      arch: "x64",
+      libc: "glibc",
+      kernelMachines: ["x86_64"],
+      nativePackage: "@parcel/watcher-linux-x64-glibc",
+    },
+  ],
   packageJsonSha256: digestFile(path.join(root, "package.json")),
   packageLockSha256: digestFile(path.join(root, "package-lock.json")),
   archives,
@@ -146,6 +156,8 @@ run_install_case() {
         "$install_dir/resources" \
         "$runtime_dir/bin"
     cp -a "$bundle_source" "$fake_repo/scripts/lib/parcel-watcher"
+    cp "$REPO_DIR/scripts/lib/parcel-watcher-target.js" \
+        "$fake_repo/scripts/lib/parcel-watcher-target.js"
     printf 'fixture-asar\n' > "$work_dir/app.asar"
     printf '{"dependencies":{"@parcel/watcher":"%s"}}\n' "$official_version" \
         > "$work_dir/app-extracted/package.json"
@@ -228,6 +240,21 @@ assert_file_missing "$CASE_DIR/lifecycle.marker"
 assert_contains "$CASE_DIR/npm.log" "--offline"
 
 run_install_case unsupported-version "$BASE_BUNDLE" 9.9.9 failure
+assert_file_missing "$CASE_DIR/npm.log"
+assert_file_missing "$CASE_DIR/electron.log"
+assert_file_missing "$CASE_DIR/init.marker"
+assert_file_missing "$CASE_DIR/install/resources/node_modules"
+
+unsupported_target_bundle="$TMP_DIR/unsupported-target"
+cp -a "$BASE_BUNDLE" "$unsupported_target_bundle"
+node - "$unsupported_target_bundle/approved.json" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+manifest.targets[0].kernelMachines = ["unsupported-kernel"];
+fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
+run_install_case unsupported-target "$unsupported_target_bundle" 2.5.6 failure
 assert_file_missing "$CASE_DIR/npm.log"
 assert_file_missing "$CASE_DIR/electron.log"
 assert_file_missing "$CASE_DIR/init.marker"

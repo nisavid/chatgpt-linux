@@ -137,6 +137,8 @@ transactional_install() {
     local build_info_path
     local dmg_path
     local build_status="failure"
+    local generation_receipt
+    local generation_broker_digest
     local verdict
     local -a acceptance_args=()
 
@@ -224,8 +226,17 @@ transactional_install() {
         fi
     fi
 
+    generation_receipt="$(
+        read_generation_bound_mutation_broker_receipt "$candidate_dir"
+    )" || error "Accepted candidate is missing its generation-bound mutation broker receipt"
+    generation_broker_digest="${generation_receipt%% *}"
     mkdir -p "$candidate_dir/.chatgpt-linux"
     cp "$decision_path" "$candidate_dir/.chatgpt-linux/upstream-dmg-decision.json"
+    python3 "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" \
+        write-generation-receipt \
+        --app "$candidate_dir" \
+        --broker-sha256 "$generation_broker_digest" >/dev/null || \
+        error "Could not bind the accepted candidate to its final app manifest"
     assert_private_transaction_candidate_root "$candidate_dir"
     chmod 0755 -- "$candidate_dir"
     if ! promote_candidate_install "$candidate_dir" "$final_dir"; then
@@ -407,6 +418,10 @@ main() {
         info "Patch report: $INSTALL_DIR/.chatgpt-linux/patch-report.json"
     fi
     write_build_info "$dmg_path" "$app_dir"
+    write_generation_bound_mutation_broker_receipt \
+        "$INSTALL_DIR" \
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" \
+        "$CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED"
 
     if [ -n "${CHATGPT_REBUILD_REPORT_JSON:-}" ] && [ -n "${CHATGPT_PATCH_REPORT_JSON:-}" ]; then
         write_rebuild_report_json \

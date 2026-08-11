@@ -317,16 +317,41 @@ prepare_reviewed_source() {
     export CHATGPT_PORT_INTEGRATIONS_ROOT CHATGPT_PORT_INTEGRATIONS_CONFIG
     require_file "$CHATGPT_PORT_INTEGRATIONS_CONFIG" "reviewed port integration config"
     require_file "$PROVENANCE_HELPER" "reviewed package provenance helper"
+    GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER="$PROVENANCE_HELPER"
 }
 
 snapshot_submitted_app() {
     local snapshot_record
+    local source_receipt
+    local source_receipt_after
+    local source_broker_digest
+    local source_app_manifest
+    local submitted_app_manifest
     SUBMITTED_APP_DIR="$RELEASE_GATE_TMP_DIR/submitted-app"
     require_dir "$SOURCE_APP_DIR" "generated app"
+    source_receipt="$(read_generation_bound_mutation_broker_receipt "$SOURCE_APP_DIR")" || \
+        error "Submitted generated app is missing a valid external generation receipt"
+    source_broker_digest="${source_receipt%% *}"
+    source_app_manifest="${source_receipt#* }"
+    source_app_manifest="${source_app_manifest%% *}"
     snapshot_record="$(python3 "$PROVENANCE_HELPER" snapshot-tree "$SOURCE_APP_DIR" "$SUBMITTED_APP_DIR")" || \
         error "Could not snapshot the submitted generated app"
     [[ "$snapshot_record" == *'"manifestSha256"'* ]] || \
         error "Submitted generated-app snapshot did not return a manifest digest"
+    submitted_app_manifest="$(
+        python3 -c 'import json,sys; print(json.loads(sys.argv[1])["manifestSha256"])' \
+            "$snapshot_record"
+    )" || error "Could not read the submitted generated-app snapshot digest"
+    [ "$submitted_app_manifest" = "$source_app_manifest" ] || \
+        error "Submitted generated-app snapshot differs from its generation receipt"
+    source_receipt_after="$(read_generation_bound_mutation_broker_receipt "$SOURCE_APP_DIR")" || \
+        error "Submitted generated app changed while it was being snapshotted"
+    [ "$source_receipt_after" = "$source_receipt" ] || \
+        error "Submitted generated-app receipt changed while it was being snapshotted"
+    python3 "$PROVENANCE_HELPER" write-generation-receipt \
+        --app "$SUBMITTED_APP_DIR" \
+        --broker-sha256 "$source_broker_digest" >/dev/null || \
+        error "Could not bind the submitted generated-app snapshot to its generation receipt"
     if [ "$RELEASE_MODE" = "rehearsal" ]; then
         REVIEWED_APP_DIR="$SUBMITTED_APP_DIR"
         APP_DIR="$REVIEWED_APP_DIR"
@@ -520,6 +545,8 @@ build_and_compare_reference_app() {
     REFERENCE_APP_STORE_PATH="$(build_reviewed_nix_output chatgpt-release-app "release reference app")"
     REVIEWED_APP_DIR="$REFERENCE_APP_STORE_PATH/opt/chatgpt"
     require_dir "$REVIEWED_APP_DIR" "release reference app"
+    read_generation_bound_mutation_broker_receipt "$REVIEWED_APP_DIR" >/dev/null || \
+        error "Independent release reference is missing a valid external generation receipt"
     python3 "$PROVENANCE_HELPER" manifest "$SUBMITTED_APP_DIR" "$submitted_manifest"
     python3 "$PROVENANCE_HELPER" manifest "$REVIEWED_APP_DIR" "$reference_manifest"
     python3 "$PROVENANCE_HELPER" compare "$reference_manifest" "$submitted_manifest" || \

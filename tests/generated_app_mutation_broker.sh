@@ -114,8 +114,45 @@ test_generation_digest_binds_package_helper() {
             "$actual_digest"$'\n'
     )" || fail "valid descriptor-bound digest handoff failed"
     write_generated_app_mutation_broker_digest "$app_dir" "$original" "$executed_digest"
+    printf '{"schemaVersion":1}\n' > "$app_dir/.chatgpt-linux/build-info.json"
+    printf 'generated app payload\n' > "$app_dir/payload.txt"
+    write_generation_bound_mutation_broker_receipt \
+        "$app_dir" "$original" "$executed_digest"
     stage_generation_bound_mutation_broker "$app_dir" "$original" "$staged"
     cmp -s "$original" "$staged" || fail "staged broker differs from generation broker"
+
+    mv "$root/.chatgpt-generation-receipts" "$root/receipt-backup"
+    if stage_generation_bound_mutation_broker "$app_dir" "$original" "$staged" \
+        >/dev/null 2>&1; then
+        fail "package staging trusted the app-local broker manifest without an external receipt"
+    fi
+    mv "$root/receipt-backup" "$root/.chatgpt-generation-receipts"
+
+    local receipt_file
+    receipt_file="$(find "$root/.chatgpt-generation-receipts" -maxdepth 1 -type f -name '*.json' -print -quit)"
+    cp "$receipt_file" "$root/receipt.json"
+    python3 - "$receipt_file" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+receipt = json.loads(path.read_text(encoding="utf-8"))
+receipt["brokerSha256"] = "0" * 64
+path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+PY
+    if stage_generation_bound_mutation_broker "$app_dir" "$original" "$staged" \
+        >/dev/null 2>&1; then
+        fail "package staging accepted a modified external generation receipt"
+    fi
+    mv "$root/receipt.json" "$receipt_file"
+
+    printf 'changed generated app payload\n' > "$app_dir/payload.txt"
+    if stage_generation_bound_mutation_broker "$app_dir" "$original" "$staged" \
+        >/dev/null 2>&1; then
+        fail "package staging accepted app bytes changed after receipt publication"
+    fi
+    printf 'generated app payload\n' > "$app_dir/payload.txt"
 
     if stage_generation_bound_mutation_broker "$app_dir" "$changed" "$staged" \
         >/dev/null 2>&1; then
@@ -191,11 +228,56 @@ test_installer_resolves_and_records_generation_broker() {
         || fail "ASAR patcher does not resolve the broker once per generation"
     grep -Fq 'write_generated_app_mutation_broker_digest' "$REPO_DIR/install.sh" \
         || fail "installer does not bind generated app to broker digest"
+    grep -Fq 'write_generation_bound_mutation_broker_receipt' "$REPO_DIR/install.sh" \
+        || fail "installer does not publish the generation receipt outside the app tree"
     grep -Fq '"$CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED"' \
         "$REPO_DIR/install.sh" \
         || fail "installer does not pass the executed broker digest to the manifest writer"
     grep -Fq '"$INSTALL_DIR"' "$REPO_DIR/install.sh" \
         || fail "installer does not bind the installed app to the generation broker"
+}
+
+test_update_builder_helpers_stay_bound_to_the_staged_app() {
+    local root="$TEST_ROOT/staged-app-continuity"
+    local app_a="$root/app-a"
+    local app_b="$root/app-b"
+    local broker_a="$root/broker-a/chatgpt-generated-app-mutation-broker"
+    local update_builder="$root/update-builder"
+    local computer_use_relative="resources/plugins/openai-bundled/plugins/computer-use/bin"
+    local helper
+    local digest
+
+    # shellcheck source=../scripts/lib/generated-app-mutation-broker.sh
+    . "$HELPER"
+    make_executable "$broker_a"
+    digest="$(sha256sum "$broker_a" | awk '{print $1}')"
+    for helper in chatgpt-computer-use-linux chatgpt-computer-use-cosmic; do
+        mkdir -p "$app_a/$computer_use_relative" "$app_b/$computer_use_relative"
+        printf 'generation-a\n' > "$app_a/$computer_use_relative/$helper"
+        printf 'generation-b\n' > "$app_b/$computer_use_relative/$helper"
+        chmod 0755 \
+            "$app_a/$computer_use_relative/$helper" \
+            "$app_b/$computer_use_relative/$helper"
+    done
+    mkdir -p "$app_a/.chatgpt-linux" "$update_builder/prebuilt-helpers"
+    printf '{"schemaVersion":1}\n' > "$app_a/.chatgpt-linux/build-info.json"
+    printf '%s  %s\n' "$digest" "$GENERATED_APP_MUTATION_BROKER_BINARY" \
+        > "$app_a/$GENERATED_APP_MUTATION_BROKER_DIGEST_RELATIVE_PATH"
+    write_generation_bound_mutation_broker_receipt "$app_a" "$broker_a" "$digest"
+
+    (
+        export APP_DIR="$app_b"
+        export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$broker_a"
+        # shellcheck source=../scripts/lib/package-common.sh
+        . "$REPO_DIR/scripts/lib/package-common.sh"
+        port_integration_enabled() { return 1; }
+        stage_update_builder_prebuilt_helpers "$update_builder" "$app_a"
+    )
+
+    assert_eq "generation-a" "$(cat "$update_builder/prebuilt-helpers/chatgpt-computer-use-linux")"
+    assert_eq "generation-a" "$(cat "$update_builder/prebuilt-helpers/chatgpt-computer-use-cosmic")"
+    cmp -s "$broker_a" "$update_builder/prebuilt-helpers/$GENERATED_APP_MUTATION_BROKER_BINARY" \
+        || fail "update-builder broker did not remain bound to the staged app receipt"
 }
 
 test_asar_patcher_uses_verified_private_root() {
@@ -305,5 +387,6 @@ test_generation_digest_binds_package_helper
 test_generation_digest_rejects_rebound_broker_path
 test_patch_digest_receipt_validation_is_strict
 test_installer_resolves_and_records_generation_broker
+test_update_builder_helpers_stay_bound_to_the_staged_app
 test_asar_patcher_uses_verified_private_root
 printf 'Generated-app mutation broker resolver tests passed.\n'

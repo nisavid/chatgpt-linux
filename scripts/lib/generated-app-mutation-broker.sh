@@ -7,6 +7,7 @@
 GENERATED_APP_MUTATION_BROKER_PACKAGE="generated-app-mutation-broker"
 GENERATED_APP_MUTATION_BROKER_BINARY="chatgpt-generated-app-mutation-broker"
 GENERATED_APP_MUTATION_BROKER_DIGEST_RELATIVE_PATH=".chatgpt-linux/generated-app-mutation-broker.sha256"
+GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/package-provenance.py"
 
 generated_app_mutation_broker_host_elf_machine() {
     case "$(uname -m)" in
@@ -157,16 +158,72 @@ read_generated_app_mutation_broker_digest() {
     printf '%s\n' "$digest"
 }
 
+write_generation_bound_mutation_broker_receipt() {
+    local app_dir="$1"
+    local broker="$2"
+    local executed_digest="$3"
+    local actual_digest
+
+    if [[ ! "$executed_digest" =~ ^[0-9a-f]{64}$ ]]; then
+        printf 'Executed generated-app mutation broker digest is malformed.\n' >&2
+        return 1
+    fi
+    broker="$(validate_generated_app_mutation_broker "$broker")" || return 1
+    actual_digest="$(generated_app_mutation_broker_sha256 "$broker")" || return 1
+    if [ "$actual_digest" != "$executed_digest" ]; then
+        printf 'Generated-app mutation broker changed before receipt publication: %s\n' \
+            "$broker" >&2
+        return 1
+    fi
+    [ -f "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" ] && \
+        [ ! -L "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" ] || {
+            printf 'Package provenance helper is missing: %s\n' \
+                "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" >&2
+            return 1
+        }
+    python3 "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" \
+        write-generation-receipt \
+        --app "$app_dir" \
+        --broker-sha256 "$executed_digest" >/dev/null
+}
+
+read_generation_bound_mutation_broker_receipt() {
+    local app_dir="$1"
+    local output
+    local broker_digest
+    local app_manifest_digest
+    local build_info_digest
+    local extra
+
+    output="$(
+        python3 "$GENERATED_APP_MUTATION_BROKER_PROVENANCE_HELPER" \
+            validate-generation-receipt --app "$app_dir"
+    )" || return 1
+    read -r broker_digest app_manifest_digest build_info_digest extra <<< "$output"
+    if [[ ! "$broker_digest" =~ ^[0-9a-f]{64}$ ]] || \
+            [[ ! "$app_manifest_digest" =~ ^[0-9a-f]{64}$ ]] || \
+            [[ ! "$build_info_digest" =~ ^[0-9a-f]{64}$ ]] || \
+            [ -n "${extra:-}" ]; then
+        printf 'Generation-bound mutation broker receipt output is malformed.\n' >&2
+        return 1
+    fi
+    printf '%s %s %s\n' \
+        "$broker_digest" "$app_manifest_digest" "$build_info_digest"
+}
+
 stage_generation_bound_mutation_broker() {
     local app_dir="$1"
     local source="$2"
     local destination="$3"
     local actual_digest
     local expected_digest
+    local receipt_before
+    local receipt_after
     local staged_digest
 
     source="$(validate_generated_app_mutation_broker "$source")" || return 1
-    expected_digest="$(read_generated_app_mutation_broker_digest "$app_dir")" || return 1
+    receipt_before="$(read_generation_bound_mutation_broker_receipt "$app_dir")" || return 1
+    expected_digest="${receipt_before%% *}"
     actual_digest="$(generated_app_mutation_broker_sha256 "$source")" || return 1
     if [ "$actual_digest" != "$expected_digest" ]; then
         printf 'Generated-app mutation broker changed after app generation: %s\n' "$source" >&2
@@ -178,6 +235,11 @@ stage_generation_bound_mutation_broker() {
     validate_generated_app_mutation_broker "$destination" >/dev/null || return 1
     staged_digest="$(generated_app_mutation_broker_sha256 "$destination")" || return 1
     [ "$staged_digest" = "$expected_digest" ] || return 1
+    receipt_after="$(read_generation_bound_mutation_broker_receipt "$app_dir")" || return 1
+    if [ "$receipt_after" != "$receipt_before" ]; then
+        printf 'Generated app changed while staging its mutation broker.\n' >&2
+        return 1
+    fi
     printf '%s  %s\n' "$expected_digest" "$GENERATED_APP_MUTATION_BROKER_BINARY" \
         > "$destination.sha256"
     chmod 0644 "$destination.sha256"

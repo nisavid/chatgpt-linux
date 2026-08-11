@@ -39,7 +39,10 @@ updater rebuilds and installs, package digest binding for updater-managed
 privileged installs, default-enabled Electron sandboxing, release gate checks,
 Apple DMG verification tooling, descriptor-based required patch validation,
 capability-mediated central main-bundle and webview mutation that poisons on
-integrity failure, private transactional candidate roots,
+integrity failure, private transactional candidate roots, external
+content-addressed generation receipts that bind broker, app, and build info
+before native package staging, approved offline Parcel watcher bytes with an
+exact Linux glibc host-target allowlist,
 sanitized Linux desktop-target launches, loopback-only no-cache webview serving,
 no-updater transition cleanup under package-owned support paths, default-enabled
 remote-control UI/mobile patching, private AppShots temporary capture staging,
@@ -159,6 +162,8 @@ Open questions that materially affect risk:
   and webview discovery, reads, and replacements. Single-use read tokens bind
   replacements to relative path, identity, and digest. Integrity failure
   poisons the session and keeps the transaction's child build unsuccessful.
+  A sibling content-addressed receipt binds the executed broker, complete app
+  manifest, and build-info bytes before native package staging.
   Extracted-app descriptors, declarative resources, and shell staging hooks are
   not yet part of this capability boundary.
 - **Agent Workspaces port integration:** adds a generated app settings page,
@@ -208,8 +213,9 @@ Open questions that materially affect risk:
   run package/test workflows, and produce snapshot-derived package checksums
   plus signed release provenance.
 - **Public release Nix reference:** the root-managed sandboxed Nix daemon and
-  canonical store independently build the portable generated app and static
-  release helpers from the reviewed source and DMG before package verification.
+  canonical store independently build `chatgpt-release-app` and static
+  `release-helpers` from the reviewed source and DMG. The exact reference app,
+  rather than the submitted tree, is authoritative for package verification.
 - **Experimental user-local installer:** rootless integration under
   `contrib/user-local-install/`, using XDG user data and user services.
 
@@ -367,13 +373,20 @@ flowchart LR
 - The generated-app mutation broker must remain build-only. Source and Nix
   builds may compile it; packaged updater rebuilds must execute only the
   package-owned prebuilt helper whose exact digest is bound to the generated app
-  in the isolated build environment.
+  in the isolated build environment. Native package staging must require and
+  revalidate the external content-addressed receipt that binds the broker,
+  complete app manifest, and build-info digest.
+- Parcel watcher installation must use only the repository-approved offline
+  bytes and must select exactly one approved Linux glibc host target:
+  `linux-x64-glibc` on `x86_64`, `linux-arm64-glibc` on `aarch64` or `arm64`, or
+  `linux-arm-glibc` on ARMv7 hard-float `armv7l`. Unsupported hosts must fail
+  before npm or native-module load.
 - Public release mode must prove the active Nix daemon sandbox with a unique
   host-path canary, build `chatgpt-release-app` and `release-helpers` from the
   immutable reviewed inputs, require exact submitted/reference app equality,
-  and use only the reference for package verification. It must include the
-  reviewed updater and require the selected signing key to match the exact
-  independently approved primary fingerprint.
+  and use only the reference for package verification. It must require
+  `PACKAGE_WITH_UPDATER=1` and the selected signing key to match the exact
+  independently approved `CHATGPT_RELEASE_GPG_FINGERPRINT`.
 - Transactional candidates must be created and verified as owned, non-symlink
   `0700` directories before population, preserved under inner `--fresh`, and
   reverified before becoming `0755` only after integrity and official-DMG
@@ -445,7 +458,10 @@ rebuild and install, persisted `dmg_verification` state, Nix fixed-output hash,
 release-gate hash and generated-app binding, independently restaged package
 payload comparison, signed release provenance, Apple DMG verification script
 and workflow. The official app's exact Parcel watcher version and complete
-dependency graph are installed only from repository-approved offline archives.
+dependency graph are installed only from repository-approved offline archives;
+host selection permits only `linux-x64-glibc`, `linux-arm64-glibc`, and
+`linux-arm-glibc` on their exact kernel-machine and ARM ABI tuples, and rejects
+unsupported hosts before npm.
 
 **Gaps:** No online signed metadata channel for default DMG publications beyond
 the packaged repo-trusted allowlist; hash-refresh PRs still need
@@ -493,7 +509,8 @@ argument vectors, builder bundle symlink and mode checks, package payload
 symlink rejection, package mode normalization, the repository-approved offline
 Parcel watcher graph, deterministic temporary source patches for known
 Electron/native-module ABI compatibility gaps, and independent release-gate
-restaging of native package payloads.
+restaging of native package payloads. Parcel host selection fails before npm or
+module load unless exactly one approved Linux glibc target matches.
 
 **Gaps:** non-Nix Electron, Rust, Python, and system-tool dependencies still
 include live download or registry trust; developer mode intentionally trusts
@@ -526,6 +543,9 @@ nanosecond modification time. Any integrity error poisons the session, stops
 later patch work, fails the child build, and blocks acceptance override.
 Source/Nix builds use a build-only broker; updater rebuilds use the
 package-owned prebuilt executable and its exact generation-bound digest.
+Generation publishes a sibling receipt keyed by the app-manifest digest and
+binding the broker, complete app manifest, and build-info digest. Native package
+staging validates it before copying app bytes and again after the copy.
 Transactional candidates stay `0700` until integrity and acceptance succeed,
 then retain journaled atomic promotion.
 
@@ -843,16 +863,18 @@ not independently verifiable by users.
 
 **Existing mitigations:** the release gate privately snapshots the clean Git
 source object and DMG; proves the active root-managed Nix daemon sandbox; builds
-the portable app reference and static release helpers from those immutable
-inputs; requires exact submitted/reference app equality; and verifies packages
-only against the reference. It binds the generated build record, full
-integration config and implementation inputs, official app version, updater
-digest, native-package identity, payload, and package-manager install controls.
+`chatgpt-release-app` and static `release-helpers` from those immutable inputs;
+requires exact submitted/reference app equality; and uses the reference as the
+independent package authority. It requires `PACKAGE_WITH_UPDATER=1` and binds
+the generated build record, full integration config and implementation inputs,
+official app version, updater digest, native-package identity, payload, and
+package-manager install controls.
 RPM also requires deterministic reference-byte equality. Checksums and
 canonical provenance come only from snapshotted packages. Public outputs require
-detached signatures from the exact approved primary fingerprint. Public
-validation uses a trusted system Node rather than an executable from the app
-under review. Hash refresh goes through PR review.
+detached signatures from the exact approved primary fingerprint supplied as
+`CHATGPT_RELEASE_GPG_FINGERPRINT`. Public validation uses a trusted system Node
+rather than an executable from the app under review. Hash refresh goes through
+PR review.
 
 **Gaps:** the permanent release-signing fingerprint and its independent
 publication, custody, rotation, and revocation policy are not yet established;

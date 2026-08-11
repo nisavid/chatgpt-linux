@@ -1,6 +1,34 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "watcherVersion": "2.5.6",
+  "targets": [
+    {
+      "id": "linux-x64-glibc",
+      "platform": "linux",
+      "arch": "x64",
+      "libc": "glibc",
+      "kernelMachines": ["x86_64"],
+      "nativePackage": "@parcel/watcher-linux-x64-glibc"
+    },
+    {
+      "id": "linux-arm64-glibc",
+      "platform": "linux",
+      "arch": "arm64",
+      "libc": "glibc",
+      "kernelMachines": ["aarch64", "arm64"],
+      "nativePackage": "@parcel/watcher-linux-arm64-glibc"
+    },
+    {
+      "id": "linux-arm-glibc",
+      "platform": "linux",
+      "arch": "arm",
+      "libc": "glibc",
+      "kernelMachines": ["armv7l"],
+      "armVersion": 7,
+      "armFloatAbi": "hard",
+      "nativePackage": "@parcel/watcher-linux-arm-glibc"
+    }
+  ],
   "packageJsonSha256": "749da489d079299f8e096eb4207f1457e8bbe44e0aadd0bd39f6bd0df52ce3b9",
   "packageLockSha256": "85af208b4616dd5e82e0218f55353dff32521b57fa12a7e701746d5f2f65196b",
   "archives": [

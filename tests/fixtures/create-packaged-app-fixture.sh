@@ -37,3 +37,13 @@ mv "$app_dir/resources/node-runtime/bin/npx-cli.js" \
     "$app_dir/resources/node-runtime/lib/node_modules/npm/bin/npx-cli.js"
 ln -s ../lib/node_modules/npm/bin/npm-cli.js "$app_dir/resources/node-runtime/bin/npm"
 ln -s ../lib/node_modules/npm/bin/npx-cli.js "$app_dir/resources/node-runtime/bin/npx"
+
+fixture_broker_digest="${CHATGPT_FIXTURE_MUTATION_BROKER_SHA256:-$(printf '0%.0s' {1..64})}"
+printf '%s  %s\n' \
+    "$fixture_broker_digest" \
+    "chatgpt-generated-app-mutation-broker" \
+    > "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
+python3 "$repo_dir/scripts/lib/package-provenance.py" \
+    write-generation-receipt \
+    --app "$app_dir" \
+    --broker-sha256 "$fixture_broker_digest" >/dev/null

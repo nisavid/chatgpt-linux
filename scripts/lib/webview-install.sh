@@ -424,11 +424,14 @@ install_git_repository_watcher_dependency() {
     local managed_node="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"
     local managed_npm="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/npm"
     local approved_bundle_dir="$SCRIPT_DIR/scripts/lib/parcel-watcher"
+    local target_helper="$SCRIPT_DIR/scripts/lib/parcel-watcher-target.js"
     local watcher_version
 
     [ -f "$app_package_json" ] || error "Missing extracted app package metadata: $app_package_json"
     [ -x "$managed_node" ] || error "Managed Node.js runtime is missing node: $managed_node"
     [ -x "$managed_npm" ] || error "Managed Node.js runtime is missing npm: $managed_npm"
+    [ -f "$target_helper" ] && [ ! -L "$target_helper" ] \
+        || error "Parcel watcher target verifier is missing: $target_helper"
 
     watcher_version="$("$managed_node" - "$app_package_json" <<'NODE'
 const packageJson = require(process.argv[2]);
@@ -457,7 +460,11 @@ NODE
         mkdir -p "$staging_dir/archives" "$staging_dir/npm-cache"
         chmod 0700 "$staging_dir" "$staging_dir/archives" "$staging_dir/npm-cache"
 
-        "$managed_node" - "$approved_bundle_dir" "$staging_dir" "$watcher_version" <<'NODE' \
+        "$managed_node" - \
+            "$approved_bundle_dir" \
+            "$staging_dir" \
+            "$watcher_version" \
+            "$target_helper" <<'NODE' \
             || error "Approved @parcel/watcher bundle verification failed"
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -466,7 +473,9 @@ const path = require("node:path");
 const bundleDir = path.resolve(process.argv[2]);
 const stagingDir = path.resolve(process.argv[3]);
 const expectedVersion = process.argv[4];
+const targetHelperPath = path.resolve(process.argv[5]);
 const archivesDir = path.join(stagingDir, "archives");
+const { detectHostTarget, selectApprovedTarget } = require(targetHelperPath);
 
 function fail(message) {
   throw new Error(message);
@@ -496,7 +505,7 @@ function verifyDigest(bytes, expected, label) {
 
 const manifestPath = path.join(bundleDir, "approved.json");
 const manifest = JSON.parse(readRegularFile(manifestPath, "approval manifest").toString("utf8"));
-if (manifest.schemaVersion !== 1) {
+if (manifest.schemaVersion !== 2) {
   fail("unsupported @parcel/watcher approval manifest schema");
 }
 if (manifest.watcherVersion !== expectedVersion) {
@@ -510,8 +519,15 @@ verifyDigest(packageLockBytes, manifest.packageLockSha256, "approved package-loc
 
 const packageJson = JSON.parse(packageJsonBytes.toString("utf8"));
 const packageLock = JSON.parse(packageLockBytes.toString("utf8"));
+const selectedTarget = selectApprovedTarget(manifest, detectHostTarget());
 if (packageJson.dependencies?.["@parcel/watcher"] !== `file:archives/parcel-watcher-${expectedVersion}.tgz`) {
   fail("approved package.json does not bind the expected @parcel/watcher archive");
+}
+if (
+  typeof packageJson.optionalDependencies?.[selectedTarget.nativePackage] !== "string" ||
+  !packageJson.optionalDependencies[selectedTarget.nativePackage].startsWith("file:archives/")
+) {
+  fail(`approved target ${selectedTarget.id} is not bound to an offline native package`);
 }
 if (packageLock.lockfileVersion !== 3 || packageLock.packages?.[""] == null) {
   fail("approved package-lock.json must be a complete npm lockfile v3");
@@ -588,6 +604,11 @@ for (const [packagePath, entry] of Object.entries(packageLock.packages)) {
 
 fs.writeFileSync(path.join(stagingDir, "package.json"), packageJsonBytes, { flag: "wx", mode: 0o600 });
 fs.writeFileSync(path.join(stagingDir, "package-lock.json"), packageLockBytes, { flag: "wx", mode: 0o600 });
+fs.writeFileSync(
+  path.join(stagingDir, ".selected-target.json"),
+  `${JSON.stringify({ id: selectedTarget.id, nativePackage: selectedTarget.nativePackage })}\n`,
+  { flag: "wx", mode: 0o600 },
+);
 NODE
 
         "$managed_npm" ci \
@@ -599,6 +620,25 @@ NODE
             --no-fund \
             --registry=http://127.0.0.1:9 >&2 \
             || error "Failed to install approved offline @parcel/watcher@$watcher_version"
+
+        "$managed_node" - "$staging_dir" <<'NODE' \
+            || error "Approved @parcel/watcher installation selected an unexpected native package"
+const fs = require("node:fs");
+const path = require("node:path");
+
+const stagingDir = path.resolve(process.argv[2]);
+const selected = JSON.parse(fs.readFileSync(path.join(stagingDir, ".selected-target.json"), "utf8"));
+const parcelScope = path.join(stagingDir, "node_modules", "@parcel");
+const expectedEntry = selected.nativePackage.slice("@parcel/".length);
+const entries = fs.readdirSync(parcelScope).filter((entry) => entry.startsWith("watcher"));
+if (!entries.includes("watcher") || !entries.includes(expectedEntry)) {
+  process.exit(1);
+}
+const unexpected = entries.filter((entry) => entry !== "watcher" && entry !== expectedEntry);
+if (unexpected.length !== 0) {
+  process.exit(1);
+}
+NODE
 
         [ -x "$INSTALL_DIR/electron" ] || error "Generated Electron runtime is missing: $INSTALL_DIR/electron"
         ELECTRON_RUN_AS_NODE=1 "$INSTALL_DIR/electron" - "$staging_dir/package.json" "$watcher_version" <<'NODE' \

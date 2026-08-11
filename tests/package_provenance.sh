@@ -84,6 +84,116 @@ test_manifest_contract() {
         python3 "$HELPER" manifest "$actual" "$TEST_TMP/special.json"
 }
 
+test_mutable_manifest_rejects_hardlinks() {
+    local root="$TEST_TMP/mutable-hardlinks"
+    copy_fixture "$root"
+    ln "$root/usr/share/chatgpt/data.txt" "$root/usr/share/chatgpt/data-hardlink.txt"
+
+    expect_failure "mutable hard-linked manifest" \
+        python3 "$HELPER" manifest "$root" "$TEST_TMP/mutable-hardlinks.json"
+    grep -Fq 'hard-linked files are not allowed in package payloads' "$TEST_TMP/stderr" || \
+        fail "mutable manifest hardlink rejection was not explicit"
+}
+
+test_immutable_nix_store_policy_predicates() {
+    python3 - "$HELPER" <<'PY' || \
+        fail "immutable Nix store policy predicates failed"
+import importlib.util
+import pathlib
+import stat
+import sys
+import types
+
+spec = importlib.util.spec_from_file_location("package_provenance", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+store_component = "0" * 32 + "-chatgpt-release-app-1.2.3"
+store_root = pathlib.Path("/nix/store") / store_component
+app = store_root / "opt/chatgpt"
+receipt_root = store_root / "opt/.chatgpt-generation-receipts"
+receipt = receipt_root / ("1" * 64 + ".json")
+runtime = app / "runtime"
+
+def stat_result(*, file_type, mode, uid, links, inode):
+    return types.SimpleNamespace(
+        st_ctime_ns=1,
+        st_dev=1,
+        st_gid=0,
+        st_ino=inode,
+        st_mode=file_type | mode,
+        st_mtime_ns=1,
+        st_nlink=links,
+        st_size=1,
+        st_uid=uid,
+    )
+
+def directory(uid=0, mode=0o555, inode=1):
+    return stat_result(
+        file_type=stat.S_IFDIR,
+        mode=mode,
+        uid=uid,
+        links=1,
+        inode=inode,
+    )
+
+def file(uid=0, mode=0o444, links=2, inode=2):
+    return stat_result(
+        file_type=stat.S_IFREG,
+        mode=mode,
+        uid=uid,
+        links=links,
+        inode=inode,
+    )
+
+metadata = {
+    store_root: directory(),
+    store_root / "opt": directory(),
+    app: directory(),
+    runtime: file(),
+    receipt_root: directory(),
+    receipt: file(),
+}
+module._lstat_path = lambda path: metadata[path]
+
+assert module.canonical_nix_store_output_root(runtime) == store_root
+assert module.immutable_nix_store_path_is_trusted(runtime, directory=False)
+assert module.immutable_nix_store_path_is_trusted(
+    runtime,
+    directory=False,
+    expected_metadata=metadata[runtime],
+)
+assert not module.immutable_nix_store_path_is_trusted(
+    runtime,
+    directory=False,
+    expected_metadata=file(inode=99),
+)
+assert module.immutable_nix_store_path_is_trusted(receipt, directory=False)
+assert module.canonical_nix_store_output_root(pathlib.Path("/tmp") / store_component) is None
+assert module.canonical_nix_store_output_root(
+    pathlib.Path("/nix/store") / ("e" * 32 + "-invalid") / "opt/chatgpt"
+) is None
+assert module.canonical_nix_store_output_root(
+    pathlib.Path(f"{store_root}/opt/../opt/chatgpt")
+) is None
+
+metadata[receipt_root] = directory(mode=0o575)
+assert not module.immutable_nix_store_path_is_trusted(receipt, directory=False)
+metadata[receipt_root] = directory()
+metadata[store_root] = directory(mode=0o575)
+assert not module.immutable_nix_store_path_is_trusted(runtime, directory=False)
+metadata[store_root] = directory()
+metadata[runtime] = file(uid=65534)
+assert not module.immutable_nix_store_path_is_trusted(runtime, directory=False)
+metadata[runtime] = file()
+symlink = directory()
+symlink.st_mode = stat.S_IFLNK | 0o777
+metadata[app] = symlink
+assert not module.immutable_nix_store_path_is_trusted(runtime, directory=False)
+PY
+}
+
 test_tar_manifest_binds_install_metadata() {
     python3 - "$TEST_TMP/archive-root.tar" "$TEST_TMP/archive-user.tar" \
         "$TEST_TMP/archive-xattr.tar" <<'PY'
@@ -448,6 +558,15 @@ payload = {
 }
 pathlib.Path(sys.argv[1]).write_text(json.dumps(payload) + "\n", encoding="utf-8")
 PY
+    local broker_digest
+    broker_digest="$(printf '0%.0s' {1..64})"
+    printf '%s  %s\n' \
+        "$broker_digest" \
+        "chatgpt-generated-app-mutation-broker" \
+        > "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
+    python3 "$HELPER" write-generation-receipt \
+        --app "$app_dir" \
+        --broker-sha256 "$broker_digest" >/dev/null
 }
 
 run_rehearsal_gate() {
@@ -628,6 +747,8 @@ main() {
     [ -f "$HELPER" ] || fail "missing canonical helper: $HELPER"
     TEST_TMP="$(mktemp -d)"
     test_manifest_contract
+    test_mutable_manifest_rejects_hardlinks
+    test_immutable_nix_store_policy_predicates
     test_tar_manifest_binds_install_metadata
     test_snapshot_binds_opened_inode
     test_tree_snapshot_is_private_and_stable

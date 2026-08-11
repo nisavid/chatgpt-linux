@@ -82,6 +82,15 @@ payload = {
 }
 pathlib.Path(sys.argv[1]).write_text(json.dumps(payload) + "\n", encoding="utf-8")
 PY
+    local broker_digest
+    broker_digest="$(
+        sed -n 's/^\([0-9a-f]\{64\}\)  chatgpt-generated-app-mutation-broker$/\1/p' \
+            "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
+    )"
+    python3 "$REPO_DIR/scripts/lib/package-provenance.py" \
+        write-generation-receipt \
+        --app "$app_dir" \
+        --broker-sha256 "$broker_digest" >/dev/null
 }
 
 build_package() {
@@ -105,6 +114,28 @@ build_package() {
             bash "$builder" >"$TEST_TMP/build-$FORMAT.log" 2>&1; then
         sed -n '1,240p' "$TEST_TMP/build-$FORMAT.log" >&2
         fail "$FORMAT builder failed"
+    fi
+}
+
+expect_package_build_failure() {
+    local label="$1"
+    local builder
+    case "$FORMAT" in
+        deb) builder="$REPO_DIR/scripts/build-deb.sh" ;;
+        rpm) builder="$REPO_DIR/scripts/build-rpm.sh" ;;
+        pacman) builder="$REPO_DIR/scripts/build-pacman.sh" ;;
+    esac
+    if APP_DIR_OVERRIDE="$TEST_TMP/chatgpt" \
+        DIST_DIR_OVERRIDE="$TEST_TMP/dist" \
+        PKG_ROOT_OVERRIDE="$TEST_TMP/deb-root" \
+        PACKAGE_NAME=chatgpt \
+        PACKAGE_VERSION="$PACKAGE_VERSION" \
+        PACKAGE_WITH_UPDATER=0 \
+        SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+        CHATGPT_PORT_INTEGRATIONS_ROOT="$TEST_TMP/port-integrations" \
+        CHATGPT_PORT_INTEGRATIONS_CONFIG="$TEST_TMP/integrations.json" \
+            bash "$builder" >"$TEST_TMP/build-$label.log" 2>&1; then
+        fail "$FORMAT builder accepted $label after generation receipt publication"
     fi
 }
 
@@ -297,10 +328,8 @@ PY
     cp "$app_payload" "$saved_app_payload"
     printf 'changed packaged payload\n' >>"$app_payload"
     rm -f "$package"
-    build_package
-    package="$(find_package)"
+    expect_package_build_failure "changed-app-payload"
     cp "$saved_app_payload" "$app_payload"
-    expect_gate_failure "payload"
 
     local -a mutations=(hook dependency)
     if [ "$FORMAT" = "rpm" ]; then

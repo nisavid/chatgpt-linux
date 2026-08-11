@@ -340,6 +340,16 @@ make rpm
 make pacman
 ```
 
+`make build-app` publishes a sibling, content-addressed generation receipt
+under `.chatgpt-generation-receipts/`. The receipt binds the exact mutation
+broker, generated app manifest, and `.chatgpt-linux/build-info.json`. Keep the
+generated app and that sibling receipt root together; native package builders
+reject a missing or mismatched receipt before staging app bytes.
+
+The repository-approved offline `@parcel/watcher` bundle supports Linux glibc
+on x86_64, arm64/aarch64, and ARMv7 hard-float hosts. App generation rejects
+other platform, architecture, or libc combinations before invoking npm.
+
 Convenience targets are available when you want Make to run more of the native
 install lifecycle:
 
@@ -420,6 +430,7 @@ against that app and the pinned `chatgpt-dmg` output:
 ```bash
 APP_DIR=<chatgpt-release-app-store-path>/opt/chatgpt \
 DMG=<chatgpt-dmg-store-path> \
+PACKAGE_WITH_UPDATER=1 \
 REQUIRE_RELEASE_SIGNATURE=1 \
 CHATGPT_RELEASE_GPG_KEY=<key-id-or-email> \
 CHATGPT_RELEASE_GPG_FINGERPRINT=<approved-primary-fingerprint> \
@@ -429,10 +440,11 @@ make release-gate
 Public mode requires a root-managed multi-user Nix daemon with sandboxing
 enabled. The gate snapshots the clean source and DMG, independently builds the
 portable `chatgpt-release-app` and static `release-helpers` outputs, and requires
-the submitted app to match the reference exactly. It then verifies every
-package against that reference. Payload and install controls must match; RPM
-bytes must also match the deterministic reference package. Public packages must
-include the reviewed updater. Public mode writes signed `SHA256SUMS` and
+the submitted app to match the `chatgpt-release-app` reference exactly. It then
+uses that reference, not the submitted tree, as package authority. Payload and
+install controls must match; RPM bytes must also match the deterministic
+reference package. Public packages require `PACKAGE_WITH_UPDATER=1`. Public mode
+writes signed `SHA256SUMS` and
 `RELEASE-PROVENANCE.json` attestations. For a local unsigned rehearsal, set
 `CHATGPT_RELEASE_REHEARSAL=1`; a default invocation is a public release and
 fails without signing controls. Consumers must verify the signing-key

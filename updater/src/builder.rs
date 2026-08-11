@@ -27,6 +27,8 @@ const COMPUTER_USE_COSMIC_HELPER: &str = "chatgpt-computer-use-cosmic";
 const MUTATION_BROKER_HELPER: &str = "chatgpt-generated-app-mutation-broker";
 const MUTATION_BROKER_DIGEST: &str = "chatgpt-generated-app-mutation-broker.sha256";
 const MUTATION_BROKER_SOURCE_ENV: &str = "CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE";
+const GENERATION_RECEIPT_HELPER: &str = "scripts/lib/package-provenance.py";
+const TRUSTED_PYTHON_PATHS: &[&str] = &["/usr/bin/python3", "/bin/python3"];
 const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 4] = [
     (
         "chatgpt-chrome-extension-host",
@@ -207,6 +209,15 @@ pub async fn build_update_from(
     run_and_log(&mut install, &workspace.install_log)
         .await
         .context("install.sh failed during local rebuild")?;
+    validate_installed_generation_receipt(
+        &prebuilt_helpers.generation_receipt_helper,
+        &workspace.app_dir,
+        &prebuilt_helpers.mutation_broker.sha256,
+        &build_path,
+        &workspace.build_home,
+    )
+    .await
+    .context("generated app did not retain the package-owned mutation broker identity")?;
 
     state.status = UpdateStatus::BuildingPackage;
     let package_version = read_app_package_version(&workspace.app_dir)?;
@@ -273,7 +284,8 @@ struct BuilderWorkspace {
 
 #[derive(Debug)]
 struct PrebuiltHelperSources {
-    mutation_broker: PathBuf,
+    mutation_broker: RequiredMutationBroker,
+    generation_receipt_helper: PathBuf,
     computer_use_backend: Option<PathBuf>,
     computer_use_cosmic: Option<PathBuf>,
     independent: Vec<(&'static str, PathBuf)>,
@@ -283,6 +295,14 @@ impl PrebuiltHelperSources {
     fn from_bundle(bundle_root: &Path) -> Result<Self> {
         let helpers_dir = bundle_root.join(PREBUILT_HELPERS_DIR);
         let mutation_broker = required_mutation_broker_from_bundle(bundle_root)?;
+        let generation_receipt_helper = bundle_root.join(GENERATION_RECEIPT_HELPER);
+        validate_builder_source_entry(&generation_receipt_helper)
+            .context("generation receipt provenance helper is not trusted")?;
+        anyhow::ensure!(
+            generation_receipt_helper.is_file(),
+            "generation receipt provenance helper must be a regular file: {}",
+            generation_receipt_helper.display()
+        );
         let computer_use_backend =
             trusted_prebuilt_helper(&helpers_dir, COMPUTER_USE_BACKEND_HELPER);
         let computer_use_cosmic = trusted_prebuilt_helper(&helpers_dir, COMPUTER_USE_COSMIC_HELPER);
@@ -294,6 +314,7 @@ impl PrebuiltHelperSources {
 
         Ok(Self {
             mutation_broker,
+            generation_receipt_helper,
             computer_use_backend,
             computer_use_cosmic,
             independent: PREBUILT_HELPER_ENV_MAPPINGS
@@ -320,8 +341,89 @@ impl PrebuiltHelperSources {
     }
 
     fn apply_mutation_broker_to(&self, command: &mut Command) {
-        command.env(MUTATION_BROKER_SOURCE_ENV, &self.mutation_broker);
+        command.env(MUTATION_BROKER_SOURCE_ENV, &self.mutation_broker.path);
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RequiredMutationBroker {
+    path: PathBuf,
+    sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ValidatedGenerationReceipt {
+    broker_sha256: String,
+    app_manifest_sha256: String,
+    build_info_sha256: String,
+}
+
+async fn validate_installed_generation_receipt(
+    helper: &Path,
+    app_dir: &Path,
+    expected_broker_sha256: &str,
+    build_path: &OsString,
+    build_home: &Path,
+) -> Result<ValidatedGenerationReceipt> {
+    anyhow::ensure!(
+        is_lowercase_sha256(expected_broker_sha256),
+        "package-owned mutation broker digest is malformed"
+    );
+    validate_builder_source_entry(helper)
+        .context("generation receipt provenance helper is not trusted")?;
+    anyhow::ensure!(
+        helper.is_file(),
+        "generation receipt provenance helper must be a regular file: {}",
+        helper.display()
+    );
+    let python = trusted_system_program(TRUSTED_PYTHON_PATHS).context(
+        "A trusted system Python 3 executable is required to validate generation receipts",
+    )?;
+    let mut command = Command::new(python);
+    configure_build_command(&mut command, build_path, build_home);
+    command
+        .arg(helper)
+        .arg("validate-generation-receipt")
+        .arg("--app")
+        .arg(app_dir);
+    let output = command
+        .output()
+        .await
+        .context("Failed to run the generation receipt validator")?;
+    anyhow::ensure!(
+        output.status.success(),
+        "generation receipt validator rejected the generated app"
+    );
+    let stdout = std::str::from_utf8(&output.stdout)
+        .context("generation receipt validator returned non-UTF-8 output")?;
+    let line = stdout
+        .strip_suffix('\n')
+        .context("generation receipt validator output is missing its terminator")?;
+    anyhow::ensure!(
+        !line.contains('\n'),
+        "generation receipt validator returned multiple lines"
+    );
+    let fields = line.split_ascii_whitespace().collect::<Vec<_>>();
+    anyhow::ensure!(
+        fields.len() == 3 && fields.iter().all(|field| is_lowercase_sha256(field)),
+        "generation receipt validator output is malformed"
+    );
+    anyhow::ensure!(
+        fields[0] == expected_broker_sha256,
+        "generated app mutation broker digest does not match the package-owned broker"
+    );
+    Ok(ValidatedGenerationReceipt {
+        broker_sha256: fields[0].to_string(),
+        app_manifest_sha256: fields[1].to_string(),
+        build_info_sha256: fields[2].to_string(),
+    })
+}
+
+fn is_lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 impl BuilderWorkspace {
@@ -822,7 +924,7 @@ fn host_elf_class() -> Result<u8> {
     }
 }
 
-fn required_mutation_broker_from_bundle(bundle_root: &Path) -> Result<PathBuf> {
+fn required_mutation_broker_from_bundle(bundle_root: &Path) -> Result<RequiredMutationBroker> {
     let helpers_dir = bundle_root.join(PREBUILT_HELPERS_DIR);
     let broker = helpers_dir.join(MUTATION_BROKER_HELPER);
     let digest_path = helpers_dir.join(MUTATION_BROKER_DIGEST);
@@ -880,7 +982,10 @@ fn required_mutation_broker_from_bundle(bundle_root: &Path) -> Result<PathBuf> {
         "Generated-app mutation broker ELF architecture does not match this host: {}",
         broker.display()
     );
-    Ok(broker)
+    Ok(RequiredMutationBroker {
+        path: broker,
+        sha256: expected_digest,
+    })
 }
 
 fn is_node_toolchain_dir(path: &Path) -> bool {
@@ -1197,12 +1302,57 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         Ok(broker)
     }
 
+    fn write_generation_receipt_fixture(
+        root: &Path,
+        broker_digest: &str,
+    ) -> Result<(PathBuf, PathBuf)> {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .context("updater crate must have a repository parent")?;
+        let helper_source = repo_root.join("scripts/lib/package-provenance.py");
+        let bundle_root = root.join("bundle");
+        let helper = bundle_root.join("scripts/lib/package-provenance.py");
+        let app_dir = root.join("chatgpt");
+        fs::create_dir_all(helper.parent().context("helper must have a parent")?)?;
+        fs::copy(helper_source, &helper)?;
+        fs::create_dir_all(app_dir.join(".chatgpt-linux"))?;
+        fs::write(
+            app_dir.join(".chatgpt-linux/build-info.json"),
+            b"{\"schemaVersion\":1}\n",
+        )?;
+        fs::write(app_dir.join("payload.txt"), b"generated app payload\n")?;
+        fs::write(
+            app_dir.join(".chatgpt-linux/generated-app-mutation-broker.sha256"),
+            format!("{broker_digest}  {MUTATION_BROKER_HELPER}\n"),
+        )?;
+        let status = StdCommand::new(host_tool("python3")?)
+            .arg(&helper)
+            .args([
+                "write-generation-receipt",
+                "--app",
+                app_dir.to_str().context("test app path must be UTF-8")?,
+                "--broker-sha256",
+                broker_digest,
+            ])
+            .stdout(std::process::Stdio::null())
+            .status()?;
+        anyhow::ensure!(status.success(), "could not write test generation receipt");
+        Ok((helper, app_dir))
+    }
+
     #[test]
     fn required_mutation_broker_accepts_matching_host_elf_and_digest() -> Result<()> {
         let temp = tempdir()?;
         let broker = write_fake_mutation_broker_bundle(temp.path(), host_elf_machine()?)?;
+        let expected_digest = package_verification::file_sha256(&broker)?;
 
-        assert_eq!(required_mutation_broker_from_bundle(temp.path())?, broker);
+        assert_eq!(
+            required_mutation_broker_from_bundle(temp.path())?,
+            RequiredMutationBroker {
+                path: broker,
+                sha256: expected_digest,
+            }
+        );
         Ok(())
     }
 
@@ -1233,6 +1383,120 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         fs::rename(&broker, &actual)?;
         std::os::unix::fs::symlink(&actual, &broker)?;
         assert!(required_mutation_broker_from_bundle(symlinked.path()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn installed_generation_receipt_matches_retained_package_broker_digest() -> Result<()> {
+        let runtime = tokio::runtime::Runtime::new()?;
+        let temp = tempdir()?;
+        let broker_digest = "1".repeat(64);
+        let (helper, app_dir) = write_generation_receipt_fixture(temp.path(), &broker_digest)?;
+        let build_home = temp.path().join("home");
+        fs::create_dir_all(&build_home)?;
+        let build_path = std::env::join_paths(system_bin_dirs())?;
+
+        let receipt = runtime.block_on(validate_installed_generation_receipt(
+            &helper,
+            &app_dir,
+            &broker_digest,
+            &build_path,
+            &build_home,
+        ))?;
+
+        assert_eq!(receipt.broker_sha256, broker_digest);
+        Ok(())
+    }
+
+    #[test]
+    fn installed_generation_receipt_rejects_tampered_receipt_app_and_broker_digest() -> Result<()> {
+        let runtime = tokio::runtime::Runtime::new()?;
+        let expected_digest = "2".repeat(64);
+        let build_path = std::env::join_paths(system_bin_dirs())?;
+
+        let receipt_case = tempdir()?;
+        let (helper, app_dir) =
+            write_generation_receipt_fixture(receipt_case.path(), &expected_digest)?;
+        let receipt_root = receipt_case.path().join(".chatgpt-generation-receipts");
+        let receipt_path = fs::read_dir(&receipt_root)?
+            .next()
+            .context("generation receipt fixture is missing")??
+            .path();
+        let mut receipt: serde_json::Value = serde_json::from_slice(&fs::read(&receipt_path)?)?;
+        receipt["brokerSha256"] = serde_json::Value::String("3".repeat(64));
+        fs::write(&receipt_path, serde_json::to_vec(&receipt)?)?;
+        let build_home = receipt_case.path().join("home");
+        fs::create_dir_all(&build_home)?;
+        let error = runtime
+            .block_on(validate_installed_generation_receipt(
+                &helper,
+                &app_dir,
+                &expected_digest,
+                &build_path,
+                &build_home,
+            ))
+            .expect_err("tampered external receipt must fail validation");
+        assert!(error
+            .to_string()
+            .contains("generation receipt validator rejected"));
+
+        let app_case = tempdir()?;
+        let (helper, app_dir) =
+            write_generation_receipt_fixture(app_case.path(), &expected_digest)?;
+        fs::write(app_dir.join("payload.txt"), b"tampered app payload\n")?;
+        let build_home = app_case.path().join("home");
+        fs::create_dir_all(&build_home)?;
+        let error = runtime
+            .block_on(validate_installed_generation_receipt(
+                &helper,
+                &app_dir,
+                &expected_digest,
+                &build_path,
+                &build_home,
+            ))
+            .expect_err("tampered app bytes must fail receipt validation");
+        assert!(error
+            .to_string()
+            .contains("generation receipt validator rejected"));
+
+        let broker_case = tempdir()?;
+        let packaged_bundle = broker_case.path().join("packaged-builder");
+        let broker = write_fake_mutation_broker_bundle(&packaged_bundle, host_elf_machine()?)?;
+        fs::create_dir_all(
+            packaged_bundle
+                .join(GENERATION_RECEIPT_HELPER)
+                .parent()
+                .context("generation receipt helper must have a parent")?,
+        )?;
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .context("updater crate must have a repository parent")?
+                .join(GENERATION_RECEIPT_HELPER),
+            packaged_bundle.join(GENERATION_RECEIPT_HELPER),
+        )?;
+        let retained = PrebuiltHelperSources::from_bundle(&packaged_bundle)?;
+        let mut rebound_bytes = fs::read(&broker)?;
+        rebound_bytes.push(1);
+        fs::write(&broker, rebound_bytes)?;
+        let rebound_digest = package_verification::file_sha256(&broker)?;
+        assert_ne!(retained.mutation_broker.sha256, rebound_digest);
+        let (helper, app_dir) =
+            write_generation_receipt_fixture(broker_case.path(), &rebound_digest)?;
+        let build_home = broker_case.path().join("home");
+        fs::create_dir_all(&build_home)?;
+        let error = runtime
+            .block_on(validate_installed_generation_receipt(
+                &helper,
+                &app_dir,
+                &retained.mutation_broker.sha256,
+                &build_path,
+                &build_home,
+            ))
+            .expect_err("rebound broker source must not replace the retained package digest");
+        assert!(error
+            .to_string()
+            .contains("does not match the package-owned broker"));
         Ok(())
     }
 
@@ -1281,6 +1545,13 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
         write_fake_computer_use_bundle(&bundle_root)?;
         write_fake_port_integrations_bundle(&bundle_root)?;
         write_fake_patch_bundle(&bundle_root)?;
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .context("updater crate must have a repository parent")?
+                .join(GENERATION_RECEIPT_HELPER),
+            bundle_root.join(GENERATION_RECEIPT_HELPER),
+        )?;
         fs::write(bundle_root.join("CHANGELOG.md"), b"# Changelog\n")?;
         fs::write(
             bundle_root.join("launcher/start.sh.template"),
@@ -1365,6 +1636,11 @@ chmod +x "${CHATGPT_INSTALL_DIR}/start.sh"
 echo CHATGPT_APP_PACKAGE_VERSION=26.429.20946 > "${CHATGPT_INSTALL_DIR}/chatgpt-version.env"
 cp .chatgpt-linux/source-info.json "${CHATGPT_INSTALL_DIR}/app-source-info.json"
 printf '%s\n' "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" > "${CHATGPT_INSTALL_DIR}/install-integration-config-path"
+mkdir -p "${CHATGPT_INSTALL_DIR}/.chatgpt-linux"
+printf '%s\n' '{"schemaVersion":1}' > "${CHATGPT_INSTALL_DIR}/.chatgpt-linux/build-info.json"
+broker_digest="$(sha256sum "${CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE}" | awk '{print $1}')"
+printf '%s  chatgpt-generated-app-mutation-broker\n' "$broker_digest" \
+  > "${CHATGPT_INSTALL_DIR}/.chatgpt-linux/generated-app-mutation-broker.sha256"
 if [ -n "${CHATGPT_PATCH_REPORT_JSON:-}" ]; then
   mkdir -p "$(dirname "$CHATGPT_PATCH_REPORT_JSON")"
   printf '{"patches":[]}\n' > "${CHATGPT_PATCH_REPORT_JSON}"
@@ -1373,6 +1649,9 @@ if [ -n "${CHATGPT_REBUILD_REPORT_JSON:-}" ]; then
   mkdir -p "$(dirname "$CHATGPT_REBUILD_REPORT_JSON")"
   printf '{"appDir":"%s"}\n' "${CHATGPT_INSTALL_DIR}" > "${CHATGPT_REBUILD_REPORT_JSON}"
 fi
+python3 scripts/lib/package-provenance.py write-generation-receipt \
+  --app "${CHATGPT_INSTALL_DIR}" \
+  --broker-sha256 "$broker_digest" >/dev/null
 "#,
             )?,
         )?;
@@ -1576,6 +1855,10 @@ fi
             .workspace_dir
             .join("reports/rebuild-report.json")
             .exists());
+        assert!(artifacts
+            .workspace_dir
+            .join(".chatgpt-generation-receipts")
+            .is_dir());
         let expected_path = std::env::join_paths([
             bundle_root.join("node-runtime/bin"),
             PathBuf::from("/usr/sbin"),

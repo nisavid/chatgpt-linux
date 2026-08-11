@@ -243,6 +243,22 @@ JSON
     printf '%s\n' '{"name":"record-and-replay","version":"1.0.0"}' > "$plugins_dir/record-and-replay/.codex-plugin/plugin.json"
 }
 
+write_fake_app_generation_receipt() {
+    local app_dir="$1"
+    local broker_digest
+
+    broker_digest="$(sha256sum "$MUTATION_BROKER_SOURCE" | awk '{print $1}')"
+    mkdir -p "$app_dir/.chatgpt-linux"
+    printf '%s  %s\n' \
+        "$broker_digest" \
+        "chatgpt-generated-app-mutation-broker" \
+        > "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
+    python3 "$REPO_DIR/scripts/lib/package-provenance.py" \
+        write-generation-receipt \
+        --app "$app_dir" \
+        --broker-sha256 "$broker_digest" >/dev/null
+}
+
 make_fake_app() {
     local app_dir="$1"
     bash "$REPO_DIR/tests/fixtures/create-packaged-app-fixture.sh" "$app_dir"
@@ -264,11 +280,7 @@ make_fake_app() {
         printf '#!/usr/bin/env bash\nexit 0\n' > "$helper"
         chmod 0755 "$helper"
     done
-    mkdir -p "$app_dir/.chatgpt-linux"
-    printf '%s  %s\n' \
-        "$(sha256sum "$MUTATION_BROKER_SOURCE" | awk '{print $1}')" \
-        "chatgpt-generated-app-mutation-broker" \
-        > "$app_dir/.chatgpt-linux/generated-app-mutation-broker.sha256"
+    write_fake_app_generation_receipt "$app_dir"
 }
 
 make_stub_bin_dir() {
@@ -670,6 +682,8 @@ SCRIPT
     assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
     assert_file_exists "$pkg_root/DEBIAN/postrm"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/package-common.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/package-provenance.py"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher-target.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/package-lock.json"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-chrome-plugin.js"
@@ -728,6 +742,12 @@ SCRIPT
     assert_contains \
         "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
         "scripts/lib/parcel-watcher/approved.json"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "scripts/lib/package-provenance.py"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "scripts/lib/parcel-watcher-target.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/Cargo.toml"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/CHANGELOG.md"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/launcher/cli-launch-path.py"
@@ -1248,6 +1268,7 @@ test_rpm_builder_smoke() {
     chmod 0700 "$app_dir" "$app_dir/content" "$app_dir/content/webview"
     chmod 0700 "$app_dir/start.sh"
     chmod 0600 "$app_dir/content/webview/index.html"
+    write_fake_app_generation_receipt "$app_dir"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$updater_bin"
     chmod +x "$updater_bin"
 
@@ -1764,6 +1785,17 @@ test_make_install_reports_missing_native_packages() {
 
         assert_contains "$output_log" "$expected"
     done
+}
+
+test_make_clean_removes_generation_receipts() {
+    info "Checking make clean removes generated app receipts"
+    local workspace="$TMP_DIR/make-clean-receipts"
+    local output_log="$workspace/clean.log"
+
+    mkdir -p "$workspace"
+    make -n -f "$REPO_DIR/Makefile" -C "$workspace" clean >"$output_log"
+
+    assert_contains "$output_log" "$workspace/.chatgpt-generation-receipts"
 }
 
 test_make_run_app_reports_missing_launcher() {
@@ -9295,11 +9327,14 @@ if (JSON.stringify(names) !== JSON.stringify(expected)) {
 for (const plugin of marketplace.plugins) {
   if (plugin.source?.source !== "local" || plugin.source.path !== `./plugins/${plugin.name}`) {
     throw new Error(`unsafe marketplace source for ${plugin.name}`);
-  }
+    }
 }
 NODE
     node --check "$plugins_dir/sites/mcp/server.mjs"
-    python3 -m py_compile "$plugins_dir/visualize/skills/visualize/scripts/render.py"
+    python3 -c \
+        'import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)' \
+        "$plugins_dir/visualize/skills/visualize/scripts/render.py" \
+        "$workspace/render.pyc"
 }
 
 test_portable_bundled_plugins_reject_unsafe_content() {
@@ -11922,7 +11957,7 @@ test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
         export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/package-common.sh"
-        stage_update_builder_prebuilt_helpers "$update_builder"
+        stage_update_builder_prebuilt_helpers "$update_builder" "$app_dir"
     )
 
     assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-global-dictation-linux"
@@ -12009,6 +12044,7 @@ test_stage_common_package_files_resolves_tray_icon_deterministically() {
     mkdir -p "$app_dir/content/webview/assets"
     printf '%s\n' 'package-icon' > "$icon_source"
     printf '%s\n' 'upstream-tray' > "$app_dir/content/webview/assets/app-main.png"
+    write_fake_app_generation_receipt "$app_dir"
 
     (
         export APP_DIR="$app_dir"
@@ -12051,6 +12087,7 @@ test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing() 
             printf '%s\n' 'upstream-a' > "$app_dir/content/webview/assets/app-alpha.png"
             printf '%s\n' 'upstream-b' > "$app_dir/content/webview/assets/app-beta.png"
         fi
+        write_fake_app_generation_receipt "$app_dir"
 
         (
             export APP_DIR="$app_dir"
@@ -12140,7 +12177,7 @@ JSON
 
         # shellcheck disable=SC1091
         source "$REPO_DIR/scripts/lib/package-common.sh"
-        stage_update_builder_bundle "$root"
+        stage_update_builder_bundle "$root" "$app_dir"
     )
 
     assert_file_not_exists "$staged_config"
@@ -12436,7 +12473,11 @@ EOF
         install_app() { :; }
         install_bundled_plugin_resources() { :; }
         create_start_script() { :; }
-        write_build_info() { :; }
+        write_build_info() {
+            mkdir -p "$INSTALL_DIR/.chatgpt-linux"
+            printf "%s\n" "{\"schemaVersion\":1}" \
+                > "$INSTALL_DIR/.chatgpt-linux/build-info.json"
+        }
 
         main
     ' _ "$REPO_DIR/install.sh" >"$output_log" 2>&1
@@ -13261,6 +13302,7 @@ main() {
     test_appimage_builder_smoke
     test_missing_input_failure
     test_make_install_reports_missing_native_packages
+    test_make_clean_removes_generation_receipts
     test_make_run_app_reports_missing_launcher
     test_make_build_app_uses_installer_download_flow_by_default
     test_make_build_app_fresh_uses_installer_fresh_flow

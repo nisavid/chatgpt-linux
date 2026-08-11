@@ -418,7 +418,7 @@ service-status:
 
 clean:
 	@echo "[make] Removing generated app, cached DMG, dist/, and rebuild artifacts"
-	rm -rf "$(CURDIR)/chatgpt" "$(CURDIR)/ChatGPT.dmg" "$(CURDIR)/dist" "$(NEXT_APP_DIR)" "$(REBUILD_REPORT_DIR)"
+	rm -rf "$(CURDIR)/chatgpt" "$(CURDIR)/.chatgpt-generation-receipts" "$(CURDIR)/ChatGPT.dmg" "$(CURDIR)/dist" "$(NEXT_APP_DIR)" "$(REBUILD_REPORT_DIR)"
 
 clean-dist:
 	@echo "[make] Removing dist/ and rebuild reports"

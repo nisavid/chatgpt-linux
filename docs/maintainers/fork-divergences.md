@@ -376,6 +376,11 @@ update-builder's `prebuilt-helpers/` lane. Packaged updater rebuilds use only
 the validated prebuilt helper under their cleared build environment. The helper
 is absent from `/opt/chatgpt` runtime payloads and user commands.
 
+Successful generation also publishes a sibling external receipt keyed by the
+complete app-manifest digest. It binds the executed broker, app manifest, and
+`.chatgpt-linux/build-info.json` digest. Native package staging requires this
+receipt before copying app bytes and revalidates it after the copy.
+
 Transactional app generation creates and verifies the sibling candidate as an
 owned, non-symlink `0700` directory before population. The inner build preserves
 and revalidates it even under `--fresh`. After integrity and official-DMG
@@ -397,14 +402,19 @@ exclusive-writer premise until acceptance.
 `scripts/patches/lib/generated-app-mutation-client.js`,
 `scripts/patches/lib/assets.js`, `scripts/patches/engine.js`,
 `scripts/patches/runner.js`, `scripts/lib/generated-app-mutation-broker.sh`,
-`install.sh`, `scripts/lib/install-helpers.sh`,
+`scripts/lib/package-provenance.py`, `install.sh`,
+`scripts/lib/install-helpers.sh`,
 `scripts/lib/package-common.sh`, `updater/src/builder.rs`, and `flake.nix`.
 The gate contract is documented in
 `docs/maintainers/research/generated-app-mutation-integrity-boundary.md`.
 
 **Preservation checks:** Keep the broker out of runtime payloads; bind packaged
-prebuilt use to the generated app's exact digest; retain poison/fail-closed
-handling and private-root checks. Extracted-app descriptor callbacks,
+prebuilt use to the generated app's exact digest; require the external
+broker/app/build-info receipt before native package staging; retain poison/fail-closed
+handling and private-root checks. Run `tests/generated_app_mutation_broker.sh`
+and `tests/package_release_gate.sh deb`, `tests/package_release_gate.sh rpm`,
+and `tests/package_release_gate.sh pacman` for the formats available on the
+host. Extracted-app descriptor callbacks,
 declarative resource copies, and shell staging hooks remain future Gates 3 and
 4; do not describe them as capability-mediated yet.
 
@@ -489,10 +499,15 @@ URL validation, download limits, partial-file downloads, and sanitized URL
 logging. Public validation uses a trusted system Node runtime rather than code
 from the app under review. The
 generated-app mutation-broker manifest is derived from the descriptor actually
-executed, and the official app's Parcel watcher is installed from a complete
-repository-approved offline archive set rather than a live registry.
-Public native packages must include the reviewed updater and are verified only
-against the immutable Nix app reference.
+executed. An external content-addressed generation receipt binds that broker to
+the complete app manifest and build info before native package staging. The official
+app's Parcel watcher is installed from approved offline bytes only after the
+host matches `linux-x64-glibc` on `x86_64`, `linux-arm64-glibc` on `aarch64` or
+`arm64`, or `linux-arm-glibc` on ARMv7 hard-float `armv7l`; unsupported hosts
+fail before npm or module load. Public native packages require
+`PACKAGE_WITH_UPDATER=1` and are verified only against the independent immutable
+Nix app reference. The release signer must match the exact
+`CHATGPT_RELEASE_GPG_FINGERPRINT`.
 
 **Upstream baseline:** Upstream already downloads and converts the official
 OpenAI ChatGPT DMG. This fork adds extra verification and review gates around
@@ -507,7 +522,8 @@ avoid presenting unverified artifacts as trusted.
 `.github/workflows/updater.yml`, `Makefile`, `flake.nix`,
 `scripts/release-gate.sh`, `scripts/verify-apple-dmg.sh`,
 `scripts/inspect-electron-security.js`, `scripts/lib/package-provenance.py`,
-`scripts/lib/parcel-watcher/`, `scripts/lib/dmg.sh`,
+`scripts/lib/parcel-watcher/`, `scripts/lib/parcel-watcher-target.js`,
+`scripts/lib/webview-install.sh`, `scripts/lib/dmg.sh`,
 `updater/trusted-dmg-manifest.json`, `updater/src/trust.rs`,
 `updater/src/dmg_source.rs`, `updater/src/app.rs`,
 `docs/maintainers/security-backlog.md`, `docs/maintainers/threat-model.md`.
@@ -516,11 +532,18 @@ avoid presenting unverified artifacts as trusted.
 `release-gate`. Run `tests/package_provenance.sh`,
 `tests/package_release_gate.sh` for each available native format,
 `tests/release_gate_public_contract.sh`, `tests/updater_reproducibility.sh`, and
-`tests/parcel_watcher_trust.sh` when release/package ingress changes. Build
+`tests/parcel_watcher_trust.sh` when release/package ingress changes. Run
+`node --test scripts/lib/parcel-watcher-target.test.js` when host selection
+changes. Build
 `.#chatgpt-release-app` and `.#release-helpers`, and exercise the public
 updater-enabled signed release path, before publication. Security
 backlog items that change trust boundaries should use the `@codex-security`
 workflow before review-ready handoff.
+
+The Nix release app must discard the install-time receipt before ELF, mode, and
+post-install mutation, then publish a new receipt only after those mutations
+finish. Keep the separate flake check that validates the receipt from the final
+imported `/nix/store` output.
 
 ### 14. User-Local Install Experiment Identity And Layout
 

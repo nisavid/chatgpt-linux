@@ -8,6 +8,7 @@ chatgpt.backup-*/
 .chatgpt.candidate-*/
 .chatgpt.promotion.json
 .chatgpt.promotion.lock
+.chatgpt-generation-receipts/
 codex-*-app/
 chatgpt-next/
 bin/codex-*

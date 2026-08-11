@@ -1084,6 +1084,8 @@ stage_common_package_files() {
     local app_root="$root/opt/$PACKAGE_NAME"
     local support_root="$root/usr/lib/$PACKAGE_NAME"
     local polkit_policy="$REPO_DIR/packaging/linux/com.github.nisavid.chatgpt.update.policy"
+    local staged_generation_receipt
+    local staged_receipt_root
 
     validate_package_inputs
     validate_app_payload_source
@@ -1098,9 +1100,20 @@ stage_common_package_files() {
         "$support_root" \
         "$root/usr/share/applications" \
         "$root/usr/share/icons/hicolor/256x256/apps"
+    staged_receipt_root="$(cd "$root/opt" && pwd)/.chatgpt-generation-receipts"
 
     rm -rf "$app_root"
-    cp -aT "$APP_DIR" "$app_root"
+    staged_generation_receipt="$(copy_generation_bound_app_payload "$app_root")" || \
+        error "Could not copy the generation-bound app payload"
+    [ "$(dirname "$staged_generation_receipt")" = "$staged_receipt_root" ] && \
+        [[ "$(basename "$staged_generation_receipt")" =~ ^[0-9a-f]{64}\.json$ ]] || \
+        error "Staged generation receipt has an unexpected path: $staged_generation_receipt"
+    if package_with_updater_enabled; then
+        stage_update_builder_bundle "$root" "$app_root"
+    fi
+    rm -f -- "$staged_generation_receipt"
+    rmdir -- "$staged_receipt_root" || \
+        error "Could not remove the package-staging generation receipt root"
     normalize_app_payload_modes "$app_root"
     mkdir -p "$app_root/.chatgpt-linux"
     cp "$ICON_SOURCE" "$app_root/.chatgpt-linux/$PACKAGE_NAME.png"
@@ -1125,6 +1138,50 @@ stage_common_package_files() {
     fi
     render_packaged_runtime_helper "$support_root/packaged-runtime.sh"
 }
+
+copy_generation_bound_app_payload() (
+    local app_root="$1"
+    local provenance_helper="$REPO_DIR/scripts/lib/package-provenance.py"
+    local receipt_before
+    local receipt_after
+    local expected_broker_digest
+    local expected_app_manifest
+    local staged_receipt
+    local staged_app_manifest
+    local work_dir
+
+    [ -f "$provenance_helper" ] && [ ! -L "$provenance_helper" ] || \
+        error "Missing package provenance helper: $provenance_helper"
+    receipt_before="$(read_generation_bound_mutation_broker_receipt "$APP_DIR")" || \
+        error "Generated app is missing a valid external generation receipt"
+    expected_broker_digest="${receipt_before%% *}"
+    expected_app_manifest="${receipt_before#* }"
+    expected_app_manifest="${expected_app_manifest%% *}"
+    work_dir="$(mktemp -d "${TMPDIR:-/tmp}/chatgpt-app-copy.XXXXXX")" || \
+        error "Could not create app-copy verification workspace"
+    trap 'rm -rf -- "$work_dir"' EXIT
+
+    cp -aT --no-preserve=links "$APP_DIR" "$app_root"
+    python3 "$provenance_helper" manifest "$app_root" "$work_dir/staged.json" || \
+        error "Could not manifest the staged app payload"
+    staged_app_manifest="$(
+        python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifestSha256"])' \
+            "$work_dir/staged.json"
+    )" || error "Could not read the staged app manifest digest"
+    [ "$staged_app_manifest" = "$expected_app_manifest" ] || \
+        error "Staged app payload differs from its generation receipt"
+
+    receipt_after="$(read_generation_bound_mutation_broker_receipt "$APP_DIR")" || \
+        error "Generated app changed while its package payload was copied"
+    [ "$receipt_after" = "$receipt_before" ] || \
+        error "Generated app receipt changed while its package payload was copied"
+    staged_receipt="$(python3 "$provenance_helper" write-generation-receipt \
+        --app "$app_root" \
+        --broker-sha256 "$expected_broker_digest")" || \
+        error "Could not bind the staged app payload to its generation receipt"
+    printf '%s\n' "$staged_receipt"
+)
 
 resolve_tray_icon_source() {
     local app_root="$1"
@@ -1155,8 +1212,9 @@ stage_update_builder_bundle() {
     package_with_updater_enabled || return 0
 
     local root="$1"
+    local app_source_root="$2"
     local update_builder_root="$root/usr/lib/$PACKAGE_NAME/update-builder"
-    local node_runtime_source="$APP_DIR/resources/node-runtime"
+    local node_runtime_source="$app_source_root/resources/node-runtime"
 
     mkdir -p \
         "$update_builder_root/scripts" \
@@ -1195,6 +1253,10 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/patch-linux-window-ui.js" "$update_builder_root/scripts/patch-linux-window-ui.js"
     cp -r "$REPO_DIR/scripts/patches/." "$update_builder_root/scripts/patches/"
     cp "$REPO_DIR/scripts/lib/package-common.sh" "$update_builder_root/scripts/lib/package-common.sh"
+    cp "$REPO_DIR/scripts/lib/package-provenance.py" \
+        "$update_builder_root/scripts/lib/package-provenance.py"
+    cp "$REPO_DIR/scripts/lib/parcel-watcher-target.js" \
+        "$update_builder_root/scripts/lib/parcel-watcher-target.js"
     cp -r "$REPO_DIR/scripts/lib/parcel-watcher" \
         "$update_builder_root/scripts/lib/parcel-watcher"
     cp "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh" \
@@ -1246,7 +1308,7 @@ stage_update_builder_bundle() {
     fi
     cp "$REPO_DIR/assets/chatgpt.png" "$update_builder_root/assets/chatgpt.png"
     cp "$REPO_DIR/assets/chatgpt-linux.png" "$update_builder_root/assets/chatgpt-linux.png"
-    stage_update_builder_prebuilt_helpers "$update_builder_root"
+    stage_update_builder_prebuilt_helpers "$update_builder_root" "$app_source_root"
     stage_update_builder_source_info "$update_builder_root"
     write_update_builder_manifest "$update_builder_root"
     if [ -d "$node_runtime_source" ]; then
@@ -1269,11 +1331,12 @@ stage_update_builder_prebuilt_helper() {
 
 stage_update_builder_prebuilt_helpers() {
     local update_builder_root="$1"
+    local app_source_root="$2"
     local helpers_root="$update_builder_root/prebuilt-helpers"
-    local computer_use_root="$APP_DIR/resources/plugins/openai-bundled/plugins/computer-use/bin"
-    local notification_actions_source="$APP_DIR/resources/native/chatgpt-notification-actions-linux"
-    local global_dictation_source="$APP_DIR/resources/native/chatgpt-global-dictation-linux"
-    local read_aloud_mcp_source="$APP_DIR/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    local computer_use_root="$app_source_root/resources/plugins/openai-bundled/plugins/computer-use/bin"
+    local notification_actions_source="$app_source_root/resources/native/chatgpt-notification-actions-linux"
+    local global_dictation_source="$app_source_root/resources/native/chatgpt-global-dictation-linux"
+    local read_aloud_mcp_source="$app_source_root/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
     local chrome_host_source=""
     local chrome_arch=""
     local mutation_broker_source
@@ -1282,7 +1345,7 @@ stage_update_builder_prebuilt_helpers() {
         error "Could not resolve the generated-app mutation broker used by this package build"
     mutation_broker_source="$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
     stage_generation_bound_mutation_broker \
-        "$APP_DIR" \
+        "$app_source_root" \
         "$mutation_broker_source" \
         "$helpers_root/$GENERATED_APP_MUTATION_BROKER_BINARY" || \
         error "Could not stage the generation-bound generated-app mutation broker"
@@ -1292,7 +1355,7 @@ stage_update_builder_prebuilt_helpers() {
         aarch64|arm64) chrome_arch="arm64" ;;
     esac
     if [ -n "$chrome_arch" ]; then
-        chrome_host_source="$APP_DIR/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$chrome_arch/extension-host"
+        chrome_host_source="$app_source_root/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$chrome_arch/extension-host"
     fi
 
     local backend_source="$computer_use_root/chatgpt-computer-use-linux"
@@ -1329,14 +1392,6 @@ stage_update_builder_prebuilt_helpers() {
             "$read_aloud_mcp_source" \
             "$helpers_root/chatgpt-read-aloud-linux" \
             "Read Aloud MCP" || error "Enabled Read Aloud MCP helper is missing from the generated app"
-    fi
-}
-
-stage_optional_update_builder_bundle() {
-    if package_with_updater_enabled; then
-        stage_update_builder_bundle "$@"
-    else
-        info "Skipping update-builder bundle (PACKAGE_WITH_UPDATER=0)"
     fi
 }
 
@@ -1457,7 +1512,9 @@ stage_native_package_payload() {
 
     ensure_package_source_date_epoch
     stage_common_package_files "$root"
-    stage_optional_update_builder_bundle "$root"
+    if ! package_with_updater_enabled; then
+        info "Skipping update-builder bundle (PACKAGE_WITH_UPDATER=0)"
+    fi
     write_launcher_stub "$root"
     stage_port_integration_package_resources "$root" "$package_format"
     run_port_integration_package_hooks "$root" "$package_format"
