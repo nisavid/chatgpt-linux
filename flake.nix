@@ -52,9 +52,23 @@
             })
           ];
         };
-        flakeSourceCommit = self.rev or (self.dirtyRev or "");
+        stagedSourceInfoPath = ./. + "/.chatgpt-linux/source-info.json";
+        stagedSourceInfo =
+          if builtins.pathExists stagedSourceInfoPath then
+            builtins.fromJSON (builtins.readFile stagedSourceInfoPath)
+          else
+            { };
+        flakeSourceCommit = self.rev or (self.dirtyRev or (stagedSourceInfo.commit or ""));
         flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";
-        flakeSourceDateEpoch = toString (self.lastModified or 1);
+        flakeSourceDateEpoch = toString (stagedSourceInfo.sourceDateEpoch or (self.lastModified or 1));
+        releaseSandboxCanaryPathFile = ./. + "/.chatgpt-linux/release-sandbox-canary-path";
+        releaseSandboxCanaryPath =
+          if builtins.pathExists releaseSandboxCanaryPathFile then
+            pkgs.lib.removeSuffix "\n" (builtins.readFile releaseSandboxCanaryPathFile)
+          else
+            "";
+        releaseSandboxCanaryPathIsValid =
+          builtins.match "/var/tmp/chatgpt-release-nix-sandbox-canary-[A-Za-z0-9-]+" releaseSandboxCanaryPath != null;
         sourceRoot = pkgs.lib.cleanSourceWith {
           src = ./.;
           filter = path: type:
@@ -62,7 +76,8 @@
             && (let
               pathStr = toString path;
             in
-              !(pkgs.lib.hasSuffix "/.codex" pathStr || pkgs.lib.hasInfix "/.codex/" pathStr));
+              !(pkgs.lib.hasSuffix "/.codex" pathStr || pkgs.lib.hasInfix "/.codex/" pathStr)
+              && !(pkgs.lib.hasSuffix "/.chatgpt-linux/release-sandbox-canary-path" pathStr));
         };
         nixPortIntegrations = import ./nix/port-integrations.nix { lib = pkgs.lib; };
         computerUseBuildSource = pkgs.runCommandLocal "chatgpt-computer-use-linux-source" { } ''
@@ -76,15 +91,16 @@
           cp -R ${./computer-use-linux} "$out/computer-use-linux"
           chmod -R u+w "$out"
         '';
-        mutationBrokerBuildSource = pkgs.runCommandLocal "chatgpt-generated-app-mutation-broker-source" { } ''
+        releaseHelpersBuildSource = pkgs.runCommandLocal "chatgpt-release-helpers-source" { } ''
           mkdir -p "$out"
           cp ${./Cargo.lock} "$out/Cargo.lock"
           cat > "$out/Cargo.toml" <<'EOF'
           [workspace]
-          members = ["generated-app-mutation-broker"]
+          members = ["generated-app-mutation-broker", "updater"]
           resolver = "2"
           EOF
           cp -R ${./generated-app-mutation-broker} "$out/generated-app-mutation-broker"
+          cp -R ${./updater} "$out/updater"
           chmod -R u+w "$out"
         '';
         notificationActionsBuildSource = pkgs.runCommandLocal "chatgpt-notification-actions-linux-source" { } ''
@@ -130,16 +146,35 @@
         runtimeNodePlatform =
           {
             x86_64-linux = {
+              managedNodeArch = "x64";
+              managedNodeSha256 = "88fd1ce767091fd8d4a99fdb2356e98c819f93f3b1f8663853a2dee9b438068a";
               sharp = "linux-x64";
               sharpLibvips = "linux-x64";
               canvas = "linux-x64-gnu";
             };
             aarch64-linux = {
+              managedNodeArch = "arm64";
+              managedNodeSha256 = "e9e1930fd321a470e29bb68f30318bf58e3ecb4acb4f1533fb19c58328a091fe";
               sharp = "linux-arm64";
               sharpLibvips = "linux-arm64";
               canvas = "linux-arm64-gnu";
             };
           }.${system} or (throw "chatgpt-linux runtime library paths are not supported on ${system}");
+
+        managedNodeVersion = "v22.22.2";
+        managedNodeArchive = pkgs.fetchurl {
+          url = "https://nodejs.org/dist/${managedNodeVersion}/node-${managedNodeVersion}-linux-${runtimeNodePlatform.managedNodeArch}.tar.xz";
+          sha256 = runtimeNodePlatform.managedNodeSha256;
+        };
+        managedPortableNode = pkgs.runCommandLocal "chatgpt-managed-node-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
+          nativeBuildInputs = [ pkgs.gnutar pkgs.xz ];
+        } ''
+          mkdir -p "$out"
+          tar -xJf ${managedNodeArchive} --strip-components=1 -C "$out"
+          test -x "$out/bin/node"
+          test -x "$out/bin/npm"
+          test -x "$out/bin/npx"
+        '';
 
         electronHeaders = pkgs.fetchurl {
           url = "https://artifacts.electronjs.org/headers/dist/v${electronVersion}/node-v${electronVersion}-headers.tar.gz";
@@ -204,36 +239,72 @@
           '';
         };
 
-        chatgptGeneratedAppMutationBroker = pkgs.rustPlatform.buildRustPackage {
-          pname = "chatgpt-generated-app-mutation-broker";
-          version = "0.1.0";
-          src = mutationBrokerBuildSource;
+        updaterManifest = builtins.fromTOML (builtins.readFile ./updater/Cargo.toml);
+        releaseHelperMachine =
+          if pkgs.stdenv.hostPlatform.isx86_64 then "Advanced Micro Devices X86-64"
+          else if pkgs.stdenv.hostPlatform.isAarch64 then "AArch64"
+          else throw "chatgpt release helpers are not supported on ${system}";
+        portableElfInterpreter =
+          if pkgs.stdenv.hostPlatform.isx86_64 then "/lib64/ld-linux-x86-64.so.2"
+          else if pkgs.stdenv.hostPlatform.isAarch64 then "/lib/ld-linux-aarch64.so.1"
+          else throw "chatgpt release app is not supported on ${system}";
+        chatgptReleaseHelpers = pkgs.pkgsStatic.rustPlatform.buildRustPackage {
+          pname = "chatgpt-release-helpers";
+          version = updaterManifest.package.version;
+          src = releaseHelpersBuildSource;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
           };
 
-          buildAndTestSubdir = "generated-app-mutation-broker";
           cargoBuildFlags = [
             "-p"
             "generated-app-mutation-broker"
-            "--bin"
-            "chatgpt-generated-app-mutation-broker"
+            "-p"
+            "chatgpt-updater"
+            "--bins"
           ];
           doCheck = false;
+          allowedReferences = [ pkgs.asar ];
+          nativeBuildInputs = [
+            pkgs.binutils
+          ];
 
           installPhase = ''
             runHook preInstall
-            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.pkgsStatic.stdenv.hostPlatform.rust.rustcTarget}}/release"
             if [ ! -d "$release_dir" ]; then
               release_dir="target/release"
             fi
             install -Dm0755 \
+              "$release_dir/chatgpt-updater" \
+              "$out/bin/chatgpt-updater"
+            install -Dm0755 \
               "$release_dir/chatgpt-generated-app-mutation-broker" \
               "$out/bin/chatgpt-generated-app-mutation-broker"
+            ln -s ${pkgs.asar}/bin/asar "$out/bin/asar"
+            for binary in \
+              "$out/bin/chatgpt-updater" \
+              "$out/bin/chatgpt-generated-app-mutation-broker"; do
+              test -f "$binary"
+              test ! -L "$binary"
+              test -x "$binary"
+              ${pkgs.binutils}/bin/readelf -h "$binary" \
+                | grep -F "Machine:                           ${releaseHelperMachine}" >/dev/null
+              if ${pkgs.binutils}/bin/readelf -l "$binary" | grep -F 'INTERP' >/dev/null; then
+                echo "release helper has a dynamic ELF interpreter: $binary" >&2
+                exit 1
+              fi
+              if ${pkgs.binutils}/bin/readelf -d "$binary" 2>/dev/null \
+                  | grep -E '(NEEDED|RPATH|RUNPATH)' >/dev/null; then
+                echo "release helper has dynamic library dependencies: $binary" >&2
+                exit 1
+              fi
+            done
             runHook postInstall
           '';
         };
+        chatgptGeneratedAppMutationBroker = chatgptReleaseHelpers;
 
         chatgptReadAloudMcpBinary = pkgs.rustPlatform.buildRustPackage {
           pname = "chatgpt-read-aloud-linux-binary";
@@ -595,6 +666,19 @@ PY
             inherit enabled;
           };
 
+        portIntegrationEnabled = config: integrationId:
+          let
+            manifestPath = ./. + "/port-integrations/${integrationId}/integration.json";
+            manifest =
+              if builtins.pathExists manifestPath then
+                builtins.fromJSON (builtins.readFile manifestPath)
+              else
+                throw "Missing port integration manifest: ${integrationId}";
+            explicitlyEnabled = builtins.elem integrationId (config.enabled or [ ]);
+            explicitlyDisabled = builtins.elem integrationId (config.disabled or [ ]);
+          in
+          !explicitlyDisabled && (explicitlyEnabled || (manifest.defaultEnabled or false));
+
         watchdogPortIntegrationsConfig = normalizePortIntegrationsConfig (
           builtins.fromJSON (builtins.readFile ./scripts/ci/watchdog-port-integrations.json)
         );
@@ -608,6 +692,185 @@ PY
           in
           if integrationIds == [ ] then "" else "-${pkgs.lib.concatStringsSep "-" integrationIds}";
 
+        mkChatGPTReleaseApp = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
+        let
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          effectivePortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
+          mcpHelperReaperEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "mcp-helper-reaper";
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "chatgpt-release-app";
+          version = chatgptVersion;
+          src = sourceRoot;
+          __structuredAttrs = true;
+
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.cargo
+            pkgs.curl
+            pkgs.file
+            pkgs.gcc
+            pkgs.gnumake
+            pkgs.gnused
+            pkgs.nodejs
+            pkgs.asar
+            pkgs._7zz
+            pkgs.patchelf
+            pkgs.python3
+            pkgs.unzip
+            pkgs.util-linux
+          ];
+
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true;
+          allowedReferences = [ ];
+
+          installPhase = ''
+            runHook preInstall
+
+            export HOME="$TMPDIR/home"
+            export npm_config_cache="$TMPDIR/npm-cache"
+            export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            export NIX_SSL_CERT_FILE="$SSL_CERT_FILE"
+            export npm_config_cafile="$SSL_CERT_FILE"
+            export CARGO_HOME="$TMPDIR/cargo-home"
+            export CARGO_BUILD_JOBS=1
+            export SOURCE_DATE_EPOCH="${flakeSourceDateEpoch}"
+            export CHATGPT_LINUX_TARGET_ID="generic-linux"
+            export CHATGPT_LINUX_TARGET_ID_LIKE=""
+            export CHATGPT_LINUX_TARGET_VERSION_ID=""
+            export CHATGPT_LINUX_TARGET_PRETTY_NAME="Generic Linux"
+            export CHATGPT_LINUX_TARGET_PACKAGE_FORMAT="unknown"
+            export CHATGPT_LINUX_TARGET_PACKAGE_MANAGER="unknown"
+            export CHATGPT_LINUX_TARGET_ARCH="${runtimeNodePlatform.managedNodeArch}"
+            export CHATGPT_LINUX_TARGET_KERNEL_RELEASE="linux"
+            export CHATGPT_LINUX_TARGET_DESKTOP=""
+            export CHATGPT_LINUX_TARGET_SESSION_TYPE=""
+            export CHATGPT_LINUX_TARGET_ATOMIC=0
+            ${pkgs.lib.optionalString (flakeSourceCommit != "") ''
+            export CHATGPT_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
+            export CHATGPT_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"
+            ''}
+            export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
+            export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
+            export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
+            managed_node_build="$TMPDIR/managed-node-runtime"
+            cp -a ${managedPortableNode} "$managed_node_build"
+            chmod -R u+w "$managed_node_build"
+            ${pkgs.patchelf}/bin/patchelf \
+              --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+              --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
+              "$managed_node_build/bin/node"
+            export CHATGPT_MANAGED_NODE_SOURCE="$managed_node_build"
+            export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
+            export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"
+            export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
+            ''}
+            ${pkgs.lib.optionalString (browserUseNodeRepl != null) ''
+            export CHATGPT_LINUX_NODE_REPL_SOURCE="${browserUseNodeRepl}/bin/node_repl"
+            ''}
+            export CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-linux"
+            export CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-cosmic"
+            export CHATGPT_CHROME_EXTENSION_HOST_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-chrome-extension-host"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptReleaseHelpers}/bin/chatgpt-generated-app-mutation-broker"
+            export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
+            export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
+            ${pkgs.lib.optionalString mcpHelperReaperEnabled ''
+            export CHATGPT_MCP_HELPER_REAPER_SOURCE="${chatgptMcpHelperReaper}/bin/chatgpt-mcp-helper-reaper"
+            ''}
+            ${pkgs.lib.optionalString globalDictationEnabled ''
+            export CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="${chatgptGlobalDictationBinary}/bin/chatgpt-global-dictation-linux"
+            ''}
+            mkdir -p "$HOME" "$npm_config_cache" "$CARGO_HOME"
+
+            source_dir="$TMPDIR/chatgpt-release-source"
+            mkdir -p "$source_dir"
+            cp -R ./. "$source_dir/"
+            chmod -R u+w "$source_dir"
+            cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
+
+            substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \
+              --replace-fail "npx --yes asar" "asar"
+            substituteInPlace "$source_dir/scripts/lib/dmg.sh" \
+              --replace-fail "npx --yes asar" "asar"
+
+            export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1
+            export CHATGPT_INSTALL_DIR="$out/opt/chatgpt"
+            export CHATGPT_PATCH_REPORT_JSON="$TMPDIR/release-patch-report.json"
+            export CHATGPT_REBUILD_REPORT_JSON="$TMPDIR/release-rebuild-report.json"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
+
+            test -f "$CHATGPT_INSTALL_DIR/resources/app.asar"
+            test ! -e "$CHATGPT_INSTALL_DIR/resources/app-extracted"
+
+            while IFS= read -r -d $'\0' link; do
+              target="$(readlink "$link")"
+              case "$target" in
+                /nix/store/*)
+                  echo "release app contains a Nix-store symlink: $link -> $target" >&2
+                  exit 1
+                  ;;
+              esac
+            done < <(find "$CHATGPT_INSTALL_DIR" -type l -print0)
+
+            while IFS= read -r -d $'\0' file; do
+              if ${pkgs.file}/bin/file -b "$file" | grep -Fq ELF; then
+                interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
+                case "$interpreter" in
+                  /nix/store/*)
+                    ${pkgs.patchelf}/bin/patchelf --set-interpreter "${portableElfInterpreter}" "$file"
+                    ;;
+                esac
+                rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
+                if [[ "$rpath" == *'/nix/store/'* ]]; then
+                  portable_rpath="$(printf '%s' "$rpath" | awk -v RS=: '
+                    index($0, "/nix/store/") != 1 {
+                      if (count++ > 0) printf ":"
+                      printf "%s", $0
+                    }
+                  ')"
+                  if [ -n "$portable_rpath" ]; then
+                    ${pkgs.patchelf}/bin/patchelf --set-rpath "$portable_rpath" "$file"
+                  else
+                    ${pkgs.patchelf}/bin/patchelf --remove-rpath "$file"
+                  fi
+                fi
+                interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
+                rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
+                [[ "$interpreter" != *'/nix/store/'* ]]
+                [[ "$rpath" != *'/nix/store/'* ]]
+              elif grep -Iq . "$file" && grep -Fq '/nix/store/' "$file"; then
+                echo "release app text file contains a Nix-store path: $file" >&2
+                exit 1
+              fi
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+
+            runHook postInstall
+          '';
+        };
+
+        chatgptReleaseApp = mkChatGPTReleaseApp { };
+        releaseSandboxCanary = pkgs.runCommandLocal "chatgpt-release-sandbox-canary" { } ''
+          if [ "${if releaseSandboxCanaryPathIsValid then "1" else "0"}" != 1 ]; then
+            echo "release sandbox canary path is missing or invalid" >&2
+            exit 1
+          fi
+          if [ -e ${pkgs.lib.escapeShellArg releaseSandboxCanaryPath} ]; then
+            echo "release sandbox canary escaped the Nix build sandbox" >&2
+            exit 1
+          fi
+          mkdir "$out"
+        '';
+
         mkChatGPTPayload = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
           effectivePortIntegrationsConfig =
@@ -616,7 +879,9 @@ PY
             else
               normalizePortIntegrationsConfig portIntegrationsConfigOverride;
           effectivePortIntegrationIds = effectivePortIntegrationsConfig.enabled;
-          codexMicroEnabled = builtins.elem "codex-micro" effectivePortIntegrationIds;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
+          mcpHelperReaperEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "mcp-helper-reaper";
         in
         pkgs.stdenv.mkDerivation {
           pname = "chatgpt${packageSuffix { portIntegrationIds = effectivePortIntegrationIds; }}-payload";
@@ -678,10 +943,10 @@ PY
             export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker"
             export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
             export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
-            ${pkgs.lib.optionalString (builtins.elem "mcp-helper-reaper" effectivePortIntegrationIds) ''
+            ${pkgs.lib.optionalString mcpHelperReaperEnabled ''
             export CHATGPT_MCP_HELPER_REAPER_SOURCE="${chatgptMcpHelperReaper}/bin/chatgpt-mcp-helper-reaper"
             ''}
-            ${pkgs.lib.optionalString (builtins.elem "global-dictation" effectivePortIntegrationIds) ''
+            ${pkgs.lib.optionalString globalDictationEnabled ''
             export CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="${chatgptGlobalDictationBinary}/bin/chatgpt-global-dictation-linux"
             ''}
             mkdir -p "$HOME" "$npm_config_cache" "$CARGO_HOME"
@@ -718,7 +983,8 @@ PY
             else
               normalizePortIntegrationsConfig portIntegrationsConfigOverride;
           normalizedPortIntegrationIds = effectivePortIntegrationsConfig.enabled;
-          codexMicroEnabled = builtins.elem "codex-micro" normalizedPortIntegrationIds;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
           integrationArgs = {
             portIntegrationIds = normalizedPortIntegrationIds;
           };
@@ -727,7 +993,7 @@ PY
             portIntegrationsConfigOverride = effectivePortIntegrationsConfig;
           };
           payloadLauncherPath = launcherPath + pkgs.lib.optionalString
-            (builtins.elem "global-dictation" normalizedPortIntegrationIds)
+            globalDictationEnabled
             ":${globalDictationRuntimePath}";
         in
         pkgs.stdenv.mkDerivation {
@@ -921,12 +1187,17 @@ PY
         packages = {
           default = chatgpt;
           chatgpt = chatgpt;
+          chatgpt-dmg = chatgptDmg;
           chatgpt-remote-mobile-control = chatgptRemoteMobileControl;
+          chatgpt-release-app = chatgptReleaseApp;
+          release-helpers = chatgptReleaseHelpers;
+          release-sandbox-canary = releaseSandboxCanary;
           installer = installer;
         };
 
         checks = {
           generated-app-mutation-broker = chatgptGeneratedAppMutationBroker;
+          release-helpers = chatgptReleaseHelpers;
           generated-app-mutation-broker-installer = pkgs.runCommand "chatgpt-generated-app-mutation-broker-installer-check" { } ''
             grep -F 'CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null
             touch "$out"

@@ -168,10 +168,8 @@ impl RuntimeConfig {
         let builder_bundle_root = if packaged_bundle_root.exists() {
             packaged_bundle_root
         } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .expect("updater crate should live inside the repository root")
-                .to_path_buf()
+            development_builder_bundle_root()
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")))
         };
 
         let config = Self {
@@ -303,6 +301,14 @@ impl RuntimeConfig {
         ChronoDuration::try_hours(hours)
             .context("check_interval_hours exceeds the Chrono duration range")
     }
+}
+
+fn development_builder_bundle_root() -> Option<PathBuf> {
+    let executable = std::env::current_exe().ok()?;
+    executable.ancestors().find_map(|ancestor| {
+        let candidate = ancestor.join("updater").join("Cargo.toml");
+        candidate.is_file().then(|| ancestor.to_path_buf())
+    })
 }
 
 const APP_SETTINGS_FILE: &str = "settings.json";

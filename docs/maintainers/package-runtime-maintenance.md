@@ -122,6 +122,17 @@ notification-actions bridge, Global Dictation helper, and Read Aloud MCP
 helper. Rebuilds pass only validated copies from this bundle to `install.sh`;
 they do not use user Cargo or mutable app/plugin paths.
 
+The update-builder also carries the repository-approved `@parcel/watcher`
+offline bundle under `scripts/lib/parcel-watcher/`. App generation requires the
+official bundle's exact watcher version to match `approved.json`, verifies the
+package file, lockfile, and every archive digest, then runs
+`npm ci --offline --ignore-scripts`. Version drift fails before npm runs.
+Refresh this bundle only as a reviewed dependency update: obtain canonical npm
+tarballs for the exact official version and complete transitive/optional graph,
+regenerate the lock and approval digests, run
+`tests/parcel_watcher_trust.sh`, and inspect the archive contents before
+committing.
+
 AppImage builds use `packaging/appimage/` and intentionally omit
 `chatgpt-updater`, the systemd user service, polkit policy, and the
 update-builder bundle. Keep that path as a manual-update packaging target.
@@ -432,24 +443,76 @@ DMG Gatekeeper and DMG stapler checks run and are reported by default. Set
 release policy requires the DMG container itself to pass those checks, not only
 the contained app.
 
+Build the public candidate package from the same immutable release outputs that
+the gate will independently realize. Select the builder for the intended native
+format:
+
 ```bash
-CHATGPT_DMG_SHA256=<reviewed-dmg-sha256> \
+release_app_store="$(nix build .#chatgpt-release-app --no-link --print-out-paths)"
+release_helpers_store="$(nix build .#release-helpers --no-link --print-out-paths)"
+reviewed_dmg="$(nix build .#chatgpt-dmg --no-link --print-out-paths)"
+release_app="$release_app_store/opt/chatgpt"
+. "$release_app/chatgpt-version.env"
+
+APP_DIR_OVERRIDE="$release_app" \
+PACKAGE_VERSION="$CHATGPT_VERSION" \
+UPDATER_BINARY_SOURCE="$release_helpers_store/bin/chatgpt-updater" \
+CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$release_helpers_store/bin/chatgpt-generated-app-mutation-broker" \
+./scripts/build-deb.sh
+```
+
+Use `scripts/build-rpm.sh` or `scripts/build-pacman.sh` in the final line for
+those formats.
+
+```bash
+APP_DIR="$release_app" \
+DMG="$reviewed_dmg" \
 REQUIRE_RELEASE_SIGNATURE=1 \
 CHATGPT_RELEASE_GPG_KEY=<key-id-or-email> \
+CHATGPT_RELEASE_GPG_FINGERPRINT=<approved-primary-fingerprint> \
 make release-gate
 ```
 
-The gate verifies the DMG hash, extracts and inspects
-`chatgpt/resources/app.asar`, requires matching native package metadata tools
-for package identity checks, writes `dist/SHA256SUMS`, and writes a detached
-`dist/SHA256SUMS.asc` signature whenever `CHATGPT_RELEASE_GPG_KEY` is set. Set
-`REQUIRE_RELEASE_SIGNATURE=1` for public releases so a missing signing key fails
-the gate. Signed release gates also publish `dist/release-signing-key.asc` and
-verify the detached checksum signature against that public key in a temporary
-keyring. Set
-`CHATGPT_RELEASE_GPG_PUBLIC_KEY=/path/to/public-key.asc` to supply a pre-exported
-public key; otherwise the gate exports the public key from
-`CHATGPT_RELEASE_GPG_KEY`.
+Public mode requires `PACKAGE_WITH_UPDATER=1`, a root-managed multi-user Nix
+daemon, a root-owned canonical Nix store, and `sandbox = true`. The gate
+privately snapshots the clean Git source object and DMG, then builds
+`chatgpt-release-app` and `release-helpers` from that snapshot. The submitted
+generated app must match the independent portable Nix reference exactly; all
+package verification subsequently uses the reference as authority. The static,
+root-owned updater and mutation broker come from `release-helpers`, not an
+ambient Cargo or Rustup configuration. A trusted system Node runtime performs
+public validation; the app's managed Node runtime is never executed by the
+gate.
+
+The release record binds the DMG hash, source revision, generated-app build
+record, full resolved port integration config, enabled integration input digest,
+official app package version, updater digest, and package identity.
+
+Every regular non-symlink package is snapshotted before inspection. The gate
+independently rebuilds the reference package, restages and compares the payload,
+and compares package-manager install controls. Debian control files, pacman
+archive metadata and hooks, and RPM header semantics are bound to the package
+record. RPM builds use `SOURCE_DATE_EPOCH` as build time and must be byte-equal
+to the reviewed reference, which also covers unrecognized future RPM tags. The
+gate writes `dist/SHA256SUMS` and `dist/RELEASE-PROVENANCE.json` only from the
+verified snapshots.
+
+Public mode is the default and requires a clean source tree,
+`PACKAGE_WITH_UPDATER=1`, `REQUIRE_RELEASE_SIGNATURE=1`,
+`CHATGPT_RELEASE_GPG_KEY`, and the independently approved exact primary
+fingerprint in `CHATGPT_RELEASE_GPG_FINGERPRINT`. It signs both
+attestations, publishes `dist/release-signing-key.asc`, and verifies both
+detached signatures in a temporary keyring. Use
+`CHATGPT_RELEASE_REHEARSAL=1 make release-gate` for a local rehearsal; rehearsal
+provenance is explicitly ineligible for public release. Set
+`CHATGPT_RELEASE_GPG_PUBLIC_KEY=/path/to/public-key.asc` to override the exported
+public-key destination; otherwise the gate writes
+`dist/release-signing-key.asc` from `CHATGPT_RELEASE_GPG_KEY`. That co-published
+key proves internal consistency, not maintainer identity by itself. Release
+operators and consumers must compare its primary fingerprint with the same
+independently maintained project trust root. The permanent fingerprint,
+custody, rotation, and revocation policy remains an operator decision and must
+be settled before treating these artifacts as publicly authenticated.
 
 For CI-backed official DMG verification, run the manual `Verify Apple DMG`
 GitHub Actions workflow. It downloads the DMG on a macOS runner and runs the

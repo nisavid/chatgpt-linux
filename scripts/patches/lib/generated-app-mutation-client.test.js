@@ -169,6 +169,29 @@ if (readFrame() == null) process.exit(0);
   await client.close();
 });
 
+test("clean close rejects an in-place broker executable change", async (t) => {
+  const { parent, root } = makePrivateRoot(t);
+  const readyPath = path.join(parent, "broker-ready");
+  const brokerPath = writeBroker(
+    parent,
+    `${brokerPrelude}
+fs.writeFileSync(${JSON.stringify(readyPath)}, "yes");
+if (readFrame() == null) process.exit(0);
+`,
+  );
+
+  const client = await openGeneratedAppMutationRoot(root, { brokerPath });
+  await waitForPath(readyPath);
+  fs.appendFileSync(brokerPath, "\n// changed during the broker session\n");
+
+  await assert.rejects(
+    client.close(),
+    (error) => isGeneratedAppIntegrityError(error)
+      && error.code === "unsafe-broker"
+      && error.operation === "close",
+  );
+});
+
 test("broker starts with a neutral cwd and no inherited environment", async (t) => {
   const { parent, root } = makePrivateRoot(t);
   const secretName = "CHATGPT_MUTATION_BROKER_TEST_SECRET";
@@ -337,6 +360,27 @@ process.exit(17);
 `,
   );
   const client = await openGeneratedAppMutationRoot(root, { brokerPath });
+
+  await assert.rejects(
+    client.list([]),
+    (error) => isGeneratedAppIntegrityError(error) && error.code === "protocol",
+  );
+  await client.close();
+});
+
+test("broker stdin errors reject the active operation without escaping", async (t) => {
+  const { parent, root } = makePrivateRoot(t);
+  const closedStdinPath = path.join(parent, "broker-closed-stdin-before-request");
+  const brokerPath = writeBroker(
+    parent,
+    `${brokerPrelude}
+fs.closeSync(0);
+fs.writeFileSync(${JSON.stringify(closedStdinPath)}, "yes");
+setInterval(() => {}, 1000);
+`,
+  );
+  const client = await openGeneratedAppMutationRoot(root, { brokerPath });
+  await waitForPath(closedStdinPath);
 
   await assert.rejects(
     client.list([]),

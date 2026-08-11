@@ -49,6 +49,77 @@ default_package_version() {
     error "Invalid CHATGPT_APP_PACKAGE_VERSION in $version_file: $version"
 }
 
+package_trusted_git_binary() {
+    local candidate
+    for candidate in /usr/bin/git /bin/git; do
+        if [ -f "$candidate" ] && [ ! -L "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+package_git_in() {
+    local git_repo_dir="$1"
+    shift
+    local git_binary
+    git_binary="$(package_trusted_git_binary)" || return 127
+    /usr/bin/env -i \
+        GIT_CONFIG_GLOBAL=/dev/null \
+        GIT_CONFIG_NOSYSTEM=1 \
+        GIT_OPTIONAL_LOCKS=0 \
+        HOME=/nonexistent \
+        LC_ALL=C \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        XDG_CONFIG_HOME=/nonexistent \
+        "$git_binary" \
+        -C "$git_repo_dir" \
+        -c core.fsmonitor=false \
+        -c core.hooksPath=/dev/null \
+        "$@"
+}
+
+package_git() {
+    package_git_in "$REPO_DIR" "$@"
+}
+
+staged_package_source_date_epoch() {
+    local source_info="$REPO_DIR/.chatgpt-linux/source-info.json"
+    local node_bin
+
+    [ -f "$source_info" ] && [ ! -L "$source_info" ] || return 1
+    node_bin="$(package_node_binary)"
+    "$node_bin" - "$source_info" <<'NODE'
+const fs = require("node:fs");
+const sourceInfoPath = process.argv[2];
+try {
+  const sourceInfo = JSON.parse(fs.readFileSync(sourceInfoPath, "utf8"));
+  const epoch = sourceInfo?.sourceDateEpoch;
+  if (!Number.isSafeInteger(epoch) || epoch < 0) {
+    process.exit(1);
+  }
+  process.stdout.write(String(epoch));
+} catch {
+  process.exit(1);
+}
+NODE
+}
+
+ensure_package_source_date_epoch() {
+    local epoch="${SOURCE_DATE_EPOCH:-}"
+
+    if [ -z "$epoch" ]; then
+        epoch="$(staged_package_source_date_epoch 2>/dev/null || true)"
+    fi
+    if [ -z "$epoch" ]; then
+        epoch="$(package_git show -s --format=%ct HEAD 2>/dev/null || true)"
+    fi
+    [[ "$epoch" =~ ^[0-9]+$ ]] || \
+        error "SOURCE_DATE_EPOCH must be a non-negative integer, staged source epoch, or derivable from Git HEAD"
+    export SOURCE_DATE_EPOCH="$epoch"
+}
+
 sed_escape_replacement() {
     printf '%s' "$1" | sed -e 's/[\\\/&]/\\&/g'
 }
@@ -113,6 +184,15 @@ package_with_updater_enabled() {
 }
 
 package_node_binary() {
+    local requested_node="${CHATGPT_PACKAGE_NODE_SOURCE:-}"
+    if [ -n "$requested_node" ]; then
+        [[ "$requested_node" = /* ]] || error "CHATGPT_PACKAGE_NODE_SOURCE must be absolute"
+        [ -f "$requested_node" ] && [ ! -L "$requested_node" ] && [ -x "$requested_node" ] || \
+            error "CHATGPT_PACKAGE_NODE_SOURCE must be a regular non-symlink executable"
+        printf '%s\n' "$requested_node"
+        return 0
+    fi
+
     local managed_node="${APP_DIR:-}/resources/node-runtime/bin/node"
     if [ -x "$managed_node" ] && [ "$("$managed_node" -e 'process.stdout.write("ok")' 2>/dev/null || true)" = "ok" ]; then
         printf '%s\n' "$managed_node"
@@ -190,6 +270,7 @@ stage_update_builder_port_integrations_tree() {
 
     mkdir -p "$target"
     cp -a "$source_root/." "$target/"
+    find "$target" -type d -name target -prune -exec rm -rf -- {} +
     stage_update_builder_resolved_port_integration_config "$update_builder_root"
     clear_update_builder_port_integration_config "$update_builder_root"
 }
@@ -745,9 +826,17 @@ stage_update_builder_source_info() {
     local update_builder_root="$1"
     local info_dir="$update_builder_root/.chatgpt-linux"
     local info_file="$info_dir/source-info.json"
+    local reviewed_source_info="${CHATGPT_LINUX_SOURCE_INFO_SOURCE:-}"
     local node_bin
 
     mkdir -p "$info_dir"
+    if [ -n "$reviewed_source_info" ]; then
+        [ -f "$reviewed_source_info" ] && [ ! -L "$reviewed_source_info" ] || \
+            error "CHATGPT_LINUX_SOURCE_INFO_SOURCE must be a regular non-symlink file"
+        cp "$reviewed_source_info" "$info_file"
+        chmod 0644 "$info_file"
+        return 0
+    fi
     node_bin="$(package_node_binary)"
     "$node_bin" - "$REPO_DIR" "$info_file" <<'NODE'
 const childProcess = require("node:child_process");
@@ -804,14 +893,20 @@ function git(args) {
 }
 
 function isoTimestamp() {
-  const rawEpoch = process.env.SOURCE_DATE_EPOCH?.trim();
-  if (rawEpoch) {
-    const epochSeconds = Number(rawEpoch);
-    if (Number.isFinite(epochSeconds) && epochSeconds >= 0) {
-      return new Date(Math.trunc(epochSeconds) * 1000).toISOString();
-    }
+  const epochSeconds = sourceDateEpoch();
+  if (epochSeconds != null) {
+    return new Date(epochSeconds * 1000).toISOString();
   }
   return new Date().toISOString();
+}
+
+function sourceDateEpoch() {
+  const rawEpoch = process.env.SOURCE_DATE_EPOCH?.trim();
+  if (!rawEpoch || !/^\d+$/.test(rawEpoch)) {
+    return null;
+  }
+  const epochSeconds = Number(rawEpoch);
+  return Number.isSafeInteger(epochSeconds) && epochSeconds >= 0 ? epochSeconds : null;
 }
 
 function sanitizeGitRemoteUrl(remote) {
@@ -906,6 +1001,7 @@ function sanitizeSourceInfo(info) {
     commitUrl: githubCommitUrl(remote, info.commit),
     provenance: info.provenance ?? "packaged-update-builder",
     recapturedAt: isoTimestamp(),
+    sourceDateEpoch: info.sourceDateEpoch ?? sourceDateEpoch(),
   };
 }
 
@@ -962,6 +1058,7 @@ if (stagedInfo?.commit) {
       dirty: status == null ? null : status.length > 0,
       provenance: "packaged-update-builder",
       capturedAt: isoTimestamp(),
+      sourceDateEpoch: sourceDateEpoch(),
   };
 }
 
@@ -1098,6 +1195,8 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/patch-linux-window-ui.js" "$update_builder_root/scripts/patch-linux-window-ui.js"
     cp -r "$REPO_DIR/scripts/patches/." "$update_builder_root/scripts/patches/"
     cp "$REPO_DIR/scripts/lib/package-common.sh" "$update_builder_root/scripts/lib/package-common.sh"
+    cp -r "$REPO_DIR/scripts/lib/parcel-watcher" \
+        "$update_builder_root/scripts/lib/parcel-watcher"
     cp "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh" \
         "$update_builder_root/scripts/lib/generated-app-mutation-broker.sh"
     cp "$REPO_DIR/scripts/lib/patch-chrome-plugin.js" "$update_builder_root/scripts/lib/patch-chrome-plugin.js"
@@ -1329,6 +1428,14 @@ normalize_package_payload_permissions() {
     find "$root" -type f ! \( -perm /u=x -o -perm /g=x -o -perm /o=x \) -exec chmod 0644 {} +
 }
 
+normalize_package_payload_timestamps() {
+    local root="$1"
+
+    [ -d "$root" ] || error "Missing package root: $root"
+    [ -n "${SOURCE_DATE_EPOCH:-}" ] || error "SOURCE_DATE_EPOCH is required for package timestamps"
+    find "$root" -depth -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+}
+
 write_launcher_stub() {
     local root="$1"
 
@@ -1337,4 +1444,25 @@ write_launcher_stub() {
 exec /opt/$PACKAGE_NAME/start.sh "\$@"
 SCRIPT
     chmod 0755 "$root/usr/bin/$PACKAGE_NAME"
+}
+
+stage_native_package_payload() {
+    local root="$1"
+    local package_format="$2"
+
+    case "$package_format" in
+        deb|rpm|pacman) ;;
+        *) error "Unsupported native package format: $package_format" ;;
+    esac
+
+    ensure_package_source_date_epoch
+    stage_common_package_files "$root"
+    stage_optional_update_builder_bundle "$root"
+    write_launcher_stub "$root"
+    stage_port_integration_package_resources "$root" "$package_format"
+    run_port_integration_package_hooks "$root" "$package_format"
+    normalize_package_payload_permissions "$root"
+    restore_port_integration_payload_permissions "$root"
+    restore_port_integration_package_resource_permissions "$root" "$package_format"
+    normalize_package_payload_timestamps "$root"
 }

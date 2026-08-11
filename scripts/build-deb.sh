@@ -77,14 +77,7 @@ main() {
         "$PKG_ROOT/DEBIAN" \
         "$PKG_ROOT/opt"
 
-    stage_common_package_files "$PKG_ROOT"
-    stage_optional_update_builder_bundle "$PKG_ROOT"
-    write_launcher_stub "$PKG_ROOT"
-    stage_port_integration_package_resources "$PKG_ROOT" "deb"
-    run_port_integration_package_hooks "$PKG_ROOT" "deb"
-    normalize_package_payload_permissions "$PKG_ROOT"
-    restore_port_integration_payload_permissions "$PKG_ROOT"
-    restore_port_integration_package_resource_permissions "$PKG_ROOT" "deb"
+    stage_native_package_payload "$PKG_ROOT" "deb"
 
     local deb_depends
     local integration_dependency_suffix

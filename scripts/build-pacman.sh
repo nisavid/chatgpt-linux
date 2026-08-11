@@ -69,6 +69,8 @@ write_threaded_makepkg_config() {
 			done
 			[ -n "$user_makepkg_conf" ] && printf '. %q\n' "$user_makepkg_conf"
 		fi
+		# The generated makepkg configuration expands MAKEFLAGS when sourced.
+		# shellcheck disable=SC2016
 		printf 'MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }-j%s"\n' "$MAX_BUILD_THREADS"
 		printf 'COMPRESSZST=(zstd -c -z -T%s -)\n' "$MAX_BUILD_THREADS"
 	} >"$target"
@@ -119,14 +121,7 @@ main() {
 		info "Pacman package build/compression threads: $MAX_BUILD_THREADS"
 	fi
 
-	stage_common_package_files "$staging_root"
-	stage_optional_update_builder_bundle "$staging_root"
-	write_launcher_stub "$staging_root"
-	stage_port_integration_package_resources "$staging_root" "pacman"
-	run_port_integration_package_hooks "$staging_root" "pacman"
-	normalize_package_payload_permissions "$staging_root"
-	restore_port_integration_payload_permissions "$staging_root"
-	restore_port_integration_package_resource_permissions "$staging_root" "pacman"
+	stage_native_package_payload "$staging_root" "pacman"
 
 	local package_name
 	local pacman_pkgver
@@ -255,7 +250,7 @@ fi"
 	local pkg_basename
 	local latest_suffix
 	pkg_basename="$(basename "$pkg_file")"
-	latest_suffix="${pkg_basename#${PACKAGE_NAME}-${PACMAN_PKGVER}-${PACMAN_PKGREL}-${arch}}"
+	latest_suffix="${pkg_basename#"${PACKAGE_NAME}"-"${PACMAN_PKGVER}"-"${PACMAN_PKGREL}"-"${arch}"}"
 	[ -n "$latest_suffix" ] || latest_suffix=".pkg.tar.zst"
 	ln -sfn "$pkg_basename" "$DIST_DIR/${PACKAGE_NAME}-latest${latest_suffix}"
 

@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Public release verification now builds an independent portable generated-app
+  reference and static updater/mutation-broker helpers from the immutable source
+  snapshot through a sandboxed root-managed Nix daemon. The submitted app must
+  match that reference exactly, and packages are verified against the reference
+  before signed canonical provenance binds the DMG, source, full port
+  integration inputs, payload, install controls, updater, and package digest.
+  RPM verification also requires byte equality with the deterministic reference.
+  Public packages require the updater and an exact independently approved
+  signing-key fingerprint. Explicit rehearsals remain ineligible for public
+  release.
+
 - Optional port integrations for Agent Workspaces, AppShots, and ChatGPT
   wrapper update controls were imported from the Linux-port upstream under this
   fork's `port-integrations/` contract.
@@ -37,6 +48,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   handling without direct input-device access or elevated permissions.
 
 ### Changed
+
+- App generation and updater rebuilds install the official app's exact
+  `@parcel/watcher` dependency graph from a repository-approved offline archive
+  set. Version drift, archive or lockfile mismatch, lifecycle scripts, and live
+  registry fallback now fail closed before the dependency is promoted.
+- Generated-app mutation-broker manifests are derived from the exact executable
+  descriptor used by the patch client and reject a rebound helper pathname
+  before package staging.
+- `chatgpt-updater` no longer embeds its source checkout path; CI verifies
+  byte-identical release builds from distinct absolute source roots.
 
 - The project identity is now **ChatGPT for Linux**. The repository is
   `nisavid/chatgpt-linux`; the app, native package, command, and XDG identity are

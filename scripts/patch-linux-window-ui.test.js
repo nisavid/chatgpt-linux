@@ -698,6 +698,11 @@ test("Linux target context parses distro, package, and desktop details", () => {
   }
 });
 
+test("patch report honors SOURCE_DATE_EPOCH", () => {
+  const report = createPatchReport({ SOURCE_DATE_EPOCH: "1710000000" });
+  assert.equal(report.generatedAt, new Date(1710000000 * 1000).toISOString());
+});
+
 test("build info captures DMG hash, integrations, distro profile, and source revision", () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-build-info-"));
   const pinnedIntegrationsConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
@@ -755,6 +760,35 @@ test("build info captures DMG hash, integrations, distro profile, and source rev
     assert.equal(info.packageProfile.id, "debian-family");
     assert.equal(info.packageProfile.packageManager, "apt");
     assert.deepEqual(info.portIntegrations.enabled, ["read-aloud", "open-target-discovery"]);
+    assert.deepEqual(info.portIntegrations.resolved, {
+      enabled: ["read-aloud", "open-target-discovery"],
+      disabled: [],
+    });
+    assert.equal(info.portIntegrations.rootKind, "external");
+    assert.match(info.portIntegrations.inputsSha256, /^[a-f0-9]{64}$/);
+
+    fs.writeFileSync(path.join(integrationsRoot, "integrations.json"), JSON.stringify({
+      enabled: ["read-aloud", "open-target-discovery"],
+      settings: { "read-aloud": { voice: "reviewed-test-voice" } },
+    }));
+    const settingsChanged = buildInfo({
+      repoDir: tempRoot,
+      dmgPath,
+      appDir,
+      electronVersion: "41.3.0",
+      appId: "chatgpt",
+      appDisplayName: "ChatGPT",
+      integrationsRoot,
+      env: { SOURCE_DATE_EPOCH: "1710000000" },
+      linuxTarget: detectLinuxTargetContext({
+        osReleaseFields: { ID: "ubuntu", ID_LIKE: "debian", VERSION_ID: "24.04" },
+        env: { PATH: "" },
+      }),
+    });
+    assert.notEqual(settingsChanged.portIntegrations.inputsSha256, info.portIntegrations.inputsSha256);
+    assert.deepEqual(settingsChanged.portIntegrations.resolved.settings, {
+      "read-aloud": { voice: "reviewed-test-voice" },
+    });
   } finally {
     if (pinnedIntegrationsConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = pinnedIntegrationsConfig;

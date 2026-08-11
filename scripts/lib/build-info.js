@@ -9,7 +9,7 @@ const {
   linuxTargetSummary,
 } = require("./linux-target-context.js");
 const {
-  enabledPortIntegrationIds,
+  portIntegrationBuildInputs,
   portIntegrationsRoot,
 } = require("./port-integrations.js");
 
@@ -321,6 +321,7 @@ function buildInfo(options) {
   const dmgPath = path.resolve(options.dmgPath);
   const appDir = path.resolve(options.appDir);
   const integrationsRoot = portIntegrationsRoot({ integrationsRoot: options.integrationsRoot, featuresRoot: options.featuresRoot });
+  const integrationInputs = portIntegrationBuildInputs({ integrationsRoot });
   const env = options.env ?? process.env;
   const target = options.linuxTarget ?? detectLinuxTargetContext();
   return {
@@ -341,7 +342,10 @@ function buildInfo(options) {
     linuxTarget: linuxTargetInfo(target),
     packageProfile: packageProfile(target),
     portIntegrations: {
-      enabled: enabledPortIntegrationIds({ integrationsRoot }),
+      enabled: integrationInputs.resolvedConfig.enabled,
+      resolved: integrationInputs.resolvedConfig,
+      rootKind: integrationInputs.rootKind,
+      inputsSha256: integrationInputs.sha256,
     },
   };
 }

@@ -523,23 +523,30 @@ async function openGeneratedAppMutationRoot(
   let childClose;
   let brokerDigest;
   try {
+    brokerDigest = digestOpenBrokerExecutable(brokerFd);
     child = spawn("/proc/self/fd/5", [], {
       cwd: "/",
       env: {},
       stdio: ["pipe", "pipe", "inherit", rootFd, "ignore", brokerFd],
       windowsHide: true,
     });
+    child.stdin.on("error", () => {
+      // Each active write receives the same error through its callback and
+      // converts it into a typed, session-poisoning integrity failure.
+    });
     childClose = trackChildClose(child);
     await waitForSpawn(child);
-    brokerDigest = digestOpenBrokerExecutable(brokerFd);
+    if (digestOpenBrokerExecutable(brokerFd) !== brokerDigest) {
+      throw new Error("broker executable changed across process start");
+    }
   } catch (error) {
     try {
       child?.kill("SIGKILL");
     } catch {}
+    fs.closeSync(brokerFd);
     throw integrityError(error, { code: "broker-start", operation: "open" });
   } finally {
     fs.closeSync(rootFd);
-    fs.closeSync(brokerFd);
   }
 
   const reader = new FrameReader(child.stdout);
@@ -699,11 +706,25 @@ async function openGeneratedAppMutationRoot(
                 cause: shutdownError,
               });
               poison = closeError;
+            } else {
+              try {
+                if (digestOpenBrokerExecutable(brokerFd) !== brokerDigest) {
+                  throw new Error("broker executable changed during the session");
+                }
+              } catch (error) {
+                closeError = integrityError(error, {
+                  code: "unsafe-broker",
+                  operation: "close",
+                  reason: "broker executable changed during the session",
+                });
+                poison = closeError;
+              }
             }
           }
         } else {
           await waitForChildCloseWithinBound(child, childClose);
         }
+        fs.closeSync(brokerFd);
         reader.dispose();
         closed = true;
         if (closeError != null) throw closeError;

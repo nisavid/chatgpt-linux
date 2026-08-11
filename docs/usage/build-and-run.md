@@ -18,6 +18,12 @@ You need:
   mutation broker. Nix and packaged updater rebuilds supply validated prebuilt
   broker binaries instead of using an ambient Cargo toolchain.
 
+Public releases additionally require a root-managed multi-user Nix daemon, a
+root-owned canonical Nix store, `sandbox = true`, GnuPG, a trusted system Node.js
+runtime, and the package tools for the selected native format. The public gate
+builds its app and native-helper references through Nix; it does not trust an
+ambient Cargo or Rustup configuration.
+
 The installer downloads and bundles a managed Linux Node.js runtime for the
 generated app, Browser Use, Codex CLI install/update flow, and updater rebuilds.
 System `node`, `npm`, and `npx` remain useful for development and tests, but
@@ -353,6 +359,8 @@ PACKAGE_WITH_UPDATER=0 ./scripts/build-deb.sh
 
 The legacy `PACKAGE_ENABLE_UPDATER=0` spelling is still accepted for older
 local scripts, but new package commands should use `PACKAGE_WITH_UPDATER=0`.
+No-updater packages are local/manual-update artifacts and cannot pass the
+public release gate.
 
 By default, `install.sh` reads `ChatGPT.app/Contents/Info.plist` from the
 extracted DMG and writes `chatgpt/chatgpt-version.env`. Package builders use
@@ -458,13 +466,23 @@ stages the AppDir templates under `packaging/appimage/`, and writes the
 resulting `.AppImage` to `dist/`. `APPIMAGETOOL=/path/to/appimagetool` can
 override the AppImage tool command. `make package` detects the native package
 manager on the host and builds the matching package type. `make release-gate`
-verifies the reviewed official OpenAI ChatGPT DMG
-hash, scans the generated app, validates package metadata, writes
-`dist/SHA256SUMS`, and signs that checksum file whenever
-`CHATGPT_RELEASE_GPG_KEY` is set. `REQUIRE_RELEASE_SIGNATURE=1` makes the gate
-fail when that key is missing, which is the public-release mode. Signed gates
-also publish `dist/release-signing-key.asc` and verify the signature against
-that public key. `make install` installs the newest built native package.
+defaults to public-release mode: it verifies the reviewed official OpenAI
+ChatGPT DMG, snapshots the reviewed source, builds `chatgpt-release-app` and
+`release-helpers` through the root-managed sandboxed Nix daemon, and requires
+the submitted app to match the independent reference exactly. Candidate
+packages must be built from that reference; the gate verifies each payload and
+its install controls. RPM bytes must match the deterministic reference. Public
+packages
+must include `chatgpt-updater`. The gate writes
+`dist/SHA256SUMS` and `dist/RELEASE-PROVENANCE.json`, and requires both files to
+be signed by the exact primary fingerprint supplied through
+`CHATGPT_RELEASE_GPG_FINGERPRINT`. Set
+`CHATGPT_RELEASE_REHEARSAL=1` for a local rehearsal that cannot claim
+public-release eligibility. Signed gates also publish
+`dist/release-signing-key.asc` and verify both signatures against that public
+key. Verify its fingerprint through an independently trusted project channel;
+the co-published key alone does not establish signer identity. `make install`
+installs the newest built native package.
 `make clean` removes generated build artifacts: `chatgpt/`, `ChatGPT.dmg`, and
 `dist/`. `make clean-state` removes updater runtime state under XDG directories.
 

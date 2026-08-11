@@ -361,7 +361,8 @@ PACKAGE_WITH_UPDATER=0 make package
 ```
 
 No-updater packages also remove stale `chatgpt-updater.service` enablement
-when installed over a default package.
+when installed over a default package. They are local/manual-update artifacts;
+the public release gate requires the reviewed updater and its support bundle.
 
 Package outputs land in `dist/`:
 
@@ -412,21 +413,32 @@ To embed an installed Codex CLI and its matching Linux platform package, set
 running `make appimage`. An explicit runtime `CODEX_CLI_PATH` still takes
 precedence.
 
-Before publishing packages, run the release gate with a trusted official OpenAI
-ChatGPT DMG hash:
+Before publishing packages, build the candidate package from the Nix
+`chatgpt-release-app` and `release-helpers` outputs, then run the release gate
+against that app and the pinned `chatgpt-dmg` output:
 
 ```bash
-CHATGPT_DMG_SHA256=<reviewed-dmg-sha256> \
+APP_DIR=<chatgpt-release-app-store-path>/opt/chatgpt \
+DMG=<chatgpt-dmg-store-path> \
 REQUIRE_RELEASE_SIGNATURE=1 \
 CHATGPT_RELEASE_GPG_KEY=<key-id-or-email> \
+CHATGPT_RELEASE_GPG_FINGERPRINT=<approved-primary-fingerprint> \
 make release-gate
 ```
 
-The release gate verifies the DMG hash, scans generated Electron output,
-validates package metadata, writes checksums, and signs those checksums when
-`CHATGPT_RELEASE_GPG_KEY` is set. `REQUIRE_RELEASE_SIGNATURE=1` makes the gate
-fail without a signing key, which is the public-release mode; omit it for local
-rehearsal runs. See the
+Public mode requires a root-managed multi-user Nix daemon with sandboxing
+enabled. The gate snapshots the clean source and DMG, independently builds the
+portable `chatgpt-release-app` and static `release-helpers` outputs, and requires
+the submitted app to match the reference exactly. It then verifies every
+package against that reference. Payload and install controls must match; RPM
+bytes must also match the deterministic reference package. Public packages must
+include the reviewed updater. Public mode writes signed `SHA256SUMS` and
+`RELEASE-PROVENANCE.json` attestations. For a local unsigned rehearsal, set
+`CHATGPT_RELEASE_REHEARSAL=1`; a default invocation is a public release and
+fails without signing controls. Consumers must verify the signing-key
+fingerprint against the approved value supplied to the gate through an
+independently trusted project channel rather than trusting only the
+co-published key. See the
 [Build and Run Guide](docs/usage/build-and-run.md) and
 [Package and Runtime Maintenance](docs/maintainers/package-runtime-maintenance.md)
 for release details.

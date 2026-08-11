@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -470,6 +471,73 @@ function loadEnabledPortIntegrations(options = {}) {
   }
   validateEnabledIntegrationDependencies(integrations);
   return integrations;
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (value != null && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function integrationDirectoryEntries(integration) {
+  const entries = [];
+  const visit = (directory, relativeDirectory = "") => {
+    for (const name of fs.readdirSync(directory).sort((left, right) => Buffer.from(left).compare(Buffer.from(right)))) {
+      const absolutePath = path.join(directory, name);
+      const relativePath = path.posix.join(relativeDirectory, name);
+      const metadata = fs.lstatSync(absolutePath);
+      if (metadata.isDirectory() && name === "target") {
+        continue;
+      }
+      const entry = {
+        mode: (metadata.mode & 0o7777).toString(8).padStart(4, "0"),
+        path: relativePath,
+      };
+      if (metadata.isDirectory()) {
+        entry.type = "directory";
+        entries.push(entry);
+        visit(absolutePath, relativePath);
+      } else if (metadata.isFile()) {
+        entry.type = "file";
+        entry.size = metadata.size;
+        entry.sha256 = crypto.createHash("sha256").update(fs.readFileSync(absolutePath)).digest("hex");
+        entries.push(entry);
+      } else if (metadata.isSymbolicLink()) {
+        entry.type = "symlink";
+        entry.target = fs.readlinkSync(absolutePath);
+        entries.push(entry);
+      } else {
+        throw new Error(`port integration '${integration.id}' contains unsupported file type: ${relativePath}`);
+      }
+    }
+  };
+  visit(integration.dir);
+  return entries;
+}
+
+function portIntegrationBuildInputs(options = {}) {
+  const integrationsRoot = portIntegrationsRoot(options);
+  const resolvedConfig = resolvedPortIntegrationsConfig({ ...options, integrationsRoot });
+  const integrations = loadEnabledPortIntegrations({ ...options, integrationsRoot }).map((integration) => ({
+    id: integration.id,
+    origin: integration.origin,
+    relativeDir: integration.relativeDir.split(path.sep).join("/"),
+    entries: integrationDirectoryEntries(integration),
+  }));
+  const content = {
+    schemaVersion: 1,
+    rootKind: path.resolve(integrationsRoot) === defaultPortIntegrationsRoot() ? "checkout" : "external",
+    resolvedConfig,
+    integrations,
+  };
+  return {
+    ...content,
+    sha256: crypto.createHash("sha256").update(`${canonicalJson(content)}\n`).digest("hex"),
+  };
 }
 
 function packageIntegrationOptions(appDir, options = {}) {
@@ -1531,6 +1599,10 @@ function main() {
     process.stdout.write(`${JSON.stringify(resolvedPortIntegrationsConfig(), null, 2)}\n`);
     return;
   }
+  if (command === "--build-inputs-json") {
+    process.stdout.write(`${JSON.stringify(portIntegrationBuildInputs(), null, 2)}\n`);
+    return;
+  }
   if (command === "--integrations-root") {
     process.stdout.write(`${portIntegrationsRoot()}\n`);
     return;
@@ -1564,6 +1636,7 @@ module.exports = {
   loadEnabledPortIntegrations,
   loadPortIntegrationPatchDescriptors,
   portIntegrationManifestMap,
+  portIntegrationBuildInputs,
   portIntegrationsConfigPath,
   portIntegrationsRoot,
   portIntegrationsUserConfigPath,

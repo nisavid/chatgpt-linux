@@ -262,6 +262,8 @@ run_core_job() {
     bash -n scripts/build-appimage.sh
     bash -n scripts/ci-local.sh
     bash -n scripts/ci/*.sh
+    bash -n tests/package_release_gate.sh
+    bash -n tests/release_gate_public_contract.sh
 
     cargo fmt --check
     cargo clippy --workspace --all-targets -- -D warnings
@@ -274,13 +276,17 @@ run_core_job() {
 
     bash tests/scripts_smoke.sh
     bash tests/package_identity.sh
+    bash tests/package_provenance.sh
+    bash tests/release_gate_public_contract.sh
+    bash tests/parcel_watcher_trust.sh
+    bash tests/updater_reproducibility.sh
     bash tests/generated_app_mutation_broker.sh
     bash tests/state_migration.sh
 
     append_summary "Rust and Smoke Tests" \
         "Shell syntax checks passed." \
         "Rust formatting, clippy, check, and tests passed." \
-        "Node syntax checks, Node tests, script smoke, package identity, mutation-broker resolver, and state migration tests passed."
+        "Node syntax checks, Node tests, script smoke, package identity/provenance, offline Parcel watcher, updater reproducibility, mutation-broker resolver, and state migration tests passed."
 }
 
 run_deb_job() {
@@ -303,6 +309,7 @@ run_deb_job() {
     assert_contains_file /tmp/deb-contents.txt './usr/bin/chatgpt-updater'
     assert_contains_file /tmp/deb-contents.txt './usr/lib/systemd/user/chatgpt-updater.service'
     assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
     assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/launcher/webview-server.py'
     assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
     assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
@@ -312,6 +319,7 @@ run_deb_job() {
     assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/packaged-runtime.sh'
     assert_not_contains_file /tmp/deb-contents.txt './usr/share/codex-port-integration-framework/fixture.txt'
     assert_not_contains_file /tmp/deb-depends.txt 'codex-port-integration-framework-runtime'
+    bash tests/package_release_gate.sh deb
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \
@@ -420,6 +428,7 @@ run_rpm_job() {
     assert_contains_file /tmp/rpm-contents.txt '/usr/bin/chatgpt-updater'
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/systemd/user/chatgpt-updater.service'
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/launcher/webview-server.py'
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
@@ -429,6 +438,7 @@ run_rpm_job() {
     assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/packaged-runtime.sh'
     assert_not_contains_file /tmp/rpm-contents.txt '/usr/share/codex-port-integration-framework/fixture.txt'
     assert_not_contains_file /tmp/rpm-requires.txt 'codex-port-integration-framework-runtime'
+    bash tests/package_release_gate.sh rpm
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \
@@ -533,6 +543,7 @@ run_pacman_job() {
     assert_contains_file /tmp/pacman-contents.txt 'usr/bin/chatgpt-updater'
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/systemd/user/chatgpt-updater.service'
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/launcher/webview-server.py'
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
@@ -542,6 +553,7 @@ run_pacman_job() {
     assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/packaged-runtime.sh'
     assert_not_contains_file /tmp/pacman-contents.txt 'usr/share/codex-port-integration-framework/fixture.txt'
     assert_not_contains_file /tmp/pacman-pkginfo.txt '^depend = codex-port-integration-framework-runtime$'
+    bash tests/package_release_gate.sh pacman
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \

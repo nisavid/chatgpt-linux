@@ -65,9 +65,20 @@ function enabledIntegrationFailuresFromReport(report) {
     }));
 }
 
-function createPatchReport() {
+function reportTimestamp(env = process.env) {
+  const rawEpoch = env.SOURCE_DATE_EPOCH?.trim();
+  if (rawEpoch) {
+    const epochSeconds = Number(rawEpoch);
+    if (Number.isFinite(epochSeconds) && epochSeconds >= 0) {
+      return new Date(Math.trunc(epochSeconds) * 1000).toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
+function createPatchReport(env = process.env) {
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: reportTimestamp(env),
     target: null,
     mainBundle: null,
     iconAsset: null,

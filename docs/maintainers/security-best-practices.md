@@ -69,8 +69,26 @@ Replay remain disabled by default.
   are capability-mediated until their later migration gates are complete.
 - Keep the generated-app mutation broker build-only. Source and Nix builds may
   compile it; packaged updater rebuilds must use the package-owned prebuilt
-  helper and its exact generation-bound digest. Never place it in the generated
-  runtime payload or expose it as a user command.
+  helper and its exact generation-bound digest. Derive that digest from the
+  descriptor actually executed by the patch client, return it only after a
+  clean session close, and reject any later pathname whose digest differs.
+  Never place the broker in the generated runtime payload or expose it as a
+  user command.
+- Install the official app's `@parcel/watcher` only from the repository-approved
+  offline lock and archive set. Verify the official exact version, all approval
+  digests, local-only lock entries, and Electron load before promotion. Do not
+  fall back to a live registry during app generation or updater rebuilds.
+- A public release must use a root-managed sandboxed Nix daemon to build an
+  independent portable app reference and static native helpers from the
+  immutable source and reviewed DMG. Require exact submitted/reference app
+  equality, include the reviewed updater, and verify packages only against that
+  reference. Bind package checksums and signed provenance to the generated build
+  record, full integration config and implementation digest, package version,
+  payload, install controls, and updater. Require deterministic byte equality
+  when a format supports it. Use only trusted host runtimes during validation,
+  never an executable from the artifact under review, and require the selected
+  signing key to match the independently approved primary fingerprint. Unsigned
+  or dirty runs are rehearsals and must not claim public-release eligibility.
 - Create transactional candidate roots as owned, non-symlink `0700`
   directories before population. Reverify the root in the child build and
   before promotion, retain it under `--fresh`, and change it to `0755` only

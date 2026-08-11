@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
-SPEC_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.spec"
+SPEC_TEMPLATE="${CHATGPT_RPM_SPEC_TEMPLATE_SOURCE:-$REPO_DIR/packaging/linux/chatgpt.spec}"
 DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
 SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
 USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
@@ -90,19 +90,7 @@ main() {
 
     local staging_root="$build_root/STAGING"
 
-    stage_common_package_files "$staging_root"
-    stage_optional_update_builder_bundle "$staging_root"
-
-    cat > "$staging_root/usr/bin/$PACKAGE_NAME" <<SCRIPT
-#!/usr/bin/env bash
-exec /opt/$PACKAGE_NAME/start.sh "\$@"
-SCRIPT
-    chmod 0755 "$staging_root/usr/bin/$PACKAGE_NAME"
-    stage_port_integration_package_resources "$staging_root" "rpm"
-    run_port_integration_package_hooks "$staging_root" "rpm"
-    normalize_package_payload_permissions "$staging_root"
-    restore_port_integration_payload_permissions "$staging_root"
-    restore_port_integration_package_resource_permissions "$staging_root" "rpm"
+    stage_native_package_payload "$staging_root" "rpm"
 
     local spec_file="$build_root/chatgpt.spec"
     local integration_dependency_suffix
@@ -206,17 +194,22 @@ fi"
         "$rpmbuild_dir/SRPMS" \
         "$rpmbuild_dir/BUILD" \
         "$rpmbuild_dir/SOURCES" \
-        "$rpmbuild_dir/SPECS"
+        "$rpmbuild_dir/SPECS" \
+        "$build_root/rpmdb" \
+        "$build_root/tmp"
 
     mkdir -p "$DIST_DIR"
     info "Building $PACKAGE_NAME-${rpm_ver}-${rpm_rel}.${arch}.rpm"
     local -a rpmbuild_args=(
         -bb
+        --define "use_source_date_epoch_as_buildtime 1" \
         --define "_rpmdir $rpmbuild_dir/RPMS" \
         --define "_srcrpmdir $rpmbuild_dir/SRPMS" \
         --define "_builddir $rpmbuild_dir/BUILD" \
         --define "_sourcedir $rpmbuild_dir/SOURCES" \
         --define "_specdir $build_root" \
+        --define "_dbpath $build_root/rpmdb" \
+        --define "_tmppath $build_root/tmp" \
         --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
     )
     if [ -n "$RPM_BINARY_PAYLOAD" ]; then
@@ -226,7 +219,15 @@ fi"
         info "RPM binary payload compression: tool default"
     fi
     rpmbuild_args+=("$spec_file")
-    rpmbuild "${rpmbuild_args[@]}" >&2
+    local environment_name
+    local -a rpmbuild_command=(env)
+    while IFS='=' read -r environment_name _; do
+        case "$environment_name" in
+            BASH_FUNC_*) rpmbuild_command+=(-u "$environment_name") ;;
+        esac
+    done < <(env)
+    rpmbuild_command+=(rpmbuild "${rpmbuild_args[@]}")
+    "${rpmbuild_command[@]}" >&2
 
     local rpm_file
     rpm_file="$(find "$rpmbuild_dir/RPMS" -name "*.rpm" | head -n 1)"

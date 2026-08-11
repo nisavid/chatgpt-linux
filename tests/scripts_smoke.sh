@@ -670,6 +670,8 @@ SCRIPT
     assert_contains "$pkg_root/usr/share/applications/chatgpt.desktop" "Keywords=chatgpt;codex;openai;ai;coding;"
     assert_file_exists "$pkg_root/DEBIAN/postrm"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/package-common.sh"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/package-lock.json"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-chrome-plugin.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/scripts/lib/node-runtime.sh"
@@ -723,6 +725,9 @@ SCRIPT
     assert_contains \
         "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
         "prebuilt-helpers/chatgpt-generated-app-mutation-broker.sha256"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "scripts/lib/parcel-watcher/approved.json"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/Cargo.toml"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/CHANGELOG.md"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/launcher/cli-launch-path.py"
@@ -7442,7 +7447,7 @@ EOF
     assert_contains "$REPO_DIR/launcher/start.sh.template" "MANAGED_NODE_BIN_DIR"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "CHATGPT_LINUX_USER_PATH"
     assert_contains "$REPO_DIR/updater/src/builder.rs" "managed_node_bin_dirs"
-    assert_contains "$REPO_DIR/scripts/build-rpm.sh" "stage_common_package_files"
+    assert_contains "$REPO_DIR/scripts/build-rpm.sh" "stage_native_package_payload"
     assert_contains "$REPO_DIR/scripts/build-rpm.sh" "PACKAGED_RUNTIME_SOURCE"
     assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "BAMF_DESKTOP_FILE_HINT"
     assert_contains "$REPO_DIR/packaging/linux/chatgpt.desktop" "/usr/bin/chatgpt %u"
@@ -12195,6 +12200,55 @@ if (info.remote !== null) {
 NODE
 }
 
+test_update_builder_omits_port_integration_build_outputs() {
+    info "Checking update-builder omits port integration build outputs"
+    local workspace="$TMP_DIR/update-builder-port-integration-build-outputs"
+    local integrations_root="$workspace/port-integrations"
+    local integration_root="$integrations_root/build-output-fixture"
+    local config_path="$workspace/port-integrations.json"
+    local update_builder="$workspace/update-builder"
+    local build_inputs="$workspace/build-inputs.json"
+
+    mkdir -p "$integration_root/target/debug"
+    cat > "$integration_root/integration.json" <<'JSON'
+{
+  "id": "build-output-fixture",
+  "title": "Build output fixture",
+  "description": "Exercises update-builder source staging.",
+  "defaultEnabled": true
+}
+JSON
+    printf '%s\n' '# Build output fixture' > "$integration_root/README.md"
+    printf '%s\n' 'compiled artifact' > "$integration_root/target/debug/artifact"
+    ln "$integration_root/target/debug/artifact" \
+        "$integration_root/target/debug/artifact-hardlink"
+    printf '%s\n' '{"enabled":[],"disabled":[]}' > "$config_path"
+
+    (
+        export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+        export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config_path"
+        # shellcheck disable=SC1091
+        source "$REPO_DIR/scripts/lib/package-common.sh"
+        stage_update_builder_port_integrations_tree "$update_builder"
+    )
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$config_path" \
+        node "$REPO_DIR/scripts/lib/port-integrations.js" --build-inputs-json \
+            > "$build_inputs"
+
+    assert_file_exists "$update_builder/port-integrations/build-output-fixture/integration.json"
+    assert_file_not_exists "$update_builder/port-integrations/build-output-fixture/target"
+    node - "$build_inputs" <<'NODE' || fail "Expected build outputs to be absent from integration inputs"
+const fs = require("node:fs");
+const inputs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+for (const integration of inputs.integrations ?? []) {
+  if ((integration.entries ?? []).some(({ path }) => path === "target" || path.startsWith("target/"))) {
+    throw new Error(`generated build output entered integration inputs: ${integration.id}`);
+  }
+}
+NODE
+}
+
 test_update_builder_omits_legacy_port_integration_config() {
     info "Checking update-builder omits legacy port integration config"
     local workspace="$TMP_DIR/update-builder-legacy-port-integrations"
@@ -12327,94 +12381,6 @@ PLIST
     assert_contains "$install_dir/chatgpt-version.env" "CHATGPT_APP_BUNDLE_VERSION=2312"
 }
 
-test_installer_stages_official_git_watcher_dependency() {
-    info "Checking official Git watcher dependency staging"
-    local workspace="$TMP_DIR/git-watcher-dependency"
-    local work_dir="$workspace/work"
-    local install_dir="$workspace/chatgpt"
-    local runtime_dir="$workspace/node-runtime"
-    local npm_log="$workspace/npm-args.log"
-    local host_node
-
-    host_node="$(PATH="$HOST_TOOL_PATH" type -P node)"
-    [ -x "$host_node" ] || fail "Expected a host Node.js executable for the Git watcher fixture"
-
-    mkdir -p "$work_dir/app-extracted" "$install_dir/resources" "$runtime_dir/bin"
-    printf '%s\n' 'fixture-asar' > "$work_dir/app.asar"
-    cat > "$work_dir/app-extracted/package.json" <<'JSON'
-{
-  "dependencies": {
-    "@parcel/watcher": "2.5.6"
-  }
-}
-JSON
-    ln -s "$host_node" "$runtime_dir/bin/node"
-    printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$host_node" > "$install_dir/electron"
-    chmod 0755 "$install_dir/electron"
-    cat > "$runtime_dir/bin/npm" <<'SCRIPT'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-
-printf '%s\n' "$@" > "$WATCHER_NPM_LOG"
-
-prefix=""
-watcher_spec=""
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --prefix)
-            shift
-            prefix="${1:-}"
-            ;;
-        @parcel/watcher@*)
-            watcher_spec="$1"
-            ;;
-    esac
-    shift
-done
-
-[ "$watcher_spec" = "@parcel/watcher@2.5.6" ]
-[ -n "$prefix" ]
-mkdir -p "$prefix/node_modules/@parcel/watcher"
-cat > "$prefix/node_modules/@parcel/watcher/package.json" <<'JSON'
-{"name":"@parcel/watcher","version":"2.5.6","main":"index.js"}
-JSON
-cat > "$prefix/node_modules/@parcel/watcher/index.js" <<'JS'
-module.exports = { subscribe() {} };
-JS
-SCRIPT
-    chmod +x "$runtime_dir/bin/npm"
-
-    (
-        WORK_DIR="$work_dir"
-        INSTALL_DIR="$install_dir"
-        CHATGPT_MANAGED_NODE_RUNTIME_DIR="$runtime_dir"
-        WATCHER_NPM_LOG="$npm_log"
-        export WORK_DIR INSTALL_DIR CHATGPT_MANAGED_NODE_RUNTIME_DIR WATCHER_NPM_LOG
-        info() { :; }
-        warn() { printf '%s\n' "$*" >&2; }
-        error() { printf '%s\n' "$*" >&2; return 1; }
-        # shellcheck source=scripts/lib/webview-install.sh
-        source "$REPO_DIR/scripts/lib/webview-install.sh"
-        install_app
-    )
-
-    assert_contains "$npm_log" "@parcel/watcher@2.5.6"
-    assert_contains "$npm_log" "--ignore-scripts"
-    assert_contains "$npm_log" "--no-save"
-    assert_contains "$npm_log" "--package-lock=false"
-    ELECTRON_RUN_AS_NODE=1 "$install_dir/electron" - \
-        "$install_dir/resources/app.asar/.vite/build/worker.js" <<'NODE'
-const { createRequire } = require("node:module");
-const workerPath = process.argv[2];
-const fromWorker = createRequire(workerPath);
-const watcher = fromWorker("@parcel/watcher");
-const watcherPackage = fromWorker("@parcel/watcher/package.json");
-if (watcherPackage.version !== "2.5.6" || typeof watcher.subscribe !== "function") {
-  process.exit(1);
-}
-NODE
-}
-
 test_installer_copies_webview_into_generated_app() {
     info "Checking webview extraction target"
     local workspace="$TMP_DIR/webview-extraction-target"
@@ -12462,6 +12428,9 @@ EOF
 EOF
             printf "%s\n" ".logo { color: white; }" > "$WORK_DIR/app-extracted/webview/assets/styles/nested.css"
             printf "%s\n" "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>" > "$WORK_DIR/app-extracted/webview/assets/images/logo.svg"
+            CHATGPT_GENERATED_APP_MUTATION_BROKER_DIGEST_RESOLVED="$(
+                sha256sum "$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED" | awk '\''{print $1}'\''
+            )"
         }
         download_electron() { :; }
         install_app() { :; }
@@ -13438,11 +13407,11 @@ main() {
     test_stage_common_package_files_resolves_tray_icon_deterministically
     test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing
     test_update_builder_omits_build_time_port_integrations_config
+    test_update_builder_omits_port_integration_build_outputs
     test_update_builder_omits_legacy_port_integration_config
     test_rpm_builder_can_disable_updater
     test_official_dmg_build_app_workflow_tracks_dmg_metadata
     test_installer_writes_package_version_from_app_plist
-    test_installer_stages_official_git_watcher_dependency
     test_installer_copies_webview_into_generated_app
     test_webview_integrity_manifest_fails_missing_static_import
     test_webview_integrity_manifest_fails_missing_multiline_from_import

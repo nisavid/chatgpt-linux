@@ -423,7 +423,7 @@ install_git_repository_watcher_dependency() {
     local resources_dir="$INSTALL_DIR/resources"
     local managed_node="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"
     local managed_npm="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/npm"
-    local worker_module_path="$resources_dir/app.asar/.vite/build/worker.js"
+    local approved_bundle_dir="$SCRIPT_DIR/scripts/lib/parcel-watcher"
     local watcher_version
 
     [ -f "$app_package_json" ] || error "Missing extracted app package metadata: $app_package_json"
@@ -441,32 +441,188 @@ process.stdout.write(version);
 NODE
 )" || error "Official app does not declare an exact @parcel/watcher dependency"
 
-    info "Installing official Git repository watcher dependency: @parcel/watcher@$watcher_version"
-    "$managed_npm" install \
-        --prefix "$resources_dir" \
-        --ignore-scripts \
-        --no-save \
-        --package-lock=false \
-        --no-audit \
-        --no-fund \
-        "@parcel/watcher@$watcher_version" >&2 \
-        || error "Failed to install @parcel/watcher@$watcher_version"
+    [ -d "$approved_bundle_dir" ] \
+        || error "Approved @parcel/watcher offline bundle is missing: $approved_bundle_dir"
+    [ ! -e "$resources_dir/node_modules" ] && [ ! -L "$resources_dir/node_modules" ] \
+        || error "Generated app resources already contain node_modules"
 
-    [ -x "$INSTALL_DIR/electron" ] || error "Generated Electron runtime is missing: $INSTALL_DIR/electron"
-    ELECTRON_RUN_AS_NODE=1 "$INSTALL_DIR/electron" - "$worker_module_path" "$watcher_version" <<'NODE' \
-        || error "Generated app cannot load @parcel/watcher from its worker module path"
+    info "Installing approved offline Git repository watcher dependency: @parcel/watcher@$watcher_version"
+    (
+        set -Eeuo pipefail
+        local staging_dir
+        staging_dir="$(mktemp -d "$resources_dir/.parcel-watcher.XXXXXX")" \
+            || error "Could not create private @parcel/watcher staging directory"
+        trap 'rm -rf -- "$staging_dir"' EXIT
+
+        mkdir -p "$staging_dir/archives" "$staging_dir/npm-cache"
+        chmod 0700 "$staging_dir" "$staging_dir/archives" "$staging_dir/npm-cache"
+
+        "$managed_node" - "$approved_bundle_dir" "$staging_dir" "$watcher_version" <<'NODE' \
+            || error "Approved @parcel/watcher bundle verification failed"
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const bundleDir = path.resolve(process.argv[2]);
+const stagingDir = path.resolve(process.argv[3]);
+const expectedVersion = process.argv[4];
+const archivesDir = path.join(stagingDir, "archives");
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function readRegularFile(filePath, label) {
+  const stat = fs.lstatSync(filePath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    fail(`${label} must be a regular file`);
+  }
+  return fs.readFileSync(filePath);
+}
+
+function sha256(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function verifyDigest(bytes, expected, label) {
+  if (typeof expected !== "string" || !/^[0-9a-f]{64}$/u.test(expected)) {
+    fail(`${label} has an invalid approved SHA-256`);
+  }
+  const actual = sha256(bytes);
+  if (!crypto.timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"))) {
+    fail(`${label} does not match its approved SHA-256`);
+  }
+}
+
+const manifestPath = path.join(bundleDir, "approved.json");
+const manifest = JSON.parse(readRegularFile(manifestPath, "approval manifest").toString("utf8"));
+if (manifest.schemaVersion !== 1) {
+  fail("unsupported @parcel/watcher approval manifest schema");
+}
+if (manifest.watcherVersion !== expectedVersion) {
+  fail(`official @parcel/watcher ${expectedVersion} is not approved (approved: ${manifest.watcherVersion})`);
+}
+
+const packageJsonBytes = readRegularFile(path.join(bundleDir, "package.json"), "approved package.json");
+const packageLockBytes = readRegularFile(path.join(bundleDir, "package-lock.json"), "approved package-lock.json");
+verifyDigest(packageJsonBytes, manifest.packageJsonSha256, "approved package.json");
+verifyDigest(packageLockBytes, manifest.packageLockSha256, "approved package-lock.json");
+
+const packageJson = JSON.parse(packageJsonBytes.toString("utf8"));
+const packageLock = JSON.parse(packageLockBytes.toString("utf8"));
+if (packageJson.dependencies?.["@parcel/watcher"] !== `file:archives/parcel-watcher-${expectedVersion}.tgz`) {
+  fail("approved package.json does not bind the expected @parcel/watcher archive");
+}
+if (packageLock.lockfileVersion !== 3 || packageLock.packages?.[""] == null) {
+  fail("approved package-lock.json must be a complete npm lockfile v3");
+}
+
+const dependencySpecs = {
+  ...(packageJson.dependencies ?? {}),
+  ...(packageJson.optionalDependencies ?? {}),
+};
+const referencedArchives = new Set();
+for (const [name, spec] of Object.entries(dependencySpecs)) {
+  if (typeof spec !== "string" || !/^file:archives\/[A-Za-z0-9._-]+\.tgz$/u.test(spec)) {
+    fail(`approved dependency ${name} is not bound to a local archive`);
+  }
+  referencedArchives.add(spec.slice("file:archives/".length));
+}
+
+if (!Array.isArray(manifest.archives) || manifest.archives.length === 0) {
+  fail("approval manifest has no offline archives");
+}
+const approvedArchives = new Set();
+for (const archive of manifest.archives) {
+  if (
+    archive == null ||
+    typeof archive !== "object" ||
+    typeof archive.encodedFile !== "string" ||
+    !/^archives\/[A-Za-z0-9._-]+\.tgz\.base64$/u.test(archive.encodedFile) ||
+    typeof archive.archiveFile !== "string" ||
+    !/^[A-Za-z0-9._-]+\.tgz$/u.test(archive.archiveFile) ||
+    archive.encodedFile !== `archives/${archive.archiveFile}.base64` ||
+    approvedArchives.has(archive.archiveFile)
+  ) {
+    fail("approval manifest contains an invalid or duplicate archive entry");
+  }
+  const encodedBytes = readRegularFile(path.join(bundleDir, archive.encodedFile), archive.encodedFile);
+  const encoded = encodedBytes.toString("ascii").replace(/\s+/gu, "");
+  if (encoded.length === 0 || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)) {
+    fail(`${archive.encodedFile} is not canonical base64`);
+  }
+  const archiveBytes = Buffer.from(encoded, "base64");
+  verifyDigest(archiveBytes, archive.sha256, archive.archiveFile);
+  fs.writeFileSync(path.join(archivesDir, archive.archiveFile), archiveBytes, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  approvedArchives.add(archive.archiveFile);
+}
+
+if (
+  approvedArchives.size !== referencedArchives.size ||
+  [...approvedArchives].some((name) => !referencedArchives.has(name))
+) {
+  fail("approved package manifest and offline archive set do not match");
+}
+
+for (const [packagePath, entry] of Object.entries(packageLock.packages)) {
+  if (packagePath === "") {
+    continue;
+  }
+  if (
+    entry == null ||
+    typeof entry !== "object" ||
+    typeof entry.resolved !== "string" ||
+    !/^file:archives\/[A-Za-z0-9._-]+\.tgz$/u.test(entry.resolved) ||
+    typeof entry.integrity !== "string" ||
+    !/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(entry.integrity)
+  ) {
+    fail(`approved lock entry ${packagePath} is not integrity-bound to an offline archive`);
+  }
+  if (!approvedArchives.has(entry.resolved.slice("file:archives/".length))) {
+    fail(`approved lock entry ${packagePath} references an unapproved archive`);
+  }
+}
+
+fs.writeFileSync(path.join(stagingDir, "package.json"), packageJsonBytes, { flag: "wx", mode: 0o600 });
+fs.writeFileSync(path.join(stagingDir, "package-lock.json"), packageLockBytes, { flag: "wx", mode: 0o600 });
+NODE
+
+        "$managed_npm" ci \
+            --prefix "$staging_dir" \
+            --cache "$staging_dir/npm-cache" \
+            --offline \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --registry=http://127.0.0.1:9 >&2 \
+            || error "Failed to install approved offline @parcel/watcher@$watcher_version"
+
+        [ -x "$INSTALL_DIR/electron" ] || error "Generated Electron runtime is missing: $INSTALL_DIR/electron"
+        ELECTRON_RUN_AS_NODE=1 "$INSTALL_DIR/electron" - "$staging_dir/package.json" "$watcher_version" <<'NODE' \
+            || error "Generated app cannot load the approved offline @parcel/watcher"
 const { createRequire } = require("node:module");
-const workerModulePath = process.argv[2];
+const stagedPackagePath = process.argv[2];
 const expectedVersion = process.argv[3];
-const fromWorker = createRequire(workerModulePath);
-const watcher = fromWorker("@parcel/watcher");
-const watcherPackage = fromWorker("@parcel/watcher/package.json");
+const fromStaging = createRequire(stagedPackagePath);
+const watcher = fromStaging("@parcel/watcher");
+const watcherPackage = fromStaging("@parcel/watcher/package.json");
 if (watcherPackage.version !== expectedVersion || typeof watcher.subscribe !== "function") {
   process.exit(1);
 }
 NODE
 
-    info "Official Git repository watcher dependency installed"
+        [ -d "$staging_dir/node_modules" ] \
+            || error "Approved offline @parcel/watcher installation produced no node_modules"
+        [ ! -e "$resources_dir/node_modules" ] && [ ! -L "$resources_dir/node_modules" ] \
+            || error "Generated app resources gained node_modules before watcher promotion"
+        mv "$staging_dir/node_modules" "$resources_dir/node_modules" \
+            || error "Could not promote approved offline @parcel/watcher"
+    ) || return $?
+
+    info "Approved offline Git repository watcher dependency installed"
 }
 
 install_app() {
@@ -474,6 +630,6 @@ install_app() {
     if [ -d "$WORK_DIR/app.asar.unpacked" ]; then
         cp -r "$WORK_DIR/app.asar.unpacked" "$INSTALL_DIR/resources/"
     fi
-    install_git_repository_watcher_dependency
+    install_git_repository_watcher_dependency || return $?
     info "app.asar installed"
 }

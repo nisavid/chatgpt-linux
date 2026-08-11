@@ -1,0 +1,5 @@
+{
+  "name": "@parcel/watcher-linux-x64-glibc",
+  "version": "2.5.6",
+  "main": "index.js"
+}

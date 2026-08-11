@@ -205,8 +205,11 @@ Open questions that materially affect risk:
   `install-rpm`, and `install-pacman` are invoked through `pkexec` for the final
   system package-manager operation.
 - **Release and CI workflows:** update Nix hashes, verify Apple DMGs on macOS,
-  run package/test workflows, and support release-gate checksums and optional
-  signatures.
+  run package/test workflows, and produce snapshot-derived package checksums
+  plus signed release provenance.
+- **Public release Nix reference:** the root-managed sandboxed Nix daemon and
+  canonical store independently build the portable generated app and static
+  release helpers from the reviewed source and DMG before package verification.
 - **Experimental user-local installer:** rootless integration under
   `contrib/user-local-install/`, using XDG user data and user services.
 
@@ -216,7 +219,7 @@ Open questions that materially affect risk:
 | --- | --- | --- | --- |
 | Official OpenAI ChatGPT DMG | Internet/CDN/OpenAI artifact hosting | local installer, updater, Nix hash workflow | Authenticity, freshness, downgrade, malicious payload |
 | Legacy-to-canonical state migration | same-user legacy XDG trees and migration journal | canonical ChatGPT XDG trees | Symlink traversal, collision overwrite, cross-filesystem partial copy, malicious persisted path rewrite |
-| Build toolchain | npm, Electron releases, Rust crates, distro tools, 7z/7zz | generated app and packages | Dependency compromise, unpinned downloads, malicious native modules |
+| Build toolchain | repository-approved npm archives, Electron releases, Rust crates, distro tools, 7z/7zz | generated app and packages | Dependency compromise, stale approval data, malicious native modules |
 | Generated app bundle | extracted official app and patched ASAR | Linux Electron runtime | Renderer isolation, IPC, navigation, local file access |
 | Generated-app mutation | Node patch policy and untrusted generated files | build-only descriptor-relative Rust broker and private candidate | Path escape, link or rename race, stale read token, metadata loss, fail-soft integrity error |
 | Local webview origin | loopback HTTP server | Electron renderer | Same-user port spoofing, stale assets, served-asset substitution |
@@ -232,6 +235,7 @@ Open questions that materially affect risk:
 | Privileged install | unprivileged updater/package path | `pkexec` and system package manager | TOCTOU, package substitution, root-owned payload install |
 | Desktop automation | Electron/plugin request | Computer Use MCP backend, AT-SPI, screenshot, ydotool/portal | Screenshot leakage, unintended input, command origin |
 | Public release | maintainer/CI build output | users and package consumers | Signing, provenance, reproducibility, trust-root drift |
+| Public Nix reference | release user and immutable source/DMG snapshots | root-managed Nix daemon and canonical store output | Daemon sandbox policy, substituter trust, output portability, reference substitution |
 
 ### Diagram
 
@@ -364,6 +368,12 @@ flowchart LR
   builds may compile it; packaged updater rebuilds must execute only the
   package-owned prebuilt helper whose exact digest is bound to the generated app
   in the isolated build environment.
+- Public release mode must prove the active Nix daemon sandbox with a unique
+  host-path canary, build `chatgpt-release-app` and `release-helpers` from the
+  immutable reviewed inputs, require exact submitted/reference app equality,
+  and use only the reference for package verification. It must include the
+  reviewed updater and require the selected signing key to match the exact
+  independently approved primary fingerprint.
 - Transactional candidates must be created and verified as owned, non-symlink
   `0700` directories before population, preserved under inner `--fresh`, and
   reverified before becoming `0755` only after integrity and official-DMG
@@ -432,7 +442,10 @@ run user-context Electron/updater code.
 rejection, redacted URL logging, download size limits, partial downloads,
 repo-trusted `updater/trusted-dmg-manifest.json` gating before unattended
 rebuild and install, persisted `dmg_verification` state, Nix fixed-output hash,
-release-gate hash check, Apple DMG verification script and workflow.
+release-gate hash and generated-app binding, independently restaged package
+payload comparison, signed release provenance, Apple DMG verification script
+and workflow. The official app's exact Parcel watcher version and complete
+dependency graph are installed only from repository-approved offline archives.
 
 **Gaps:** No online signed metadata channel for default DMG publications beyond
 the packaged repo-trusted allowlist; hash-refresh PRs still need
@@ -477,11 +490,14 @@ locally or distributed publicly.
 **Existing mitigations:** packaged builder-root restrictions, developer-mode
 guard for builder redirection, fixed updater rebuild PATH, Rust subprocess
 argument vectors, builder bundle symlink and mode checks, package payload
-symlink rejection, package mode normalization, and deterministic temporary
-source patches for known Electron/native-module ABI compatibility gaps.
+symlink rejection, package mode normalization, the repository-approved offline
+Parcel watcher graph, deterministic temporary source patches for known
+Electron/native-module ABI compatibility gaps, and independent release-gate
+restaging of native package payloads.
 
-**Gaps:** non-Nix build dependencies still rely heavily on live registries and
-tool downloads; developer mode intentionally trusts local builder roots.
+**Gaps:** non-Nix Electron, Rust, Python, and system-tool dependencies still
+include live download or registry trust; developer mode intentionally trusts
+local builder roots.
 
 **Priority:** Medium.
 
@@ -499,17 +515,19 @@ loss, or turns an integrity error into ordinary optional patch drift.
 next local or packaged runtime.
 
 **Existing mitigations:** the Node runner verifies an owned private root and a
-trusted executable, passes both as descriptors, and clears the broker
-environment. Central main-bundle and webview operations use relative components
-and single-use path/identity/digest-bound tokens. Replacement fails closed on
-links, mount escape, identity drift, unsupported atomic exchange, or extended
-attributes, while preserving mode and nanosecond modification time. Any
-integrity error poisons the session, stops later patch work, fails the child
-build, and blocks acceptance override. Source/Nix builds use a build-only
-broker; updater rebuilds use the package-owned prebuilt executable and its exact
-generation-bound digest. Transactional candidates stay `0700` until integrity
-and acceptance
-succeed, then retain journaled atomic promotion.
+trusted executable, passes both as descriptors, clears the broker environment,
+and hashes the exact descriptor used for execution before and after spawn. It
+returns that digest only after a clean broker close; the installer rejects a
+later helper pathname with different bytes. Central main-bundle and webview
+operations use relative components and single-use path/identity/digest-bound
+tokens. Replacement fails closed on links, mount escape, identity drift,
+unsupported atomic exchange, or extended attributes, while preserving mode and
+nanosecond modification time. Any integrity error poisons the session, stops
+later patch work, fails the child build, and blocks acceptance override.
+Source/Nix builds use a build-only broker; updater rebuilds use the
+package-owned prebuilt executable and its exact generation-bound digest.
+Transactional candidates stay `0700` until integrity and acceptance succeed,
+then retain journaled atomic promotion.
 
 **Gaps:** extracted-app descriptor callbacks, declarative resource copies, and
 shell stage/cleanup hooks still use pathname mutation pending Gates 3 and 4.
@@ -823,13 +841,28 @@ not independently verifiable by users.
 
 **Impact:** High for public consumers.
 
-**Existing mitigations:** release gate writes `SHA256SUMS`, optionally signs
-checksums, exports the release signing key, validates package identity, and can
-require signatures; hash refresh goes through PR review.
+**Existing mitigations:** the release gate privately snapshots the clean Git
+source object and DMG; proves the active root-managed Nix daemon sandbox; builds
+the portable app reference and static release helpers from those immutable
+inputs; requires exact submitted/reference app equality; and verifies packages
+only against the reference. It binds the generated build record, full
+integration config and implementation inputs, official app version, updater
+digest, native-package identity, payload, and package-manager install controls.
+RPM also requires deterministic reference-byte equality. Checksums and
+canonical provenance come only from snapshotted packages. Public outputs require
+detached signatures from the exact approved primary fingerprint. Public
+validation uses a trusted system Node rather than an executable from the app
+under review. Hash refresh goes through PR review.
 
-**Gaps:** no format-native package signing, no hosted artifact attestations,
-and no automatic inclusion of official app signature/notarization evidence in
-hash refresh PRs.
+**Gaps:** the permanent release-signing fingerprint and its independent
+publication, custody, rotation, and revocation policy are not yet established;
+the co-published key proves consistency but not maintainer identity. There is no
+format-native package signing or hosted artifact attestation, and official app
+signature/notarization evidence is not automatically embedded in every Linux
+release record. Public generation trusts the root-managed Nix daemon, locked
+nixpkgs inputs, configured substituter keys, and canonical store. Cross-distro
+portable-app ABI coverage is enforced in CI but remains tied to the tested
+baseline images.
 
 **Priority:** High before public releases.
 
@@ -858,7 +891,8 @@ still contain arbitrary sensitive values.
 3. Review generated app Electron security settings before public releases.
 4. Preserve the generated-app mutation capability and private-candidate
    boundary; complete extracted-app descriptor and integration-staging migration.
-5. Add package signing, checksums, and hosted provenance for public artifacts.
+5. Pin the public release-signing identity and add format-native signing plus
+   hosted attestations.
 6. Review Computer Use command routing, screenshots, and input backends whenever
    that surface changes.
 7. Review remote-control/mobile host enrollment, UI gates, and Linux device-key
@@ -921,8 +955,9 @@ still contain arbitrary sensitive values.
   mode normalization, builder bundle layout.
 - `scripts/build-deb.sh`, `scripts/build-rpm.sh`, `scripts/build-pacman.sh`:
   package metadata and package-manager-specific staging behavior.
-- `scripts/release-gate.sh` and `scripts/verify-apple-dmg.sh`: release trust
-  evidence, checksums, optional signatures, Apple verification.
+- `scripts/release-gate.sh`, `scripts/lib/package-provenance.py`, and
+  `scripts/verify-apple-dmg.sh`: release trust evidence, independent package
+  payload comparison, signed checksums/provenance, Apple verification.
 - `updater/src/dmg_source.rs`: DMG URL validation, metadata fetch, download
   limits, redaction, hashing.
 - `updater/src/app.rs`: daemon/check/install orchestration, state transitions,

@@ -478,10 +478,21 @@ consent setting, or recurring prompt.
 **Fork delta:** The fork adds and wires release/security workflow around the
 mutable official OpenAI ChatGPT DMG: trusted DMG hash input, packaged trusted DMG
 metadata for unattended updater rebuilds, generated app and ASAR inspection,
-package metadata checks, checksums, optional detached checksum signing, public
-key export, macOS Apple DMG verification, reviewed hash-refresh PRs, safer DMG
+package metadata checks, private clean-source and generated-app snapshots,
+independent sandboxed-Nix `chatgpt-release-app` and static `release-helpers`
+outputs, exact submitted/reference app equality, reference-owned native-package
+rebuild and install-control comparison, exact RPM reference bytes,
+snapshot-derived checksums, signed release provenance bound to the approved
+primary fingerprint, public key export, macOS Apple DMG verification, reviewed
+hash-refresh PRs, safer DMG
 URL validation, download limits, partial-file downloads, and sanitized URL
-logging.
+logging. Public validation uses a trusted system Node runtime rather than code
+from the app under review. The
+generated-app mutation-broker manifest is derived from the descriptor actually
+executed, and the official app's Parcel watcher is installed from a complete
+repository-approved offline archive set rather than a live registry.
+Public native packages must include the reviewed updater and are verified only
+against the immutable Nix app reference.
 
 **Upstream baseline:** Upstream already downloads and converts the official
 OpenAI ChatGPT DMG. This fork adds extra verification and review gates around
@@ -495,14 +506,21 @@ avoid presenting unverified artifacts as trusted.
 `.github/workflows/verify-apple-dmg.yml`, `.github/workflows/ci.yml`,
 `.github/workflows/updater.yml`, `Makefile`, `flake.nix`,
 `scripts/release-gate.sh`, `scripts/verify-apple-dmg.sh`,
-`scripts/inspect-electron-security.js`, `scripts/lib/dmg.sh`,
+`scripts/inspect-electron-security.js`, `scripts/lib/package-provenance.py`,
+`scripts/lib/parcel-watcher/`, `scripts/lib/dmg.sh`,
 `updater/trusted-dmg-manifest.json`, `updater/src/trust.rs`,
 `updater/src/dmg_source.rs`, `updater/src/app.rs`,
 `docs/maintainers/security-backlog.md`, `docs/maintainers/threat-model.md`.
 
 **Preservation checks:** `make help` must show `apple-dmg-verify` and
-`release-gate`. Security backlog items that change trust boundaries should use
-the `@codex-security` workflow before review-ready handoff.
+`release-gate`. Run `tests/package_provenance.sh`,
+`tests/package_release_gate.sh` for each available native format,
+`tests/release_gate_public_contract.sh`, `tests/updater_reproducibility.sh`, and
+`tests/parcel_watcher_trust.sh` when release/package ingress changes. Build
+`.#chatgpt-release-app` and `.#release-helpers`, and exercise the public
+updater-enabled signed release path, before publication. Security
+backlog items that change trust boundaries should use the `@codex-security`
+workflow before review-ready handoff.
 
 ### 14. User-Local Install Experiment Identity And Layout
 

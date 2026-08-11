@@ -97,7 +97,7 @@ help:
 	@printf '  %-18s %s\n' "make appimage" "Build the AppImage into dist/ (local self-build)"
 	@printf '  %-18s %s\n' "make package" "Build native package (auto-detects deb, rpm, or pacman)"
 	@printf '  %-18s %s\n' "make apple-dmg-verify" "Run macOS Apple trust checks for the official OpenAI DMG"
-	@printf '  %-18s %s\n' "make release-gate" "Verify DMG hash, generated app security, package metadata, checksums, and optional signature"
+	@printf '  %-18s %s\n' "make release-gate" "Verify package provenance and produce signed public-release attestations"
 	@printf '  %-18s %s\n' "make install" "Install the latest generated native package"
 	@printf '  %-18s %s\n' "make service-enable" "Enable and start chatgpt-updater.service for the current user"
 	@printf '  %-18s %s\n' "make service-status" "Show chatgpt-updater.service status for the current user"
