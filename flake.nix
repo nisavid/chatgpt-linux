@@ -265,9 +265,12 @@
             "--bins"
           ];
           doCheck = false;
+          NIX_DONT_SET_RPATH = 1;
           allowedReferences = [ pkgs.asar ];
           nativeBuildInputs = [
             pkgs.binutils
+            pkgs.patchelf
+            pkgs.removeReferencesTo
           ];
 
           installPhase = ''
@@ -289,6 +292,8 @@
               test -f "$binary"
               test ! -L "$binary"
               test -x "$binary"
+              ${pkgs.patchelf}/bin/patchelf --remove-rpath "$binary"
+              remove-references-to -t "$out" "$binary"
               ${pkgs.binutils}/bin/readelf -h "$binary" \
                 | grep -F "Machine:                           ${releaseHelperMachine}" >/dev/null
               if ${pkgs.binutils}/bin/readelf -l "$binary" | grep -F 'INTERP' >/dev/null; then

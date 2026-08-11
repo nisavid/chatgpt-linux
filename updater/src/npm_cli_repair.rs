@@ -659,7 +659,8 @@ fn rename_noreplace(source: &Path, destination: &Path) -> std::io::Result<()> {
     let destination = CString::new(destination.as_os_str().as_bytes())
         .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?;
     let result = unsafe {
-        libc::renameat2(
+        libc::syscall(
+            libc::SYS_renameat2,
             libc::AT_FDCWD,
             source.as_ptr(),
             libc::AT_FDCWD,
