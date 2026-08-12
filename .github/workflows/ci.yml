@@ -96,6 +96,7 @@ jobs:
           bash tests/package_identity.sh
           bash tests/package_provenance.sh
           bash tests/release_gate_public_contract.sh
+          bash tests/portable_release_elf_dependencies.sh
           bash tests/parcel_watcher_trust.sh
           bash tests/updater_reproducibility.sh
           bash tests/generated_app_mutation_broker.sh
@@ -452,7 +453,10 @@ jobs:
           assert provenance["signing"]["primaryFingerprint"] == sys.argv[2].upper()
           PY
 
-          docker run --rm -v "$PWD/dist:/dist:ro" ubuntu:22.04 \
+          docker run --rm \
+            -v "$PWD/dist:/dist:ro" \
+            -v "$PWD/scripts/ci/check-portable-elf-dependencies.sh:/check-portable-elf-dependencies.sh:ro" \
+            ubuntu:22.04 \
             bash -euo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
@@ -460,14 +464,7 @@ jobs:
               test -n "$deb_file"
               apt-get install -y file "$deb_file"
               /opt/chatgpt/resources/node-runtime/bin/node --version
-              while IFS= read -r -d "" binary; do
-                if file -b "$binary" | grep -Fq ELF; then
-                  if ldd "$binary" 2>&1 | grep -E "not found|version .* not found"; then
-                    echo "portable release app has an unresolved ELF dependency: $binary" >&2
-                    exit 1
-                  fi
-                fi
-              done < <(find /opt/chatgpt -type f -print0)
+              bash /check-portable-elf-dependencies.sh /opt/chatgpt
             '
 
   package-rpm:
