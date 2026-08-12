@@ -31,7 +31,7 @@ NO_GIT_SOURCE_INFO_ROOT="$TEST_TMP/no-git-source-info"
 ORIGINAL_REPO_DIR="$REPO_DIR"
 git clone --no-hardlinks --quiet "$REPO_DIR" "$CLEAN_SOURCE_ROOT"
 SOURCE_DATE_EPOCH="$(git -C "$CLEAN_SOURCE_ROOT" show -s --format=%ct HEAD)"
-CHATGPT_PACKAGE_NODE_SOURCE="/usr/bin/node"
+CHATGPT_PACKAGE_NODE_SOURCE="$(node -p 'process.execPath')"
 REPO_DIR="$CLEAN_SOURCE_ROOT"
 stage_update_builder_source_info "$CLEAN_SOURCE_INFO_ROOT"
 python3 - "$CLEAN_SOURCE_INFO_ROOT/.chatgpt-linux/source-info.json" <<'PY' || \
