@@ -862,7 +862,7 @@ function trustedGitBinary() {
 
 const trustedGit = trustedGitBinary();
 
-function git(args) {
+function git(args, { allowEmpty = false } = {}) {
   if (trustedGit == null) {
     return null;
   }
@@ -889,7 +889,7 @@ function git(args) {
     return null;
   }
   const value = result.stdout.trim();
-  return value.length > 0 ? value : null;
+  return value.length > 0 || allowEmpty ? value : null;
 }
 
 function isoTimestamp() {
@@ -1045,7 +1045,7 @@ if (stagedInfo?.commit) {
   info = sanitizeSourceInfo(stagedInfo);
 } else {
   const commit = process.env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || git(["rev-parse", "HEAD"]);
-  const status = git(["status", "--porcelain"]);
+  const status = git(["status", "--porcelain"], { allowEmpty: true });
   const remote = sanitizeGitRemoteUrl(process.env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || git(["remote", "get-url", "origin"]));
   info = {
       commit,
