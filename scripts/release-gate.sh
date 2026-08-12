@@ -292,7 +292,7 @@ prepare_reviewed_source() {
     export CHATGPT_LINUX_SOURCE_INFO_SOURCE
     REVIEWED_SOURCE_DIR="$RELEASE_GATE_TMP_DIR/reviewed-source"
     mkdir -m 0700 "$REVIEWED_SOURCE_DIR"
-    source_git archive --format=tar --output="$archive" "$SOURCE_COMMIT_START" || \
+    source_git -c tar.umask=0022 archive --format=tar --output="$archive" "$SOURCE_COMMIT_START" || \
         error "Could not snapshot the reviewed Git source object"
     require_file "$archive" "reviewed source archive"
     tar --no-same-owner --same-permissions -xf "$archive" -C "$REVIEWED_SOURCE_DIR" || \

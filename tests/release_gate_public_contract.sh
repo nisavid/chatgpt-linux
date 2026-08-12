@@ -23,6 +23,33 @@ CHATGPT_RELEASE_GATE_LIBRARY=1
 
 PROVENANCE_HELPER="$REPO_DIR/scripts/lib/package-provenance.py"
 SHEBANG_HELPER="$REPO_DIR/scripts/lib/normalize-portable-shebangs.py"
+
+# This assertion intentionally matches the literal shell variables in the release gate.
+# shellcheck disable=SC2016
+grep -Fq \
+    'source_git -c tar.umask=0022 archive --format=tar --output="$archive" "$SOURCE_COMMIT_START"' \
+    "$REPO_DIR/scripts/release-gate.sh" || \
+    fail "public reviewed-source archive does not fix portable source modes"
+ARCHIVE_MODE_ROOT="$TEST_TMP/archive-modes"
+ARCHIVE_MODE_TAR="$TEST_TMP/archive-modes.tar"
+mkdir -p "$ARCHIVE_MODE_ROOT"
+(
+    umask 0002
+    SOURCE_CHECKOUT_DIR="$REPO_DIR"
+    source_git -c tar.umask=0022 archive \
+        --format=tar \
+        --output="$ARCHIVE_MODE_TAR" \
+        HEAD \
+        -- \
+        port-integrations/agent-workspace/README.md \
+        port-integrations/agent-workspace/install-skill.sh
+)
+tar --no-same-owner --same-permissions -xf "$ARCHIVE_MODE_TAR" -C "$ARCHIVE_MODE_ROOT"
+[ "$(stat -c '%a' "$ARCHIVE_MODE_ROOT/port-integrations/agent-workspace/README.md")" = 644 ] || \
+    fail "reviewed-source archive did not normalize a regular integration file to mode 0644"
+[ "$(stat -c '%a' "$ARCHIVE_MODE_ROOT/port-integrations/agent-workspace/install-skill.sh")" = 755 ] || \
+    fail "reviewed-source archive did not normalize an executable integration file to mode 0755"
+
 SHEBANG_ROOT="$TEST_TMP/shebang-root"
 mkdir -p "$SHEBANG_ROOT/bin"
 cat >"$SHEBANG_ROOT/bin/bash-tool" <<'EOF'
