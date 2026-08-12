@@ -61,6 +61,20 @@
         flakeSourceCommit = self.rev or (self.dirtyRev or (stagedSourceInfo.commit or ""));
         flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";
         flakeSourceDateEpoch = toString (stagedSourceInfo.sourceDateEpoch or (self.lastModified or 1));
+        flakeSourceDirty =
+          if self ? rev then false
+          else if self ? dirtyRev then true
+          else (stagedSourceInfo.dirty or null);
+        releaseSourceInfo = builtins.toJSON {
+          commit = flakeSourceCommit;
+          shortCommit = builtins.substring 0 12 flakeSourceCommit;
+          branch = null;
+          remote = flakeSourceRemote;
+          describe = flakeSourceCommit;
+          dirty = flakeSourceDirty;
+          provenance = "reviewed-nix-release";
+          sourceDateEpoch = builtins.fromJSON flakeSourceDateEpoch;
+        };
         releaseSandboxCanaryPathFile = ./. + "/.chatgpt-linux/release-sandbox-canary-path";
         releaseSandboxCanaryPath =
           if builtins.pathExists releaseSandboxCanaryPathFile then
@@ -845,6 +859,11 @@ PY
             cp -R ./. "$source_dir/"
             chmod -R u+w "$source_dir"
             rm -f -- "$source_dir/.chatgpt-linux/source-info.json"
+            mkdir -p "$source_dir/.chatgpt-linux"
+            cat > "$source_dir/.chatgpt-linux/source-info.json" <<'JSON'
+            ${releaseSourceInfo}
+            JSON
+            chmod 0644 "$source_dir/.chatgpt-linux/source-info.json"
             cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
 
             substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \

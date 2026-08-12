@@ -105,6 +105,10 @@ block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
 ]
+release_source_info = text[
+    text.index("flakeSourceDirty ="):
+    text.index("releaseSandboxCanaryPathFile =")
+]
 payload_block = text[
     text.index("mkChatGPTPayload ="):
     text.index("payload = mkChatGPTPayload")
@@ -153,10 +157,19 @@ copy_source = block.index('cp -R ./. "$source_dir/"')
 discard_staged_source_info = block.index(
     'rm -f -- "$source_dir/.chatgpt-linux/source-info.json"'
 )
+write_reviewed_source_info = block.index(
+    'cat > "$source_dir/.chatgpt-linux/source-info.json" <<\'JSON\''
+)
 install = block.index('"$source_dir/install.sh"')
+assert "if self ? rev then false" in release_source_info
+assert "else if self ? dirtyRev then true" in release_source_info
+assert "else (stagedSourceInfo.dirty or null);" in release_source_info
+assert "dirty = flakeSourceDirty;" in release_source_info
+assert "sourceDateEpoch = builtins.fromJSON flakeSourceDateEpoch;" in release_source_info
 assert (
     copy_source
     < discard_staged_source_info
+    < write_reviewed_source_info
     < transaction_active
     < transaction_candidate
     < install
