@@ -255,6 +255,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y binutils file gnupg nodejs p7zip-full
+          sudo install -m 0755 "$(command -v nix)" /usr/bin/nix
 
       - name: Detect Nix pin file changes
         id: nix-pin-files

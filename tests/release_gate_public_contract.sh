@@ -190,6 +190,7 @@ assert '"$release_helpers_store/bin/chatgpt-updater" --version' not in text
 assert 'PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION"' in text
 assert 'PACKAGE_VERSION="$CHATGPT_VERSION"' not in text
 assert "sudo apt-get install -y binutils file gnupg nodejs p7zip-full" in text
+assert "sudo install -m 0755 \"$(command -v nix)\" /usr/bin/nix" in text
 PY
 
 RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"
