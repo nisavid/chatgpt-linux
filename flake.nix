@@ -452,6 +452,7 @@
           pname = "chatgpt-electron-native-modules";
           version = electronVersion;
           dontUnpack = true;
+          dontPatchShebangs = true;
 
           nativeBuildInputs = [
             pkgs.bash
