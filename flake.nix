@@ -799,6 +799,7 @@ PY
             export CHATGPT_MANAGED_NODE_SOURCE="$managed_node_build"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
             export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
+            export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
             export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
             ${pkgs.lib.optionalString codexMicroEnabled ''
             export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
@@ -1000,6 +1001,7 @@ PY
             export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
             export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
+            export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
             export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
             ${pkgs.lib.optionalString codexMicroEnabled ''
             export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"

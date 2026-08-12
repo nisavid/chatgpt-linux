@@ -57,6 +57,9 @@ assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in payload_block
+electron_library_path = 'export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"'
+assert electron_library_path in block
+assert electron_library_path in payload_block
 install = block.index('"$source_dir/install.sh"')
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
