@@ -423,6 +423,7 @@ install_git_repository_watcher_dependency() {
     local resources_dir="$INSTALL_DIR/resources"
     local managed_node="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"
     local managed_npm="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/npm"
+    local managed_npm_cli="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/lib/node_modules/npm/bin/npm-cli.js"
     local approved_bundle_dir="$SCRIPT_DIR/scripts/lib/parcel-watcher"
     local target_helper="$SCRIPT_DIR/scripts/lib/parcel-watcher-target.js"
     local watcher_version
@@ -430,6 +431,8 @@ install_git_repository_watcher_dependency() {
     [ -f "$app_package_json" ] || error "Missing extracted app package metadata: $app_package_json"
     [ -x "$managed_node" ] || error "Managed Node.js runtime is missing node: $managed_node"
     [ -x "$managed_npm" ] || error "Managed Node.js runtime is missing npm: $managed_npm"
+    [ -f "$managed_npm_cli" ] && [ ! -L "$managed_npm_cli" ] \
+        || error "Managed Node.js runtime is missing npm CLI: $managed_npm_cli"
     [ -f "$target_helper" ] && [ ! -L "$target_helper" ] \
         || error "Parcel watcher target verifier is missing: $target_helper"
 
@@ -611,7 +614,7 @@ fs.writeFileSync(
 );
 NODE
 
-        "$managed_npm" ci \
+        "$managed_node" "$managed_npm_cli" ci \
             --prefix "$staging_dir" \
             --cache "$staging_dir/npm-cache" \
             --offline \

@@ -154,7 +154,8 @@ run_install_case() {
         "$fake_repo/scripts/lib" \
         "$work_dir/app-extracted" \
         "$install_dir/resources" \
-        "$runtime_dir/bin"
+        "$runtime_dir/bin" \
+        "$runtime_dir/lib/node_modules/npm/bin"
     cp -a "$bundle_source" "$fake_repo/scripts/lib/parcel-watcher"
     cp "$REPO_DIR/scripts/lib/parcel-watcher-target.js" \
         "$fake_repo/scripts/lib/parcel-watcher-target.js"
@@ -163,16 +164,25 @@ run_install_case() {
         > "$work_dir/app-extracted/package.json"
     ln -s "$host_node" "$runtime_dir/bin/node"
 
-    cat > "$runtime_dir/bin/npm" <<'SCRIPT'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-printf '%q ' "$@" >> "$WATCHER_NPM_LOG"
-printf '\n' >> "$WATCHER_NPM_LOG"
-[ "${1:-}" != install ] || {
-    printf 'live npm install attempted\n' >&2
-    exit 97
+    cat > "$runtime_dir/lib/node_modules/npm/bin/npm-cli.js" <<'SCRIPT'
+#!/usr/bin/env node
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.WATCHER_NPM_LOG, `${args.join(" ")}\n`);
+if (args[0] === "install") {
+  process.stderr.write("live npm install attempted\n");
+  process.exit(97);
 }
-exec "$WATCHER_HOST_NPM" "$@"
+const result = spawnSync(process.env.WATCHER_HOST_NPM, args, {
+  env: process.env,
+  stdio: "inherit",
+});
+process.exit(result.status ?? 1);
+SCRIPT
+    cat > "$runtime_dir/bin/npm" <<'SCRIPT'
+#!/nix-sandbox-has-no-usr-bin/env node
 SCRIPT
     cat > "$install_dir/electron" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -181,7 +191,10 @@ printf '%q ' "$@" >> "$WATCHER_ELECTRON_LOG"
 printf '\n' >> "$WATCHER_ELECTRON_LOG"
 exec "$WATCHER_HOST_NODE" "$@"
 SCRIPT
-    chmod 0755 "$runtime_dir/bin/npm" "$install_dir/electron"
+    chmod 0755 \
+        "$runtime_dir/bin/npm" \
+        "$runtime_dir/lib/node_modules/npm/bin/npm-cli.js" \
+        "$install_dir/electron"
 
     if (
         export \
