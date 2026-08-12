@@ -106,9 +106,13 @@ inactive_reference_scrub = block.index(
     'remove-references-to -t "$store_root" "$file"',
     make_elf_parent_writable,
 )
+raw_reference_audit = block.index(
+    'release app file contains a Nix-store reference:',
+    inactive_reference_scrub,
+)
 store_mode_normalization = block.index(
     'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
-    inactive_reference_scrub,
+    raw_reference_audit,
 )
 discard_postprocessing_receipt = block.index(
     'rm -rf -- "$generation_receipt_root"',
@@ -124,6 +128,7 @@ assert (
     < active_elf_validation
     < make_elf_parent_writable
     < inactive_reference_scrub
+    < raw_reference_audit
     < store_mode_normalization
     < discard_postprocessing_receipt
     < write_receipt

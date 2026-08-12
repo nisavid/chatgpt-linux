@@ -921,6 +921,15 @@ PY
               fi
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
 
+            raw_store_references=0
+            while IFS= read -r -d $'\0' file; do
+              if grep -aFq '/nix/store/' "$file"; then
+                echo "release app file contains a Nix-store reference: $file" >&2
+                raw_store_references=1
+              fi
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+            test "$raw_store_references" -eq 0
+
             find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555 {} +
             while IFS= read -r -d $'\0' file; do
               if [ -x "$file" ]; then
