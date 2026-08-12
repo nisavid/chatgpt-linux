@@ -516,6 +516,9 @@ EOF
             find "$out/node-pty/build" -type f ! -name "*.node" -delete 2>/dev/null || true
             find "$out" -type d -empty -delete 2>/dev/null || true
             find "$out" -type f -name "*.target.mk" -delete 2>/dev/null || true
+            ${pkgs.python3}/bin/python3 \
+              ${./scripts/lib/normalize-portable-shebangs.py} \
+              "$out"
             runHook postInstall
           '';
         };

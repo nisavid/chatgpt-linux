@@ -22,6 +22,32 @@ CHATGPT_RELEASE_GATE_LIBRARY=1
 . "$REPO_DIR/scripts/release-gate.sh"
 
 PROVENANCE_HELPER="$REPO_DIR/scripts/lib/package-provenance.py"
+SHEBANG_HELPER="$REPO_DIR/scripts/lib/normalize-portable-shebangs.py"
+SHEBANG_ROOT="$TEST_TMP/shebang-root"
+mkdir -p "$SHEBANG_ROOT/bin"
+cat >"$SHEBANG_ROOT/bin/bash-tool" <<'EOF'
+#!/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bash-5.3p9/bin/bash
+printf 'bash tool\n'
+EOF
+cat >"$SHEBANG_ROOT/bin/node-tool" <<'EOF'
+#!/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-nodejs-22.22.2/bin/node
+console.log("node tool");
+EOF
+printf '\177ELF/nix/store/cccccccccccccccccccccccccccccccc-bash-5.3p9\n' \
+    >"$SHEBANG_ROOT/native.node"
+chmod 0751 "$SHEBANG_ROOT/bin/bash-tool" "$SHEBANG_ROOT/bin/node-tool"
+python3 "$SHEBANG_HELPER" "$SHEBANG_ROOT" || \
+    fail "portable shebang normalization failed"
+[ "$(head -n 1 "$SHEBANG_ROOT/bin/bash-tool")" = '#!/usr/bin/env bash' ] || \
+    fail "Nix Bash shebang was not normalized"
+[ "$(head -n 1 "$SHEBANG_ROOT/bin/node-tool")" = '#!/usr/bin/env node' ] || \
+    fail "Nix Node shebang was not normalized"
+[ "$(stat -c '%a' "$SHEBANG_ROOT/bin/bash-tool")" = 751 ] || \
+    fail "portable shebang normalization changed the executable mode"
+grep -Fq '/nix/store/cccccccccccccccccccccccccccccccc-bash-5.3p9' \
+    "$SHEBANG_ROOT/native.node" || \
+    fail "portable shebang normalization changed non-shebang binary bytes"
+
 python3 - "$REPO_DIR/flake.nix" <<'PY' || \
     fail "Nix release-app receipt finalization contract is incomplete"
 import pathlib
@@ -76,6 +102,7 @@ assert "dontPatchShebangs = true;" in managed_nix_node
 assert "dontPatchShebangs = true;" in managed_portable_node
 assert "dontPatchShebangs = true;" in native_modules_node_modules
 assert "dontPatchShebangs = true;" in native_modules
+assert "normalize-portable-shebangs.py" in native_modules
 assert "cp -a ${managedPortableNode}" in managed_nix_node
 assert "--set-interpreter" in managed_nix_node
 assert "--set-rpath" in managed_nix_node
