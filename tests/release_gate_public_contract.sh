@@ -28,6 +28,10 @@ import pathlib
 import sys
 
 text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+nix_electron_archive = text[
+    text.index("nixElectronZip ="):
+    text.index("runtimeNodePlatform =")
+]
 block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
@@ -46,6 +50,13 @@ assert private_broker_copy in block
 assert private_broker_copy in payload_block
 assert store_broker_export not in block
 assert store_broker_export not in payload_block
+assert "pkgs.runCommand" in nix_electron_archive
+assert "--set-interpreter" in nix_electron_archive
+assert "--set-rpath" in nix_electron_archive
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in payload_block
 install = block.index('"$source_dir/install.sh"')
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)

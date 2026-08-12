@@ -143,6 +143,32 @@
           hash = electronPlatform.hash;
         };
 
+        nixElectronZip = pkgs.runCommand
+          "electron-v${electronVersion}-linux-${electronPlatform.arch}-nix.zip"
+          {
+            nativeBuildInputs = [
+              pkgs.patchelf
+              pkgs.unzip
+              pkgs.zip
+            ];
+          }
+          ''
+            electron_root="$TMPDIR/electron"
+            mkdir -p "$electron_root"
+            unzip -q ${electronZip} -d "$electron_root"
+            test -x "$electron_root/electron"
+            chmod u+w "$electron_root/electron"
+            patchelf \
+              --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+              --set-rpath '$ORIGIN:${electronLibPath}' \
+              "$electron_root/electron"
+            (
+              cd "$electron_root"
+              zip -q -X -r -y "$out" .
+            )
+            test -f "$out"
+          '';
+
         runtimeNodePlatform =
           {
             x86_64-linux = {
@@ -772,7 +798,7 @@ PY
               "$managed_node_build/bin/node"
             export CHATGPT_MANAGED_NODE_SOURCE="$managed_node_build"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
-            export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"
+            export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
             export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
             ${pkgs.lib.optionalString codexMicroEnabled ''
             export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
@@ -973,7 +999,7 @@ PY
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
             export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
-            export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"
+            export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
             export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
             ${pkgs.lib.optionalString codexMicroEnabled ''
             export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
