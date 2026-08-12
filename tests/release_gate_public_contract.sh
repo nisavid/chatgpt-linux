@@ -110,6 +110,10 @@ raw_reference_audit = block.index(
     'release app file contains a Nix-store reference:',
     inactive_reference_scrub,
 )
+assert 'scrubbed_store_hash="$(printf \'e%.0s\' {1..32})"' in block
+assert 'case "$store_path" in' in block
+assert '/nix/store/$scrubbed_store_hash-*) continue ;;' in block
+assert "grep -aoE '/nix/store/[0-9a-z]{32}-" in block
 store_mode_normalization = block.index(
     'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
     raw_reference_audit,

@@ -921,12 +921,16 @@ PY
               fi
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
 
+            scrubbed_store_hash="$(printf 'e%.0s' {1..32})"
             raw_store_references=0
             while IFS= read -r -d $'\0' file; do
-              if grep -aFq '/nix/store/' "$file"; then
-                echo "release app file contains a Nix-store reference: $file" >&2
+              while IFS= read -r store_path; do
+                case "$store_path" in
+                  /nix/store/$scrubbed_store_hash-*) continue ;;
+                esac
+                echo "release app file contains a Nix-store reference: $file -> $store_path" >&2
                 raw_store_references=1
-              fi
+              done < <(grep -aoE '/nix/store/[0-9a-z]{32}-[^/[:space:][:cntrl:]]+' "$file" | sort -u || true)
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
             test "$raw_store_references" -eq 0
 
