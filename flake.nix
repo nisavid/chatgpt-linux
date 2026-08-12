@@ -868,6 +868,7 @@ PY
 
             while IFS= read -r -d $'\0' file; do
               if ${pkgs.file}/bin/file -b "$file" | grep -Fq ELF; then
+                chmod u+w "$file"
                 interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
                 case "$interpreter" in
                   /nix/store/*)

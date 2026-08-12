@@ -80,6 +80,7 @@ transaction_candidate = block.index(
 install = block.index('"$source_dir/install.sh"')
 assert transaction_active < transaction_candidate < install
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
+make_elf_writable = block.index('chmod u+w "$file"', discard_early_receipt)
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
 post_install = block.index("runHook postInstall")
 store_mode_normalization = block.index(
@@ -92,7 +93,7 @@ discard_postprocessing_receipt = block.index(
 )
 write_receipt = block.index("write-generation-receipt")
 validate_receipt = block.index("validate-generation-receipt")
-assert install < discard_early_receipt < elf_postprocessing
+assert install < discard_early_receipt < make_elf_writable < elf_postprocessing
 assert (
     elf_postprocessing
     < post_install
