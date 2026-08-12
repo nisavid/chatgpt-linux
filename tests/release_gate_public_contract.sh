@@ -44,6 +44,10 @@ native_modules = text[
     text.index("chatgptNativeModules ="):
     text.index("electronLibs =")
 ]
+native_modules_node_modules = text[
+    text.index("nativeModulesNodeModules ="):
+    text.index("chatgptNativeModules =")
+]
 block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
@@ -70,6 +74,7 @@ assert "--set-rpath" in nix_electron_archive
 assert "pkgs.runCommandLocal" in managed_nix_node
 assert "dontPatchShebangs = true;" in managed_nix_node
 assert "dontPatchShebangs = true;" in managed_portable_node
+assert "dontPatchShebangs = true;" in native_modules_node_modules
 assert "dontPatchShebangs = true;" in native_modules
 assert "cp -a ${managedPortableNode}" in managed_nix_node
 assert "--set-interpreter" in managed_nix_node

@@ -445,6 +445,7 @@
           inherit (pkgs) nodejs;
           derivationArgs = {
             npmRebuildFlags = [ "--ignore-scripts" ];
+            dontPatchShebangs = true;
           };
         };
 
