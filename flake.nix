@@ -194,6 +194,7 @@
         };
         managedPortableNode = pkgs.runCommandLocal "chatgpt-managed-node-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
           nativeBuildInputs = [ pkgs.gnutar pkgs.xz ];
+          dontPatchShebangs = true;
         } ''
           mkdir -p "$out"
           tar -xJf ${managedNodeArchive} --strip-components=1 -C "$out"
@@ -203,6 +204,7 @@
         '';
         managedNixNode = pkgs.runCommandLocal "chatgpt-managed-node-nix-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
           nativeBuildInputs = [ pkgs.patchelf ];
+          dontPatchShebangs = true;
         } ''
           cp -a ${managedPortableNode} "$out"
           chmod -R u+w "$out"

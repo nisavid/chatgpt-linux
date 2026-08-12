@@ -36,6 +36,10 @@ managed_nix_node = text[
     text.index("managedNixNode ="):
     text.index("electronHeaders =")
 ]
+managed_portable_node = text[
+    text.index("managedPortableNode ="):
+    text.index("managedNixNode =")
+]
 block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
@@ -60,6 +64,8 @@ assert "pkgs.runCommand" in nix_electron_archive
 assert "--set-interpreter" in nix_electron_archive
 assert "--set-rpath" in nix_electron_archive
 assert "pkgs.runCommandLocal" in managed_nix_node
+assert "dontPatchShebangs = true;" in managed_nix_node
+assert "dontPatchShebangs = true;" in managed_portable_node
 assert "cp -a ${managedPortableNode}" in managed_nix_node
 assert "--set-interpreter" in managed_nix_node
 assert "--set-rpath" in managed_nix_node
