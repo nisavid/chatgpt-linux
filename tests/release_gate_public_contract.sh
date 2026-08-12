@@ -92,9 +92,13 @@ active_elf_validation = block.index(
     '[[ "$rpath" != *\'/nix/store/\'* ]]',
     elf_postprocessing,
 )
+make_elf_parent_writable = block.index(
+    'chmod u+w "$(dirname "$file")"',
+    active_elf_validation,
+)
 inactive_reference_scrub = block.index(
     'remove-references-to -t "$store_root" "$file"',
-    active_elf_validation,
+    make_elf_parent_writable,
 )
 store_mode_normalization = block.index(
     'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
@@ -112,6 +116,7 @@ assert (
     < make_elf_writable
     < elf_postprocessing
     < active_elf_validation
+    < make_elf_parent_writable
     < inactive_reference_scrub
     < store_mode_normalization
     < discard_postprocessing_receipt

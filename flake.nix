@@ -909,6 +909,7 @@ PY
                 rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
                 [[ "$interpreter" != *'/nix/store/'* ]]
                 [[ "$rpath" != *'/nix/store/'* ]]
+                chmod u+w "$(dirname "$file")"
                 for store_root in "''${store_roots[@]}"; do
                   remove-references-to -t "$store_root" "$file"
                 done
