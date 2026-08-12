@@ -11371,6 +11371,7 @@ test("patcher CLI writes --report-json output", () => {
     const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
     assert.equal(report.mainBundle, "main.js");
     assert.ok(report.patches.some((patch) => patch.name === "main-process-ui"));
+    assert.equal(Object.hasOwn(report.postPatchIntegrity, "sourcePath"), false);
     assert.equal(report.postPatchIntegrity.findingCount, 1);
     assert.match(report.postPatchIntegrity.findings[0].symbol, /chatgptLinuxAgentWorkspaceSettingsIcon/);
     assert.match(report.postPatchIntegrity.findings[0].path, /settings-page-bad-linux-patch\.js$/);

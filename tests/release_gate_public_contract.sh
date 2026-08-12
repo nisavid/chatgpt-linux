@@ -122,8 +122,18 @@ transaction_active = block.index("export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1")
 transaction_candidate = block.index(
     '${pkgs.coreutils}/bin/install -d -m 0700 "$CHATGPT_INSTALL_DIR"'
 )
+copy_source = block.index('cp -R ./. "$source_dir/"')
+discard_staged_source_info = block.index(
+    'rm -f -- "$source_dir/.chatgpt-linux/source-info.json"'
+)
 install = block.index('"$source_dir/install.sh"')
-assert transaction_active < transaction_candidate < install
+assert (
+    copy_source
+    < discard_staged_source_info
+    < transaction_active
+    < transaction_candidate
+    < install
+)
 post_install = block.index("runHook postInstall")
 symlink_portability_scan = block.index(
     'find "$CHATGPT_INSTALL_DIR" -type l -print0'
@@ -178,6 +188,17 @@ assert (
 assert "chatgptReleaseAppReceiptValidation = pkgs.runCommand" in text
 assert "release-app-generation-receipt = chatgptReleaseAppReceiptValidation" in text
 PY
+
+READ_ONLY_CLEANUP_ROOT="$TEST_TMP/read-only-release-cleanup"
+mkdir -p "$READ_ONLY_CLEANUP_ROOT/subdir"
+printf 'immutable snapshot bytes\n' >"$READ_ONLY_CLEANUP_ROOT/subdir/file"
+chmod 0555 "$READ_ONLY_CLEANUP_ROOT" "$READ_ONLY_CLEANUP_ROOT/subdir"
+chmod 0444 "$READ_ONLY_CLEANUP_ROOT/subdir/file"
+RELEASE_GATE_TMP_DIR="$READ_ONLY_CLEANUP_ROOT"
+cleanup || fail "release cleanup could not remove a read-only Nix app snapshot"
+[ ! -e "$READ_ONLY_CLEANUP_ROOT" ] || \
+    fail "release cleanup left a read-only Nix app snapshot behind"
+RELEASE_GATE_TMP_DIR=""
 
 python3 - "$REPO_DIR/.github/workflows/ci.yml" <<'PY' || \
     fail "Nix public release helper smoke contract is incomplete"

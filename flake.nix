@@ -844,6 +844,7 @@ PY
             mkdir -p "$source_dir"
             cp -R ./. "$source_dir/"
             chmod -R u+w "$source_dir"
+            rm -f -- "$source_dir/.chatgpt-linux/source-info.json"
             cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
 
             substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \

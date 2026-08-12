@@ -91,7 +91,6 @@ async function main() {
       const inventory = createInventory({ sourcePath: extractedDir });
       const findings = findPostPatchIntegrityFindings(inventory);
       report.postPatchIntegrity = {
-        sourcePath: extractedDir,
         findingCount: findings.length,
         findings,
       };

@@ -116,7 +116,9 @@ cleanup() {
         rm -f -- "$RELEASE_NIX_CANARY_PATH"
     fi
     if [ -n "$RELEASE_GATE_TMP_DIR" ]; then
-        rm -rf "$RELEASE_GATE_TMP_DIR"
+        chmod u+rwx "$RELEASE_GATE_TMP_DIR" 2>/dev/null || true
+        find -P "$RELEASE_GATE_TMP_DIR" -type d -exec chmod u+rwx {} + 2>/dev/null || true
+        rm -rf -- "$RELEASE_GATE_TMP_DIR"
     fi
 }
 trap cleanup EXIT
