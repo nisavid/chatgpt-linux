@@ -382,7 +382,7 @@ jobs:
           test -x "$release_helpers_store/bin/chatgpt-updater"
           test -x "$release_helpers_store/bin/chatgpt-generated-app-mutation-broker"
           test -x "$release_app/resources/node-runtime/bin/node"
-          "$release_helpers_store/bin/chatgpt-updater" --version
+          "$release_helpers_store/bin/chatgpt-updater" --help
           "$release_app/resources/node-runtime/bin/node" --version
 
           while IFS= read -r -d '' link; do

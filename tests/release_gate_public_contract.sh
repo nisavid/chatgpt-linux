@@ -178,6 +178,17 @@ assert (
 assert "chatgptReleaseAppReceiptValidation = pkgs.runCommand" in text
 assert "release-app-generation-receipt = chatgptReleaseAppReceiptValidation" in text
 PY
+
+python3 - "$REPO_DIR/.github/workflows/ci.yml" <<'PY' || \
+    fail "Nix public release helper smoke contract is incomplete"
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+assert '"$release_helpers_store/bin/chatgpt-updater" --help' in text
+assert '"$release_helpers_store/bin/chatgpt-updater" --version' not in text
+PY
+
 RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"
 SUBMITTED_APP_DIR="$TEST_TMP/submitted-app"
 REFERENCE_APP_STORE_PATH="$TEST_TMP/reference-output"
