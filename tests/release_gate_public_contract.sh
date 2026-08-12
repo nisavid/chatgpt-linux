@@ -32,6 +32,10 @@ nix_electron_archive = text[
     text.index("nixElectronZip ="):
     text.index("runtimeNodePlatform =")
 ]
+managed_nix_node = text[
+    text.index("managedNixNode ="):
+    text.index("electronHeaders =")
+]
 block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
@@ -53,6 +57,15 @@ assert store_broker_export not in payload_block
 assert "pkgs.runCommand" in nix_electron_archive
 assert "--set-interpreter" in nix_electron_archive
 assert "--set-rpath" in nix_electron_archive
+assert "pkgs.runCommandLocal" in managed_nix_node
+assert "cp -a ${managedPortableNode}" in managed_nix_node
+assert "--set-interpreter" in managed_nix_node
+assert "--set-rpath" in managed_nix_node
+assert 'test -f "$out/lib/node_modules/npm/bin/npm-cli.js"' in managed_nix_node
+assert text.count(
+    'export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"'
+) == 3
+assert 'export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"' not in text
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block

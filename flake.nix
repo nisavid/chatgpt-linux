@@ -201,6 +201,20 @@
           test -x "$out/bin/npm"
           test -x "$out/bin/npx"
         '';
+        managedNixNode = pkgs.runCommandLocal "chatgpt-managed-node-nix-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
+          nativeBuildInputs = [ pkgs.patchelf ];
+        } ''
+          cp -a ${managedPortableNode} "$out"
+          chmod -R u+w "$out"
+          patchelf \
+            --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+            --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
+            "$out/bin/node"
+          test -x "$out/bin/node"
+          test -x "$out/bin/npm"
+          test -x "$out/bin/npx"
+          test -f "$out/lib/node_modules/npm/bin/npm-cli.js"
+        '';
 
         electronHeaders = pkgs.fetchurl {
           url = "https://artifacts.electronjs.org/headers/dist/v${electronVersion}/node-v${electronVersion}-headers.tar.gz";
@@ -789,14 +803,7 @@ PY
             export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
-            managed_node_build="$TMPDIR/managed-node-runtime"
-            cp -a ${managedPortableNode} "$managed_node_build"
-            chmod -R u+w "$managed_node_build"
-            ${pkgs.patchelf}/bin/patchelf \
-              --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
-              --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
-              "$managed_node_build/bin/node"
-            export CHATGPT_MANAGED_NODE_SOURCE="$managed_node_build"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
             export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
             export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
@@ -999,7 +1006,7 @@ PY
             export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
-            export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
             export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
             export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
             export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
@@ -1248,7 +1255,7 @@ PY
 
             cd "$source_dir"
             export CHATGPT_INSTALL_DIR="''${CHATGPT_INSTALL_DIR:-$root_dir/chatgpt}"
-            export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
             export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
             export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker"
             ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg" "$@"
