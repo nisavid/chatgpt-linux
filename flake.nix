@@ -837,6 +837,7 @@ PY
 
             export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1
             export CHATGPT_INSTALL_DIR="$out/opt/chatgpt"
+            ${pkgs.coreutils}/bin/install -d -m 0700 "$CHATGPT_INSTALL_DIR"
             export CHATGPT_PATCH_REPORT_JSON="$TMPDIR/release-patch-report.json"
             export CHATGPT_REBUILD_REPORT_JSON="$TMPDIR/release-rebuild-report.json"
             ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"

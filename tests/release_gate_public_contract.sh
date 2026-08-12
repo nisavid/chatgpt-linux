@@ -60,7 +60,12 @@ assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in payload_bloc
 electron_library_path = 'export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"'
 assert electron_library_path in block
 assert electron_library_path in payload_block
+transaction_active = block.index("export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1")
+transaction_candidate = block.index(
+    '${pkgs.coreutils}/bin/install -d -m 0700 "$CHATGPT_INSTALL_DIR"'
+)
 install = block.index('"$source_dir/install.sh"')
+assert transaction_active < transaction_candidate < install
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
 post_install = block.index("runHook postInstall")
