@@ -54,6 +54,8 @@ assert private_broker_copy in block
 assert private_broker_copy in payload_block
 assert store_broker_export not in block
 assert store_broker_export not in payload_block
+assert "dontPatchShebangs = true;" in block
+assert "pkgs.removeReferencesTo" in block
 assert "pkgs.runCommand" in nix_electron_archive
 assert "--set-interpreter" in nix_electron_archive
 assert "--set-rpath" in nix_electron_archive
@@ -79,13 +81,24 @@ transaction_candidate = block.index(
 )
 install = block.index('"$source_dir/install.sh"')
 assert transaction_active < transaction_candidate < install
+post_install = block.index("runHook postInstall")
+symlink_portability_scan = block.index(
+    'find "$CHATGPT_INSTALL_DIR" -type l -print0'
+)
 discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
 make_elf_writable = block.index('chmod u+w "$file"', discard_early_receipt)
 elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
-post_install = block.index("runHook postInstall")
+active_elf_validation = block.index(
+    '[[ "$rpath" != *\'/nix/store/\'* ]]',
+    elf_postprocessing,
+)
+inactive_reference_scrub = block.index(
+    'remove-references-to -t "$store_root" "$file"',
+    active_elf_validation,
+)
 store_mode_normalization = block.index(
     'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
-    post_install,
+    inactive_reference_scrub,
 )
 discard_postprocessing_receipt = block.index(
     'rm -rf -- "$generation_receipt_root"',
@@ -93,10 +106,13 @@ discard_postprocessing_receipt = block.index(
 )
 write_receipt = block.index("write-generation-receipt")
 validate_receipt = block.index("validate-generation-receipt")
-assert install < discard_early_receipt < make_elf_writable < elf_postprocessing
+assert install < post_install < discard_early_receipt < symlink_portability_scan
 assert (
-    elf_postprocessing
-    < post_install
+    symlink_portability_scan
+    < make_elf_writable
+    < elf_postprocessing
+    < active_elf_validation
+    < inactive_reference_scrub
     < store_mode_normalization
     < discard_postprocessing_receipt
     < write_receipt

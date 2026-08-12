@@ -765,6 +765,7 @@ PY
             pkgs._7zz
             pkgs.patchelf
             pkgs.python3
+            pkgs.removeReferencesTo
             pkgs.unzip
             pkgs.util-linux
           ];
@@ -772,6 +773,7 @@ PY
           dontConfigure = true;
           dontBuild = true;
           dontFixup = true;
+          dontPatchShebangs = true;
           allowedReferences = [ ];
 
           installPhase = ''
@@ -849,6 +851,8 @@ PY
             export CHATGPT_REBUILD_REPORT_JSON="$TMPDIR/release-rebuild-report.json"
             ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
 
+            runHook postInstall
+
             generation_receipt_root="$out/opt/.chatgpt-generation-receipts"
             rm -rf -- "$generation_receipt_root"
             test ! -e "$generation_receipt_root"
@@ -869,13 +873,25 @@ PY
             while IFS= read -r -d $'\0' file; do
               if ${pkgs.file}/bin/file -b "$file" | grep -Fq ELF; then
                 chmod u+w "$file"
+                store_roots=()
                 interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
                 case "$interpreter" in
                   /nix/store/*)
+                    store_remainder="''${interpreter#/nix/store/}"
+                    store_roots+=("/nix/store/''${store_remainder%%/*}")
                     ${pkgs.patchelf}/bin/patchelf --set-interpreter "${portableElfInterpreter}" "$file"
                     ;;
                 esac
                 rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
+                IFS=: read -r -a rpath_entries <<<"$rpath"
+                for rpath_entry in "''${rpath_entries[@]}"; do
+                  case "$rpath_entry" in
+                    /nix/store/*)
+                      store_remainder="''${rpath_entry#/nix/store/}"
+                      store_roots+=("/nix/store/''${store_remainder%%/*}")
+                      ;;
+                  esac
+                done
                 if [[ "$rpath" == *'/nix/store/'* ]]; then
                   portable_rpath="$(printf '%s' "$rpath" | awk -v RS=: '
                     index($0, "/nix/store/") != 1 {
@@ -893,13 +909,14 @@ PY
                 rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
                 [[ "$interpreter" != *'/nix/store/'* ]]
                 [[ "$rpath" != *'/nix/store/'* ]]
+                for store_root in "''${store_roots[@]}"; do
+                  remove-references-to -t "$store_root" "$file"
+                done
               elif grep -Iq . "$file" && grep -Fq '/nix/store/' "$file"; then
                 echo "release app text file contains a Nix-store path: $file" >&2
                 exit 1
               fi
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
-
-            runHook postInstall
 
             find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555 {} +
             while IFS= read -r -d $'\0' file; do
