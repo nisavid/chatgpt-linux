@@ -412,7 +412,7 @@ jobs:
           source_epoch="$(git show -s --format=%ct HEAD)"
           rm -rf dist
           APP_DIR_OVERRIDE="$release_app" \
-          PACKAGE_VERSION="$CHATGPT_VERSION" \
+          PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION" \
           UPDATER_BINARY_SOURCE="$release_helpers_store/bin/chatgpt-updater" \
           CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$release_helpers_store/bin/chatgpt-generated-app-mutation-broker" \
           SOURCE_DATE_EPOCH="$source_epoch" \

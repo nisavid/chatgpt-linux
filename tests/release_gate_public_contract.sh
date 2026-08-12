@@ -187,6 +187,8 @@ import sys
 text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 assert '"$release_helpers_store/bin/chatgpt-updater" --help' in text
 assert '"$release_helpers_store/bin/chatgpt-updater" --version' not in text
+assert 'PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION"' in text
+assert 'PACKAGE_VERSION="$CHATGPT_VERSION"' not in text
 PY
 
 RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"
