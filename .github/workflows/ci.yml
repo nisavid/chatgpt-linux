@@ -254,7 +254,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y binutils file gnupg p7zip-full
+          sudo apt-get install -y binutils file gnupg nodejs p7zip-full
 
       - name: Detect Nix pin file changes
         id: nix-pin-files
