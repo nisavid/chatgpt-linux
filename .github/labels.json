@@ -23,6 +23,16 @@
       "cardinality": "zero_or_one"
     },
     {
+      "id": "legacy-queue-membership",
+      "appliesTo": ["issue"],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "id": "legacy-scheduling-priority",
+      "appliesTo": ["issue"],
+      "cardinality": "zero_or_one"
+    },
+    {
       "id": "risk",
       "appliesTo": ["pull_request"],
       "cardinality": "exactly_one"
@@ -216,6 +226,36 @@
       "color": "98D362",
       "description": "Minor, cosmetic, or narrowly scoped impact.",
       "group": "impact"
+    },
+    {
+      "name": "security",
+      "color": "D93F0B",
+      "description": "Legacy public security work marker retained for migrated issue filters.",
+      "group": "legacy-queue-membership"
+    },
+    {
+      "name": "backlog",
+      "color": "5319E7",
+      "description": "Legacy durable follow-up marker retained for migrated issue filters.",
+      "group": "legacy-queue-membership"
+    },
+    {
+      "name": "priority/high",
+      "color": "B60205",
+      "description": "Legacy high scheduling priority retained for migrated issues.",
+      "group": "legacy-scheduling-priority"
+    },
+    {
+      "name": "priority/medium",
+      "color": "FBCA04",
+      "description": "Legacy medium scheduling priority retained for migrated issues.",
+      "group": "legacy-scheduling-priority"
+    },
+    {
+      "name": "priority/low",
+      "color": "0E8A16",
+      "description": "Legacy low scheduling priority retained for migrated issues.",
+      "group": "legacy-scheduling-priority"
     },
     {
       "name": "risk: low",
