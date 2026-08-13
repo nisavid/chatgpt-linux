@@ -211,8 +211,10 @@ Before default-enabling or materially changing a port integration, confirm:
   `port-integrations/README.md` when user-facing.
 - Runtime controls are enforced by the owning trusted control plane or action
   sink, not only in generated UI.
-- Any official app availability or hosted-service gate is preserved or replaced
-  by a documented equivalent.
+- Any official-app client gate is preserved or, when deliberately changed,
+  replaced by a documented local control enforced by its owning control plane.
+- OpenAI-hosted account, rollout, entitlement, and availability gates are
+  preserved; no local gate may replace them.
 - Central main-bundle and webview writes use the generated-app mutation
   capability, and integrity failures cannot degrade into optional patch drift.
   Extracted-app descriptors and integration staging remain explicitly outside
