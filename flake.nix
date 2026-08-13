@@ -404,6 +404,10 @@
             "-p"
             "chatgpt-notification-actions-linux"
           ];
+          cargoTestFlags = [
+            "-p"
+            "chatgpt-notification-actions-linux"
+          ];
 
           doCheck = true;
 
