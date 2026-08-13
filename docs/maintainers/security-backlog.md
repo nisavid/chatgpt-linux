@@ -4,9 +4,17 @@ Open security follow-up now lives in GitHub Issues. Use this file as the
 repository-local index and review workflow pointer.
 
 - [All open security backlog issues](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog)
-- [Highest priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fhigh%22)
-- [Medium priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fmedium%22)
-- [Lower priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Flow%22)
+- [Highest-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fhigh%22)
+- [Medium-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fmedium%22)
+- [Lower-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Flow%22)
+
+These links use the migrated queue's governed compatibility labels. `security`
+marks public security work, `backlog` marks durable follow-up work, and at most
+one `priority/*` label records the maintainer's scheduling bucket. The
+conjunction of `security` and `backlog` scopes this index to the existing public
+security queue. These labels do not replace the repository-wide `type:`,
+`area:`, `status:`, or evidence-based `impact:` classification. Scheduling
+priority must not be inferred as impact.
 
 ## Security Review Workflow
 
@@ -34,8 +42,8 @@ the local build gate, CodeQL, package metadata inspection, threat-model updates,
 project [security best practices](security-best-practices.md), or human
 maintainer approval where those are required.
 
-The filtered links above are authoritative for status and priority. Do not
-duplicate issue inventories here; completed work otherwise remains falsely
-listed as open. The
+The filtered links above are authoritative for membership and scheduling
+priority. Do not duplicate issue inventories here; completed work otherwise
+remains falsely listed as open. The
 [Remote Mobile Host Boundary Review](remote-mobile-host-boundary-review.md)
 keeps the repository-local evidence for that specific review surface.

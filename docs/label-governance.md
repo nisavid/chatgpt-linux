@@ -43,8 +43,8 @@ triage. Once classification starts, use the following cardinality rules.
 - exactly one active `status:` label
 - zero or one `impact:` label; use it for confirmed bugs and public security
   work when impact can be supported by evidence
-- optional community, workflow, resolution, and sync labels when their stated
-  conditions are met
+- optional community, workflow, resolution, sync, and migrated-queue
+  compatibility labels when their stated conditions are met
 
 ### Pull requests
 
@@ -125,9 +125,21 @@ Impact measures observed user harm. It is not scheduling priority.
 | `impact: medium` | Supported behavior is impaired, but the scope is limited or a workable workaround exists. |
 | `impact: low` | Minor, cosmetic, or narrowly scoped harm. |
 
-There are no `priority:` labels. Priority is an owner decision that can change
-without the technical impact changing; milestones or GitHub Projects are a
-better place to schedule work.
+The core taxonomy has no priority labels. Priority is an owner decision that
+can change without technical impact changing; milestones or GitHub Projects
+are the normal place for new scheduling.
+
+The migrated issue queue retains two optional compatibility groups:
+
+- `legacy-queue-membership` is `zero_or_more`; `backlog` marks durable
+  follow-up work, and `security` marks public security work.
+- `legacy-scheduling-priority` is `zero_or_one`; `priority/high`,
+  `priority/medium`, or `priority/low` records the maintainer's scheduling
+  bucket.
+
+These labels preserve existing issue filters. They do not replace required
+`type:`, `area:`, and `status:` classifications or evidence-based `impact:`.
+Scheduling priority must not be inferred as impact.
 
 ### Pull request risk
 
@@ -210,7 +222,9 @@ scannable:
 - established GitHub colors are retained for bug, feature, documentation,
   question, newcomer, and help labels
 - pale blue identifies ownership areas without competing with urgency
-- green, yellow, orange, and red carry increasing impact or review risk
+- green, yellow, orange, and red carry increasing impact or review risk in the
+  general taxonomy
+- migrated-queue compatibility labels retain their established colors
 - gray marks intake or manual workflow control
 - purple marks maintenance and maintainer decisions
 
