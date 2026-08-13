@@ -512,6 +512,10 @@ package verification subsequently uses the reference as authority. The static,
 root-owned updater and mutation broker come from the reviewed source snapshot's
 `release-helpers` output. A trusted system Node runtime performs public
 validation; the app's managed Node runtime is never executed by the gate.
+Fork-built dynamic Rust helpers and Electron native addons use the exact
+`nixpkgsBaseline` input as their Ubuntu 22.04 glibc ABI floor. The Nix checks
+inspect every owned output, including optional helpers, and the Ubuntu 22.04
+package smoke inspects both `/opt/chatgpt` and `/usr/lib/chatgpt`.
 
 The release record binds the DMG hash, source revision, generated-app build
 record, full resolved port integration config, enabled integration input digest,

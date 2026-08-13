@@ -63,6 +63,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   package staging requires and revalidates the receipt while copying app bytes.
 - `chatgpt-updater` no longer embeds its source checkout path; CI verifies
   byte-identical release builds from distinct absolute source roots.
+- Fork-built release helpers and Electron native addons now link against the
+  pinned Ubuntu 22.04 glibc ABI floor. Nix and installed-package checks reject
+  newer GLIBC requirements before a public native package is accepted.
 
 - The project identity is now **ChatGPT for Linux**. The repository is
   `nisavid/chatgpt-linux`; the app, native package, command, and XDG identity are

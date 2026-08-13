@@ -117,6 +117,8 @@ import pathlib
 import sys
 
 text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+assert 'nixpkgsBaseline.url = "github:NixOS/nixpkgs/' in text
+assert "baselinePkgs = import nixpkgsBaseline" in text
 nix_electron_archive = text[
     text.index("nixElectronZip ="):
     text.index("runtimeNodePlatform =")
@@ -136,6 +138,26 @@ native_modules = text[
 native_modules_node_modules = text[
     text.index("nativeModulesNodeModules ="):
     text.index("chatgptNativeModules =")
+]
+computer_use_binaries = text[
+    text.index("chatgptComputerUseBinaries ="):
+    text.index("updaterManifest =")
+]
+read_aloud_binary = text[
+    text.index("chatgptReadAloudMcpBinary ="):
+    text.index("chatgptNotificationActionsBinary =")
+]
+notification_binary = text[
+    text.index("chatgptNotificationActionsBinary ="):
+    text.index("chatgptMcpHelperReaper =")
+]
+reaper_binary = text[
+    text.index("chatgptMcpHelperReaper ="):
+    text.index("chatgptGlobalDictationBinary =")
+]
+dictation_binary = text[
+    text.index("chatgptGlobalDictationBinary ="):
+    text.index("nativeModulesNodeModules =")
 ]
 block = text[
     text.index("mkChatGPTReleaseApp ="):
@@ -169,6 +191,15 @@ assert "dontPatchShebangs = true;" in managed_nix_node
 assert "dontPatchShebangs = true;" in managed_portable_node
 assert "dontPatchShebangs = true;" in native_modules_node_modules
 assert "dontPatchShebangs = true;" in native_modules
+assert "baselinePkgs.stdenv.mkDerivation" in native_modules
+for portable_rust_binary in (
+    computer_use_binaries,
+    read_aloud_binary,
+    notification_binary,
+    reaper_binary,
+    dictation_binary,
+):
+    assert "portableRustPlatform.buildRustPackage" in portable_rust_binary
 assert "normalize-portable-shebangs.py" in native_modules
 assert "cp -a ${managedPortableNode}" in managed_nix_node
 assert "--set-interpreter" in managed_nix_node
@@ -263,6 +294,19 @@ assert (
 )
 assert "chatgptReleaseAppReceiptValidation = pkgs.runCommand" in text
 assert "release-app-generation-receipt = chatgptReleaseAppReceiptValidation" in text
+assert "portableOwnedElfBaseline = pkgs.runCommand" in text
+assert "portable-owned-elf-baseline = portableOwnedElfBaseline" in text
+for portable_output in (
+    "${chatgptComputerUseBinaries}",
+    "${chatgptReadAloudMcpBinary}",
+    "${chatgptNotificationActionsBinary}",
+    "${chatgptMcpHelperReaper}",
+    "${chatgptGlobalDictationBinary}",
+    "${chatgptNativeModules}",
+):
+    assert portable_output in text
+assert "check-portable-elf-dependencies.sh" in block
+assert "--versions-only" in block
 PY
 
 READ_ONLY_CLEANUP_ROOT="$TEST_TMP/read-only-release-cleanup"
@@ -288,6 +332,8 @@ assert 'PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION"' in text
 assert 'PACKAGE_VERSION="$CHATGPT_VERSION"' not in text
 assert "sudo apt-get install -y binutils file gnupg nodejs p7zip-full" in text
 assert "sudo install -m 0755 \"$(command -v nix)\" /usr/bin/nix" in text
+assert 'apt-get install -y binutils file "$deb_file"' in text
+assert 'bash /check-portable-elf-dependencies.sh /usr/lib/chatgpt' in text
 PY
 
 RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"

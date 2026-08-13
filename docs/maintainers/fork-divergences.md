@@ -494,7 +494,8 @@ outputs, exact submitted/reference app equality, reference-owned native-package
 rebuild and install-control comparison, exact RPM reference bytes,
 snapshot-derived checksums, signed release provenance bound to the approved
 primary fingerprint, public key export, macOS Apple DMG verification, reviewed
-hash-refresh PRs, safer DMG
+hash-refresh PRs, a pinned Ubuntu 22.04 glibc ABI floor for fork-built dynamic
+helpers and Electron native addons, safer DMG
 URL validation, download limits, partial-file downloads, and sanitized URL
 logging. Public validation uses a trusted system Node runtime rather than code
 from the app under review. The

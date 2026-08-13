@@ -3,10 +3,11 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgsBaseline.url = "github:NixOS/nixpkgs/ea4c80b39be4c09702b0cb3b42eab59e2ba4f24b";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgsBaseline, flake-utils }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let
         rewriteCratesIoDownloadUrl = url:
@@ -51,6 +52,12 @@
                 prev.fetchurl (rewriteCratesIoFetchurlArgs prev.lib args);
             })
           ];
+        };
+        baselinePkgs = import nixpkgsBaseline {
+          inherit system;
+        };
+        portableRustPlatform = baselinePkgs.makeRustPlatform {
+          inherit (pkgs) cargo rustc;
         };
         stagedSourceInfoPath = ./. + "/.chatgpt-linux/source-info.json";
         stagedSourceInfo =
@@ -265,7 +272,7 @@
           '';
         } else null;
 
-        chatgptComputerUseBinaries = pkgs.rustPlatform.buildRustPackage {
+        chatgptComputerUseBinaries = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-computer-use-linux-binaries";
           version = "0.1.2-linux-alpha2";
           src = computerUseBuildSource;
@@ -367,7 +374,7 @@
         };
         chatgptGeneratedAppMutationBroker = chatgptReleaseHelpers;
 
-        chatgptReadAloudMcpBinary = pkgs.rustPlatform.buildRustPackage {
+        chatgptReadAloudMcpBinary = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-read-aloud-linux-binary";
           version = "0.1.0-linux-alpha1";
           src = sourceRoot;
@@ -395,7 +402,7 @@
           '';
         };
 
-        chatgptNotificationActionsBinary = pkgs.rustPlatform.buildRustPackage {
+        chatgptNotificationActionsBinary = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-notification-actions-linux";
           version = "0.1.0";
           src = notificationActionsBuildSource;
@@ -422,7 +429,7 @@
           '';
         };
 
-        chatgptMcpHelperReaper = pkgs.rustPlatform.buildRustPackage {
+        chatgptMcpHelperReaper = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-mcp-helper-reaper";
           version = "0.1.0";
           src = ./port-integrations/mcp-helper-reaper/reaper;
@@ -432,7 +439,7 @@
           };
         };
 
-        chatgptGlobalDictationBinary = pkgs.rustPlatform.buildRustPackage {
+        chatgptGlobalDictationBinary = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-global-dictation-linux";
           version = "0.1.0";
           src = ./global-dictation-linux;
@@ -463,7 +470,7 @@
           };
         };
 
-        chatgptNativeModules = pkgs.stdenv.mkDerivation {
+        chatgptNativeModules = baselinePkgs.stdenv.mkDerivation {
           pname = "chatgpt-electron-native-modules";
           version = electronVersion;
           dontUnpack = true;
@@ -471,8 +478,8 @@
 
           nativeBuildInputs = [
             pkgs.bash
-            pkgs.gcc
-            pkgs.gnumake
+            baselinePkgs.gcc
+            baselinePkgs.gnumake
             pkgs.nodejs
             pkgs.python3
           ];
@@ -775,6 +782,7 @@ PY
 
           nativeBuildInputs = [
             pkgs.bash
+            pkgs.binutils
             pkgs.cargo
             pkgs.curl
             pkgs.file
@@ -959,6 +967,11 @@ PY
             done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
             test "$raw_store_references" -eq 0
 
+            ${pkgs.bash}/bin/bash \
+              "$source_dir/scripts/ci/check-portable-elf-dependencies.sh" \
+              --versions-only \
+              "$CHATGPT_INSTALL_DIR"
+
             find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555 {} +
             while IFS= read -r -d $'\0' file; do
               if [ -x "$file" ]; then
@@ -995,6 +1008,30 @@ PY
               ${sourceRoot}/scripts/lib/package-provenance.py \
               validate-generation-receipt \
               --app ${chatgptReleaseApp}/opt/chatgpt >/dev/null
+            touch "$out"
+          '';
+        portableOwnedElfBaseline = pkgs.runCommand
+          "chatgpt-portable-owned-elf-baseline-check"
+          {
+            nativeBuildInputs = [
+              pkgs.bash
+              pkgs.binutils
+              pkgs.file
+            ];
+          }
+          ''
+            for portable_output in \
+              ${chatgptComputerUseBinaries} \
+              ${chatgptReadAloudMcpBinary} \
+              ${chatgptNotificationActionsBinary} \
+              ${chatgptMcpHelperReaper} \
+              ${chatgptGlobalDictationBinary} \
+              ${chatgptNativeModules}; do
+              ${pkgs.bash}/bin/bash \
+                ${sourceRoot}/scripts/ci/check-portable-elf-dependencies.sh \
+                --versions-only \
+                "$portable_output"
+            done
             touch "$out"
           '';
         releaseSandboxCanary = pkgs.runCommandLocal "chatgpt-release-sandbox-canary" { } ''
@@ -1339,6 +1376,7 @@ PY
 
         checks = {
           generated-app-mutation-broker = chatgptGeneratedAppMutationBroker;
+          portable-owned-elf-baseline = portableOwnedElfBaseline;
           release-app-generation-receipt = chatgptReleaseAppReceiptValidation;
           release-helpers = chatgptReleaseHelpers;
           generated-app-mutation-broker-installer = pkgs.runCommand "chatgpt-generated-app-mutation-broker-installer-check" { } ''

@@ -462,9 +462,10 @@ jobs:
               apt-get update
               deb_file="$(find /dist -maxdepth 1 -name "chatgpt_*.deb" -print -quit)"
               test -n "$deb_file"
-              apt-get install -y file "$deb_file"
+              apt-get install -y binutils file "$deb_file"
               /opt/chatgpt/resources/node-runtime/bin/node --version
               bash /check-portable-elf-dependencies.sh /opt/chatgpt
+              bash /check-portable-elf-dependencies.sh /usr/lib/chatgpt
             '
 
   package-rpm:
