@@ -220,7 +220,7 @@ function packageProfile(target) {
       label: "NixOS / Nix",
       packageManager: "flake",
       format: "runnable directly",
-      notes: "nix run github:nisavid/chatgpt-linux",
+      notes: "nix run github:nisavid/codex-app-linux",
     };
   }
   if (["debian", "ubuntu", "pop", "linuxmint", "elementary"].some((value) => ids.has(value))) {

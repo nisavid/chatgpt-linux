@@ -3,11 +3,16 @@
 `agent-workspace` is a default-enabled ChatGPT port integration that adds the
 `agent-workspace-linux` control surface to the app settings UI.
 
-Disable it in `port-integrations.json` before running the install/build
-pipeline when the build should omit the settings page and bridge:
+For a checkout build, disable it in `port-integrations/integrations.json` before
+running the install/build pipeline when the build should omit the settings page
+and bridge. For a normal packaged updater rebuild, put the same override in
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`. A custom app
+ID replaces `chatgpt`; when `CHATGPT_LINUX_SETTINGS_FILE` is non-empty, use
+`port-integrations.json` beside that explicit settings file:
 
 ```json
 {
+  "enabled": [],
   "disabled": [
     "agent-workspace"
   ]
@@ -101,7 +106,7 @@ default path, with the command field kept as an explicit override.
 The command field is stored in generated app global state and the
 main-process bridge currently gives it highest precedence before invoking
 `execFile`. Hardening that command-selection boundary is tracked in
-[#99](https://github.com/nisavid/chatgpt-linux/issues/99).
+[#99](https://github.com/nisavid/codex-app-linux/issues/99).
 
 The **Agent Workspaces** settings page is the single user-facing place for this
 integration. The page owns the command path, optional permission file path,
@@ -169,7 +174,7 @@ required acknowledgements. The bridge sends `--ack-hidden-workspace` and any
 needed policy acknowledgement only after the user presses **Approve and start**.
 The current bridge accepts those acknowledgement params from renderer requests;
 main-process approval binding for direct bridge calls is tracked in
-[#99](https://github.com/nisavid/chatgpt-linux/issues/99).
+[#99](https://github.com/nisavid/codex-app-linux/issues/99).
 
 Manual validation checklist for a build that includes this integration:
 

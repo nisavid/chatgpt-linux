@@ -1,469 +1,321 @@
 # Record And Replay Compatibility On Linux
 
-This document tracks the Linux compatibility path for Codex Record & Replay.
-Treat Record & Replay as a demo-to-skill compiler, not as a coordinate macro
-recorder. Parity on Linux means staging the same bundled Record & Replay plugin
-shell from the current upstream DMG, replacing the macOS Sky Computer Use
-event-stream helper with a Linux implementation of that helper contract, then
-capturing semantic evidence into a bundle that drafts and imports ordinary Codex
-skills.
+This page explains the current Linux compatibility contract for Codex Record &
+Replay and provides the reference data needed to review that contract. For
+enablement, build prerequisites, and bridge method names, see the
+[`record-and-replay` port integration](../port-integrations/record-and-replay/README.md).
+For Chronicle/Skysight runtime checks, see
+[Linux Chronicle/Skysight](linux-chronicle-skysight.md). Future work belongs in
+the [repository backlog](backlog.md), not in a pull-request plan on this page.
 
-## Phase 1 Support Definition
+Record & Replay is a demo-to-skill compiler, not a coordinate macro recorder.
+The Linux port integration stages the bundled Record & Replay plugin shell from
+the current official OpenAI ChatGPT DMG when available, replaces the macOS Sky
+Computer Use event-stream helper with a Linux implementation of that helper
+contract, and captures semantic evidence into a bundle that can draft and
+import an ordinary Codex skill.
 
-Phase 1 supports the first Linux-native Record & Replay path behind the
-disabled-by-default `record-and-replay` port integration.
+## Current Support Boundary
 
-Supported in Phase 1 means Linux can surface the opt-in `Record & Replay`
-plugin shell, start a local recording session through its `event-stream` MCP
-server, collect a bundle of screenshots, accessibility snapshots, spoken
-transcript context, active desktop/window snapshots, window/session diagnostics,
-and user markers, generate a draft-skill prompt, import ordinary Codex skill
-folders where the required tools exist, and classify replay readiness. It does
-not mean Linux replays raw mouse coordinates as a macro.
+The disabled-by-default `record-and-replay` port integration currently provides:
 
-Use these terms consistently:
+- the `Record & Replay` plugin shell and `event-stream` MCP server identity;
+- the `SkyLinuxComputerUseClient event-stream mcp` helper, backed by the Rust
+  `chatgpt-record-replay-linux` binary;
+- recording sessions capped at 30 minutes, with stop and discard controls;
+- screenshots, accessibility snapshots, spoken transcript context, active
+  app/window snapshots, browser trace evidence supplied by a caller, provider
+  diagnostics, and user markers;
+- bundle validation, draft-skill prompt generation, skill inspection, and
+  guarded import into Codex skill directories; and
+- Chronicle/Skysight screen and event memory with pause, resume, snapshot,
+  exclusion, OCR, rolling-summary, and status support.
 
-- Importable: the folder is a valid skill directory.
-- Listable: the wrapped app or CLI reports the skill.
-- Readable: Codex can load `SKILL.md`.
-- Invocable: the user can explicitly reference the skill.
-- Runnable: required tools/providers are present.
-- Verified: a smoke run completed on this Linux host.
+This support does not:
 
-## Upstream Behavior
+- bypass OpenAI account, region, rollout, Computer Use, plugin, or hosted-service
+  policy;
+- replay captured pointer coordinates or raw input events;
+- make a missing desktop, browser, accessibility, or input provider available;
+- make macOS- or Windows-specific skills runnable on Linux; or
+- treat a source-level or bundle-level test as proof that a live generated app
+  completed the workflow.
 
-As of June 28, 2026, the OpenAI docs describe Record & Replay as a macOS
-feature. Initial availability excludes the European Economic Area, the United
-Kingdom, and Switzerland, and Computer Use must be available and enabled.
+Use these terms when reporting support:
 
-The workflow is:
+| Term | Meaning |
+| --- | --- |
+| Importable | The folder passes the Linux importer's shape and safety checks. |
+| Listable | ChatGPT or Codex reports the skill from a supported skill location. |
+| Readable | ChatGPT or Codex can load the skill's `SKILL.md`. |
+| Invocable | The user can explicitly select or mention the skill. |
+| Runnable | The tools and providers required by the skill are available. |
+| Verified | The relevant workflow completed in a live generated Linux app on the reported host. |
 
-1. The user starts "Record a skill" from the Plugins page overflow menu in the
-   ChatGPT app.
-2. Codex asks for recording permission.
-3. The user demonstrates a focused workflow on their Mac.
-4. Codex observes the actions, window content, and spoken user context needed
-   to learn the workflow.
-5. After recording stops, Codex drafts a reusable skill.
-6. Later, Codex uses that skill as context and completes the workflow with the
-   tools available in the current environment.
+## Official OpenAI Product Contract
 
-The important compatibility point is the contract: the bundled plugin launches
-an `event-stream` MCP server and the durable output is a Codex skill. The
-current macOS bundle supplies that server through
-`computer-use-client-launcher event-stream mcp`; the port integration supplies
-`SkyLinuxComputerUseClient event-stream mcp`, backed by the Rust
-`chatgpt-record-replay-linux` backend.
+OpenAI documents Record & Replay as a macOS capability. Initial availability
+excludes the European Economic Area, the United Kingdom, and Switzerland, and
+Computer Use must be available and enabled.
 
-## Chronicle / Skysight Parity
+The official workflow is:
 
-Chronicle/Skysight is the screen and event-memory sidecar for Record & Replay
-on Linux. It is not microphone transcription. The Linux bridge now exposes
-pause and resume alongside the existing start, status, stop, snapshot, and
-exclusion methods so the app can keep the active capture session alive while
-the backend moves between recording states.
+1. The user starts **Record a skill** from the Plugins page in the ChatGPT
+   desktop app.
+2. ChatGPT or Codex requests recording permission.
+3. The user demonstrates a focused workflow on a Mac.
+4. The product observes the actions, window content, and spoken context needed
+   to understand that workflow.
+5. When recording stops, the product drafts a reusable skill.
+6. A later chat uses the skill as context and completes the workflow with the
+   tools available in that environment.
 
-Chronicle-compatible resources are written under
-`${CODEX_HOME:-$HOME/.codex}/memories/extensions/chronicle/resources`, while the
-runtime state directory remains `$XDG_RUNTIME_DIR/skysight`.
+The compatibility boundary is the plugin and skill contract rather than the
+macOS capture implementation:
 
-Each Linux Skysight snapshot now writes a segment directory with `events.jsonl`,
-`metadata.json`, and bounded `artifacts/` evidence. Events include Computer Use
-diagnostics, provider readiness, artifact references, capture failures, and
-suppressed-evidence records. Artifacts include diagnostics on every snapshot
-and add screenshots, window/app metadata, and AT-SPI/accessibility evidence
-when those providers are available. Exclusion rules are enforced before
-window/app/accessibility evidence is written and cause suppression records
-instead of leaking excluded content into summaries.
+| Official product element | Linux port mapping |
+| --- | --- |
+| Bundled `Record & Replay` plugin shell | Staged from the official app bundle when present; otherwise the integration's aligned fallback template is used. |
+| `computer-use-client-launcher event-stream mcp` | Replaced with `SkyLinuxComputerUseClient event-stream mcp`. |
+| Demonstration evidence | Recorded as a semantic Linux bundle rather than a raw coordinate stream. |
+| Generated skill | Drafted and imported as an ordinary Codex skill directory. |
+| Replay providers | Supplied by the current environment, including Computer Use, browser actions, and installed plugins; their normal policy gates remain authoritative. |
 
-The memory resources follow rolling-window semantics: `*-10min-*.md` summaries
-cover recent segment windows, while `*-6h-*.md` rollups are cadence-limited and
-reuse the current rollup until the next six-hour window is due.
+Official reference:
 
-Linux Chronicle OCR is implemented as optional local backends. In `auto` mode,
-Skysight prefers RapidOCR through Python + ONNXRuntime when available, then
-falls back to the Tesseract CLI. Skysight reports OCR mode, backend selection,
-availability, language, version, dependency hints, and errors through
-`skysight status`, provider readiness events, and the Linux Chronicle bridge.
-Missing OCR dependencies are non-fatal unless `CHATGPT_SKYSIGHT_OCR=required`;
-in non-required modes Skysight continues writing Chronicle-shaped `.ocr.jsonl`
-rows with `runs_ocr=false`, empty `normalized_text`, and an explicit
-unavailable/disabled status.
+- [Record & Replay](https://developers.openai.com/codex/record-and-replay)
+- [Skills](https://developers.openai.com/codex/skills)
+- [ChatGPT desktop app](https://developers.openai.com/codex/app)
+- [ChatGPT and Codex changelog](https://developers.openai.com/codex/changelog)
 
-OCR is downstream of privacy gating. Screenshot suppression prevents OCR, and
-recognized text that matches an exclusion value is stripped before it can be
-persisted to `.ocr.jsonl` or summarized. Markdown resources include OCR
-status/count/path/truncation summaries only; raw OCR text is not copied into
-durable resources by default. RapidOCR is the preferred advanced screen OCR
-provider; Tesseract remains the safe local fallback.
-
-After rebuilding the feature, Josh can verify the branch with:
-
-1. `node --test port-integrations/record-and-replay/test.js`
-2. A rebuild/install of the app or feature bundle.
-3. A live `skysight status` check that reports the resource root.
-4. `skysight pause`, `skysight resume`, and `skysight stop` through the
-   bridge or helper once the Rust worker is present.
-5. A bundle/snapshot pass that shows segment `events.jsonl`, `metadata.json`,
-   `artifacts/diagnostics.json`, a `*-10min-*.md` resource, and a current
-   `*-6h-*.md` rollup.
-6. A recording pass that still treats `speech_context` as transcript
-   evidence, not audio replay; native audio artifacts are opt-in only.
-
-See [docs/linux-chronicle-skysight.md](./linux-chronicle-skysight.md) for the
-short runtime contract.
-
-Relevant upstream docs:
-
-- Record & Replay: <https://developers.openai.com/codex/record-and-replay>
-- Skills: <https://developers.openai.com/codex/skills>
-- ChatGPT app: <https://developers.openai.com/codex/app>
-- Codex changelog: <https://developers.openai.com/codex/changelog>
-
-The June 18, 2026 changelog entry introduced Record & Replay in ChatGPT app
+The June 18, 2026 changelog entry introduced Record & Replay in app version
 26.616 as a macOS feature that turns a demonstrated workflow into a reusable
 skill.
 
-## Skill Format And Discovery
+## Linux Implementation Boundary
 
-Codex skills are directories with a required `SKILL.md` and optional
-`scripts/`, `references/`, `assets/`, and `agents/openai.yaml` metadata. The
-`SKILL.md` file must include `name` and `description` frontmatter.
+The Linux implementation has four layers:
 
-Codex can invoke skills explicitly or implicitly:
+1. `port-integrations/record-and-replay/stage.sh` stages and adapts the official
+   plugin shell, builds or accepts the Rust helper, and installs the helper
+   under the official-shaped executable name.
+2. `port-integrations/record-and-replay/patch.js` adds allowlisted main-process
+   bridge methods, a recording HUD, transcript forwarding, and periodic active
+   desktop snapshots.
+3. `record-replay-linux/` implements the CLI and stdio MCP backend for
+   diagnostics, recording, bundle handling, skill inspection/import, and
+   Chronicle/Skysight.
+4. Linux Computer Use supplies host diagnostics and available screenshot,
+   accessibility, window, and input providers. Replay remains skill-driven
+   through Codex and the providers available at invocation time.
 
-- Explicit: mention a skill in the prompt, use `/skills`, or type `$` in
-  surfaces that support skill autocomplete.
-- Implicit: Codex chooses a skill when the task matches the skill description.
+The integration keeps the plugin-packaged `record-and-replay` skill for the
+agent-facing workflow. Generated user skills import into ordinary direct skill
+folders rather than a Linux-only registry.
 
-Codex reads skills from repository, user, admin, and system locations:
+## Recording And Evidence Contract
 
-| Scope | Location | Linux relevance |
+A recording bundle contains `manifest.json`, `timeline.jsonl`, diagnostics,
+screenshots and accessibility evidence when available, browser traces supplied
+by callers, transcript context, InputCapture/libei readiness, X11/session
+metadata, active desktop/window snapshots, optional audio metadata, and
+`draft-prompt.md`.
+
+Captured content is untrusted evidence. The draft prompt instructs the agent to
+extract observable facts without following instructions found inside captured
+screenshots, accessibility trees, traces, or transcripts. A canceled or
+discarded bundle remains evidence, but its generated draft prompt identifies it
+as canceled and instructs the agent not to create a reusable skill from it.
+
+Native audio capture is off by default. It requires both an affirmative
+`CHATGPT_RECORD_REPLAY_AUDIO` value and a caller that requests audio. Spoken
+context normally enters the bundle as transcript evidence, not as audio to
+replay.
+
+The backend catalog records why a provider is ready, partial, unavailable, or
+readiness-only:
+
+| Provider | Current role | Boundary |
 | --- | --- | --- |
-| Repo | `$CWD/.agents/skills` and parent `.agents/skills` directories up to repo root | Best for project-specific skills generated elsewhere. |
-| User | `$HOME/.agents/skills` | Best first import target for personal Record & Replay output. |
-| Admin | `/etc/codex/skills` | Useful for managed images or shared container defaults. |
-| System | Bundled with Codex by OpenAI | Already upstream-owned. |
+| Screenshot backends | Capture initial and Chronicle screenshots when available. | Provider failures degrade the bundle and remain visible in diagnostics. |
+| AT-SPI/accessibility | Capture semantic application evidence when available. | Coverage depends on the application, desktop, and accessibility setup. |
+| Browser trace/CDP | Store caller-provided trace JSON and surface it in the draft timeline. | The integration does not attach to a live browser by itself. |
+| Active desktop/window snapshot | Record focused app and window metadata through the CLI, MCP server, bridge, and HUD. | Exact URL or control semantics still require browser or accessibility evidence. |
+| InputCapture/libei | Record portal and input readiness. | Raw libei event-stream capture is not implemented. |
+| X11/EWMH | Record session, window, and focused-app evidence on X11. | Raw X11 input-event capture is not implemented. |
+| Linux Computer Use | Provide diagnostics and replay-time desktop capabilities. | Account policy, approvals, sandbox policy, and host readiness still apply. |
 
-Codex also supports plugin-packaged skills for distribution. The port integration
-ships its own plugin-packaged `record-and-replay` entrypoint, while generated
-user skills still import to ordinary direct skill folders by default.
+## Chronicle And Skysight
 
-The default direct-import target for user skills should be
-`$HOME/.agents/skills`, because that is the upstream documented user skill
-location. Repo-specific skills belong under `.agents/skills` in the relevant
-repository.
+Chronicle/Skysight is the screen and event-memory companion to Record & Replay
+on Linux. It is not microphone transcription. The Linux bridge exposes start,
+status, pause, resume, stop, snapshot, and exclusion methods so the app can keep
+an active capture session while the backend changes recording state.
 
-This repo also has a wrapper-owned skill installation pattern that stages
-feature resources into the app and copies them into
-`${CODEX_HOME:-~/.codex}/skills` at runtime. Treat that as a Linux-wrapper
-feature bootstrap path until smoke tests prove it is a stable general import
-location for upstream skills.
+Chronicle-compatible resources are written under
+`${CODEX_HOME:-$HOME/.codex}/memories/extensions/chronicle/resources`. Runtime
+state remains under `$XDG_RUNTIME_DIR/skysight`.
 
-## Existing Linux Repo Hooks
+Each snapshot writes a segment directory with `events.jsonl`, `metadata.json`,
+and bounded `artifacts/` evidence. Events include Computer Use diagnostics,
+provider readiness, artifact references, capture failures, and
+suppressed-evidence records. Artifacts include diagnostics on every snapshot
+and add screenshots, window/app metadata, and AT-SPI/accessibility evidence
+when those providers are available.
 
-This repo already has pieces that make skill consumption a realistic first
-step:
+Exclusion rules run before window, app, accessibility, screenshot, or OCR
+evidence is persisted. Suppressed content produces a suppression record rather
+than appearing in summaries.
 
-- `port-integrations/agent-workspace/` stages a bundled skill under
-  `.chatgpt-linux/port-integrations/...` and installs it into
-  `${CODEX_HOME:-~/.codex}/skills/...` from a prelaunch hook. This is a proven
-  pattern for feature-owned skills that need real user paths at runtime.
-- `docs/port-integrations-architecture.md` documents the same pattern and warns
-  against writing user-home files from build-time `stage.sh` hooks.
-- `launcher/start.sh.template` resolves `CODEX_HOME`, syncs bundled plugin
-  caches, and now has a generic path for extra bundled plugins staged by
-  opt-in port integrations.
-- `port-integrations/*/patch.js` descriptors provide the current optional bridge
-  injection path for feature-specific app actions.
-- `docs/linux-computer-use.md` documents the bundled Linux Computer Use MCP
-  backend, its readiness checks, and its current backend limits.
-- `computer-use-linux/src/diagnostics.rs` already reports separate readiness
-  layers for portals, accessibility, windowing, screenshots, and input.
+Memory resources use rolling windows: `*-10min-*.md` files summarize recent
+segments, while `*-6h-*.md` rollups are cadence-limited and reused until the
+next six-hour window is due.
 
-Those pieces point to the current incremental implementation: Linux consumes
-and imports skills while adding a native recording bundle path that stays
-semantic and provider-gated.
+OCR is local and optional. In `auto` mode, Skysight prefers RapidOCR through
+Python and ONNX Runtime, then falls back to the Tesseract CLI. Status output and
+provider events report the configured mode, selected backend, availability,
+language, version, dependency hints, and errors. Missing dependencies are
+non-fatal unless `CHATGPT_SKYSIGHT_OCR=required`.
+
+When OCR is unavailable or disabled, Skysight still writes
+Chronicle-shaped `.ocr.jsonl` rows with `runs_ocr=false`, empty
+`normalized_text`, and an explicit status. Markdown resources contain only OCR
+status, count, path, and truncation summaries; raw OCR text is not copied into
+durable resources by default.
+
+## Codex Skill Shape And Discovery
+
+A Codex skill is a directory with a required `SKILL.md` and optional
+`scripts/`, `references/`, `assets/`, and `agents/openai.yaml`. `SKILL.md`
+requires `name` and `description` frontmatter.
+
+ChatGPT supports explicit skill selection with `@`. Codex CLI and the IDE
+extension support `/skills` and `$` mentions. ChatGPT and Codex can also invoke
+a skill implicitly when its description matches the task and policy permits.
+
+Codex reads direct skills from these locations:
+
+| Scope | Location | Intended use |
+| --- | --- | --- |
+| Repository | `.agents/skills` from the current working directory through the repository root | Project- or directory-specific skills. |
+| User | `$HOME/.agents/skills` | Personal skills available across repositories. |
+| Admin | `/etc/codex/skills` | Managed machine or container skills. |
+| System | Bundled with Codex by OpenAI | OpenAI-provided system skills. |
+
+Plugin-packaged skills are a separate distribution surface. The port
+integration ships its agent workflow that way, while its importer uses direct
+skill folders for generated user or repository skills.
+
+## Skill Classification Reference
+
+`record-replay-linux/src/skill.rs` inspects a skill without executing
+skill-owned files. It assigns one status:
+
+| Status | Current classifier rule | Import behavior |
+| --- | --- | --- |
+| `supported` | Only `instruction-only` remains after inspection. | Import is allowed. |
+| `conditional` | A non-instruction capability is present, but no experimental or unsupported capability is present. | Import is allowed with reported capabilities and warnings. |
+| `experimental` | `desktop-observe`, `desktop-act`, or `isolated-gui` is present without an unsupported capability. | Import is allowed; host readiness still determines whether it can run. |
+| `unsupported` | `platform-macos`, `platform-windows`, or `recording` is present. | Import is rejected unless `--allow-unsupported` is explicit. |
+| `unknown` | Reserved by the serialized status model. | The current inspector resolves every completed inspection to another status. |
+
+The current capability vocabulary is:
+
+| Capability | Current evidence |
+| --- | --- |
+| `instruction-only` | No other capability was detected. |
+| `cli-local` | An executable file or a file with a shell, Python, JavaScript, or TypeScript extension is present. |
+| `browser-session` | `SKILL.md` mentions a browser or Chrome. |
+| `plugin-dependent` | `SKILL.md` mentions a plugin or MCP. |
+| `desktop-observe` | `SKILL.md` mentions screenshots or accessibility. |
+| `desktop-act` | `SKILL.md` mentions click, type, or drag actions. |
+| `isolated-gui` | Part of the status model; the current text heuristic does not assign it. |
+| `platform-macos` | `SKILL.md` mentions AppleScript, Finder, an app bundle, or Keychain. |
+| `platform-windows` | `SKILL.md` mentions PowerShell or the Windows registry. |
+| `recording` | `SKILL.md` asks to record a skill. |
+
+These are bounded heuristics, not proof that a skill will run. The current
+classifier reads `SKILL.md` and file metadata; it does not interpret
+`agents/openai.yaml` dependencies or execute or semantically inspect
+skill-owned scripts. Reported status therefore complements, rather than
+replaces, a host readiness check and a live smoke test.
+
+## Skill Import Safety
+
+Inspection and import enforce these boundaries:
+
+- the source must resolve to a directory containing `SKILL.md`;
+- `name` and `description` frontmatter are required;
+- internal symlinks and non-regular files are blockers;
+- inspection stops and blocks import after 512 files;
+- files larger than 256 KiB are blockers;
+- executable or script-shaped files produce warnings but are never executed;
+- a destination collision fails instead of overwriting existing content;
+- unsupported skills require explicit `--allow-unsupported`; and
+- symlink import warns that the external source remains live.
+
+The CLI defaults to a copy import into `$HOME/.agents/skills`. A repository
+target resolves to `.agents/skills` under the current working directory. An
+explicit target requires `--target-dir`. Compatibility metadata stays in the
+inspection result; the importer does not rewrite `SKILL.md`.
 
 ## Linux Compatibility Matrix
 
-| Layer | Linux Phase 1 status |
-| --- | --- |
-| ChatGPT app | Wrapped upstream app; this repo cannot unlock server-gated upstream product features. |
-| Direct skill folders | Targeted; verify `$HOME/.agents/skills`, repo `.agents/skills`, symlinks, and duplicate names. |
-| `${CODEX_HOME:-~/.codex}/skills` | Wrapper-specific; verify before documenting as a general import path. |
-| Explicit skill invocation | Targeted; support claim requires a smoke test in the wrapped app and/or CLI. |
-| Plugin-packaged skills | Implemented for the opt-in Record & Replay entrypoint; generated user skills still import as direct folders first. |
-| Browser replay | Conditional; depends on browser provider, plugin state, and auth/session assumptions. |
-| Desktop GUI replay | Experimental; only through capability-gated Linux Computer Use or isolated workspace providers. |
-| macOS/Windows app automation | Unsupported; import/read/list only, then explain the platform blocker. |
-| Record & Replay capture | Opt-in experimental Linux bundle capture through the upstream-shaped `Record & Replay` plugin shell and `SkyLinuxComputerUseClient event-stream mcp`, backed by `chatgpt-record-replay-linux`. |
-
-## Capability Model
-
-Generated skills should be classified before Linux presents them as runnable.
-The model should separate requirements, providers, confidence, and status
-instead of assigning only one coarse label.
-
-Recommended status values:
-
-| Status | Meaning | Linux behavior |
+| Surface | Current state | Compatibility boundary |
 | --- | --- | --- |
-| `supported` | Skill is instruction-only or uses providers verified on this host. | Allow explicit invocation without extra warning. |
-| `conditional` | Skill may work but depends on CLIs, credentials, browser state, plugin auth, MCP config, or project context. | Allow explicit invocation with clear missing/unknown requirements. |
-| `experimental` | Skill needs Linux host desktop control or isolated GUI automation. | Require opt-in diagnostics and show Computer Use or Agent Workspace readiness. |
-| `unsupported` | Skill clearly requires macOS/Windows-only APIs, apps, paths, or UI assumptions. | Import/read/list, but block "works on Linux" claims. |
-| `unknown` | Classifier cannot infer enough. | Import as readable context; require manual review or smoke test before treating it as runnable. |
-
-Capability classes:
-
-| Capability | Signals | Linux treatment |
-| --- | --- | --- |
-| `instruction-only` | `SKILL.md` only; no scripts; no tool deps; general workflow instructions. | Best Phase 1 success case. |
-| `cli-local` | Mentions shell commands, scripts, files, repo state, package managers, CLIs. | Conditional on required commands, path assumptions, credentials, and project CWD. |
-| `browser-session` | Mentions in-app browser, Chrome extension, web forms, signed-in sites, browser actions. | Conditional; verify browser provider and auth/session expectations. |
-| `plugin-dependent` | `agents/openai.yaml` dependencies or instructions naming plugins/MCP tools. | Conditional; map declared dependencies to installed plugins/MCP servers. |
-| `desktop-observe` | Needs screenshots, app state, accessibility tree, or frontmost window. | Experimental; require screenshot/accessibility readiness. |
-| `desktop-act` | Needs click, type, drag, scroll, focus, or window targeting. | Experimental/high-risk; require input, window focus, screenshot, and accessibility readiness. |
-| `isolated-gui` | Workflow can run in a hidden/throwaway Linux desktop or workspace-owned browser. | Optional via Agent Workspaces; not equivalent to host desktop replay. |
-| `platform-macos` | AppleScript, Finder, `.app`, Keychain, menu bar, macOS paths, System Settings, Mac accessibility assumptions. | Unsupported on Linux. |
-| `platform-windows` | Registry, PowerShell UI setup, Win32 paths/apps, or Windows-specific Computer Use assumptions. | Unsupported on Linux. |
-| `recording` | Requires capturing a new demonstration. | Supported only through the opt-in Linux recording bundle path. |
-| `speech-context` | Spoken microphone/dictation transcript captured while demonstrating. | Treat as semantic user intent and evidence, not audio or timing to replay. |
-| `desktop-snapshot` | Active app/window metadata captured while demonstrating. | Use as semantic workflow evidence; exact browser URLs still require browser trace/CDP or visible accessibility evidence. |
-
-Use evidence in this order:
-
-1. `agents/openai.yaml` dependencies and invocation policy.
-2. Directory structure, scripts, executable files, references, and assets.
-3. `SKILL.md` frontmatter and instructions.
-4. Heuristics over platform paths, tools, and UI terminology.
-
-Phase 1 classification cannot safely rely on frontmatter data alone. The
-checker must inspect skill-owned scripts and assets for obvious platform
-assumptions, but it must not run skill-owned code during classification.
-
-A future compatibility report could look like:
-
-```json
-{
-  "skill_name": "example",
-  "skill_path": "/home/user/.agents/skills/example/SKILL.md",
-  "origin": "user",
-  "trust": "external-import",
-  "status": "conditional",
-  "confidence": "heuristic",
-  "requirements": [
-    "shell",
-    "browser-session",
-    "computer_use.screenshot",
-    "computer_use.input"
-  ],
-  "providers": {
-    "browser": "unknown",
-    "computer_use": {
-      "screenshot": "available",
-      "accessibility": "missing",
-      "window_focus": "unknown",
-      "input": "missing"
-    }
-  },
-  "blockers": [],
-  "warnings": [
-    "Imported skill includes executable scripts; review before use."
-  ],
-  "next_steps": [
-    "Run Linux Computer Use diagnostics."
-  ]
-}
-```
-
-## Import Safety
-
-A skill can include scripts, references, and assets. Import must therefore be a
-read/inspect operation first. The importer should validate the folder shape,
-avoid path traversal, preserve the original files, warn on executable scripts,
-and avoid running skill-owned code during classification.
-
-External imports should default to explicit invocation only, or present a clear
-implicit-invocation warning when the skill description is broad. Compatibility
-metadata should live in app state, a cache, or a Linux-owned sidecar; do not
-rewrite `SKILL.md` to store Linux compatibility state.
-
-## Import And Invocation Feasibility
-
-Direct skill import is feasible without inventing a new storage model:
-
-- Copy or symlink a skill directory into `$HOME/.agents/skills`.
-- For repo-specific workflows, keep skills in `.agents/skills` under the
-  relevant repository.
-- For feature-owned skills, follow the `agent-workspace` pattern and install
-  into `${CODEX_HOME:-~/.codex}/skills` only from a runtime hook.
-
-The first implementation PR should prefer a small importer or documentation
-around these locations over a new Linux-only registry. Codex already owns skill
-discovery; this repo should avoid shadowing it unless upstream app behavior
-forces a bridge.
-
-Open verification items:
-
-- Confirm whether Record & Replay-generated skills are saved as ordinary skill
-  directories with `SKILL.md`.
-- Confirm the exact save location and export path used by the macOS app.
-- Confirm whether the Linux wrapped ChatGPT app and Codex CLI see
-  `$HOME/.agents/skills`, repo `.agents/skills`, symlinks, and duplicates
-  without additional patching.
-- Confirm whether `${CODEX_HOME:-~/.codex}/skills` is a general discovery path
-  or only a wrapper-owned feature bootstrap path.
-- Confirm whether `agents/openai.yaml` dependencies are surfaced in the app
-  strongly enough to power capability checks.
-- Confirm whether the upstream Plugins overflow menu action can be enabled on
-  Linux by patching availability gates only, or whether it depends on
-  macOS-specific recording internals.
-- Confirm whether `skills/list`, `plugin/skill/read`, and
-  `skills/config/write` return enough metadata for a Linux compatibility view.
-- Confirm whether the UI refreshes after filesystem import, or whether restart
-  or an app-server notification path is required.
-
-## Linux-Native Recording Research
-
-Native Linux recording should keep growing behind the narrow bundle/recorder
-interface, not as a blind event recorder. Candidate backends:
-
-| Backend | Strength | Risk |
-| --- | --- | --- |
-| Browser trace/CDP | Semantic for web workflows, less desktop-specific | Only covers browser workflows |
-| AT-SPI | Semantic UI tree for accessible Linux apps | Coverage varies by toolkit/app and permissions |
-| X11 event capture | Mature and inspectable on X11 sessions | Coordinate-heavy and increasingly less representative |
-| XDG portals | User-approved screen/input boundaries | APIs differ by desktop; recording semantic actions is limited |
-| Compositor-specific backends | Can expose better window/control data | GNOME/KWin/Hyprland/Sway/COSMIC all differ |
-| App-specific integrations | High fidelity for known apps | Not general purpose |
-
-The implemented architecture should look like:
-
-```text
-RecorderBackend
-  -> normalized observations and actions
-  -> screenshots/accessibility/browser snapshots where available
-  -> skill-drafting context
-  -> generated Skill directory
-```
-
-The default backend should be semantic bundle capture. Browser and AT-SPI
-backends are more promising than raw coordinate replay. InputCapture/libei and
-X11 should contribute explicit provider evidence first, then grow into richer
-event streams only where the desktop/session can support that without turning
-Record & Replay into coordinate macro playback.
-
-Current Linux slice status:
-
-- `chatgpt-record-replay-linux doctor` now emits a structured `backend_catalog`
-  alongside the older `recorders` list.
-- `record start` stores the same catalog in `manifest.json` and appends a
-  `backend_catalog` observation to `timeline.jsonl`.
-- `record start` creates `browser/`, `input-capture/`, and `x11/` provider
-  evidence files so bundle reviewers can inspect browser trace readiness,
-  InputCapture/libei portal readiness, and X11/window metadata.
-- `record desktop-snapshot`, MCP `desktop_snapshot`, and the Linux HUD append
-  active focused-window metadata into `x11/*-desktop-snapshot.json` and surface
-  that context in the draft prompt timeline.
-- `record browser-trace` and MCP `browser_trace` append caller-provided
-  browser/CDP-style trace JSON into the bundle as semantic evidence.
-- InputCapture/libei and X11 are real readiness/evidence providers in this PR.
-  Raw libei event-stream capture and X11 input-event capture remain follow-up
-  backend expansion, not replay architecture blockers.
-
-## Open Questions And Blockers
-
-- Is the Record & Replay generated skill format fully identical to manually
-  authored Codex skills?
-- Are generated skills portable across machines, or do they include local app
-  paths, account-specific assumptions, temporary directories, or machine IDs?
-- Does upstream expose enough metadata to distinguish instruction-only skills
-  from GUI-dependent skills?
-- Can the Linux app expose the upstream Plugins overflow "Record a skill"
-  launcher on Linux without a brittle bundle patch?
-- Does the app-server skill API expose all information needed for a
-  compatibility matrix?
-- How should Linux request and persist permission for any future recording
-  backend, especially under Wayland?
-- Should imported macOS-generated skills be read-only by default until the user
-  edits platform assumptions?
-- How should Linux distinguish shared-host desktop automation from isolated
-  workspace automation in user-facing warnings?
-- How should imported skills with broad descriptions avoid surprising implicit
-  invocation?
-
-## Recommended PR Split
-
-1. Shared Rust Computer Use surface: expose existing Linux diagnostics,
-   screenshot, accessibility, and windowing primitives as reusable Rust modules
-   while preserving the current MCP binary behavior.
-2. `chatgpt-record-replay-linux`: add a Rust CLI and stdio MCP server for
-   `doctor`, `record start/mark/speech/stop`, `bundle validate`, `bundle
-   draft-prompt`, and `skill inspect/import`.
-3. Recording bundle schema: write `manifest.json`, `timeline.jsonl`,
-   `screenshots/`, `accessibility/`, `browser/`, `transcripts/`,
-   `diagnostics.json`, and `draft-prompt.md`.
-4. Safe skill importer/classifier: validate `SKILL.md`, classify capability
-   requirements, reject internal symlink and collision risks by default, and
-   never execute skill-owned code.
-5. Opt-in port integration: stage the current upstream `Record & Replay` bundled
-   plugin shell when available, remove the macOS helper payload, install
-   `SkyLinuxComputerUseClient event-stream mcp` as the Linux helper, and add
-   allowlisted bridge methods for recording status, HUD stop, diagnostics,
-   bundle review, browser trace ingestion, draft prompt generation, and skill
-   import.
-6. Upstream activation follow-up: inspect the current DMG bundle and enable the
-   Plugins page overflow action "Record a skill" on Linux if it can launch the
-   plugin/MCP flow without macOS-only private recorder dependencies.
-7. Provider follow-ups: expand browser trace/CDP into live browser attachment,
-   add GlobalShortcuts markers, implement raw InputCapture/libei event-stream
-   capture where the portal stack supports it, deepen X11 event metadata, and
-   add richer compositor-specific capture backends behind the same bundle
-   contract.
-
-## Phase 1 Conclusion
-
-Phase 1 is successful if Linux can produce a recording bundle, draft a skill
-from that bundle, import the generated skill, classify its replay requirements,
-and invoke it through Codex when the required providers exist. The feature is
-bleeding-edge and opt-in, but it is real Linux Record & Replay work rather than
-just an importer. No UI should imply coordinate macro replay or unsupported
-macOS/Windows app automation.
+| Official plugin shell | Implemented by the opt-in port integration. | The official app bundle may drift; staging falls back only to the aligned local template. |
+| Linux event-stream helper | Implemented as `SkyLinuxComputerUseClient`, backed by `chatgpt-record-replay-linux`. | Requires the Rust helper to build or be supplied as an executable prebuilt binary. |
+| Recording HUD | Implemented in the webview patch. | Live visibility and controls require a generated app whose volatile bundle patch still matches. |
+| Direct user and repository skills | Supported by the documented Codex skill locations and the Linux importer. | Listing and invocation remain ChatGPT/Codex behavior and require live verification. |
+| Plugin-packaged workflow skill | Implemented by the opt-in integration. | The generated app must sync and load the bundled plugin cache. |
+| Browser evidence | Caller-provided trace ingestion is implemented. | Live browser attachment is not implemented by this integration. |
+| Desktop observation | Screenshot, accessibility, and active-window evidence are capability-gated. | Missing providers degrade explicitly. |
+| Desktop replay | Delegated to Codex and available Computer Use providers. | No raw recorded-input replay is implemented. |
+| InputCapture/libei | Readiness evidence is implemented. | Raw input-event capture is not implemented. |
+| X11 | Session and window evidence are implemented. | Raw X11 input-event capture is not implemented. |
+| macOS or Windows workflow assumptions | Classified as unsupported. | They may be imported only as context with an explicit override. |
+| Fresh-chat invocation | Expected product contract. | Requires a live smoke test; recording-thread context must not be the only reason the workflow succeeds. |
 
 ## Tester Acceptance Matrix
 
-Use `current` for behavior this PR should already provide, `target` for the
-visible product behavior testers should confirm, and `follow-up` for behavior
-that may still be pending but should be reported explicitly.
+`Automated` evidence comes from source tests or generated bundle inspection.
+`Live` evidence must come from a generated app using the official app bundle.
+`Conditional` evidence applies only when the named host provider is available.
 
-| Check | Scope | Pass condition | Evidence to attach |
+| Check | Evidence class | Pass condition | Evidence to retain |
 | --- | --- | --- | --- |
-| Build with feature enabled | current | The feature builds cleanly and stages the official `Record & Replay` shell plus the Linux helper. | Build command, package name, enabled feature list. |
-| Official shell + Sky helper | current | The plugin keeps the upstream `Record & Replay` identity and launches `SkyLinuxComputerUseClient event-stream mcp`. | App/plugin screen, bridge log, helper command. |
-| HUD visible | target | Recording shows a visible HUD with state and timer. | Screenshot or short screen capture. |
-| Stop from HUD | target | HUD stop ends the active session and finalizes the bundle. | Stop log, final bundle path. |
-| Cancel/discard | target | HUD discard cancels the active session, marks the bundle as discarded evidence, and does not draft a skill from it. | Note whether the control exists, final status, and bundle path. |
-| 30-minute session | target | The session remains usable up to the cap or fails with a clear cap message. | Start/stop timestamps or cap message. |
-| Mic / speech context | current | Spoken context is captured as transcript evidence, not replay audio. | Transcript excerpt or bundle file path. |
-| Native audio artifacts | current | Native audio capture stays off unless the caller opts in and `CHATGPT_RECORD_REPLAY_AUDIO` is affirmative. | Start command/options and `audio/recording.json` status when tested. |
-| Browser trace evidence | current | Browser/CDP-style trace JSON can be added to the active bundle and appears in the draft prompt timeline. | `browser/*-trace.json` path and timeline row. |
-| Active desktop/window evidence | current | Focused app/window metadata is captured during the recording and appears in the draft prompt timeline. | `x11/*-desktop-snapshot.json` path and timeline row. |
-| InputCapture/libei evidence | current | The bundle records portal readiness and input capability evidence even when live input capture is unavailable. | `input-capture/0000-readiness.json`. |
-| X11 evidence | current | The bundle records session/window metadata and marks X11-specific support when running on X11. | `x11/0000-session.json`. |
-| Bundle validation | current | Bundle validation reports pass, warnings, or blockers before drafting. | Validation output and bundle path. |
-| Skill draft/import | current | The bundle produces a draft prompt and an importable skill folder. | Draft prompt path, skill path, import result. |
-| Fresh-thread invocation | target | A new thread can invoke the generated skill without relying on the recording thread. | Thread link or command/output summary. |
-| Diagnostics / degradation report | current | Doctor output explains what is ready, partial, missing, or blocked. | Doctor output plus provider readiness summary. |
+| Build with integration enabled | Automated | The port integration builds and stages the official-shaped shell plus the Linux helper. | Build command, app version, enabled integration list, patch report. |
+| Plugin shell and helper | Automated + live | The plugin retains the official `Record & Replay` identity and launches `SkyLinuxComputerUseClient event-stream mcp`. | Staged manifest, helper command, live bridge log. |
+| HUD visibility | Live | An active recording shows the timer and finish/discard controls. | Screenshot or short screen capture. |
+| Stop and discard | Live | Finish finalizes the bundle; discard marks it canceled and produces a draft prompt that forbids skill creation. | Final status, bundle path, draft result. |
+| 30-minute cap | Live | The session expires at the cap with `max_duration`, or a shorter run stops normally. | Start/end timestamps and end reason. |
+| Speech context | Automated + live | Spoken context is stored as transcript evidence rather than replay audio. | Timeline row or transcript path. |
+| Native audio | Automated | Audio remains off unless both the environment and caller opt in. | Start options and `audio/recording.json` status. |
+| Browser trace | Automated + conditional | Caller-provided browser/CDP JSON is stored and appears in the draft timeline. | `browser/*-trace.json` and matching timeline row. |
+| Active desktop/window evidence | Conditional | Focused app/window metadata is captured and appears in the draft timeline. | `x11/*-desktop-snapshot.json` and matching timeline row. |
+| InputCapture/libei evidence | Conditional | The bundle records portal and input readiness even when live input capture is unavailable. | `input-capture/0000-readiness.json`. |
+| X11 evidence | Conditional | The bundle records X11 session/window metadata when running on X11. | `x11/0000-session.json`. |
+| Bundle validation | Automated | Validation reports pass, warnings, or blockers before drafting. | Validation output and bundle path. |
+| Skill inspection and import | Automated | Inspection reports the expected status, then import creates an ordinary skill folder without executing skill-owned files. | Inspection JSON, destination path, import result. |
+| Fresh-chat invocation | Live | A new chat can invoke the generated skill without relying on recording-chat context. | Chat link or command/output summary. |
+| Diagnostics and degradation | Conditional | Doctor output distinguishes ready, partial, missing, and blocked providers. | Doctor output and provider summary. |
 
-## Tester Report Template
+Minimum tester report:
 
-- Desktop environment:
-- Session type:
-- Computer Use doctor:
-- Provider readiness:
-- Bundle path(s):
-- Generated skill path:
-- Generated skill behavior:
-- Degradation or blocker notes:
+- app version and official DMG version;
+- desktop environment and session type;
+- Computer Use doctor output;
+- Record & Replay provider readiness;
+- bundle path;
+- generated skill path and inspection status;
+- fresh-chat behavior; and
+- degradation, cap, stop, or discard notes.
+
+## Unresolved Compatibility Work
+
+Unverified official-product behavior, provider expansion, imported-skill
+portability, and policy decisions must be tracked in GitHub Issues. Use the
+[backlog index](backlog.md) to find or create the current item and the
+[issue-tracker contract](agents/issue-tracker.md) for the live repository name.
+When an issue changes the support boundary, update this page from verified
+source and live evidence; do not append a branch-specific implementation plan.

@@ -1,6 +1,6 @@
 ---
 name: upstream-dmg-watchdog
-description: Run the versioned upstream DMG probe, repair worker, guarded PR, and sequential Nix refresh flow.
+description: Run the versioned official OpenAI ChatGPT DMG probe, repair worker, guarded PR, and sequential Nix refresh flow.
 ---
 
 # Upstream DMG watchdog

@@ -7,9 +7,10 @@ Use this tree only for shipped Linux compatibility patches. Optional user-facing
 extras still belong in `port-integrations/`.
 
 The patch contract is fresh-DMG-only. Descriptors should target the current
-upstream app layout, stay idempotent, and report drift when a current upstream
-needle is missing. Do not add old-DMG fallback branches, compatibility barrels,
-or legacy import surfaces for removed internal patch APIs.
+official OpenAI app bundle layout, stay idempotent, and report drift when a
+current official-app needle is missing. Do not add old-DMG fallback branches,
+compatibility barrels, or legacy import surfaces for removed internal patch
+APIs.
 
 Current namespaces:
 
@@ -62,10 +63,15 @@ inside injected code for desktop/session details that can change after install.
 
 Supported `ciPolicy` values:
 
-- `required-upstream`: upstream-build CI fails when the patch drifts.
-- `optional`: drift is reported but does not fail upstream-build CI.
+- `required-official-dmg`: the `official-dmg-build` profile fails when the patch
+  drifts.
+- `optional`: drift is reported but does not fail `official-dmg-build`.
 - `opt-in`: same non-failing CI behavior as `optional`, for descriptors behind
   an explicit local enable gate.
+
+The legacy `required-upstream` policy and `upstream-build` validation profile
+remain accepted only as compatibility aliases. Do not use them as current names
+in new descriptors, documentation, or normal commands.
 
 Common filters:
 
@@ -76,9 +82,6 @@ appliesTo: (context) => context.linuxTarget.desktopMatches(["i3", "sway"])
 appliesTo: (context) => context.linuxTarget.versionAtLeast("24.04")
 ```
 
-Use `ciPolicy: "required-official-dmg"` for patches that must apply when
-validating the official OpenAI app bundle. Use `optional` for patches that may
-skip on unsupported bundles and `opt-in` for feature-gated patches.
 Keep descriptor files declarative. Shared patch implementations live under
 `scripts/patches/impl/` by domain (`main-process/`, `webview/`, keybinds,
 computer-use, chrome-plugin, launch-actions, automation-schedule, bootstrap,

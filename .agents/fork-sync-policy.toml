@@ -27,7 +27,7 @@ policy_gap_closeout_required = true
 operator_escalation_required_for_uncertainty = true
 durable_followup_required_when_escalation_unavailable = true
 pr_body_only_uncertainty_record_disallowed = true
-github_pr_repo = "nisavid/chatgpt-linux"
+github_pr_repo = "nisavid/codex-app-linux"
 github_pr_commands_require_explicit_repo = true
 read_before_conflict_resolution = [
   "AGENTS.md",

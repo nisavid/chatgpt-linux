@@ -1,14 +1,15 @@
 # Linux AppShots
 
-`port-integrations/appshots` exposes the upstream AppShots composer entry on
-Linux. It attaches the focused window screenshot plus best-effort AT-SPI text
-to the composer.
+`port-integrations/appshots` exposes the official app bundle's AppShots composer
+entry on Linux. It attaches the focused window screenshot plus best-effort
+AT-SPI text to the composer.
 
 This integration is enabled by default in this fork. Disable it before building
 when the build should omit AppShots on Linux:
 
 ```json
 {
+  "enabled": [],
   "disabled": [
     "appshots"
   ]
@@ -17,9 +18,10 @@ when the build should omit AppShots on Linux:
 
 The integration is self-contained. It patches only the optional AppShots webview
 availability gate, the Electron main-process AppShots handlers, and the
-upstream AppShots hotkey settings row. It does not add AppShots-specific code
-to `computer-use-linux`, core patch modules, default patch flow, or packaged
-runtime hooks.
+official app bundle's AppShots hotkey settings row. Its
+`runtimeHooks.electronArgs` hook enables Chromium's `GlobalShortcutsPortal`
+support. It does not add AppShots-specific code to `computer-use-linux`, core
+patch modules, or the default patch flow.
 
 ## Control Surfaces
 
@@ -37,15 +39,15 @@ Privacy and correctness constraints:
   cropping it to the focused window. The temporary full-screen and cropped image
   files are staged inside a per-capture directory created under the system temp
   directory with owner-only permissions, then removed after the capture attempt.
-- Linux AppShots availability still requires the upstream availability flag in
-  addition to the Linux platform match.
+- Linux AppShots availability still requires the official app's availability
+  flag in addition to the Linux platform match.
 - Capture fails closed when no focused window or usable bounds are available.
 - Capture fails closed when no screenshot tool is available or the crop does not
   intersect the captured image.
 - Global hotkeys are disabled by default on Linux until the user chooses one in
-  AppShots settings. The dropdown mirrors upstream's bare-modifier choices where
-  they are practical on X11 (`Alt + Alt` and `Shift + Shift`) and keeps
-  `Ctrl+Super+A` as a non-bare fallback on both X11 and Wayland.
+  AppShots settings. The dropdown mirrors the official app's bare-modifier
+  choices where they are practical on X11 (`Alt + Alt` and `Shift + Shift`) and
+  keeps `Ctrl+Super+A` as a non-bare fallback on both X11 and Wayland.
 - `Alt + Alt` and `Shift + Shift` are backed by a port integration
   `bare-modifier-monitor` helper staged into `resources/native/`. It requires
   the left and right modifier keycodes, so tapping only one physical modifier

@@ -12,14 +12,15 @@ building:
 
 ```json
 {
+  "enabled": [],
   "disabled": [
     "remote-mobile-control"
   ]
 }
 ```
 
-For the Nix flake build, use the declarative app variant instead because the
-git-ignored `integrations.json` file is not part of the flake source:
+The integration is already enabled by the Nix manifest default. The dedicated
+flake app remains as a compatibility alias:
 
 ```bash
 nix run .#remote-mobile-control
@@ -27,8 +28,8 @@ nix run .#remote-mobile-control
 
 What it changes:
 
-- Replaces the upstream native `remote-control-device-key.node` path with a
-  Linux JavaScript ECDSA P-256 key provider.
+- Replaces the official app bundle's native `remote-control-device-key.node`
+  path with a Linux JavaScript ECDSA P-256 key provider.
 - Lets the remote-control Connections UI render on Linux when the official app
   marks the feature unavailable or withholds the remote-control visibility
   rollout.
@@ -73,12 +74,12 @@ What it changes:
   the original file intact; a post-rename directory-fsync warning does not roll
   back the already committed replacement.
 - Preserves `remote_control = true` / `features.remote_control = true` in the
-  local Codex config instead of letting upstream strip it before app-server
-  startup.
+  local Codex config instead of letting the official app strip it before
+  app-server startup.
 - Updates Remote settings and mobile setup copy so the experimental Linux flow
   is not described as Mac-only.
 - Stages `.chatgpt-linux/cold-start.d/remote-mobile-control`, an integration-owned
-  cold-start hook that provisions the official managed standalone daemon runtime
+  cold-start hook that provisions the OpenAI-managed standalone daemon runtime
   when it is missing, then starts the managed app-server daemon with
   `remote-control start`.
 
@@ -157,7 +158,7 @@ Remote mobile daemon requirement:
 The interactive Codex CLI and the remote-control daemon are separate concerns.
 You can keep using a Homebrew-installed `codex` for normal terminal and Desktop
 app-server usage. Outside the declarative Nix service described below, this
-integration uses the upstream managed standalone daemon runtime at:
+integration uses the OpenAI-managed standalone daemon runtime at:
 
 ```bash
 ~/.codex/packages/standalone/current/codex

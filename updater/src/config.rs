@@ -438,9 +438,10 @@ const INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integratio
 
 /// Resolves the stable per-user port-integration config path
 /// (`<config>/<appId>/port-integrations.json`), alongside `settings.json`. The
-/// wrapper-update picker writes the chosen `{"enabled":[...]}` here, and the
-/// rebuild points `CHATGPT_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside
-/// any wrapper-src checkout so a fresh clone cannot clobber it.
+/// wrapper-update picker writes the chosen integration set and preserved
+/// effective settings here, and the rebuild points
+/// `CHATGPT_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside any wrapper-src
+/// checkout so a fresh clone cannot clobber it.
 pub fn integration_config_path() -> Option<PathBuf> {
     let settings = app_settings_path()?;
     let dir = settings.parent()?;

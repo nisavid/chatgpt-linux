@@ -4,7 +4,7 @@ This opt-in port integration enables the Work Louder Codex Micro integration tha
 already ships in the official ChatGPT app bundle. It does three narrowly scoped
 things:
 
-1. enables the upstream Codex Micro feature gate locally; and
+1. enables the official app's Codex Micro feature gate locally; and
 2. adds the verified `node-hid@3.3.0` Linux prebuild for the current app's
    nested Work Louder dependency; and
 3. watches Linux `hidraw` topology so a Micro connected after ChatGPT starts is
@@ -14,7 +14,7 @@ The integration is disabled by default.
 
 ## Hot-plug discovery
 
-The upstream service uses a native HID topology watcher that is not available
+The official app service uses a native HID topology watcher that is not available
 in the Linux build. Without a replacement, discovery falls back to a 30-second
 scan and a newly connected device can appear to require an app restart.
 
@@ -141,7 +141,7 @@ but still requires the same reload and reconnect.
 
 ## Bluetooth
 
-Pair the Micro through the desktop Bluetooth settings before opening Codex.
+Pair the Micro through the desktop Bluetooth settings before opening ChatGPT.
 Channel selection and pairing mode are device operations; see the Work Louder
 Micro setup guide.
 

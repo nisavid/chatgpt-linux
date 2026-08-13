@@ -22,10 +22,10 @@ Replay remain disabled by default.
   can improve the user flow, but they are not security boundaries unless the
   main process, updater, helper runtime, or OpenAI-hosted service enforces the
   same decision.
-- Preserve upstream account, rollout, entitlement, and availability gates when a
-  patch adds Linux support. A platform branch should expose Linux plumbing; it
-  should not turn an upstream service or account policy check into a local-only
-  allow.
+- Preserve OpenAI-hosted account, rollout, entitlement, and availability gates
+  when a patch adds Linux support. A platform branch should expose Linux
+  plumbing; it should not turn a hosted service or account policy check into a
+  local-only allow.
 - Keep local process launch sinks argument-vector based. Validate the executable
   identity, target path, environment, and option-shaped values before reaching
   `spawn`, `execFile`, Electron `shell.openPath`, or generated open-target
@@ -165,17 +165,17 @@ Apply the contract to each feature independently:
   selected command, permission file, profile JSON, browser-session copy source,
   mount list, and hidden-workspace acknowledgement state. Main-process hardening
   for command selection and acknowledgement binding is tracked in
-  [issue #99](https://github.com/nisavid/chatgpt-linux/issues/99).
-- **AppShots:** preserve the upstream availability flag, keep global hotkeys
-  opt-in, fail closed when focused-window inputs are unavailable, and use private
-  per-capture temporary directories for screenshot intermediates.
+  [issue #99](https://github.com/nisavid/codex-app-linux/issues/99).
+- **AppShots:** preserve the official app's availability flag, keep global
+  hotkeys opt-in, fail closed when focused-window inputs are unavailable, and
+  use private per-capture temporary directories for screenshot intermediates.
 - **Wrapper updater UI:** keep wrapper update checks off until the user enables
   them, avoid UI states that imply a package is verified before updater state
   says so, and leave failed apply markers in a retryable state.
 - **Copilot reasoning effort:** treat generated setting defaults as preference
   hints only. Hosted request handling remains authoritative for entitlement,
   quota, and request normalization; validation is tracked in
-  [issue #100](https://github.com/nisavid/chatgpt-linux/issues/100).
+  [issue #100](https://github.com/nisavid/codex-app-linux/issues/100).
 - **Remote-control and mobile host integrations:** do not fabricate connected
   clients, MFA, enrollment, host identity, app-server reachability, host network
   exposure, or remote environment state. Use

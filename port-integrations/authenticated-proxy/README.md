@@ -44,17 +44,6 @@ embedded credentials should be percent-encoded. Use
 `CHATGPT_LINUX_PROXY_USERNAME` and `CHATGPT_LINUX_PROXY_PASSWORD` when you want to
 pass credentials as raw strings.
 
-For Flatpak builds, use Flatpak overrides after enabling and rebuilding with
-this integration:
-
-```bash
-flatpak override --user \
-  --env=CHATGPT_LINUX_PROXY_SERVER='http://proxy.example:8080' \
-  --env=CHATGPT_LINUX_PROXY_USERNAME='user' \
-  --env=CHATGPT_LINUX_PROXY_PASSWORD='p@ss' \
-  io.github.ilysenko.codex_desktop_linux
-```
-
 If a `--proxy-server` flag is already present in the merged Electron argument
 list, this integration does not add another proxy server or authentication target.
 There is no special parser for `electron-flags.conf`; persistent launch flags,

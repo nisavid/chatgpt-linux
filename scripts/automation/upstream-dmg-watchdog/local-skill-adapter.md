@@ -1,6 +1,6 @@
 ---
 name: upstream-dmg-watchdog
-description: Monitor and repair the current upstream DMG through the repository-owned watchdog state machine.
+description: Monitor and repair the current official OpenAI ChatGPT DMG through the repository-owned watchdog state machine.
 ---
 
 # Upstream DMG watchdog adapter

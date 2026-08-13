@@ -448,32 +448,6 @@ resolve_package_icon_source() {
         printf '%s\n' "$PACKAGE_ICON_SOURCE"
         return 0
     fi
-
-    local expected_icon="$APP_DIR/.chatgpt-linux/$PACKAGE_NAME.png"
-    if [ -f "$expected_icon" ]; then
-        printf '%s\n' "$expected_icon"
-        return 0
-    fi
-
-    local icon_dir="$APP_DIR/.chatgpt-linux"
-    local -a candidates=()
-    local candidate
-    if [ -d "$icon_dir" ]; then
-        while IFS= read -r -d '' candidate; do
-            candidates+=("$candidate")
-        done < <(
-            find "$icon_dir" -maxdepth 1 -type f -name '*.png' -print0 |
-                sort -z
-        )
-    fi
-    if [ "${#candidates[@]}" -eq 1 ]; then
-        printf '%s\n' "${candidates[0]}"
-        return 0
-    fi
-
-    if [ "${#candidates[@]}" -gt 1 ]; then
-        warn "Multiple generated app icons found in $icon_dir; using the bundled Linux icon"
-    fi
     printf '%s\n' "$REPO_DIR/assets/chatgpt-linux.png"
 }
 
@@ -1337,6 +1311,7 @@ stage_update_builder_prebuilt_helpers() {
     local notification_actions_source="$app_source_root/resources/native/chatgpt-notification-actions-linux"
     local global_dictation_source="$app_source_root/resources/native/chatgpt-global-dictation-linux"
     local read_aloud_mcp_source="$app_source_root/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    local x11_computer_use_source="$app_source_root/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11"
     local chrome_host_source=""
     local chrome_arch=""
     local mutation_broker_source
@@ -1392,6 +1367,17 @@ stage_update_builder_prebuilt_helpers() {
             "$read_aloud_mcp_source" \
             "$helpers_root/chatgpt-read-aloud-linux" \
             "Read Aloud MCP" || error "Enabled Read Aloud MCP helper is missing from the generated app"
+    fi
+    if port_integration_enabled "x11-ewmh-computer-use"; then
+        if [ ! -f "$x11_computer_use_source" ] \
+            || [ -L "$x11_computer_use_source" ] \
+            || [ ! -x "$x11_computer_use_source" ]; then
+            error "Enabled X11/EWMH Computer Use helper is missing or invalid: $x11_computer_use_source"
+        fi
+        stage_update_builder_prebuilt_helper \
+            "$x11_computer_use_source" \
+            "$helpers_root/chatgpt-computer-use-x11" \
+            "X11/EWMH Computer Use"
     fi
 }
 

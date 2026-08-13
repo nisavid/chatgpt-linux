@@ -29,7 +29,7 @@ const MUTATION_BROKER_DIGEST: &str = "chatgpt-generated-app-mutation-broker.sha2
 const MUTATION_BROKER_SOURCE_ENV: &str = "CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE";
 const GENERATION_RECEIPT_HELPER: &str = "scripts/lib/package-provenance.py";
 const TRUSTED_PYTHON_PATHS: &[&str] = &["/usr/bin/python3", "/bin/python3"];
-const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 4] = [
+const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 5] = [
     (
         "chatgpt-chrome-extension-host",
         "CHATGPT_CHROME_EXTENSION_HOST_SOURCE",
@@ -45,6 +45,10 @@ const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 4] = [
     (
         "chatgpt-read-aloud-linux",
         "CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE",
+    ),
+    (
+        "chatgpt-computer-use-x11",
+        "CHATGPT_X11_COMPUTER_USE_BINARY",
     ),
 ];
 
@@ -897,9 +901,15 @@ fn trusted_prebuilt_helper(helpers_dir: &Path, helper_name: &str) -> Option<Path
     fs::symlink_metadata(&helper)
         .ok()
         .filter(|metadata| {
-            metadata.file_type().is_file() && metadata.permissions().mode() & 0o111 != 0
+            metadata.file_type().is_file()
+                && metadata.permissions().mode() & 0o111 != 0
+                && metadata.permissions().mode() & 0o022 == 0
         })
         .map(|_| helper)
+}
+
+pub(super) fn has_trusted_prebuilt_helper(bundle_root: &Path, helper_name: &str) -> bool {
+    trusted_prebuilt_helper(&bundle_root.join(PREBUILT_HELPERS_DIR), helper_name).is_some()
 }
 
 fn host_elf_machine() -> Result<u16> {
@@ -1057,6 +1067,46 @@ mod tests {
 
     fn host_bash_script(body: &str) -> Result<String> {
         Ok(format!("#!{}\n{body}", host_tool("bash")?.display()))
+    }
+
+    #[test]
+    fn trusted_prebuilt_helper_availability_requires_regular_executable() -> Result<()> {
+        let bundle = tempdir()?;
+        let helpers = bundle.path().join(PREBUILT_HELPERS_DIR);
+        let helper = helpers.join("chatgpt-computer-use-x11");
+        fs::create_dir_all(&helpers)?;
+
+        assert!(!has_trusted_prebuilt_helper(
+            bundle.path(),
+            "chatgpt-computer-use-x11"
+        ));
+
+        fs::write(&helper, b"#!/bin/sh\nexit 0\n")?;
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o644))?;
+        assert!(!has_trusted_prebuilt_helper(
+            bundle.path(),
+            "chatgpt-computer-use-x11"
+        ));
+
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o777))?;
+        assert!(!has_trusted_prebuilt_helper(
+            bundle.path(),
+            "chatgpt-computer-use-x11"
+        ));
+
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o755))?;
+        assert!(has_trusted_prebuilt_helper(
+            bundle.path(),
+            "chatgpt-computer-use-x11"
+        ));
+
+        fs::remove_file(&helper)?;
+        std::os::unix::fs::symlink("/bin/true", &helper)?;
+        assert!(!has_trusted_prebuilt_helper(
+            bundle.path(),
+            "chatgpt-computer-use-x11"
+        ));
+        Ok(())
     }
 
     fn initialize_test_git_repository(root: &Path, dirty: bool) -> Result<()> {
@@ -1632,7 +1682,8 @@ for helper_source in \
     "$CHATGPT_CHROME_EXTENSION_HOST_SOURCE" \
     "$CHATGPT_NOTIFICATION_ACTIONS_SOURCE" \
     "$CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE" \
-    "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE"; do
+    "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE" \
+    "$CHATGPT_X11_COMPUTER_USE_BINARY"; do
   [ -x "$helper_source" ]
   printf '%s\n' "$helper_source"
 done > "${CHATGPT_INSTALL_DIR}/install-prebuilt-helper-sources"
@@ -1711,6 +1762,7 @@ python3 scripts/lib/package-provenance.py write-generation-receipt \
             "chatgpt-notification-actions-linux",
             "chatgpt-global-dictation-linux",
             "chatgpt-read-aloud-linux",
+            "chatgpt-computer-use-x11",
         ] {
             let helper_path = bundle_root.join("prebuilt-helpers").join(helper);
             fs::write(&helper_path, b"#!/bin/sh\nexit 0\n")?;
@@ -1912,6 +1964,7 @@ python3 scripts/lib/package-provenance.py write-generation-receipt \
                 "chatgpt-notification-actions-linux",
                 "chatgpt-global-dictation-linux",
                 "chatgpt-read-aloud-linux",
+                "chatgpt-computer-use-x11",
             ]
             .into_iter()
             .map(|helper| bundle_root.join("prebuilt-helpers").join(helper))

@@ -1,15 +1,17 @@
 # UI Tweaks
 
-`ui-tweaks` is an optional port integration for small ChatGPT for Linux UI
-customizations. It is disabled by default and is intended as a shared place for
-future visual tweaks that are useful to some Linux users but should not affect
-the baseline app.
+This default-enabled port integration groups small ChatGPT UI customizations
+whose settings remain independently configurable.
 
-Enable it in the local, gitignored integration config:
+## Configuration
+
+To disable it for a checkout build, add its id to `disabled` in the gitignored
+`port-integrations/integrations.json`, then rebuild the app:
 
 ```json
 {
-  "enabled": ["ui-tweaks"]
+  "enabled": [],
+  "disabled": ["ui-tweaks"]
 }
 ```
 
@@ -17,8 +19,8 @@ Enable it in the local, gitignored integration config:
 
 | Tweak | Patch module | What it does | Settings |
 | --- | --- | --- | --- |
-| `appearance.dockIcon` | `patches/dock-icon.js` | Exposes the upstream Appearance setting and search result for switching Linux windows, the system tray, and supported launchers between the official ChatGPT and Codex icons. | `tweaks.appearance.dockIcon.enabled` |
-| `home.suggestedPrompts` | `patches/suggested-prompts.js` | Exposes the upstream Suggested Prompts setting and enables generated project-aware cards on Home. | `tweaks.home.suggestedPrompts.enabled` |
+| `appearance.dockIcon` | `patches/dock-icon.js` | Exposes the official app's Appearance setting and search result for switching Linux windows, the system tray, and supported launchers between the ChatGPT and Codex icons. | `tweaks.appearance.dockIcon.enabled` |
+| `home.suggestedPrompts` | `patches/suggested-prompts.js` | Exposes the official app's Suggested Prompts setting and enables generated project-aware cards on Home. | `tweaks.home.suggestedPrompts.enabled` |
 | `modelPicker.showModelsByDefault` | `patches/model-picker-model-list.js` | Opens the advanced picker by default and shows model choices inline instead of hiding them behind the compact Power slider and a nested Model submenu. | `tweaks.modelPicker.showModelsByDefault.enabled` |
 | `reasoning.keepEffortLabelsEnglish` | `patches/reasoning-effort-labels.js` | Keeps reasoning effort values in English in the Simplified Chinese UI while leaving the surrounding interface translated. | `tweaks.reasoning.keepEffortLabelsEnglish.enabled` |
 | `sidebar.projectName` | `patches/sidebar-project-name.js` | Styles project names in the left sidebar project list. It does not style `Projects` / `Chats` section headings and does not style chat rows. | `tweaks.sidebar.projectName.enabled`, `tweaks.sidebar.projectName.style` |
@@ -33,7 +35,8 @@ Example local config:
 
 ```json
 {
-  "enabled": ["ui-tweaks"],
+  "enabled": [],
+  "disabled": [],
   "settings": {
     "ui-tweaks": {
       "tweaks": {
@@ -52,8 +55,8 @@ Each tweak documents its own config keys below.
 
 ### `appearance.dockIcon`
 
-Exposes the upstream Dock icon selector on Linux and stages the original PNG
-resources from the current macOS bundle. The selected icon is applied to open
+Exposes the official app's Dock icon selector on Linux and stages its original
+PNG resources. The selected icon is applied to open
 and restored Electron windows and to the system tray. On KDE Plasma, the tweak
 also creates and updates a managed user-local desktop entry so a pinned taskbar
 launcher follows the selected icon without reloading Plasma Shell. The alternate-icon
@@ -69,7 +72,8 @@ icon behavior while keeping the other UI tweaks enabled:
 
 ```json
 {
-  "enabled": ["ui-tweaks"],
+  "enabled": [],
+  "disabled": [],
   "settings": {
     "ui-tweaks": {
       "tweaks": {
@@ -94,22 +98,23 @@ Config keys:
 
 ### `home.suggestedPrompts`
 
-Exposes the upstream Suggested Prompts row in General Settings and enables the
-existing generated-suggestion path on Home. Suggestions are generated from the
-selected project and connected apps by the upstream implementation. Selecting a
+Exposes the official app's Suggested Prompts row in General Settings and enables
+its generated-suggestion path on Home. The official app generates suggestions
+from the selected project and connected apps. Selecting a
 card fills the composer with its proposed next action.
 
-Suggested Prompts is available only when all three gates pass: the upstream
-rollout and account-eligibility checks, the user's upstream Suggested Prompts
+Suggested Prompts is available only when all three gates pass: the official
+rollout and account-eligibility checks, the user's Suggested Prompts
 setting, and this port integration's Linux support. The patch preserves the
-upstream checks as required conditions; the Linux marker does not bypass them.
+official checks as required conditions; the Linux marker does not bypass them.
 
 This tweak is enabled by default with `ui-tweaks`. Disable its Linux support
 without disabling the other UI tweaks:
 
 ```json
 {
-  "enabled": ["ui-tweaks"],
+  "enabled": [],
+  "disabled": [],
   "settings": {
     "ui-tweaks": {
       "tweaks": {
@@ -126,13 +131,13 @@ without disabling the other UI tweaks:
 
 Config keys:
 
-- `enabled`: `true` supplies Linux support while preserving the upstream
-  eligibility and user-setting gates. `false` leaves the upstream Settings and
+- `enabled`: `true` supplies Linux support while preserving the official
+  eligibility and user-setting gates. `false` leaves the official Settings and
   Home behavior unchanged while other UI tweaks remain independently configurable.
 
 ### `modelPicker.showModelsByDefault`
 
-Makes the detailed model list the default Codex composer picker view. The model
+Makes the detailed model list the default ChatGPT composer picker view. The model
 rows are rendered inline, so newly available families such as GPT-5.6 Luna,
 Terra, and Sol remain visible without first switching away from the compact
 Power slider or opening a nested Model submenu. The compact GPT-5.6 Power
@@ -144,20 +149,20 @@ separate hard-coded effort list.
 Config keys:
 
 - `enabled`: `true` applies the tweak, `false` keeps the integration enabled but
-  leaves the upstream model picker unchanged.
+  leaves the official app's model picker unchanged.
 
 ### `reasoning.keepEffortLabelsEnglish`
 
 Leaves the reasoning effort values as `None`, `Minimal`, `Low`, `Medium`,
 `High`, `XHigh`, `Max`, and `Ultra` in the Simplified Chinese locale. The
 surrounding picker title and usage warning remain translated. This avoids
-collapsing distinct upstream values such as `XHigh` and `Ultra` into the same
-Chinese label.
+collapsing distinct official app values such as `XHigh` and `Ultra` into the
+same Chinese label.
 
 Config keys:
 
 - `enabled`: `true` applies the tweak, `false` keeps the integration enabled but
-  uses the upstream translated effort labels.
+  uses the official app's translated effort labels.
 
 ### `sidebar.projectName`
 
@@ -190,9 +195,9 @@ Config keys:
 
 ## Drift Behavior
 
-The patches are fail-soft. If upstream bundle markers drift, the integration writes
-a `WARN` message and leaves the asset unchanged. The patch report exposes that
-warning, and acceptance rejects a candidate when the enabled feature has drifted.
+The patches are fail-soft. If official app bundle markers drift, the integration
+writes a `WARN` message and leaves the asset unchanged. The patch report exposes
+that warning, and acceptance rejects a candidate when the enabled tweak has drifted.
 Missing Dock icon resources also warn, remove only the Dock icon payload, and do
 not abort staging. Suggested Prompts validates every current insertion point
 before changing an asset and leaves mixed or drifted input byte-identical.

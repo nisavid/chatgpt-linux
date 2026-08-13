@@ -16,7 +16,7 @@ preserving the source-of-truth routing agents need before editing.
   `bootstrap-native`, `install-native`, `update-native`, `appimage`, `package`,
   and `install`, plus granular helpers (`build-app`, `build-app-fresh`,
   `rebuild`, `rebuild-install`, `rebuild-next`, `build-dev-app`, `run-app`,
-  `run-dev-app`, `inspect-upstream`, `build-updater`, `service-enable`,
+  `run-dev-app`, `inspect-dmg`, `build-updater`, `service-enable`,
   `service-status`, `check`, `test`, `clean-dist`, `clean-state`).
 - `scripts/bootstrap-wizard.sh`
   Guided native setup/update helper. It can discover port integrations, edit
@@ -26,7 +26,7 @@ preserving the source-of-truth routing agents need before editing.
   Workspace root for `computer-use-linux`, `read-aloud-linux`,
   `record-replay-linux`, and `updater`.
 - `flake.nix` / `flake.lock`
-  Nix flake that pins upstream DMG, Cargo dependency, and Node dependency
+  Nix flake that pins the official DMG, Cargo dependency, and Node dependency
   hashes. Use `scripts/ci/update-nix-hashes.sh` to refresh pins.
 - `nix/`
   Nix integration modules: `home-manager-module.nix`, `nixos-module.nix`, and
@@ -58,8 +58,8 @@ preserving the source-of-truth routing agents need before editing.
   Argument parsing, dependency checks, identity validation, install-dir
   preparation, logging/color helpers, and shell quoting.
 - `build-info.sh` / `build-info.js`
-  Build provenance capture: git commit, DMG source, upstream/Electron versions,
-  enabled integration ids, and target context.
+  Build provenance capture: git commit, DMG source, official app and Electron
+  versions, enabled integration ids, and target context.
 - `node-runtime.sh`
   Managed Linux Node.js runtime download and SHA256 validation. The launcher,
   Browser Use, native module rebuilds, Codex CLI flow, and updater rebuilds use
@@ -67,22 +67,24 @@ preserving the source-of-truth routing agents need before editing.
 - `process-detection.sh`
   Running-app detection used to avoid overwriting a live install.
 - `dmg.sh`
-  DMG download/extraction and upstream Electron-version detection.
+  Official DMG download/extraction and Electron-version detection.
 - `native-modules.sh`
   Linux rebuild of native modules such as `better-sqlite3` and `node-pty`, plus
   Electron runtime download/cache.
 - `asar-patch.sh`
-  Drives `scripts/patch-linux-window-ui.js` over the extracted upstream app.
+  Drives `scripts/patch-linux-window-ui.js` over the extracted official app.
 - `webview-install.sh`
   Webview asset extraction and final `chatgpt/` layout.
 - `bundled-plugins.sh`
   Stages bundled Browser Use, Chrome, Linux Computer Use resources, native
   helper binaries, and marketplace metadata.
 - `port-integrations.sh` / `port-integrations.js`
-  Opt-in port integration framework. The JS side discovers repository/local
-  integrations, validates manifests, dependencies, conflicts, entrypoints,
-  resource modes, runtime hooks, package hooks, and exposes patch descriptors.
-  The shell side runs integration staging in the install pipeline.
+  Configurable port integration framework. The JS side discovers
+  repository/local integrations, resolves reviewed manifest defaults plus local
+  `enabled`, `disabled`, and `settings` overrides, validates dependencies,
+  conflicts, entrypoints, resource modes, runtime hooks, and package hooks, and
+  exposes patch descriptors. The shell side runs integration staging in the
+  install pipeline.
 - `package-common.sh`
   Shared package-builder helpers: versioning, payload staging, permission
   normalization, package hook discovery/execution, update-builder staging, and
@@ -93,8 +95,8 @@ preserving the source-of-truth routing agents need before editing.
   `packageFormatIs()`, `packageManagerIs()`, `desktopMatches()`, and
   `versionAtLeast()`.
 - `patch-report.js` / `rebuild-report.sh`
-  Structured patch and rebuild reports used by upstream drift validation and
-  rebuild-candidate diagnostics.
+  Structured patch and rebuild reports used by official-app drift validation
+  and rebuild-candidate diagnostics.
 - `patch-chrome-plugin.js`
   Focused patch helper for Chrome plugin Linux compatibility. The official
   bundle owns its native Linux package updater; the wrapper-updater port
@@ -128,25 +130,28 @@ preserving the source-of-truth routing agents need before editing.
 - `scripts/patch-linux-window-ui.test.js`
   Node test suite for the patcher.
 - `scripts/ci/validate-patch-report.js`
-  CI guard for required upstream patches. Mark a descriptor as required only
-  when its absence should block upstream-build CI.
+  CI guard for required official-app patches. Mark a descriptor as required only
+  when its absence should block `official-dmg-build` CI.
 
 ## Port Integrations (`port-integrations/`)
 
-`port-integrations/` is the extension boundary for optional Linux integrations.
+`port-integrations/` is the extension boundary for configurable port integrations.
 Detailed contract: `port-integrations/README.md` and
 `docs/port-integrations-architecture.md`.
 
 - Repository integrations live under `port-integrations/<integration-id>/`.
 - User-local/private integrations live under `port-integrations/local/<integration-id>/`;
   this directory is gitignored.
-- `integrations.example.json` is the committed empty template. The active
-  `integrations.json` is gitignored and lists enabled ids.
+- `integrations.example.json` is the committed empty override template. The
+  active `integrations.json` is gitignored and can add `enabled` ids, suppress
+  reviewed defaults with `disabled`, and provide per-integration `settings`.
 - `CHATGPT_PORT_INTEGRATIONS_ROOT` and `CHATGPT_PORT_INTEGRATIONS_CONFIG` can override
   integration discovery/config paths for setup and build flows.
 - Integration ids use one namespace across repository and local integrations. Local
   integrations cannot shadow repository integrations.
-- `defaultEnabled: true` is rejected. Optional integrations are always opt-in.
+- Repository manifests may set `defaultEnabled: true` after review. Local
+  `disabled` entries win over both manifest defaults and `enabled` entries;
+  settings are retained only for integrations in the resolved enabled set.
 - Every integration must have `integration.json` and `README.md`.
 - Manifest `requires` and `conflicts` are validated by setup, installer,
   patcher, and package builders.
@@ -160,13 +165,17 @@ Detailed contract: `port-integrations/README.md` and
   must not activate the disabled integration.
 - `packageHooks` run during native package staging with package/app root
   environment variables. They must be idempotent and narrowly scoped.
-- Native package update-builder bundles preserve the enabled integration id list
-  and configured integration root, including local integrations, so local auto-updates
-  keep the same opt-in integrations.
+- Native package builders copy the integration source tree, remove
+  checkout-local config files from that copy, and write the full resolved
+  `enabled`/`disabled`/`settings` snapshot to
+  `.chatgpt-linux/port-integrations.json` in the update-builder bundle. Updater
+  rebuilds prefer the persistent per-user override and otherwise preserve that
+  packaged snapshot.
 
-Use `port-integrations/` for anything useful to some users but not mandatory for
-the baseline Linux app. If an integration needs more power, add a generic hook or
-extension point to core rather than moving the integration itself into core.
+Use `port-integrations/` for configurable behavior whose default can change
+without moving the implementation into the core patch registry. If an
+integration needs more power, add a generic hook or extension point to core
+rather than moving the integration itself into core.
 
 ## Native Packaging
 
@@ -198,11 +207,11 @@ metadata under `/usr/share/`, and the update-builder bundle under
   Binary entrypoint, top-level dispatcher, and `clap` CLI.
 - `builder.rs`
   Drives the packaged update-builder bundle to rebuild packages from newer
-  upstream DMGs.
+  official DMGs.
 - `dmg_source.rs`
   Official DMG polling, ETag cache, download, and hash verification.
 - `wrapper.rs` / `wrapper_apply.rs` / `changelog.rs` / `integration_picker.rs`
-  Wrapper-repo self-update path, separate from the upstream DMG flow.
+  Wrapper-repo self-update path, separate from the official DMG flow.
 - `cache_cleanup.rs`
   Cleanup of updater-managed download/rebuild workspaces under the cache dir.
 - `install.rs` / `install_rollback.rs` / `rollback.rs`
@@ -225,12 +234,15 @@ The updater runs unprivileged and only escalates through `pkexec` for
 
 - `notification-actions-linux/`
   Small Rust D-Bus bridge for freedesktop notification action and close
-  signals. The main-process core patch uses it only for upstream notifications
-  that already carry actions and falls back to Electron otherwise.
+  signals. The main-process core patch uses it only for official-app
+  notifications that already carry actions and falls back to Electron otherwise.
 - `computer-use-linux/`
   Rust crate for Linux Computer Use MCP, Chrome native messaging host, and the
-  COSMIC helper. It covers input, capture, accessibility, terminal, identity,
-  and desktop integrations.
+  COSMIC helper. The backend, bundled plugin, and Linux support patches ship by
+  default, while official account eligibility, the persistent installed-and-
+  enabled plugin and allowed-app controls, and Codex approval/sandbox policy
+  remain authoritative. It covers input, capture, accessibility, terminal,
+  identity, and desktop integrations.
 - `computer-use-linux/src/windowing/`
   Window backend registry, target resolution, focus verification, and
   backend-specific implementations. Add new compositor/window-manager support
@@ -241,12 +253,17 @@ The updater runs unprivileged and only escalates through `pkexec` for
 - `plugins/openai-bundled/plugins/computer-use/` and `.../read-aloud/`
   Bundled plugin manifests/resources staged into the Linux app.
 - `read-aloud-linux/`
-  Rust MCP backend for optional Read Aloud support.
+  Rust MCP backend for Read Aloud support.
 - `record-replay-linux/`
   Rust CLI and stdio MCP backend for the optional Record & Replay Linux
   demo-to-skill workflow.
 - `port-integrations/read-aloud/` and `port-integrations/read-aloud-mcp/`
-  Optional port integrations for Read Aloud patching/staging/integration.
+  Reviewed default-enabled integrations for the response-level Read Aloud UI
+  and the agent-facing Codex MCP plugin. They remain silent until an explicit
+  user or agent action and do not download a voice model during install or first
+  launch. Because `conversation-mode` requires `read-aloud`, disable both to
+  remove the UI backend; disable `read-aloud-mcp` separately to remove the
+  agent-facing plugin.
 
 ## User-Local Install
 
@@ -281,43 +298,52 @@ plus a native `chatgpt` package and `chatgpt-updater`.
   `launcher/webview-server.py`.
 - `scripts/ci-local.sh`
   Local containerized CI runner. Targets include `pr`, `all`, `core`, `deb`,
-  `rpm`, `pacman`, `install-deps[:image]`, `nix`, and `upstream`.
+  `rpm`, `pacman`, `install-deps[:image]`, `nix`, and `official-dmg`.
 - `.github/workflows/`
-  GitHub Actions for CI, upstream app builds, install-deps, Cachix, Nix hash
+  GitHub Actions for CI, Official DMG app builds, install-deps, Cachix, Nix hash
   refreshes, and Computer Use sync reminders.
 
 ## Docs
 
+- `docs/README.md`
+  Role- and task-oriented documentation index. Start here when a task spans
+  more than one documentation surface.
 - `README.md`
-  Public install/usage entrypoint.
+  Public project overview and fast install entrypoint.
 - `CONTRIBUTING.md`
   Contributor expectations, including the latest-DMG-only drift policy.
 - `CHANGELOG.md`
   Release notes.
-- `docs/architecture.md`
-  High-level architecture overview of the repo and runtime flow.
-- `docs/build-and-packaging.md`
-  Build pipeline and native package builder reference.
-- `docs/native-setup.md`
-  Guided native setup/install/update walkthrough.
-- `docs/updater.md`
-  Update manager design, states, and operations.
+- `docs/port-architecture.md`
+  Explanation of the official DMG conversion, app generation, patching,
+  launcher, packaging, and updater boundaries.
+- `docs/usage/build-and-run.md`
+  User how-to for prerequisites, local generation, native packages, Nix,
+  guided setup, Computer Use readiness, and service commands.
+- `docs/usage/troubleshooting.md`
+  Symptom-oriented launch, CLI, webview, package, updater, migration, and
+  Computer Use diagnostics.
+- `docs/usage/support-routing.md`
+  Routing between OpenAI, the Linux-port upstream, and this finishing fork.
+- `port-integrations/README.md`
+  User and contributor guide to reviewed defaults, local overrides, settings,
+  integration lifecycle, and validation.
 - `docs/port-integrations-architecture.md`
-  Port integration framework contract.
-- `docs/linux-computer-use.md`
-  Linux Computer Use backend, windowing, and desktop integration notes.
+  Maintainer-facing port integration architecture and manifest/hook contract.
+- `docs/maintainers/package-runtime-maintenance.md`
+  Source, generated-output, package-payload, updater, versioning, and
+  validation reference.
+- `docs/maintainers/fork-divergences.md` and
+  `docs/maintainers/fork-sync-policy.md`
+  Intentional local contracts and rename-aware Linux-port upstream sync policy.
 - `docs/record-and-replay-linux.md`
   Linux Record & Replay compatibility and tester acceptance notes.
 - `docs/upstream-dmg-acceptance.md`
   Shared acceptance policy for local installs, updater rebuilds, and CI.
 - `docs/upstream-dmg-intelligence.md`
-  Protected-surface inspection and upstream drift intelligence.
+  Protected-surface inspection and official-app drift intelligence.
 - `docs/upstream-dmg-watchdog.md`
-  Scheduled upstream DMG campaign and issue lifecycle.
-- `docs/nix.md`
-  Nix flake, modules, and hash-pin workflow.
-- `docs/troubleshooting.md`
-  Common install/runtime issues and diagnostics.
+  Scheduled Official DMG campaign and issue lifecycle.
 - `docs/label-governance.md`
   Staff-managed issue and pull request label policy.
 - `docs/github-cli-auth.md`

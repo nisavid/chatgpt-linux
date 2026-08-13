@@ -10,6 +10,7 @@ Disable it locally with:
 
 ```json
 {
+  "enabled": [],
   "disabled": [
     "remote-control-ui"
   ]

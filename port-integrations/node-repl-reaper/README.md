@@ -28,14 +28,17 @@ Browser Use sessions are unaffected. Matching is scoped to this install's
 
 ## Compatibility
 
-This feature can be enabled together with `mcp-helper-reaper`. If that feature
-wraps `resources/node_repl`, this reaper also matches
+This port integration can be enabled together with `mcp-helper-reaper`. If that
+port integration wraps `resources/node_repl`, this reaper also matches
 `resources/node_repl.chatgpt-linux-original` so leaked helpers remain in scope.
 
 ## Enable
 
-Add to `port-integrations.json` or the packaged override at
-`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`:
+For a checkout build, add it to `port-integrations/integrations.json`. For a
+normal packaged updater rebuild, add it to the persistent override at
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`. A custom app
+ID replaces `chatgpt`; when `CHATGPT_LINUX_SETTINGS_FILE` is non-empty, use
+`port-integrations.json` beside that explicit settings file:
 
 ```json
 { "enabled": ["node-repl-reaper"] }

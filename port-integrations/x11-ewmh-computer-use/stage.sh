@@ -2,8 +2,6 @@
 set -Eeuo pipefail
 
 PLUGIN_NAME="chatgpt-computer-use-x11"
-DEFAULT_X86_64_RELEASE_URL="https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11/releases/download/v0.1.3/chatgpt-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz"
-DEFAULT_X86_64_RELEASE_SHA256="067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b"
 FEATURE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${INSTALL_DIR:?INSTALL_DIR is required}"
 WORK_DIR="${WORK_DIR:-$(mktemp -d)}"
@@ -16,37 +14,9 @@ find_cargo() {
     return 1
 }
 
-canonical_arch() {
-    local arch="${ARCH:-$(uname -m)}"
-    case "$arch" in
-        x64|x86_64|amd64) printf '%s\n' "x86_64" ;;
-        arm64|aarch64) printf '%s\n' "aarch64" ;;
-        *) printf '%s\n' "$arch" ;;
-    esac
-}
-
-default_release_url() {
-    case "$(canonical_arch)" in
-        x86_64) printf '%s\n' "$DEFAULT_X86_64_RELEASE_URL" ;;
-        *)
-            echo "x11-ewmh-computer-use has no default release artifact for ARCH=${ARCH:-$(uname -m)}; set CHATGPT_X11_COMPUTER_USE_SOURCE, CHATGPT_X11_COMPUTER_USE_BINARY, CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL, or CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL explicitly" >&2
-            return 1
-            ;;
-    esac
-}
-
-default_release_sha256() {
-    case "$(canonical_arch)" in
-        x86_64) printf '%s\n' "$DEFAULT_X86_64_RELEASE_SHA256" ;;
-        *) return 1 ;;
-    esac
-}
-
 expected_sha_value() {
     local value="${CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256:-}"
-    if [ -z "$value" ]; then
-        value="$(default_release_sha256)" || return 1
-    fi
+    [ -n "$value" ] || return 1
     if [ -f "$value" ]; then
         awk '{print $1; exit}' "$value"
     else
@@ -98,7 +68,7 @@ JSON
   "version": "0.0.0-adapter",
   "description": "Standalone X11/EWMH Computer Use MCP tools for Codex.",
   "author": { "name": "AlekseiSeleznev", "url": "https://github.com/AlekseiSeleznev" },
-  "homepage": "https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11",
+  "homepage": "https://github.com/AlekseiSeleznev",
   "license": "MIT",
   "keywords": ["computer-use", "linux", "x11", "ewmh", "mcp"],
   "mcpServers": "./.mcp.json",
@@ -108,7 +78,7 @@ JSON
     "longDescription": "Provides standalone x11_* readiness diagnostics, window listing/focus, keyboard input, pointer actions, accessibility tree, app state, and target-window context tools without replacing the bundled Computer Use plugin.",
     "developerName": "AlekseiSeleznev",
     "category": "Productivity",
-    "websiteURL": "https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11",
+    "websiteURL": "https://github.com/AlekseiSeleznev",
     "logo": "./assets/app-icon.png",
     "defaultPrompt": ["Check whether standalone X11 Computer Use is ready with x11_doctor"],
     "brandColor": "#1E293B",
@@ -250,7 +220,8 @@ elif [ -n "${CHATGPT_X11_COMPUTER_USE_SOURCE:-}" ]; then
 elif [ -n "${CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL:-}" ]; then
     stage_from_download "$CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL"
 else
-    stage_from_download "$(default_release_url)"
+    echo "x11-ewmh-computer-use requires an explicit source, binary, tarball, or download URL" >&2
+    exit 1
 fi
 
 write_marketplace_entry "$TARGET_MARKETPLACE"

@@ -238,8 +238,14 @@ assert_not_contains_file() {
 }
 
 prepare_package_fixture() {
+    local enabled_json="${1:-[]}"
+    local integrations_root="${2:-$REPO_DIR/port-integrations}"
+
     rm -rf chatgpt dist
-    tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"
+    export CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json"
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="$enabled_json" \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
 }
 
 package_target_dir() {
@@ -348,13 +354,13 @@ run_deb_job() {
     assert_not_contains_file /tmp/deb-no-updater-control/postinst 'update-builder'
     assert_not_contains_file /tmp/deb-no-updater-control/prerm 'update-builder'
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    prepare_package_fixture \
+        '["package-integration-fixture"]' \
+        "$REPO_DIR/tests/fixtures/port-integrations"
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-deb.sh
 
@@ -373,13 +379,10 @@ run_deb_job() {
     [ "$deb_integration_mode" = '-rw-r-----' ] \
         || error "Expected Debian fixture mode 0640, got: ${deb_integration_mode:-missing}"
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
-    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    prepare_package_fixture '["codex-micro"]'
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-deb.sh
 
@@ -460,13 +463,13 @@ run_rpm_job() {
     assert_not_contains_file /tmp/rpm-no-updater-scripts.txt 'update-builder'
     assert_not_contains_file /tmp/rpm-no-updater-scripts.txt 'chatgpt_ensure_user_service_running'
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    prepare_package_fixture \
+        '["package-integration-fixture"]' \
+        "$REPO_DIR/tests/fixtures/port-integrations"
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-rpm.sh
 
@@ -486,13 +489,10 @@ run_rpm_job() {
     [ "$rpm_integration_mode" = '-rw-r-----' ] \
         || error "Expected RPM fixture mode 0640, got: ${rpm_integration_mode:-missing}"
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
-    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    prepare_package_fixture '["codex-micro"]'
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-rpm.sh
 
@@ -579,13 +579,13 @@ run_pacman_job() {
     assert_contains_file /tmp/pacman-no-updater-install.txt 'pre_remove'
     assert_not_contains_file /tmp/pacman-no-updater-install.txt 'update-builder'
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    prepare_package_fixture \
+        '["package-integration-fixture"]' \
+        "$REPO_DIR/tests/fixtures/port-integrations"
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-pacman.sh
 
@@ -604,13 +604,10 @@ run_pacman_job() {
     [ "$pkg_integration_mode" = '-rw-r-----' ] \
         || error "Expected pacman fixture mode 0640, got: ${pkg_integration_mode:-missing}"
 
-    rm -rf chatgpt dist
-    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
-        tests/fixtures/create-packaged-app-fixture.sh chatgpt
-    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    prepare_package_fixture '["codex-micro"]'
     CARGO_TARGET_DIR="$target_dir" \
     UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
-    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-pacman.sh
 

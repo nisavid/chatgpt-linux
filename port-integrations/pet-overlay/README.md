@@ -1,31 +1,33 @@
 # Pet Overlay
 
-This optional port integration makes the ChatGPT avatar window behave more like a
-desktop pet overlay on compositors that support the required window hints. It
-is disabled by default and lives entirely under `port-integrations/`.
+This default-enabled port integration makes the ChatGPT avatar window behave
+like a desktop pet overlay on compositors that support the required window
+hints.
 
 It does not install a custom pet, change the default pet, modify the pet
 selector, or patch an already built `app.asar`. It only patches the avatar
 overlay window behavior during the normal install or package build pipeline.
 
-Enable it by copying `port-integrations/integrations.example.json` to
-`port-integrations/integrations.json` and listing the integration id:
+## Configuration
+
+To disable it for a checkout build, add its id to `disabled` in the gitignored
+`port-integrations/integrations.json`, then rebuild the app:
 
 ```json
 {
-  "enabled": [
+  "enabled": [],
+  "disabled": [
     "pet-overlay"
   ]
 }
 ```
 
-Integration settings can be overridden in the gitignored `integrations.json` file:
+Override settings in the same checkout config:
 
 ```json
 {
-  "enabled": [
-    "pet-overlay"
-  ],
+  "enabled": [],
+  "disabled": [],
   "settings": {
     "pet-overlay": {
       "petOverlay": {
@@ -52,7 +54,7 @@ transparent space moves the native `356×320` window, while the mascot is a
 view. Existing tray controls keep their own interactive regions. Set
 `lockPosition` to `true` only when you want the mascot pinned to the configured
 screen corner on every layout pass; that mode removes the full-surface
-drag/input opt-in.
+drag/input region.
 
 ## Options
 
@@ -72,13 +74,14 @@ drag/input opt-in.
 Runtime overrides are also supported after restart:
 
 ```bash
-CHATGPT_PET_OVERLAY_MARGIN=16
-CHATGPT_PET_OVERLAY_GRAVITY=bottom-left
-CHATGPT_PET_OVERLAY_MODE=passive
-CHATGPT_PET_OVERLAY_LOCK_POSITION=1
-CHATGPT_PET_OVERLAY_HYPRLAND=0
-CHATGPT_PET_OVERLAY_KWIN=0
-CHATGPT_PET_OVERLAY_NIRI=0
+CHATGPT_PET_OVERLAY_MARGIN=16 \
+CHATGPT_PET_OVERLAY_GRAVITY=bottom-left \
+CHATGPT_PET_OVERLAY_MODE=passive \
+CHATGPT_PET_OVERLAY_LOCK_POSITION=1 \
+CHATGPT_PET_OVERLAY_HYPRLAND=0 \
+CHATGPT_PET_OVERLAY_KWIN=0 \
+CHATGPT_PET_OVERLAY_NIRI=0 \
+chatgpt
 ```
 
 The integration keeps GPU compositing enabled by default so the transparent overlay
@@ -86,8 +89,9 @@ can render correctly. An explicit user value takes precedence: launching with
 `CHATGPT_ELECTRON_DISABLE_GPU_COMPOSITING=1` still enables the documented Wayland
 stability workaround if the main window flickers or leaves stale frame trails.
 
-The legacy `CHATGPT_PET_LINUX_*` names from the prototype are still accepted for
-local compatibility.
+Legacy `CHATGPT_PET_LINUX_MARGIN`, `CHATGPT_PET_LINUX_GRAVITY`,
+`CHATGPT_PET_LINUX_MODE`, `CHATGPT_PET_LINUX_LOCK_POSITION`, and
+`CHATGPT_PET_LINUX_HYPRLAND` overrides remain accepted for local compatibility.
 
 ## Hyprland Notes
 
@@ -156,7 +160,7 @@ window-rule {
 ```
 
 The runtime IPC path still applies after launch, so manual unlocked placement
-and locked gravity can continue to sync through the same opt-in feature.
+and locked gravity continue to sync through this integration.
 
 ## Testing
 
@@ -166,7 +170,7 @@ Run the integration unit tests from the repository root:
 node --test port-integrations/pet-overlay/test.js
 ```
 
-For a manual check, enable the integration, rebuild, and launch the app:
+For a manual check, build with the default integration set and launch the app:
 
 - The pet overlay should remain transparent.
 - With `lockPosition: false`, it should be frameless; drag transparent space

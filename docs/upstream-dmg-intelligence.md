@@ -1,4 +1,4 @@
-# Upstream DMG Intelligence
+# Official OpenAI DMG Intelligence
 
 Use this lane when OpenAI ships a new macOS `ChatGPT.dmg` and Linux parity work
 needs to know what moved before accepting the build.
@@ -10,7 +10,8 @@ is gitignored; check in only deliberate fixtures or registry changes.
 
 ## Commands
 
-Current upstream-vs-cached baseline check, using the repo devcontainer image:
+Compare the current official OpenAI ChatGPT DMG with the cached baseline by
+using the repo devcontainer image:
 
 ```bash
 make inspect-upstream-intel-devcontainer
@@ -18,10 +19,11 @@ make inspect-upstream-intel-devcontainer
 
 The devcontainer wrapper is the preferred path for real DMG checks because it
 keeps `7zz`, Node, `jq`, and report-generation dependencies inside the project
-container. With no `DMG=...`, it downloads the current upstream DMG into the
-gitignored `reports/upstream-dmg/downloads/` directory and automatically uses
-repo `./ChatGPT.dmg` as the baseline when that cached file exists and differs
-from the candidate. It builds `chatgpt-linux-devcontainer:local` from
+container. With no `DMG=...`, it downloads the current official OpenAI ChatGPT
+DMG into the gitignored `reports/upstream-dmg/downloads/` directory and
+automatically uses repo `./ChatGPT.dmg` as the baseline when that cached file
+exists and differs from the candidate. It builds
+`chatgpt-linux-devcontainer:local` from
 `.devcontainer/Dockerfile` if that image is missing, mounts outside candidate
 or baseline paths into the container, and writes only the ignored report bundle
 under `reports/upstream-dmg/` by default.
@@ -126,9 +128,9 @@ It currently protects the surfaces Linux mirrors or patches most aggressively:
 - `browser_use_native_pipe_bridge`
 - `browser_use_policy_shims`
 
-Do not treat registry names as proof that upstream still uses those names. The
-scanner records actual path, content, plugin, bridge, native string, and hash
-evidence from the candidate build.
+Do not treat registry names as proof that the official OpenAI app bundle still
+uses those names. The scanner records actual path, content, plugin, bridge,
+native string, and hash evidence from the candidate build.
 
 Registry entries can declare `requiredEvidence` anchors. A surface is `PRESENT`
 only when those anchors are satisfied; loose matches are reported as `PARTIAL`
@@ -143,7 +145,7 @@ routes that can change Chronicle state:
   changing memory feature/config state.
 
 If either route moves or disappears, treat it as a Chronicle/Skysight parity
-review item before accepting the upstream DMG.
+review item before accepting the official DMG.
 
 ## Drift Classifications
 
@@ -154,22 +156,22 @@ review item before accepting the upstream DMG.
 - `PAYLOAD_CHANGED`: paths remained stable, but content or native string
   evidence changed.
 - `REMOVED`: a baseline-present surface disappeared from the candidate.
-- `NEW_UPSTREAM_CAPABILITY`: a candidate-present surface was missing in the
-  baseline.
+- `NEW_UPSTREAM_CAPABILITY`: an official-app capability present in the candidate
+  was missing in the baseline.
 - `PATCH_BROKEN`: a required patch-report failure matched this protected
   surface.
 - `PATCH_REVIEW`: an optional patch-report warning or skip matched this
   protected surface.
-- `LINUX_SUBSTRATE_GAP`: upstream evidence exists, but the registry's required
-  Linux substrate path is missing.
+- `LINUX_SUBSTRATE_GAP`: official-app evidence exists, but the registry's
+  required Linux substrate path is missing.
 
 ## Acceptance Gate
 
 The automated tests use synthetic `.app` fixtures and `app.asar.extracted`
 directories so normal verification does not rebuild Electron or require the real
 DMG. Manual real-DMG verification is still required before accepting a new
-upstream build. The normal path downloads current upstream and compares it to
-the cached repo baseline:
+official OpenAI app build. The normal path downloads the current official
+OpenAI ChatGPT DMG and compares it with the cached repo baseline:
 
 ```bash
 node --test scripts/dev/upstream-dmg-intel.test.js

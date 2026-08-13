@@ -23,7 +23,7 @@ would route work into a partially destroyed application context.
 
 ## Root Cause
 
-The current upstream main bundle has one targeted lifecycle `will-quit` handler
+The current official-app main bundle has one targeted lifecycle `will-quit` handler
 with two cleanup branches:
 
 - a reduced branch stops Codex Micro and flushes tracing;
@@ -51,7 +51,7 @@ flag is still set; `Browser::Quit()` then returns immediately. This is an
 ordering race, not a claim that preventing `will-quit` leaves the flag set
 permanently.
 
-Relevant upstream behavior:
+Relevant official-app behavior:
 
 - [`Browser::Quit()` and `Browser::NotifyAndShutdown()`](https://github.com/electron/electron/blob/v42.3.0/shell/browser/browser.cc)
 - [event-emission microtask scope](https://github.com/electron/electron/blob/v42.3.0/shell/common/gin_helper/event_emitter_caller.cc)
@@ -60,7 +60,7 @@ Relevant upstream behavior:
 ## Fix
 
 `applyLinuxWillQuitDrainTimeoutPatch()` semantically locates the single current
-upstream handler. It verifies that both drain branches share the expected
+official-app handler. It verifies that both drain branches share the expected
 event, lifecycle managers, drain functions, and finalizer before changing the
 bundle.
 
@@ -70,7 +70,7 @@ On Linux, both branches now pass a cleanup factory to one bounded helper:
    setup exceptions.
 2. `Promise.race()` limits the drain to three seconds.
 3. Rejected `Promise.allSettled()` results and deadline expiry are logged.
-4. Context disposal remains bounded by the upstream five-second limit and
+4. Context disposal remains bounded by the official-app five-second limit and
    cannot suppress shared-disposable cleanup.
 5. Shared-disposable failure is logged and cannot suppress `app.exit(0)`.
 
@@ -79,38 +79,38 @@ bounded cleanup, and Electron documents `app.exit()` as bypassing
 `before-quit` and `will-quit`. It therefore terminates without re-entering the
 graceful-quit sequence that produced the windowless survivor.
 
-Non-Linux behavior remains on the upstream cleanup and `app.quit()` path.
+Non-Linux behavior remains on the official-app cleanup and `app.quit()` path.
 
 The helper has no separate once-only state. A single `Promise.race()`
 continuation invokes the Linux finalizer, and a promise settles only once.
 
 ## Drift And Idempotence
 
-This repository supports only the latest upstream DMG. The patch does not retain
+This repository supports only the latest official OpenAI ChatGPT DMG. The patch does not retain
 the obsolete lifecycle matcher.
 
 An unchanged source is considered already patched only when the generated
 markers and the scoped Linux `app.exit(0)` postcondition are present. Otherwise
 the current handler must resolve to exactly one semantic target. Zero or
 multiple targets emit a warning; because this descriptor is
-`required-upstream`, the patch report records `failed-required` and candidate
+`required-official-dmg`, the patch report records `failed-required` and candidate
 promotion is rejected.
 
 This prevents an unrelated `app.exit(0)`, a previous non-exiting finalizer, or
-an upstream anchor rename from being mistaken for a successful application.
+an official-app anchor rename from being mistaken for a successful application.
 
 ## Validation
 
 Automated regression coverage exercises:
 
-- both current upstream drain branches;
+- both current official-app drain branches;
 - synchronous lifecycle-disposer and drain-setup failures;
 - asynchronous drain rejection and deadline expiry;
 - context-disposal and shared-disposable failures;
 - Linux forced exit and unchanged non-Linux graceful quit;
 - late drain settlement after the deadline;
 - exact idempotence and scoped postcondition detection;
-- missing, renamed, malformed, and ambiguous current-upstream targets.
+- missing, renamed, malformed, and ambiguous current official-app targets.
 
 The complete patcher suite, script smoke suite, syntax checks, and
 `git diff --check` must pass on the final source.

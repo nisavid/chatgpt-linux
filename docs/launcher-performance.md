@@ -38,13 +38,15 @@ Both decisions are visible at runtime in the `Electron launch mode:` line of
 
 ## Reviewed And Deliberately Not Changed
 
-### `--no-sandbox` and `--disable-gpu-sandbox`
+### Electron sandbox flags
 
 These are security-posture flags, not measurable rendering-performance
-factors. Removing them is a separate compatibility project: the Electron
-SUID/user-namespace sandbox behaves differently across distributions and
-container/AppImage environments, and the troubleshooting docs currently
-promise `--no-sandbox` behavior. Out of scope for performance work.
+factors. The launcher retains `--disable-gpu-sandbox` for current Linux GPU
+compatibility. It does not disable Electron's full sandbox by default;
+`CHATGPT_APP_DISABLE_ELECTRON_SANDBOX=1` adds `--no-sandbox` only as an
+explicit, lower-security fallback. Changing either boundary requires separate
+cross-distribution and AppImage compatibility testing rather than performance
+measurements alone.
 
 ### Wayland `--disable-gpu-compositing` workaround
 
@@ -58,7 +60,7 @@ papers over.
 
 The bundled Python server already uses `ThreadingHTTPServer` and serves
 webview files with explicit `no-store` headers. The Linux packaging flow
-patches upstream webview assets without renaming every hashed chunk, so the
+patches official-app webview assets without renaming every hashed chunk, so the
 server must force revalidation to keep Electron from reusing stale renderer
 code after rebuilds or updates. Replacing it with a Rust server was evaluated
 and rejected until evidence shows Python itself is the bottleneck — see
@@ -90,10 +92,10 @@ markers depend on the current ordering.
 
 ### In-app startup latency
 
-Most of the visible loading-screen time is spent inside the upstream app:
+Most of the visible loading-screen time is spent inside the official app:
 the renderer blocks on `codex app-server` RPCs after the static assets load
 (the launcher log shows individual calls such as `app/list` taking multiple
-seconds on cold start). That is upstream application behavior inside
+seconds on cold start). That is official-app behavior inside
 `app.asar`, not Linux adaptation glue, and is out of scope for this
 repository beyond faithfully reporting it.
 

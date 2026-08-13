@@ -58,8 +58,9 @@ ChatGPT app shell, not like a separate Linux control panel pasted over it.
 Current visual evidence is scoped to source, committed assets, and
 privacy-safe inspection:
 
-- The root README uses the committed app icon at `assets/chatgpt.png`, shields,
-  and concise user/maintainer routing.
+- The root README uses the committed ChatGPT logo at `assets/chatgpt.png` and
+  retains the distinct Codex logo at `assets/codex.png`. Shields and concise
+  user/maintainer routing remain part of the landing page.
 - Privacy-safe local inspection of the live ChatGPT app showed a dark,
   task-focused app shell with a compact left navigation rail, pinned/project
   chat sections, dense conversation rows, subdued dividers, right-side document
@@ -104,13 +105,18 @@ remain prose-only evidence so agents do not turn them into a default UI palette.
 
 ### Functional States
 
-- **Updater Available Green** (`#3A7D44`, border `#4A9D54`) - Fork-authored
-  updater button state for an available ChatGPT update. Frontmatter token
+- **Wrapper Update Available Green** (`#3A7D44`, border `#4A9D54`) -
+  Fork-authored updater button state when the tracked wrapper branch has a
+  candidate commit newer than the installed wrapper commit. Frontmatter token
   keys: `updater-available`, `updater-available-border`.
-- **Updater Dev-Mode Amber** (`#6B5300`, border `#A07C00`, text `#FFE9A8`) -
-  Fork-authored updater button state for a local build ahead of the official
-  OpenAI app bundle version being compared by the updater. Frontmatter token
-  keys: `updater-devmode`, `updater-devmode-border`, `updater-devmode-text`.
+- **Wrapper Dev-Mode Amber** (`#6B5300`, border `#A07C00`, text `#FFE9A8`) -
+  Fork-authored updater button state when the installed wrapper commit is ahead
+  of or has diverged from the tracked wrapper branch, so applying that branch
+  would replace local wrapper work. Frontmatter token keys: `updater-devmode`,
+  `updater-devmode-border`, `updater-devmode-text`.
+- These green and amber states describe wrapper-repository commit ancestry.
+  They do not indicate whether a newer official OpenAI app bundle or DMG is
+  available.
 - **Updater SHA Muted Gray** (`#9AA0A6`, `rgba(120,120,120,0.16)`,
   `rgba(120,120,120,0.28)`) - Fork-authored installed-build chip styling for
   compact metadata. Frontmatter token key: `updater-sha-chip-text`. The rgba
@@ -119,14 +125,11 @@ remain prose-only evidence so agents do not turn them into a default UI palette.
 
 ### Evidence-Only Brand Asset Colors
 
-- **ChatGPT Icon Soft Neutral** (`#F7F7F7`, `#F1F1F1`) - Subtle neutral steps
+- **ChatGPT Icon Soft Neutral** (`#F3F3F4`, `#BABDC6`) - Subtle neutral steps
   observed in the icon's rounded square, edge, and highlight treatment.
-- **ChatGPT Icon Electric Blue** (`#4165FF`, `#2B14FF`) - Observed saturated
-  blue and indigo values in the icon glyph/cloud shape. These are brand-asset
-  colors, not default UI accent colors for fork-authored controls.
-- **ChatGPT Icon Lavender Highlight** (`#C2B2FF`, `#EAF0FF`) - Observed soft
-  highlight and glow values in the icon. Use as icon evidence only unless a
-  future visual task extracts a broader official token system.
+- **ChatGPT Knot Graphite** (`#383A49`, `#565966`) - Observed dark neutral
+  values in the ChatGPT knot. These are brand-asset colors, not default UI
+  accent colors for fork-authored controls.
 
 ### Named Rules
 
@@ -421,15 +424,16 @@ connected-looking state is not enough by itself.
 - Don't invent screenshots, metrics, connected clients, host liveness,
   enrollment state, MFA state, remote environments, simulated product state, or
   OpenAI service availability.
-- Don't imply OpenAI supports Linux as a ChatGPT app platform, that this
-  repository redistributes OpenAI software, or that this fork bypasses
+- Don't imply OpenAI supports or publishes this fork, that this repository is
+  OpenAI's official Linux distribution, that it redistributes OpenAI software,
+  or that it bypasses
   OpenAI-hosted account, rollout, MFA, remote-control, Browser Use, Computer
   Use, or service policy gates.
 - Don't fake or paint over screenshots, invented controls, wrong product copy,
   or UI captures that alter product meaning. Fix the source patch or choose a
   different capture.
 - Don't use Mac-only copy for Linux desktop behavior.
-- Don't use app icon blue/lavender values as broad decorative gradients for
+- Don't turn the app icon's neutral values into broad decorative gradients for
   fork-authored UI.
 - Don't use decorative Linux theming, terminal cosplay, oversized hero
   sections, generic card grids, or promotional copy in product surfaces.

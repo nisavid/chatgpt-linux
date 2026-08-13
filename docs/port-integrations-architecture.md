@@ -1,115 +1,153 @@
-# Port Integrations Architecture
+# Port Integrations Architecture And Authoring Reference
 
-`port-integrations/` is the extension boundary for configurable port
-integrations. Core keeps a small generic loader; integration-specific behavior
-lives in port integration directories and can be enabled by manifest default or
-local config.
+`port-integrations/` is the extension boundary for configurable adaptations to
+the official OpenAI app bundle and this port's runtime or package support. Core
+provides discovery, selection, lifecycle orchestration, and safety checks;
+integration-specific behavior stays in self-contained integration directories.
 
-## Layout
+For the tracked catalog, config schema, and config-source precedence, see the
+[Port Integration Registry](../port-integrations/README.md).
 
-Repository integrations live directly under `port-integrations/<integration-id>/`.
+## Design Boundary
 
-User-local integrations live under `port-integrations/local/<integration-id>/`. The
-`port-integrations/local/` directory is ignored by git, so a user can keep private
-or experimental integrations in the checkout without accidentally committing
-them.
+A change required for the basic Linux app to launch and behave correctly for
+most users belongs in the core patch registry under `scripts/patches/`.
 
-Every integration needs a `integration.json` manifest and a neighboring `README.md`.
-The README is required for both repository integrations and git-ignored local
-integrations, and should describe what the integration does, how to test it, and known
-support risks.
+A configurable, distro-specific, editor-specific, browser-specific, or
+workflow-specific change belongs in `port-integrations/`. Keep narrow or
+dependency-heavy integrations disabled by default. A broadly useful integration
+can be default-enabled when its control and security surfaces are documented and
+match the [maintainer security practices](maintainers/security-best-practices.md).
+
+## Resolution And Lifecycle
+
+Each phase resolves integrations from the same selected config source and
+validates the same dependency graph:
+
+1. **Discovery:** manifests under `port-integrations/<id>/` and
+   `port-integrations/local/<id>/` share one ID namespace.
+2. **Selection:** manifest defaults and config are combined; `disabled` wins;
+   `requires` and `conflicts` are validated.
+3. **ASAR patching:** `entrypoints.patchDescriptors` contributes namespaced
+   descriptors to the core patch runner.
+4. **App staging:** cleanup hooks for disabled integrations run first,
+   declarative resources and runtime hooks are reconciled next, and enabled
+   custom stage hooks run last.
+5. **Native packaging:** package resources, dependencies, and hooks are resolved
+   against the generated app's integration snapshot.
+6. **Runtime:** the launcher consumes staged environment files, prelaunch hooks,
+   Electron arguments, launcher hooks, cold-start hooks, and after-exit hooks.
+
+Do not modify the selected config or integration manifests while a build is in
+progress. Patching, app staging, hook discovery, and build-info generation read
+the config independently; a stable input is required for one coherent build.
+Native packaging then verifies its plan against the integration snapshot stored
+in the generated app.
+
+Declarative app files are recorded in
+`.chatgpt-linux/port-integrations-staged.json` inside the generated app. On the
+next install, the framework removes those tracked files before staging the new
+selection. A disabled integration can retain a marker-owned cleanup runtime hook
+with `retainWhenDisabled`; custom `stageHook` output is not tracked and remains
+the integration's responsibility.
+
+Native package builders copy the configured integration tree, including
+`local/` when present, into the packaged `update-builder`; remove checkout-local
+config; and write the complete resolved config to
+`update-builder/.chatgpt-linux/port-integrations.json`. The updater
+prefers a saved per-user config over that snapshot, then accepts the legacy
+`update-builder/port-integrations/integrations.json` path as a final fallback.
+
+## Directory Layout
+
+Tracked integrations live at `port-integrations/<integration-id>/`. Private or
+experimental checkout integrations live at
+`port-integrations/local/<integration-id>/`; `port-integrations/local/` is
+git-ignored.
+
+Every integration requires:
+
+- `integration.json`, containing the manifest;
+- `README.md`, describing behavior, validation, dependencies, and support or
+  security constraints.
+
+Repository and local integrations cannot share an ID. IDs match
+`^[a-z0-9][a-z0-9-]*$`; a local integration cannot shadow a tracked one. The
+git-ignored checkout config is `port-integrations/integrations.json`.
+
+## Minimal Manifest
 
 ```json
 {
   "id": "my-integration",
   "title": "My Integration",
   "description": "Configurable port integration.",
-  "defaultEnabled": false
-}
-```
-
-Integration ids must match `^[a-z0-9][a-z0-9-]*$`. Repository and local integrations
-share one id namespace; local integrations cannot shadow repository integrations.
-Repository integrations can set `defaultEnabled: true` when this fork supports
-them as part of the default package. Local config can enable additional
-integrations through the git-ignored `port-integrations.json` file:
-
-```json
-{
-  "enabled": ["my-integration"]
-}
-```
-
-Local config can also disable a default integration:
-
-```json
-{
-  "disabled": ["default-integration"]
-}
-```
-
-## Lifecycle
-
-The build pipeline loads enabled integrations in these phases:
-
-1. ASAR patching: patch descriptors modify extracted upstream app files.
-2. App staging: declarative resources and runtime hooks are copied into
-   `chatgpt/`.
-3. Legacy staging: optional `stage.sh` hooks run for integrations that still need
-   custom install-time logic.
-4. Native packaging: optional package hooks can mutate the `.deb`, `.rpm`, or
-   pacman staging root.
-5. Runtime: the launcher consumes staged environment files, prelaunch hooks,
-   Electron args, and cold-start hooks.
-
-Native packages copy the configured integration root into the packaged
-`update-builder` bundle, including `port-integrations/local/`, and write a
-sanitized `port-integrations.json` containing only the explicitly configured
-enabled ids. Local auto-updates therefore preserve configured integration
-choices.
-
-Declarative staged files are tracked in
-`.chatgpt-linux/port-integrations-staged.json`. On the next install, the framework
-removes the previously tracked declarative resources and runtime hooks before
-staging the currently enabled set, so disabling an integration removes its
-framework-owned runtime hooks. Legacy `stage.sh` hooks are not tracked by this
-manifest and must clean up any integration-owned files themselves.
-
-## Manifest Keys
-
-`entrypoints` keeps the existing patch and staging API:
-
-```json
-{
+  "defaultEnabled": false,
   "entrypoints": {
-    "patchDescriptors": "./patch.js",
-    "patches": "./patch.js",
-    "mainBundlePatch": "./patch.js",
-    "stageHook": "./stage.sh"
+    "patchDescriptors": "./patch.js"
   }
 }
 ```
 
-Prefer `patchDescriptors` for new patches. Integration descriptor ids are reported
-as `integration:<integration-id>:<descriptor-id>` and are optional in CI by default.
-`mainBundlePatch` is the compatibility path for older integrations that export
-`applyMainBundlePatch(source, context)`.
+## Manifest Fields
 
-Use `requires` and `conflicts` to declare integration relationships:
+| Field | Contract |
+| --- | --- |
+| `id` | Required integration ID. It must match the ID pattern; use the same directory name for a stable, inspectable identity. |
+| `title` / `name` | Human-readable catalog label. `title` is preferred. |
+| `description` | Concise catalog summary. |
+| `defaultEnabled` | Boolean; only literal `true` enables by default. |
+| `requires` | Array of integration IDs that must also be enabled. |
+| `conflicts` | Array of integration IDs that cannot be enabled together. |
+| `entrypoints` | Paths for `patchDescriptors`, `stageHook`, and `cleanupHook`. |
+| `resources` | Files or directories copied inside the generated app. |
+| `runtimeHooks` | Launcher-consumed `env`, `prelaunch`, `electronArgs`, `launcher`, `coldStart`, and `afterExit` entries. |
+| `packageResources` | Regular files copied to the native package root. |
+| `packageDependencies` | Package-format-specific dependency tokens. |
+| `packageHooks` | Optional shell hooks that mutate native package staging. |
 
-```json
-{
-  "requires": ["read-aloud"],
-  "conflicts": ["other-voice-loop"]
-}
-```
+Manifests may contain integration-owned default data. Build config can provide a
+per-integration object under `settings.<integration-id>`. The loader attaches it
+to the enabled integration as `integration.settings`; patch descriptors receive
+it through `context.integration.settings`. Settings for disabled integrations
+are omitted from the packaged resolved-config snapshot. Each integration README
+owns its settings schema.
 
-The setup wizard, installer, patcher, and package builders validate these
-relationships before applying enabled integrations.
+## Patch Descriptors
 
-## Declarative App Staging
+`entrypoints.patchDescriptors` names a CommonJS module that exports a descriptor,
+an array of descriptors, or `{ descriptors: [...] }`. Descriptor phases are
+`main-bundle`, `webview-asset`, `extracted-app:pre-webview`, and
+`extracted-app:post-webview`, matching the core registry in `scripts/patches/`.
 
-Use `resources` to copy files into the generated app directory:
+The loader prefixes each descriptor ID as
+`integration:<integration-id>:<descriptor-id>`, assigns integration descriptors
+after core descriptors unless `order` is explicit, and defaults `ciPolicy` to
+`optional`. Descriptor callbacks receive the normal patch context plus
+`context.integration` (`context.feature` is a compatibility alias).
+
+Use descriptor APIs for all patch work.
+
+## Install-Time Entry Points
+
+The supported shell entry points are:
+
+| Entry point | When it runs |
+| --- | --- |
+| `stageHook` | For enabled integrations, after declarative app staging. |
+| `cleanupHook` | For disabled integrations, before declarative app staging. |
+
+Both run with `SCRIPT_DIR`, `INSTALL_DIR`, `WORK_DIR`, `ARCH`, and
+`CHATGPT_OFFICIAL_APP_DIR`. A nonzero exit stops integration staging. Prefer
+declarative resources and runtime hooks; use shell entry points only when the
+declarative model cannot express the operation. `cleanupHook` is build-time
+generated-app cleanup; it is separate from the setup helper's confirmed cleanup
+of integration-owned user data.
+
+## Declarative App Resources
+
+`resources` copies a source inside the integration directory to a target inside
+the generated app:
 
 ```json
 {
@@ -123,15 +161,17 @@ Use `resources` to copy files into the generated app directory:
 }
 ```
 
-`source` stays inside the integration directory. `target` is relative to the app
-directory and must point to a file or subdirectory, not the app root itself.
-File modes are optional, but when present they must be quoted octal strings
-such as `"0644"` or `"0755"`; numeric JSON modes are rejected. Declared modes
-are recorded in the staged manifest and restored after native package
-permission normalization, so restrictive resource modes survive `.deb`, `.rpm`,
-and pacman packaging.
+`source` cannot escape the integration directory. `target` is relative to the
+app directory, cannot escape it, and cannot name the app root. Resource targets
+cannot overlap each other or the framework's staged manifest. `mode` is an
+optional quoted octal string such as `"0644"` or `"0755"`; numeric JSON modes
+are rejected. Declared modes are restored after native-package permission
+normalization.
 
-Use `runtimeHooks` for launcher-visible hooks:
+## Runtime Hooks
+
+Each runtime hook accepts a relative source string, an object, or an array of
+either form:
 
 ```json
 {
@@ -142,47 +182,106 @@ Use `runtimeHooks` for launcher-visible hooks:
       "retainWhenDisabled": true
     },
     "electronArgs": "electron-args",
+    "launcher": "launcher-hook.sh",
     "coldStart": "cold-start.sh",
     "afterExit": "after-exit.sh"
   }
 }
 ```
 
-Set `retainWhenDisabled` only on a marker-owned cleanup hook that must remove
-user-session artifacts after its integration is disabled. The retained hook is
-staged without the integration's resources or patches and must not activate the
-integration. It should exit once the owned payload is present again and must
-leave unmanaged files untouched.
+The object form accepts `source` (or `path`), an optional output `name`, an
+optional quoted-octal `mode`, and optional boolean `retainWhenDisabled`. Staged
+hook filenames are prefixed with `<integration-id>-`, including an explicit
+`name`.
 
-The runtime hook types map to:
+| Hook | Staged directory | Runtime behavior |
+| --- | --- | --- |
+| `env` | `.chatgpt-linux/env.d/` | Exports each non-comment `KEY=VALUE` line literally, without shell evaluation. |
+| `prelaunch` | `.chatgpt-linux/prelaunch.d/` | Runs synchronously before packaged-runtime prelaunch and webview setup. |
+| `electronArgs` | `.chatgpt-linux/electron-args.d/` | Appends each non-comment line as one Electron argument. |
+| `launcher` | `.chatgpt-linux/launcher.d/` | Runs after Electron defaults and arguments are collected, immediately before final launch-argument construction. |
+| `coldStart` | `.chatgpt-linux/cold-start.d/` | Runs in the background during cold start after bundled-plugin cache sync. |
+| `afterExit` | `.chatgpt-linux/after-exit.d/` | Runs after Electron exits; failures do not replace Electron's exit status. |
 
-- `env`: copied to `.chatgpt-linux/env.d/`; each non-comment line is exported as
-  literal `KEY=VALUE` with no shell evaluation.
-- `prelaunch`: copied to `.chatgpt-linux/prelaunch.d/`; executable hooks run
-  synchronously before the packaged runtime prelaunch and webview setup.
-- `electronArgs`: copied to `.chatgpt-linux/electron-args.d/`; each non-comment
-  line is appended as one Electron argument.
-- `coldStart`: copied to `.chatgpt-linux/cold-start.d/`; executable hooks run in
-  the background during cold start, after bundled plugin cache sync.
-- `afterExit`: copied to `.chatgpt-linux/after-exit.d/`; executable hooks run
-  after Electron exits. Hook failures are logged and the launcher preserves
-  Electron's original exit status.
+Executable hooks receive `CODEX_HOME`, `CHATGPT_LINUX_APP_DIR`,
+`CHATGPT_LINUX_APP_STATE_DIR`, `CHATGPT_PORT_INTEGRATIONS_DIR`,
+`CHATGPT_LINUX_LAUNCHER_LOG`, and `CHATGPT_PORT_INTEGRATION_HOOK_PHASE`.
+`afterExit` also receives `CHATGPT_LINUX_ELECTRON_EXIT_STATUS`.
 
-Runtime hooks receive `CODEX_HOME`, `CHATGPT_LINUX_APP_DIR`,
-`CHATGPT_LINUX_APP_STATE_DIR`, `CHATGPT_PORT_INTEGRATIONS_DIR`, and
-`CHATGPT_LINUX_LAUNCHER_LOG`. Executable hooks also receive
-`CHATGPT_PORT_INTEGRATION_HOOK_PHASE`; `afterExit` additionally receives
-`CHATGPT_LINUX_ELECTRON_EXIT_STATUS`. Use this pattern for user-home artifacts
-such as Codex skills: stage the source file with `resources` under
-`.chatgpt-linux/integrations/<integration-id>/...`, then copy it from
-`$CHATGPT_PORT_INTEGRATIONS_DIR/<integration-id>/...` to `$CODEX_HOME/skills/...`
-in a `runtimeHooks.prelaunch` script. Do not write user-home files from
-`stage.sh`; install, package, and updater rebuilds may run outside the real
-user's session.
+A `launcher` hook receives the collected Electron arguments as its argv. Its
+standard output accepts only these line protocols:
+
+```text
+env NAME=literal value
+electron-arg --switch=value
+```
+
+Blank lines and comments are ignored. `env` requires a valid shell variable name
+and does not evaluate the value. `electron-arg` replaces an earlier occurrence
+of the same switch; launcher-selected rendering defaults are removed when an
+explicit rendering switch supersedes them. Other output is logged and ignored.
+
+Set `retainWhenDisabled: true` only on a marker-owned cleanup hook that must
+remove user-session artifacts after the integration is disabled. A retained hook
+must not activate the integration and must leave unmanaged files untouched.
+
+For user-home artifacts such as Codex skills, stage the source under
+`.chatgpt-linux/integrations/<integration-id>/` and copy it into place from a
+prelaunch hook. Do not write user-home files from `stageHook`; installs and
+updater rebuilds may run outside the user's session.
+
+## Native Package Resources And Dependencies
+
+`packageResources` stages regular files outside the packaged app directory:
+
+```json
+{
+  "packageResources": [
+    {
+      "source": "resources/70-example.rules",
+      "target": "usr/lib/udev/rules.d/70-example.rules",
+      "mode": "0644",
+      "formats": ["deb", "rpm", "pacman"]
+    }
+  ]
+}
+```
+
+`source` must be a regular, non-symlinked file inside the integration directory.
+`target` is relative to the package root, must stay outside the packaged app,
+and cannot use Debian control or pacman metadata namespaces. `formats` defaults
+to all supported native formats. `mode` is a quoted octal string and defaults to
+`"0644"`; special permission bits are rejected. Targets cannot overlap other
+integration resources or existing package payload.
+
+`packageDependencies` maps each package format to an array of native dependency
+tokens:
+
+```json
+{
+  "packageDependencies": {
+    "deb": ["libusb-1.0-0"],
+    "rpm": ["libusb-1.0.so.0%{chatgpt_elf_suffix}"],
+    "pacman": ["libusb"]
+  }
+}
+```
+
+Supported keys are `deb`, `rpm`, and `pacman`. Values are validated,
+deduplicated, and sorted. RPM dependencies may use the terminal
+`%{chatgpt_elf_suffix}` placeholder for the package builder's architecture
+suffix.
+
+Before resolving package resources, dependencies, or hooks, packaging verifies
+that the generated app's `.chatgpt-linux/build-info.json` exactly matches the
+current full resolved config, integration-root kind, and integration-input
+digest. Rebuild the app before packaging after changing a selection, setting,
+manifest, hook, resource, or other enabled integration input.
 
 ## Package Hooks
 
-Use `packageHooks` only when a integration must mutate native package staging:
+Use `packageHooks` only when an integration must perform a mutation that
+`packageResources` cannot express:
 
 ```json
 {
@@ -195,46 +294,31 @@ Use `packageHooks` only when a integration must mutate native package staging:
 }
 ```
 
-Hooks run with:
+An empty or omitted `formats` array applies to every native format. Hooks run
+with:
 
 - `PACKAGE_FORMAT`
 - `PACKAGE_NAME`
 - `PACKAGE_VERSION`
 - `PACKAGE_ROOT` / `PACKAGE_STAGING_ROOT`
 - `APP_DIR` / `PACKAGE_APP_DIR`
-- `REPO_DIR`
+- `REPO_DIR` / `SCRIPT_DIR`
 
-Package hooks should be idempotent and narrowly scoped.
+Package hooks must be idempotent and narrowly scoped to their integration.
 
-## Local Integration Example
+## Authoring Validation
 
-Create a private integration without touching tracked files:
-
-```bash
-mkdir -p port-integrations/local/my-integration
-$EDITOR port-integrations/local/my-integration/integration.json
-```
-
-Then enable it:
+Keep a self-contained test beside each integration and run it directly while
+authoring:
 
 ```bash
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt"
-$EDITOR "${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json"
-make install-native
+node --test port-integrations/my-integration/test.js
 ```
 
-`make setup-native` also discovers local integrations, marks them as `[local]`,
-and can enable them by id or list number.
+Run the loader and registry-policy suites when changing manifest fields or
+framework behavior:
 
-## Design Rule
-
-If a change is required for the basic Linux app to launch and behave correctly
-for most users, it belongs in core patches under `scripts/patches/`.
-
-If a change is configurable, distro-specific, editor-specific, browser-specific,
-workflow-specific, or likely to add future support burden for a minority of
-users, put it in `port-integrations/`. Keep narrow or dependency-specific
-integrations disabled by default; broadly useful and compatible integrations can
-be default-enabled when their control and security surfaces are documented and
-match the maintainer security best practices in
-[`docs/maintainers/security-best-practices.md`](./maintainers/security-best-practices.md).
+```bash
+node --test scripts/lib/port-integrations.test.js
+node --test port-integrations/identity-policy.test.js
+```

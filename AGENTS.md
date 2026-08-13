@@ -4,9 +4,11 @@
 
 This repository is a downstream maintenance fork of
 `ilysenko/codex-desktop-linux`. The git remote named `upstream` is the
-Linux-port upstream: it does the primary Linux conversion work from the
-official OpenAI ChatGPT DMG and carries much of the Linux runtime enablement.
-This fork is the finishing layer over that work: it preserves the local
+Linux-port upstream. This fork's synced baseline carries that upstream's
+primary Linux conversion from the official OpenAI ChatGPT DMG and much of its
+Linux runtime enablement; current upstream development has since moved to
+OpenAI's signed Linux package. This fork remains the DMG-based finishing layer
+until that source transition is decided explicitly. It preserves the local
 `chatgpt` identity, distro-shaped install layout, updater policy, hardening,
 security review, and packaging/runtime polish.
 
@@ -25,10 +27,13 @@ as `upstream`, `DMG`, or `app bundle` are fine. Do not use plain
 
 Use `port integration` in durable docs for configurable build-time modules that
 adapt official app behavior or local runtime helpers to this Linux port. The
-implementation path and config APIs are `port-integrations/`,
-`port-integrations.json`, and `CHATGPT_PORT_INTEGRATIONS_*`; use those exact names only
-for source paths, file paths, and environment variables. Do not describe these
-integrations as features of Linux.
+implementation path is `port-integrations/`. Checkout config uses
+`port-integrations/integrations.json`; packaged installs use
+`${XDG_CONFIG_HOME:-$HOME/.config}/<app-id>/port-integrations.json`, with
+`chatgpt` as the default app id. Environment variables use
+`CHATGPT_PORT_INTEGRATIONS_*`. Use those exact names only for source paths, file
+paths, and environment variables. Do not describe these integrations as
+features of Linux.
 
 Treat this file as always-loaded agent policy. Keep detailed package recipes, runtime notes, and validation matrices in maintainer docs when those docs exist.
 
@@ -36,7 +41,8 @@ Treat this file as always-loaded agent policy. Keep detailed package recipes, ru
 
 ### Issue tracker
 
-Engineering skills publish issues and PRDs to GitHub Issues for `nisavid/chatgpt-linux`. See `docs/agents/issue-tracker.md`.
+Engineering skills publish issues and PRDs to GitHub Issues for the live
+repository named in `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -86,10 +92,12 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - The first time a task branch is pushed, create a draft PR in the same workflow
   turn. Mark it ready only after local readiness gates pass and the PR body
   records verification evidence.
-- Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
-  checkout, including `create`, `view`, `ready`, `checks`, `merge`, and
-  `status`. Do not rely on GitHub CLI's inferred repository; it can target the
-  wrong repository in this fork checkout.
+- Until issue #119 completes the in-place repository rename, use
+  `--repo nisavid/codex-app-linux` on every `gh pr` command in this checkout,
+  including `create`, `view`, `ready`, `checks`, `merge`, and `status`. After
+  the rename, use `--repo nisavid/chatgpt-linux`. Do not rely on GitHub CLI's
+  inferred repository; it can target the wrong repository in this fork
+  checkout.
 - Commit completed work before handoff. For long tasks, also commit at staged,
   functional cutoff points. Each commit must pass the normal checks for the
   changed surface before it is created.

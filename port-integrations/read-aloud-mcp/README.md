@@ -17,6 +17,7 @@ Add the integration to `port-integrations/integrations.json` before rebuilding:
 
 ```json
 {
+  "enabled": [],
   "disabled": ["read-aloud-mcp"]
 }
 ```
@@ -32,12 +33,14 @@ continues without staging the MCP plugin. Native packages and reproducible
 builds should provide `CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE` when network access
 or Cargo registry access is unavailable during staging.
 
-The response-level speaker button and settings UI come from the default-on
-`read-aloud` integration. To turn both off, disable both integrations:
+The response-level speaker button and settings UI come from `read-aloud`, while
+`conversation-mode` depends on that backend. To remove all three Read Aloud
+surfaces, disable all three integrations:
 
 ```json
 {
-  "disabled": ["read-aloud", "read-aloud-mcp"]
+  "enabled": [],
+  "disabled": ["conversation-mode", "read-aloud", "read-aloud-mcp"]
 }
 ```
 

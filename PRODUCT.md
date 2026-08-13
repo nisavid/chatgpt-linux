@@ -65,10 +65,10 @@ Linux showcase identity.
   state, fabricated metrics, or UI captures that alter product meaning.
 - Mac-only copy in Linux captures or fork-authored UI, including copy that says
   a Linux desktop is a Mac.
-- Claims or visuals that imply OpenAI supports Linux as a ChatGPT app platform,
-  that this repository redistributes OpenAI software, or that the fork bypasses
-  OpenAI-hosted account, rollout, MFA, remote-control, Browser Use, Computer
-  Use, or service policy gates.
+- Claims or visuals that imply OpenAI supports or publishes this fork, that this
+  repository is OpenAI's official Linux distribution, that it redistributes
+  OpenAI software, or that the fork bypasses OpenAI-hosted account, rollout,
+  MFA, remote-control, Browser Use, Computer Use, or service policy gates.
 - Durable docs or PR text that describe this repository with a generic
   Linux-fork label. Describe it as a local hardening and finishing fork layered
   over the Linux-port upstream's work.

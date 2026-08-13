@@ -2,6 +2,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
+const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
@@ -10,22 +12,58 @@ const {
   validateReadmeVisualsContent,
 } = require("./validate-readme-visuals.js");
 
+const readmePath = path.resolve(__dirname, "../../README.md");
+const readme = fs.readFileSync(readmePath, "utf8");
+
 function errorsFor(markdown) {
   return validateReadmeVisualsContent(markdown).errors;
 }
 
-test("accepts the existing app icon and shields.io badges", () => {
+test("accepts the ChatGPT hero logo and shields.io badges", () => {
   const markdown = `
 <div align="center">
-  <img src="assets/chatgpt.png" alt="ChatGPT app icon" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT logo" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
-    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/chatgpt-linux"></a>
+    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
   </p>
 </div>
 `;
 
   assert.deepEqual(errorsFor(markdown), []);
+});
+
+test("keeps the real README ChatGPT hero and shield set", () => {
+  assert.deepEqual(validateReadmeVisualsContent(readme).errors, []);
+  assert.match(
+    readme,
+    /<img src="assets\/chatgpt\.png" alt="ChatGPT logo" width="128" height="128">/,
+  );
+  const shields = [...readme.matchAll(/<img alt="([^"]+)" src="(https:\/\/img\.shields\.io\/[^"]+)">/g)]
+    .map((match) => [match[1], match[2]]);
+  assert.deepEqual(shields, [
+    ["Packages: deb, rpm, pacman", "https://img.shields.io/badge/packages-deb%20%7C%20rpm%20%7C%20pacman-2f81f7?style=flat-square"],
+    ["Updater: chatgpt-updater", "https://img.shields.io/badge/updater-chatgpt--updater-1f883d?style=flat-square"],
+    ["Focus: hardening and polish", "https://img.shields.io/badge/focus-hardening%20%2B%20polish-8250df?style=flat-square"],
+  ]);
+});
+
+test("keeps the ChatGPT and Codex logo assets distinct", () => {
+  const assetsDir = path.resolve(__dirname, "../../assets");
+  const expected = new Map([
+    ["chatgpt.png", { digest: "8eb72477f95b272ee76882e327adf4b35e83c714016b3f35191466509d673848", size: 240 }],
+    ["chatgpt-linux.png", { digest: "4c74881519a65dcea79a4ffcd4c6ce26049d318d42220258c36f0257cf6ef2ce", size: 256 }],
+    ["codex.png", { digest: "94ea17cab28c8a721cb05d10cbaae68d8859647d4a52354106025cbee4da32fe", size: 256 }],
+    ["codex-linux.png", { digest: "3ee05fced6e526e248085a9a7146acbb0afd2f3a15ee8388dc35e0d466e22c62", size: 256 }],
+  ]);
+
+  for (const [name, { digest, size }] of expected) {
+    const logo = fs.readFileSync(path.join(assetsDir, name));
+    assert.equal(logo.subarray(1, 4).toString("ascii"), "PNG", name);
+    assert.equal(logo.readUInt32BE(16), size, `${name} width`);
+    assert.equal(logo.readUInt32BE(20), size, `${name} height`);
+    assert.equal(crypto.createHash("sha256").update(logo).digest("hex"), digest, name);
+  }
 });
 
 test("accepts local showcase images under docs/assets/readme with alt text", () => {

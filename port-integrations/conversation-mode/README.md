@@ -17,6 +17,7 @@ rebuilding:
 
 ```json
 {
+  "enabled": [],
   "disabled": ["conversation-mode"]
 }
 ```
