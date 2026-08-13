@@ -87,6 +87,13 @@ an explicit staging input enabled first. Manually adding the integration to
 `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` does not add
 the missing helper.
 
+For compatibility with older packages, the updater disables a saved X11
+selection in a private build-only config when the installed package does not
+retain the helper. The rebuild continues without overwriting the user's saved
+preference, so a later package that retains the helper can honor it again. If
+the user confirms the picker while the helper is unavailable, the picker
+removes the stale selection instead.
+
 ## Backend alignment
 
 This port integration wires the separate `chatgpt-computer-use-x11` plugin as an opt-in port integration. It does not move X11/EWMH behavior into the core Computer Use backend and does not replace the bundled `computer-use` plugin.
