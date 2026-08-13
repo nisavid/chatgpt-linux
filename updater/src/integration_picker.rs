@@ -25,16 +25,19 @@
 //!    `chatgpt-linux-integration-picker-on-update=false` so future updates skip the
 //!    prompt.
 //!
-//! Every failure mode (no display, no dialog tool, no catalog, cancelled or
-//! invalid selection, or dialog launch failure) is a graceful skip that leaves
-//! the current integration set unchanged — the picker must never block or fail
-//! the update it precedes.
+//! Every failure mode (no display, no dialog tool, no catalog, invalid or
+//! unreadable current config, cancelled or invalid selection, or dialog launch
+//! failure) is a graceful skip that leaves the current integration set unchanged
+//! — the picker must never block or fail the update it precedes.
 
 use anyhow::{Context, Result};
 use std::{
-    os::unix::fs::PermissionsExt,
+    fs::OpenOptions,
+    io::Write,
+    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
 };
 use tracing::{info, warn};
 
@@ -50,6 +53,8 @@ const DONT_ASK_SENTINEL: &str = "__dont_ask_again__";
 const DONT_ASK_LABEL: &str = "(Don't ask again on future updates)";
 const X11_COMPUTER_USE_INTEGRATION_ID: &str = "x11-ewmh-computer-use";
 const X11_COMPUTER_USE_HELPER: &str = "chatgpt-computer-use-x11";
+const INTEGRATION_CONFIG_LOCK_FILE_NAME: &str = ".port-integrations.lock";
+static INTEGRATION_CONFIG_TEMP_NONCE: AtomicU64 = AtomicU64::new(0);
 
 /// A catalog integration row read from `--integrations-json`.
 struct CatalogEntry {
@@ -60,6 +65,167 @@ struct CatalogEntry {
     conflicts: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct EffectiveConfigSnapshot {
+    source_path: Option<PathBuf>,
+    contents: Option<Vec<u8>>,
+}
+
+struct IntegrationConfigLock {
+    _file: std::fs::File,
+}
+
+impl IntegrationConfigLock {
+    fn acquire(config_path: &Path) -> Result<Self> {
+        let parent = config_path
+            .parent()
+            .with_context(|| format!("{} has no parent directory", config_path.display()))?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create {}", parent.display()))?;
+        let lock_path = parent.join(INTEGRATION_CONFIG_LOCK_FILE_NAME);
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&lock_path)
+            .with_context(|| format!("Failed to open {}", lock_path.display()))?;
+        let metadata = file
+            .metadata()
+            .with_context(|| format!("Failed to inspect {}", lock_path.display()))?;
+        anyhow::ensure!(
+            metadata.is_file() && metadata.uid() == unsafe { libc::geteuid() },
+            "Integration config lock {} is not a user-owned regular file",
+            lock_path.display()
+        );
+        if metadata.permissions().mode() & 0o077 != 0 {
+            file.set_permissions(std::fs::Permissions::from_mode(0o600))
+                .with_context(|| format!("Failed to secure {}", lock_path.display()))?;
+        }
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                anyhow::bail!("Integration config lock {} is busy", lock_path.display())
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(error)
+                    .with_context(|| format!("Failed to lock {}", lock_path.display()))
+            }
+        }
+        Ok(Self { _file: file })
+    }
+}
+
+impl Drop for IntegrationConfigLock {
+    fn drop(&mut self) {
+        // Release the open-file-description lock explicitly. A forked process or
+        // cloned descriptor may keep the underlying file description alive
+        // after this guard's descriptor closes, despite O_CLOEXEC.
+        let _ = self._file.unlock();
+    }
+}
+
+struct PreparedConfigReplacement {
+    temp_path: PathBuf,
+    installed: bool,
+}
+
+impl PreparedConfigReplacement {
+    fn prepare(target: &Path, contents: &[u8]) -> Result<Self> {
+        let parent = target
+            .parent()
+            .with_context(|| format!("{} has no parent directory", target.display()))?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create {}", parent.display()))?;
+        let file_name = target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("port-integrations.json");
+
+        for _ in 0..1024 {
+            let nonce = INTEGRATION_CONFIG_TEMP_NONCE.fetch_add(1, Ordering::Relaxed);
+            let temp_path = target.with_file_name(format!(
+                ".{file_name}.picker.tmp.{}.{}",
+                std::process::id(),
+                nonce
+            ));
+            let mut temp_file = match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(&temp_path)
+            {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("Failed to create {}", temp_path.display()))
+                }
+            };
+            let replacement = Self {
+                temp_path,
+                installed: false,
+            };
+            temp_file
+                .write_all(contents)
+                .with_context(|| format!("Failed to write {}", replacement.temp_path.display()))?;
+            temp_file
+                .sync_all()
+                .with_context(|| format!("Failed to sync {}", replacement.temp_path.display()))?;
+            return Ok(replacement);
+        }
+
+        anyhow::bail!(
+            "Could not allocate a temporary integration config beside {}",
+            target.display()
+        )
+    }
+
+    fn install(mut self, target: &Path) -> Result<()> {
+        std::fs::rename(&self.temp_path, target).with_context(|| {
+            format!(
+                "Failed to atomically replace {} with {}",
+                target.display(),
+                self.temp_path.display()
+            )
+        })?;
+        self.installed = true;
+        Ok(())
+    }
+}
+
+impl Drop for PreparedConfigReplacement {
+    fn drop(&mut self) {
+        if !self.installed {
+            let _ = std::fs::remove_file(&self.temp_path);
+        }
+    }
+}
+
+#[cfg(test)]
+fn run_pre_compare_test_hook(config_path: &Path, prepared_path: &Path) -> Result<()> {
+    let Some(source) =
+        std::env::var_os("CHATGPT_UPDATER_TEST_INTEGRATION_CONFIG_PRE_COMPARE_SOURCE")
+    else {
+        return Ok(());
+    };
+    anyhow::ensure!(
+        prepared_path.is_file(),
+        "Integration config replacement was not prepared before the test hook"
+    );
+    std::fs::copy(&source, config_path).with_context(|| {
+        format!(
+            "Failed to copy integration config test mutation from {} to {}",
+            Path::new(&source).display(),
+            config_path.display()
+        )
+    })?;
+    Ok(())
+}
+
 /// Outcome of `run_pick_integrations`, surfaced as JSON when `--json` is passed.
 enum PickOutcome {
     Skipped(&'static str),
@@ -67,7 +233,8 @@ enum PickOutcome {
 }
 
 /// Runs the integration picker. Returns `Ok(())` in every non-panic case; a skip
-/// (no display, no dialog tool, no catalog, cancelled) leaves integrations unchanged.
+/// (no display, no dialog tool, no catalog, unreadable config, or cancellation)
+/// leaves integrations unchanged.
 pub fn run_pick_integrations(
     config: &RuntimeConfig,
     paths: &RuntimePaths,
@@ -134,7 +301,27 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
     if catalog.is_empty() {
         return Ok(PickOutcome::Skipped("no-catalog"));
     }
-    let mut enabled = read_enabled(config, &source, &catalog);
+    let effective_config = match capture_effective_config(config) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            warn!(
+                ?error,
+                "integration picker left an invalid or unreadable current config unchanged"
+            );
+            return Ok(PickOutcome::Skipped("invalid-current-config"));
+        }
+    };
+    let mut enabled = match read_enabled_from_snapshot(config, &source, &catalog, &effective_config)
+    {
+        Ok(enabled) => enabled,
+        Err(error) => {
+            warn!(
+                ?error,
+                "integration picker left an invalid or unreadable current config unchanged"
+            );
+            return Ok(PickOutcome::Skipped("invalid-current-config"));
+        }
+    };
     if !x11_computer_use_available && enabled.remove(X11_COMPUTER_USE_INTEGRATION_ID) {
         warn!(
             integration = X11_COMPUTER_USE_INTEGRATION_ID,
@@ -195,7 +382,15 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
                 disabled.dedup();
             }
 
-            write_integration_config(config, &picked, &disabled)?;
+            if let Err(error) =
+                write_integration_config_if_unchanged(config, &picked, &disabled, &effective_config)
+            {
+                warn!(
+                    ?error,
+                    "integration picker left the current config unchanged after a write failure"
+                );
+                return Ok(PickOutcome::Skipped("config-write-failed"));
+            }
             if dont_ask {
                 if let Err(error) = config::write_integration_picker_on_update(false) {
                     warn!(?error, "could not persist don't-ask-again preference");
@@ -383,44 +578,139 @@ fn validate_selection(
     Ok(())
 }
 
+fn capture_effective_config(config: &RuntimeConfig) -> Result<EffectiveConfigSnapshot> {
+    let Some(source_path) = config::effective_integration_config_path(config) else {
+        return Ok(EffectiveConfigSnapshot {
+            source_path: None,
+            contents: None,
+        });
+    };
+    let contents = std::fs::read(&source_path)
+        .with_context(|| format!("Failed to read {}", source_path.display()))?;
+    Ok(EffectiveConfigSnapshot {
+        source_path: Some(source_path),
+        contents: Some(contents),
+    })
+}
+
+fn parse_effective_config(
+    snapshot: &EffectiveConfigSnapshot,
+) -> Result<Option<serde_json::Map<String, serde_json::Value>>> {
+    let Some(contents) = &snapshot.contents else {
+        anyhow::ensure!(
+            snapshot.source_path.is_none(),
+            "Effective integration config snapshot is incomplete"
+        );
+        return Ok(None);
+    };
+    let path = snapshot
+        .source_path
+        .as_ref()
+        .context("Effective integration config snapshot has no source path")?;
+    let value = serde_json::from_slice::<serde_json::Value>(contents)
+        .with_context(|| format!("Failed to parse {}", path.display()))?;
+    value.as_object().cloned().map(Some).with_context(|| {
+        format!(
+            "Port integration config {} must be an object",
+            path.display()
+        )
+    })
+}
+
+fn valid_integration_id(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    (first.is_ascii_lowercase() || first.is_ascii_digit())
+        && bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+fn canonical_integration_id(value: &str) -> &str {
+    match value {
+        "zed-opener" => "open-target-discovery",
+        _ => value,
+    }
+}
+
+fn configured_integration_ids(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    path: &Path,
+    required: bool,
+) -> Result<std::collections::HashSet<String>> {
+    let Some(raw_ids) = object.get(field) else {
+        anyhow::ensure!(
+            !required,
+            "Port integrations config {} must contain an enabled array",
+            path.display()
+        );
+        return Ok(std::collections::HashSet::new());
+    };
+    if raw_ids.is_null() && !required {
+        return Ok(std::collections::HashSet::new());
+    }
+    let ids = raw_ids.as_array().with_context(|| {
+        format!(
+            "Port integrations config {} must contain a {field} array",
+            path.display()
+        )
+    })?;
+    let mut configured = std::collections::HashSet::new();
+    for item in ids {
+        let id = item.as_str().with_context(|| {
+            format!("Invalid port integration id in {}: {item}", path.display())
+        })?;
+        anyhow::ensure!(
+            valid_integration_id(id),
+            "Invalid port integration id in {}: {id}",
+            path.display()
+        );
+        let canonical = canonical_integration_id(id).to_string();
+        anyhow::ensure!(
+            configured.insert(canonical),
+            "Duplicate port integration id in {}: {id}",
+            path.display()
+        );
+    }
+    Ok(configured)
+}
+
 /// Reads the currently-enabled integration ids. Prefers the saved picker config,
 /// then the installed builder bundle's preserved integration config, then
-/// `port-integrations.js --enabled` from the selected source. Errors degrade to an
-/// empty set.
+/// `port-integrations.js --enabled` from the selected source. An unreadable or
+/// malformed effective config is an error so callers can leave it unchanged;
+/// only source-command failures with no effective config degrade to an empty set.
+#[cfg(test)]
 fn read_enabled(
     config: &RuntimeConfig,
     source: &Path,
     catalog: &[CatalogEntry],
-) -> std::collections::HashSet<String> {
-    if let Some(path) = config::effective_integration_config_path(config) {
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
-                let disabled: std::collections::HashSet<String> = value
-                    .get("disabled")
-                    .and_then(|v| v.as_array())
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|item| item.as_str())
-                    .map(|s| s.to_string())
-                    .collect();
-                if value.get("enabled").is_some() || value.get("disabled").is_some() {
-                    let mut enabled: std::collections::HashSet<String> = value
-                        .get("enabled")
-                        .and_then(|v| v.as_array())
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|item| item.as_str())
-                        .map(|s| s.to_string())
-                        .collect();
-                    for entry in catalog {
-                        if entry.default_enabled && !disabled.contains(&entry.id) {
-                            enabled.insert(entry.id.clone());
-                        }
-                    }
-                    return enabled;
-                }
+) -> Result<std::collections::HashSet<String>> {
+    let snapshot = capture_effective_config(config)?;
+    read_enabled_from_snapshot(config, source, catalog, &snapshot)
+}
+
+fn read_enabled_from_snapshot(
+    config: &RuntimeConfig,
+    source: &Path,
+    catalog: &[CatalogEntry],
+    snapshot: &EffectiveConfigSnapshot,
+) -> Result<std::collections::HashSet<String>> {
+    if let Some(object) = parse_effective_config(snapshot)? {
+        let path = snapshot
+            .source_path
+            .as_ref()
+            .context("Effective integration config snapshot has no source path")?;
+        let disabled = configured_integration_ids(&object, "disabled", path, false)?;
+        let mut enabled = configured_integration_ids(&object, "enabled", path, true)?;
+        enabled.retain(|id| !disabled.contains(id));
+        for entry in catalog {
+            if entry.default_enabled && !disabled.contains(&entry.id) {
+                enabled.insert(entry.id.clone());
             }
         }
+        return Ok(enabled);
     }
 
     let script = source.join("scripts/lib/port-integrations.js");
@@ -429,16 +719,16 @@ fn read_enabled(
         .arg("--enabled")
         .output()
     else {
-        return std::collections::HashSet::new();
+        return Ok(std::collections::HashSet::new());
     };
     if !output.status.success() {
-        return std::collections::HashSet::new();
+        return Ok(std::collections::HashSet::new());
     }
-    String::from_utf8_lossy(&output.stdout)
+    Ok(String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(|line| line.trim().to_string())
         .filter(|line| !line.is_empty())
-        .collect()
+        .collect())
 }
 
 /// Shows the checklist. Returns `Some(selected ids incl. maybe the sentinel)` on
@@ -552,36 +842,44 @@ fn show_selection_error(tool: &DialogTool, message: &str) {
 /// Writes the chosen enabled set to the stable integration-config path while
 /// preserving the effective config's valid top-level settings object. An
 /// existing user config remains the highest-priority source; otherwise the
-/// packaged snapshot seeds the first user config.
+/// packaged snapshot seeds the first user config. An unreadable or malformed
+/// effective config, or one changed after the dialog opens, is left unchanged.
+/// The lock is advisory and serializes cooperating picker writers. A writer that
+/// ignores it can still race the final read because filesystems provide no
+/// portable content-compare-and-replace primitive; after the equality branch,
+/// the next filesystem operation is the single atomic rename syscall.
+#[cfg(test)]
 fn write_integration_config(
     config: &RuntimeConfig,
     enabled: &[String],
     disabled: &[String],
 ) -> Result<()> {
+    let expected = capture_effective_config(config)?;
+    write_integration_config_if_unchanged(config, enabled, disabled, &expected)
+}
+
+fn write_integration_config_if_unchanged(
+    config: &RuntimeConfig,
+    enabled: &[String],
+    disabled: &[String],
+    expected: &EffectiveConfigSnapshot,
+) -> Result<()> {
     let path =
         config::integration_config_path().context("could not resolve integration config path")?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("Failed to create {}", dir.display()))?;
-    }
-    let existing_settings = config::effective_integration_config_path(config).and_then(
-        |settings_source| {
-            std::fs::read_to_string(&settings_source)
-                .ok()
-                .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
-                .and_then(|value| match value.get("settings") {
-                    Some(settings) if settings.is_object() => Some(settings.clone()),
-                    Some(settings) if !settings.is_null() => {
-                        warn!(
-                            path = %settings_source.display(),
-                            "existing port integration settings must be an object; omitting invalid settings"
-                        );
-                        None
-                    }
-                    _ => None,
-                })
+    let existing_settings = match parse_effective_config(expected)? {
+        Some(object) => match object.get("settings") {
+            Some(settings) if settings.is_object() => Some(settings.clone()),
+            Some(settings) if !settings.is_null() => {
+                warn!(
+                    path = %expected.source_path.as_ref().context("Effective integration config snapshot has no source path")?.display(),
+                    "existing port integration settings must be an object; omitting invalid settings"
+                );
+                None
+            }
+            _ => None,
         },
-    );
+        None => None,
+    };
     let mut value = serde_json::json!({
         "enabled": enabled,
         "disabled": disabled,
@@ -591,8 +889,18 @@ fn write_integration_config(
     }
     let serialized =
         serde_json::to_string_pretty(&value).context("Failed to serialize integration config")?;
-    config::atomic_write(&path, format!("{serialized}\n").as_bytes())
-        .with_context(|| format!("Failed to write {}", path.display()))?;
+    let replacement =
+        PreparedConfigReplacement::prepare(&path, format!("{serialized}\n").as_bytes())?;
+    #[cfg(test)]
+    run_pre_compare_test_hook(&path, &replacement.temp_path)?;
+
+    let _lock = IntegrationConfigLock::acquire(&path)?;
+    let current = capture_effective_config(config)?;
+    anyhow::ensure!(
+        current == *expected,
+        "Effective port integration config changed while the picker was open"
+    );
+    replacement.install(&path)?;
     Ok(())
 }
 
@@ -919,7 +1227,8 @@ if (arg === "--integrations-json") {
                         conflicts: Vec::new(),
                     },
                 ],
-            ),
+            )
+            .unwrap(),
             std::collections::HashSet::from(["alpha".to_string()])
         );
 
@@ -927,7 +1236,7 @@ if (arg === "--integrations-json") {
     }
 
     #[test]
-    fn write_integration_config_uses_atomic_write() {
+    fn successful_config_write_leaves_no_prepared_temp() {
         let _g = env_lock();
         let settings = tempdir().unwrap();
         let settings_file = settings.path().join("settings.json");
@@ -945,15 +1254,466 @@ if (arg === "--integrations-json") {
             .unwrap()
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
-                entry
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(".port-integrations.json.tmp.")
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                name.starts_with(".port-integrations.json") && name.contains(".tmp.")
             })
             .count();
         assert_eq!(temp_entries, 0);
 
         std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn integration_config_lock_rejects_a_concurrent_writer() {
+        let root = tempdir().unwrap();
+        let config_path = root.path().join("port-integrations.json");
+        let first = IntegrationConfigLock::acquire(&config_path).unwrap();
+
+        let error = match IntegrationConfigLock::acquire(&config_path) {
+            Ok(_) => panic!("a concurrent config writer must not acquire the lock"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("is busy"));
+
+        let inherited_alias = first
+            ._file
+            .try_clone()
+            .expect("the test must retain an inherited descriptor alias");
+        drop(first);
+        IntegrationConfigLock::acquire(&config_path).unwrap();
+        drop(inherited_alias);
+    }
+
+    #[test]
+    fn edit_after_replacement_preparation_is_preserved_and_temp_is_cleaned() {
+        let _g = env_lock();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let concurrent_source = settings.path().join("concurrent-config.json");
+        let original_config = "{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": []\n}\n";
+        let concurrent_config = "{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": [\"beta\"]\n}\n";
+        std::fs::write(&integration_config, original_config).unwrap();
+        std::fs::write(&concurrent_source, concurrent_config).unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var(
+            "CHATGPT_UPDATER_TEST_INTEGRATION_CONFIG_PRE_COMPARE_SOURCE",
+            &concurrent_source,
+        );
+        let config = base_config(settings.path());
+
+        let error =
+            write_integration_config(&config, &["beta".to_string()], &["alpha".to_string()])
+                .expect_err("the prepared replacement must not overwrite a later edit");
+
+        assert!(error
+            .to_string()
+            .contains("changed while the picker was open"));
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            concurrent_config
+        );
+        assert_eq!(
+            std::fs::read_dir(settings.path())
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".port-integrations.json.picker.tmp.")
+                })
+                .count(),
+            0,
+            "a rejected prepared replacement must be removed"
+        );
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_UPDATER_TEST_INTEGRATION_CONFIG_PRE_COMPARE_SOURCE");
+    }
+
+    #[test]
+    fn failed_replacement_rename_cleans_prepared_temp() {
+        let _g = env_lock();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        std::fs::create_dir(&integration_config).unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        let config = base_config(settings.path());
+
+        write_integration_config(&config, &["beta".to_string()], &["alpha".to_string()])
+            .expect_err("a directory cannot be atomically replaced with the config file");
+
+        assert_eq!(
+            std::fs::read_dir(settings.path())
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| {
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    name.starts_with(".port-integrations.json") && name.contains(".tmp.")
+                })
+                .count(),
+            0,
+            "a failed rename must remove its prepared temp file"
+        );
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn unreadable_or_malformed_effective_config_is_preserved_without_opening_picker() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+        let previous_path = std::env::var_os("PATH");
+
+        for (case, original_config) in [
+            (
+                "malformed-json",
+                concat!(
+                    "{\n",
+                    "  \"enabled\": [\"alpha\"],\n",
+                    "  \"settings\": {\"pet-overlay\":\n",
+                )
+                .as_bytes()
+                .to_vec(),
+            ),
+            ("invalid-utf8", vec![b'{', b'\n', 0xff, b'\n']),
+        ] {
+            let settings = tempdir().unwrap();
+            let settings_file = settings.path().join("settings.json");
+            let integration_config = settings.path().join("port-integrations.json");
+            let dialog_args = settings.path().join("dialog-args");
+            std::fs::write(&integration_config, &original_config).unwrap();
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+            std::env::set_var("CHATGPT_TEST_DIALOG_ARGS_FILE", &dialog_args);
+
+            let (_dialog, fake_path) = fake_dialog("zenity", "beta", 0);
+            let mut joined_path = fake_path.clone();
+            if let Some(path) = &previous_path {
+                joined_path.push(":");
+                joined_path.push(path);
+            }
+            std::env::set_var("PATH", &joined_path);
+
+            run_pick_integrations(&config, &paths, false).unwrap();
+
+            assert_eq!(
+                std::fs::read(&integration_config).unwrap(),
+                original_config,
+                "{case} config must remain byte-for-byte unchanged"
+            );
+            assert!(
+                !dialog_args.exists(),
+                "the picker must fail closed before opening a dialog for {case}"
+            );
+        }
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_DIALOG_ARGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn parseable_invalid_or_duplicate_config_is_preserved_without_opening_picker() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+        let previous_path = std::env::var_os("PATH");
+
+        for (case, original_config) in [
+            ("missing-enabled", "{\n  \"settings\": {}\n}\n"),
+            ("invalid-id", "{\n  \"enabled\": [\"Alpha\"]\n}\n"),
+            (
+                "duplicate-id",
+                "{\n  \"enabled\": [\"alpha\", \"alpha\"]\n}\n",
+            ),
+            (
+                "duplicate-after-alias",
+                "{\n  \"enabled\": [\"zed-opener\", \"open-target-discovery\"]\n}\n",
+            ),
+            (
+                "invalid-disabled-id",
+                "{\n  \"enabled\": [],\n  \"disabled\": [\"Alpha\"]\n}\n",
+            ),
+            (
+                "duplicate-disabled-id",
+                "{\n  \"enabled\": [],\n  \"disabled\": [\"alpha\", \"alpha\"]\n}\n",
+            ),
+        ] {
+            let settings = tempdir().unwrap();
+            let settings_file = settings.path().join("settings.json");
+            let integration_config = settings.path().join("port-integrations.json");
+            let dialog_args = settings.path().join("dialog-args");
+            std::fs::write(&integration_config, original_config).unwrap();
+            std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+            std::env::set_var("CHATGPT_TEST_DIALOG_ARGS_FILE", &dialog_args);
+
+            let (_dialog, fake_path) = fake_dialog("zenity", "beta", 0);
+            let mut joined_path = fake_path.clone();
+            if let Some(path) = &previous_path {
+                joined_path.push(":");
+                joined_path.push(path);
+            }
+            std::env::set_var("PATH", &joined_path);
+
+            run_pick_integrations(&config, &paths, false).unwrap();
+
+            assert_eq!(
+                std::fs::read_to_string(&integration_config).unwrap(),
+                original_config,
+                "{case} config must remain byte-for-byte unchanged"
+            );
+            assert!(
+                !dialog_args.exists(),
+                "the picker must fail closed before opening a dialog for {case}"
+            );
+        }
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_DIALOG_ARGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn configured_legacy_id_aliases_are_mapped_before_resolution() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        std::fs::write(
+            &integration_config,
+            r#"{
+  "enabled": ["zed-opener"],
+  "disabled": []
+}
+"#,
+        )
+        .unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        let config = base_config(root.path());
+
+        assert_eq!(
+            read_enabled(&config, root.path(), &[]).unwrap(),
+            std::collections::HashSet::from(["open-target-discovery".to_string()])
+        );
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn config_malformed_while_picker_is_open_is_not_overwritten() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        std::fs::write(
+            &integration_config,
+            concat!(
+                "{\n",
+                "  \"enabled\": [\"alpha\"],\n",
+                "  \"disabled\": [],\n",
+                "  \"settings\": {\"pet-overlay\": {\"petOverlay\": {\"gravity\": \"top-left\"}}}\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let malformed_config = "{\n  \"enabled\": [\"alpha\"],\n  \"settings\":\n";
+
+        let dialog_dir = tempdir().unwrap();
+        let dialog = dialog_dir.path().join("zenity");
+        std::fs::write(
+            &dialog,
+            concat!(
+                "#!/bin/sh\n",
+                "printf '%s' '{\n  \"enabled\": [\"alpha\"],\n  \"settings\":\n' > \"$CHATGPT_TEST_INTEGRATION_CONFIG\"\n",
+                "printf '%s' 'beta'\n",
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&dialog, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_INTEGRATION_CONFIG", &integration_config);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = dialog_dir.path().as_os_str().to_os_string();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            malformed_config,
+            "a config that becomes malformed while the picker is open must remain unchanged"
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_INTEGRATION_CONFIG");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn valid_config_edited_while_picker_is_open_is_not_overwritten() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        std::fs::write(
+            &integration_config,
+            "{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": []\n}\n",
+        )
+        .unwrap();
+        let concurrent_config = concat!(
+            "{\n",
+            "  \"enabled\": [\"alpha\"],\n",
+            "  \"disabled\": [\"beta\"],\n",
+            "  \"settings\": {\"pet-overlay\": {\"petOverlay\": {\"gravity\": \"top-right\"}}}\n",
+            "}\n",
+        );
+
+        let dialog_dir = tempdir().unwrap();
+        let dialog = dialog_dir.path().join("zenity");
+        std::fs::write(
+            &dialog,
+            concat!(
+                "#!/bin/sh\n",
+                "printf '%s' '{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": [\"beta\"],\n  \"settings\": {\"pet-overlay\": {\"petOverlay\": {\"gravity\": \"top-right\"}}}\n}\n' > \"$CHATGPT_TEST_INTEGRATION_CONFIG\"\n",
+                "printf '%s' 'beta'\n",
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&dialog, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_INTEGRATION_CONFIG", &integration_config);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = dialog_dir.path().as_os_str().to_os_string();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            concurrent_config,
+            "a valid concurrent edit must remain byte-for-byte unchanged"
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_INTEGRATION_CONFIG");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn newly_created_user_config_does_not_replace_captured_packaged_source() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let packaged_config = root.path().join(".chatgpt-linux/port-integrations.json");
+        std::fs::create_dir_all(packaged_config.parent().unwrap()).unwrap();
+        std::fs::write(&packaged_config, "{\n  \"enabled\": [\"alpha\"]\n}\n").unwrap();
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let concurrent_config = "{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": [\"beta\"]\n}\n";
+
+        let dialog_dir = tempdir().unwrap();
+        let dialog = dialog_dir.path().join("zenity");
+        std::fs::write(
+            &dialog,
+            concat!(
+                "#!/bin/sh\n",
+                "printf '%s' '{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": [\"beta\"]\n}\n' > \"$CHATGPT_TEST_INTEGRATION_CONFIG\"\n",
+                "printf '%s' 'beta'\n",
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&dialog, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_INTEGRATION_CONFIG", &integration_config);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = dialog_dir.path().as_os_str().to_os_string();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            concurrent_config,
+            "a user config created while the picker is open must remain unchanged"
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_INTEGRATION_CONFIG");
+        std::env::remove_var("DISPLAY");
     }
 
     #[test]
@@ -1099,7 +1859,55 @@ if (arg === "--integrations-json") {
                         conflicts: Vec::new(),
                     },
                 ],
-            ),
+            )
+            .unwrap(),
+            std::collections::HashSet::from(["beta".to_string()])
+        );
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn disabled_config_entries_override_explicit_and_default_enabled_entries() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        std::fs::write(
+            &integration_config,
+            r#"{
+  "enabled": ["alpha", "beta"],
+  "disabled": ["alpha"]
+}
+"#,
+        )
+        .unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        let config = base_config(root.path());
+
+        assert_eq!(
+            read_enabled(
+                &config,
+                root.path(),
+                &[
+                    CatalogEntry {
+                        id: "alpha".to_string(),
+                        title: "Alpha Integration".to_string(),
+                        default_enabled: true,
+                        requires: Vec::new(),
+                        conflicts: Vec::new(),
+                    },
+                    CatalogEntry {
+                        id: "beta".to_string(),
+                        title: "Beta Integration".to_string(),
+                        default_enabled: false,
+                        requires: Vec::new(),
+                        conflicts: Vec::new(),
+                    },
+                ],
+            )
+            .unwrap(),
             std::collections::HashSet::from(["beta".to_string()])
         );
 
