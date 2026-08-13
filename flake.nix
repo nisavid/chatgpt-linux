@@ -276,6 +276,9 @@
             "chatgpt-computer-use-linux"
             "--bins"
           ];
+          preBuild = ''
+            cargo generate-lockfile --offline
+          '';
           doCheck = false;
 
           installPhase = ''
@@ -316,6 +319,9 @@
             "chatgpt-updater"
             "--bins"
           ];
+          preBuild = ''
+            cargo generate-lockfile --offline
+          '';
           doCheck = false;
           NIX_DONT_SET_RPATH = 1;
           allowedReferences = [ pkgs.asar ];

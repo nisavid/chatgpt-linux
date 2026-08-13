@@ -143,6 +143,10 @@ computer_use_binaries = text[
     text.index("chatgptComputerUseBinaries ="):
     text.index("updaterManifest =")
 ]
+release_helpers = text[
+    text.index("chatgptReleaseHelpers ="):
+    text.index("chatgptGeneratedAppMutationBroker =")
+]
 read_aloud_binary = text[
     text.index("chatgptReadAloudMcpBinary ="):
     text.index("chatgptNotificationActionsBinary =")
@@ -205,6 +209,10 @@ assert '''cargoTestFlags = [
             "-p"
             "chatgpt-notification-actions-linux"
           ];''' in notification_binary
+for scoped_workspace in (computer_use_binaries, release_helpers):
+    assert '''preBuild = ''
+            cargo generate-lockfile --offline
+          '';''' in scoped_workspace
 assert "notificationActionsBuildSource" not in text
 assert "normalize-portable-shebangs.py" in native_modules
 assert "cp -a ${managedPortableNode}" in managed_nix_node
