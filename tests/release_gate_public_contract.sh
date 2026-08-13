@@ -200,6 +200,8 @@ for portable_rust_binary in (
     dictation_binary,
 ):
     assert "portableRustPlatform.buildRustPackage" in portable_rust_binary
+assert "src = sourceRoot;" in notification_binary
+assert "notificationActionsBuildSource" not in text
 assert "normalize-portable-shebangs.py" in native_modules
 assert "cp -a ${managedPortableNode}" in managed_nix_node
 assert "--set-interpreter" in managed_nix_node

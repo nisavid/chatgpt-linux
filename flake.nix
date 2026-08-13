@@ -124,17 +124,6 @@
           cp -R ${./updater} "$out/updater"
           chmod -R u+w "$out"
         '';
-        notificationActionsBuildSource = pkgs.runCommandLocal "chatgpt-notification-actions-linux-source" { } ''
-          mkdir -p "$out"
-          cp ${./Cargo.lock} "$out/Cargo.lock"
-          cat > "$out/Cargo.toml" <<'EOF'
-          [workspace]
-          members = ["notification-actions-linux"]
-          resolver = "2"
-          EOF
-          cp -R ${./notification-actions-linux} "$out/notification-actions-linux"
-          chmod -R u+w "$out"
-        '';
         nativeModulesBuildSupport = pkgs.runCommandLocal "codex-native-modules-build-support" { } ''
           mkdir -p "$out/scripts/lib"
           cp ${./scripts/lib/native-modules.sh} "$out/scripts/lib/native-modules.sh"
@@ -405,7 +394,7 @@
         chatgptNotificationActionsBinary = portableRustPlatform.buildRustPackage {
           pname = "chatgpt-notification-actions-linux";
           version = "0.1.0";
-          src = notificationActionsBuildSource;
+          src = sourceRoot;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
