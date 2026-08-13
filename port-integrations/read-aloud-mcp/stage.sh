@@ -22,16 +22,16 @@ find_cargo_for_read_aloud_mcp() {
 }
 
 build_read_aloud_mcp_backend() {
-    local source_binary="$SCRIPT_DIR/target/release/codex-read-aloud-linux"
+    local source_binary="$SCRIPT_DIR/target/release/chatgpt-read-aloud-linux"
     local cargo_cmd=""
 
-    if [ -n "${CODEX_LINUX_READ_ALOUD_MCP_SOURCE:-}" ]; then
-        [ -x "$CODEX_LINUX_READ_ALOUD_MCP_SOURCE" ] || {
-            echo "Read Aloud MCP source is not executable: $CODEX_LINUX_READ_ALOUD_MCP_SOURCE" >&2
+    if [ -n "${CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE:-}" ]; then
+        [ -x "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE" ] || {
+            echo "Read Aloud MCP source is not executable: $CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE" >&2
             return 1
         }
         echo "Using prebuilt Read Aloud MCP backend" >&2
-        printf '%s\n' "$CODEX_LINUX_READ_ALOUD_MCP_SOURCE"
+        printf '%s\n' "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE"
         return 0
     fi
 
@@ -41,7 +41,7 @@ build_read_aloud_mcp_backend() {
     fi
 
     echo "Building Read Aloud MCP backend..." >&2
-    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p codex-read-aloud-linux >&2); then
+    if ! (cd "$SCRIPT_DIR" && "$cargo_cmd" build --release -p chatgpt-read-aloud-linux >&2); then
         echo "Failed to build Read Aloud MCP backend" >&2
         return 1
     fi
@@ -101,7 +101,7 @@ NODE
 }
 
 if ! backend_binary="$(build_read_aloud_mcp_backend)"; then
-    if [ -n "${CODEX_LINUX_READ_ALOUD_MCP_SOURCE:-}" ]; then
+    if [ -n "${CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE:-}" ]; then
         echo "Read Aloud MCP plugin staging failed for configured backend source" >&2
         exit 1
     fi
@@ -113,14 +113,14 @@ rm -rf "$target_plugin"
 mkdir -p "$target_plugin"
 cp -R "$plugin_template/." "$target_plugin/"
 mkdir -p "$target_plugin/bin"
-cp "$backend_binary" "$target_plugin/bin/codex-read-aloud-linux"
+cp "$backend_binary" "$target_plugin/bin/chatgpt-read-aloud-linux"
 cp "$runner_source/kokoro-stdin" "$target_plugin/bin/kokoro-stdin"
 cp "$runner_source/kokoro_stdin.py" "$target_plugin/bin/kokoro_stdin.py"
 if [ -f "$installer_source" ]; then
     cp "$installer_source" "$target_plugin/bin/install-kokoro-runtime.sh"
     chmod 0755 "$target_plugin/bin/install-kokoro-runtime.sh"
 fi
-chmod 0755 "$target_plugin/bin/codex-read-aloud-linux" "$target_plugin/bin/kokoro-stdin"
+chmod 0755 "$target_plugin/bin/chatgpt-read-aloud-linux" "$target_plugin/bin/kokoro-stdin"
 chmod 0644 "$target_plugin/bin/kokoro_stdin.py"
 
 if [ -f "${ICON_SOURCE:-}" ]; then

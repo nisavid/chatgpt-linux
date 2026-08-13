@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "computer-use": {
-      "command": "./bin/codex-computer-use-linux",
+      "command": "./bin/chatgpt-computer-use-linux",
       "args": ["mcp"],
       "cwd": "."
     }

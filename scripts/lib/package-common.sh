@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# shellcheck source=scripts/lib/generated-app-mutation-broker.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/generated-app-mutation-broker.sh"
+
 info() {
     echo "[INFO] $*" >&2
 }
@@ -22,17 +25,18 @@ ensure_file_exists() {
 ensure_app_layout() {
     [ -d "$APP_DIR" ] || error "Missing app directory: $APP_DIR. Run ./install.sh first."
     [ -x "$APP_DIR/start.sh" ] || error "Missing launcher: $APP_DIR/start.sh"
+    [ -f "$APP_DIR/content/webview/index.html" ] || error "Missing webview entrypoint: $APP_DIR/content/webview/index.html. Run ./install.sh first."
 }
 
 default_package_version() {
-    local version_file="$APP_DIR/codex-app-version.env"
+    local version_file="$APP_DIR/chatgpt-version.env"
     local version=""
 
     if [ ! -f "$version_file" ]; then
         error "Missing $version_file. Run ./install.sh first so package versions align with the official app bundle version."
     fi
 
-    version="$(sed -n 's/^CODEX_APP_PACKAGE_VERSION=//p' "$version_file" | head -n 1)"
+    version="$(sed -n 's/^CHATGPT_APP_PACKAGE_VERSION=//p' "$version_file" | head -n 1)"
     version="${version#\'}"
     version="${version%\'}"
     version="${version#\"}"
@@ -42,7 +46,78 @@ default_package_version() {
         return
     fi
 
-    error "Invalid CODEX_APP_PACKAGE_VERSION in $version_file: $version"
+    error "Invalid CHATGPT_APP_PACKAGE_VERSION in $version_file: $version"
+}
+
+package_trusted_git_binary() {
+    local candidate
+    for candidate in /usr/bin/git /bin/git; do
+        if [ -f "$candidate" ] && [ ! -L "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+package_git_in() {
+    local git_repo_dir="$1"
+    shift
+    local git_binary
+    git_binary="$(package_trusted_git_binary)" || return 127
+    /usr/bin/env -i \
+        GIT_CONFIG_GLOBAL=/dev/null \
+        GIT_CONFIG_NOSYSTEM=1 \
+        GIT_OPTIONAL_LOCKS=0 \
+        HOME=/nonexistent \
+        LC_ALL=C \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        XDG_CONFIG_HOME=/nonexistent \
+        "$git_binary" \
+        -C "$git_repo_dir" \
+        -c core.fsmonitor=false \
+        -c core.hooksPath=/dev/null \
+        "$@"
+}
+
+package_git() {
+    package_git_in "$REPO_DIR" "$@"
+}
+
+staged_package_source_date_epoch() {
+    local source_info="$REPO_DIR/.chatgpt-linux/source-info.json"
+    local node_bin
+
+    [ -f "$source_info" ] && [ ! -L "$source_info" ] || return 1
+    node_bin="$(package_node_binary)"
+    "$node_bin" - "$source_info" <<'NODE'
+const fs = require("node:fs");
+const sourceInfoPath = process.argv[2];
+try {
+  const sourceInfo = JSON.parse(fs.readFileSync(sourceInfoPath, "utf8"));
+  const epoch = sourceInfo?.sourceDateEpoch;
+  if (!Number.isSafeInteger(epoch) || epoch < 0) {
+    process.exit(1);
+  }
+  process.stdout.write(String(epoch));
+} catch {
+  process.exit(1);
+}
+NODE
+}
+
+ensure_package_source_date_epoch() {
+    local epoch="${SOURCE_DATE_EPOCH:-}"
+
+    if [ -z "$epoch" ]; then
+        epoch="$(staged_package_source_date_epoch 2>/dev/null || true)"
+    fi
+    if [ -z "$epoch" ]; then
+        epoch="$(package_git show -s --format=%ct HEAD 2>/dev/null || true)"
+    fi
+    [[ "$epoch" =~ ^[0-9]+$ ]] || \
+        error "SOURCE_DATE_EPOCH must be a non-negative integer, staged source epoch, or derivable from Git HEAD"
+    export SOURCE_DATE_EPOCH="$epoch"
 }
 
 sed_escape_replacement() {
@@ -64,8 +139,8 @@ validate_package_inputs() {
     [[ "$PACKAGE_NAME" =~ ^[a-z0-9][a-z0-9+._-]*$ ]] || \
         error "PACKAGE_NAME must match ^[a-z0-9][a-z0-9+._-]*$: $PACKAGE_NAME"
     package_with_updater_value >/dev/null
-    validate_no_newline "PACKAGE_DISPLAY_NAME" "${PACKAGE_DISPLAY_NAME:-Codex App}"
-    validate_no_newline "PACKAGE_COMMENT" "${PACKAGE_COMMENT:-Run Codex App on Linux}"
+    validate_no_newline "PACKAGE_DISPLAY_NAME" "${PACKAGE_DISPLAY_NAME:-ChatGPT}"
+    validate_no_newline "PACKAGE_COMMENT" "${PACKAGE_COMMENT:-Run ChatGPT on Linux}"
 }
 
 normalize_package_updater_value() {
@@ -109,6 +184,15 @@ package_with_updater_enabled() {
 }
 
 package_node_binary() {
+    local requested_node="${CHATGPT_PACKAGE_NODE_SOURCE:-}"
+    if [ -n "$requested_node" ]; then
+        [[ "$requested_node" = /* ]] || error "CHATGPT_PACKAGE_NODE_SOURCE must be absolute"
+        [ -f "$requested_node" ] && [ ! -L "$requested_node" ] && [ -x "$requested_node" ] || \
+            error "CHATGPT_PACKAGE_NODE_SOURCE must be a regular non-symlink executable"
+        printf '%s\n' "$requested_node"
+        return 0
+    fi
+
     local managed_node="${APP_DIR:-}/resources/node-runtime/bin/node"
     if [ -x "$managed_node" ] && [ "$("$managed_node" -e 'process.stdout.write("ok")' 2>/dev/null || true)" = "ok" ]; then
         printf '%s\n' "$managed_node"
@@ -127,11 +211,36 @@ clear_update_builder_port_integration_config() {
         "$update_builder_root/port-integrations/features.json"
 }
 
+port_integration_enabled() {
+    local integration_id="$1"
+    local helper="$REPO_DIR/scripts/lib/port-integrations.js"
+    local node_bin
+    local enabled_output
+
+    [ -f "$helper" ] || error "Missing port integrations helper: $helper"
+    node_bin="$(package_node_binary)"
+    if ! enabled_output="$("$node_bin" "$helper" --enabled)"; then
+        error "Failed to discover enabled port integrations"
+    fi
+    grep -Fxq "$integration_id" <<<"$enabled_output"
+}
+
+stage_update_builder_global_dictation_source() {
+    local update_builder_root="$1"
+    local source_root="$REPO_DIR/global-dictation-linux"
+    local target_root="$update_builder_root/global-dictation-linux"
+
+    mkdir -p "$target_root/src"
+    cp "$source_root/Cargo.toml" "$target_root/Cargo.toml"
+    cp "$source_root/Cargo.lock" "$target_root/Cargo.lock"
+    cp -R "$source_root/src/." "$target_root/src/"
+}
+
 stage_update_builder_resolved_port_integration_config() {
     local update_builder_root="$1"
     local helper="$REPO_DIR/scripts/lib/port-integrations.js"
     local node_bin
-    local config_dir="$update_builder_root/.codex-linux"
+    local config_dir="$update_builder_root/.chatgpt-linux"
     local config_path="$config_dir/port-integrations.json"
 
     [ -f "$helper" ] || error "Missing port integrations helper: $helper"
@@ -161,6 +270,7 @@ stage_update_builder_port_integrations_tree() {
 
     mkdir -p "$target"
     cp -a "$source_root/." "$target/"
+    find "$target" -type d -name target -prune -exec rm -rf -- {} +
     stage_update_builder_resolved_port_integration_config "$update_builder_root"
     clear_update_builder_port_integration_config "$update_builder_root"
 }
@@ -179,7 +289,7 @@ run_port_integration_package_hooks() {
     [ -f "$helper" ] || error "Missing port integrations helper: $helper"
 
     node_bin="$(package_node_binary)"
-    if ! hooks_output="$("$node_bin" "$helper" --package-hooks "$package_format")"; then
+    if ! hooks_output="$("$node_bin" "$helper" --package-hooks "$package_format" "$app_dir")"; then
         error "Failed to discover port integration package hooks for $package_format"
     fi
 
@@ -201,6 +311,76 @@ run_port_integration_package_hooks() {
     done <<< "$hooks_output"
 }
 
+stage_port_integration_package_resources() {
+    local staging_root="$1"
+    local package_format="$2"
+    local helper="$REPO_DIR/scripts/lib/port-integrations.js"
+    local node_bin
+    local app_dir="$staging_root/opt/$PACKAGE_NAME"
+
+    [ -d "$staging_root" ] || error "Missing package staging root: $staging_root"
+    [ -f "$helper" ] || error "Missing port integrations helper: $helper"
+    node_bin="$(package_node_binary)"
+    "$node_bin" "$helper" --stage-package-resources "$package_format" "$staging_root" "$app_dir"
+}
+
+port_integration_package_dependencies() {
+    local package_format="$1"
+    local app_dir="$2"
+    local helper="$REPO_DIR/scripts/lib/port-integrations.js"
+    local node_bin
+
+    [ -f "$helper" ] || error "Missing port integrations helper: $helper"
+    node_bin="$(package_node_binary)"
+    "$node_bin" "$helper" --package-dependencies "$package_format" "$app_dir"
+}
+
+port_integration_package_files() {
+    local package_format="$1"
+    local app_dir="$2"
+    local helper="$REPO_DIR/scripts/lib/port-integrations.js"
+    local node_bin
+
+    [ -f "$helper" ] || error "Missing port integrations helper: $helper"
+    node_bin="$(package_node_binary)"
+    "$node_bin" "$helper" --package-files "$package_format" "$app_dir"
+}
+
+port_integration_package_dependency_suffix() {
+    local package_format="$1"
+    local app_dir="$2"
+    local dependencies_output
+    local dependency
+    local suffix=""
+
+    if ! dependencies_output="$(port_integration_package_dependencies "$package_format" "$app_dir")"; then
+        return 1
+    fi
+    while IFS= read -r dependency; do
+        [ -n "$dependency" ] || continue
+        suffix+=", $dependency"
+    done <<< "$dependencies_output"
+    printf '%s' "$suffix"
+}
+
+replace_literal_file_token() {
+    local target="$1"
+    local token="$2"
+    local replacement="$3"
+    local node_bin
+
+    node_bin="$(package_node_binary)"
+    "$node_bin" - "$target" "$token" "$replacement" <<'NODE'
+const fs = require("node:fs");
+const [target, token, replacement] = process.argv.slice(2);
+const source = fs.readFileSync(target, "utf8");
+if (!source.includes(token)) {
+  throw new Error(`Template token not found in ${target}: ${token}`);
+}
+fs.writeFileSync(target, source.split(token).join(replacement));
+NODE
+}
+
 render_desktop_entry() {
     local target="$1"
     local package_name
@@ -211,17 +391,17 @@ render_desktop_entry() {
     local temp_dir
 
     package_name="$(sed_escape_replacement "$PACKAGE_NAME")"
-    display_name="$(sed_escape_replacement "${PACKAGE_DISPLAY_NAME:-Codex App}")"
-    comment="$(sed_escape_replacement "${PACKAGE_COMMENT:-Run Codex App on Linux}")"
+    display_name="$(sed_escape_replacement "${PACKAGE_DISPLAY_NAME:-ChatGPT}")"
+    comment="$(sed_escape_replacement "${PACKAGE_COMMENT:-Run ChatGPT on Linux}")"
     temp_dir="$(dirname "$target")"
     temp_target="$(mktemp "$temp_dir/.${PACKAGE_NAME}.desktop.XXXXXX")" || \
         error "Failed to create temporary desktop entry"
     trap '[ -z "${temp_target:-}" ] || rm -f "$temp_target"; [ -z "${filtered_target:-}" ] || rm -f "$filtered_target"' RETURN
 
     sed \
-        -e "s/codex-app-updater/__CODEX_APP_UPDATER__/g" \
-        -e "s/codex-app/$package_name/g" \
-        -e "s/__CODEX_APP_UPDATER__/codex-app-updater/g" \
+        -e "s/chatgpt-updater/__CHATGPT_UPDATER__/g" \
+        -e "s/chatgpt/$package_name/g" \
+        -e "s/__CHATGPT_UPDATER__/chatgpt-updater/g" \
         -e "0,/^Name=.*/s/^Name=.*/Name=$display_name/" \
         -e "0,/^Comment=.*/s/^Comment=.*/Comment=$comment/" \
         "$DESKTOP_TEMPLATE" > "$temp_target"
@@ -263,15 +443,49 @@ render_desktop_entry() {
     chmod 0644 "$target"
 }
 
+resolve_package_icon_source() {
+    if [ -n "${PACKAGE_ICON_SOURCE:-}" ]; then
+        printf '%s\n' "$PACKAGE_ICON_SOURCE"
+        return 0
+    fi
+
+    local expected_icon="$APP_DIR/.chatgpt-linux/$PACKAGE_NAME.png"
+    if [ -f "$expected_icon" ]; then
+        printf '%s\n' "$expected_icon"
+        return 0
+    fi
+
+    local icon_dir="$APP_DIR/.chatgpt-linux"
+    local -a candidates=()
+    local candidate
+    if [ -d "$icon_dir" ]; then
+        while IFS= read -r -d '' candidate; do
+            candidates+=("$candidate")
+        done < <(
+            find "$icon_dir" -maxdepth 1 -type f -name '*.png' -print0 |
+                sort -z
+        )
+    fi
+    if [ "${#candidates[@]}" -eq 1 ]; then
+        printf '%s\n' "${candidates[0]}"
+        return 0
+    fi
+
+    if [ "${#candidates[@]}" -gt 1 ]; then
+        warn "Multiple generated app icons found in $icon_dir; using the bundled Linux icon"
+    fi
+    printf '%s\n' "$REPO_DIR/assets/chatgpt-linux.png"
+}
+
 render_packaged_runtime_helper() {
     local target="$1"
     local package_name
 
     package_name="$(sed_escape_replacement "$PACKAGE_NAME")"
     sed \
-        -e "s/CHROME_DESKTOP=\"codex-app.desktop\"/CHROME_DESKTOP=\"$package_name.desktop\"/" \
-        -e "s|BAMF_DESKTOP_FILE_HINT=\"/usr/share/applications/codex-app.desktop\"|BAMF_DESKTOP_FILE_HINT=\"/usr/share/applications/$package_name.desktop\"|" \
-        -e "s/__CODEX_PACKAGE_ENABLE_UPDATER__/$(package_with_updater_value)/g" \
+        -e "s/CHROME_DESKTOP=\"chatgpt.desktop\"/CHROME_DESKTOP=\"$package_name.desktop\"/" \
+        -e "s|BAMF_DESKTOP_FILE_HINT=\"/usr/share/applications/chatgpt.desktop\"|BAMF_DESKTOP_FILE_HINT=\"/usr/share/applications/$package_name.desktop\"|" \
+        -e "s/__CHATGPT_PACKAGE_ENABLE_UPDATER__/$(package_with_updater_value)/g" \
         "$PACKAGED_RUNTIME_SOURCE" > "$target"
     chmod 0644 "$target"
 }
@@ -282,9 +496,9 @@ render_no_updater_transition_cleanup_helper() {
     cat > "$target" <<'SCRIPT'
 #!/bin/sh
 
-SERVICE_NAME="${SERVICE_NAME:-codex-app-updater.service}"
+SERVICE_NAMES="${SERVICE_NAMES:-chatgpt-updater.service codex-app-updater.service codex-update-manager.service}"
 
-codex_no_updater_foreach_user_manager() {
+chatgpt_no_updater_foreach_user_manager() {
     if ! command -v runuser >/dev/null 2>&1 ||
         ! command -v systemctl >/dev/null 2>&1 ||
         ! command -v getent >/dev/null 2>&1; then
@@ -311,7 +525,7 @@ codex_no_updater_foreach_user_manager() {
     done
 }
 
-codex_no_updater_run_systemctl_user() {
+chatgpt_no_updater_run_systemctl_user() {
     user_name="$1"
     runtime_dir="$2"
     bus="$3"
@@ -323,17 +537,19 @@ codex_no_updater_run_systemctl_user() {
         systemctl --user "$@" >/dev/null 2>&1
 }
 
-codex_no_updater_cleanup_one_user_manager() {
+chatgpt_no_updater_cleanup_one_user_manager() {
     user_name="$1"
     runtime_dir="$2"
     bus="$3"
 
-    codex_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" stop "$SERVICE_NAME" || true
-    codex_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" disable "$SERVICE_NAME" || true
-    codex_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" daemon-reload || true
+    for service_name in $SERVICE_NAMES; do
+        chatgpt_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" stop "$service_name" || true
+        chatgpt_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" disable "$service_name" || true
+    done
+    chatgpt_no_updater_run_systemctl_user "$user_name" "$runtime_dir" "$bus" daemon-reload || true
 }
 
-codex_no_updater_cleanup_user_enablement_links() {
+chatgpt_no_updater_cleanup_user_enablement_links() {
     if ! command -v getent >/dev/null 2>&1 || ! command -v runuser >/dev/null 2>&1; then
         return
     fi
@@ -349,16 +565,17 @@ codex_no_updater_cleanup_user_enablement_links() {
         [ "$home" != "/" ] || continue
 
         wants_dir="$home/.config/systemd/user/default.target.wants"
-        service_link="$wants_dir/$SERVICE_NAME"
-        [ -L "$service_link" ] || continue
-
-        runuser -u "$user_name" -- rm -f "$service_link" >/dev/null 2>&1 || true
+        for service_name in $SERVICE_NAMES; do
+            service_link="$wants_dir/$service_name"
+            [ -L "$service_link" ] || continue
+            runuser -u "$user_name" -- rm -f "$service_link" >/dev/null 2>&1 || true
+        done
     done
 }
 
-codex_no_updater_cleanup_update_manager_service() {
-    codex_no_updater_foreach_user_manager codex_no_updater_cleanup_one_user_manager
-    codex_no_updater_cleanup_user_enablement_links
+chatgpt_no_updater_cleanup_update_manager_service() {
+    chatgpt_no_updater_foreach_user_manager chatgpt_no_updater_cleanup_one_user_manager
+    chatgpt_no_updater_cleanup_user_enablement_links
 }
 SCRIPT
     chmod 0644 "$target"
@@ -367,7 +584,7 @@ SCRIPT
 render_desktop_entry_doctor_helper() {
     local target="$1"
 
-    cp "$REPO_DIR/packaging/linux/codex-app-desktop-entry-doctor.sh" "$target"
+    cp "$REPO_DIR/packaging/linux/chatgpt-desktop-entry-doctor.sh" "$target"
     chmod 0644 "$target"
 }
 
@@ -385,16 +602,10 @@ if command -v update-desktop-database >/dev/null 2>&1; then
 fi
 
 CLEANUP_HELPER="/usr/lib/$package_name/no-updater-transition-cleanup.sh"
-DESKTOP_ENTRY_DOCTOR="/opt/$package_name/.codex-linux/codex-app-desktop-entry-doctor.sh"
 if [ -f "\$CLEANUP_HELPER" ]; then
     # shellcheck source=/usr/lib/$package_name/no-updater-transition-cleanup.sh
     . "\$CLEANUP_HELPER"
-    codex_no_updater_cleanup_update_manager_service || true
-fi
-if [ -f "\$DESKTOP_ENTRY_DOCTOR" ]; then
-    # shellcheck source=/opt/$package_name/.codex-linux/codex-app-desktop-entry-doctor.sh
-    . "\$DESKTOP_ENTRY_DOCTOR"
-    codex_app_repair_system_package_shadow_entries $package_name || true
+    chatgpt_no_updater_cleanup_update_manager_service || true
 fi
 
 exit 0
@@ -415,7 +626,7 @@ CLEANUP_HELPER="/usr/lib/$package_name/no-updater-transition-cleanup.sh"
 if [ -f "\$CLEANUP_HELPER" ]; then
     # shellcheck source=/usr/lib/$package_name/no-updater-transition-cleanup.sh
     . "\$CLEANUP_HELPER"
-    codex_no_updater_cleanup_update_manager_service || true
+    chatgpt_no_updater_cleanup_update_manager_service || true
 fi
 
 exit 0
@@ -436,7 +647,7 @@ CLEANUP_HELPER="/usr/lib/$package_name/no-updater-transition-cleanup.sh"
 if [ -f "\$CLEANUP_HELPER" ]; then
     # shellcheck source=/usr/lib/$package_name/no-updater-transition-cleanup.sh
     . "\$CLEANUP_HELPER"
-    codex_no_updater_cleanup_update_manager_service || true
+    chatgpt_no_updater_cleanup_update_manager_service || true
 fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
@@ -455,30 +666,20 @@ write_no_updater_pacman_install_hooks() {
     package_name="$(sed_escape_replacement "$PACKAGE_NAME")"
     cat > "$target" <<SCRIPT
 CLEANUP_HELPER="/usr/lib/$package_name/no-updater-transition-cleanup.sh"
-DESKTOP_ENTRY_DOCTOR="/opt/$package_name/.codex-linux/codex-app-desktop-entry-doctor.sh"
-
-codex_no_updater_cleanup_if_present() {
+chatgpt_no_updater_cleanup_if_present() {
     if [ -f "\$CLEANUP_HELPER" ]; then
         # shellcheck source=/usr/lib/$package_name/no-updater-transition-cleanup.sh
         . "\$CLEANUP_HELPER"
-        codex_no_updater_cleanup_update_manager_service || true
+        chatgpt_no_updater_cleanup_update_manager_service || true
     fi
 }
 
-codex_app_repair_if_present() {
-    if [ -f "\$DESKTOP_ENTRY_DOCTOR" ]; then
-        # shellcheck source=/opt/$package_name/.codex-linux/codex-app-desktop-entry-doctor.sh
-        . "\$DESKTOP_ENTRY_DOCTOR"
-        codex_app_repair_system_package_shadow_entries $package_name || true
-    fi
-}
 
 post_install() {
     if command -v update-desktop-database >/dev/null 2>&1; then
         update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
     fi
-    codex_app_repair_if_present
-    codex_no_updater_cleanup_if_present
+    chatgpt_no_updater_cleanup_if_present
 }
 
 post_upgrade() {
@@ -486,7 +687,7 @@ post_upgrade() {
 }
 
 pre_remove() {
-    codex_no_updater_cleanup_if_present
+    chatgpt_no_updater_cleanup_if_present
 }
 SCRIPT
     chmod 0644 "$target"
@@ -529,8 +730,31 @@ normalize_app_payload_modes() {
 
 updater_binary_is_stale() {
     local binary="$1"
+    local canonical_binary
+    local canonical_repo
+    local requested_binary
+    local requested_repo
 
     [ -x "$binary" ] || return 0
+    canonical_binary="$(realpath -e -- "$binary")" || return 0
+    canonical_repo="$(realpath -e -- "$REPO_DIR")" || return 0
+    requested_binary="$(realpath -m -s -- "$binary")" || return 0
+    requested_repo="$(realpath -m -s -- "$REPO_DIR")" || return 0
+
+    # An explicit binary outside the copied source tree is an authoritative
+    # prebuilt input. Updater-managed rebuilds pass their currently running
+    # executable here; copied checkout mtimes must not force an untrusted or
+    # unavailable Rust toolchain back into that rebuild. A path requested from
+    # inside the source tree remains source-owned even if its final component
+    # is a symlink to an external executable.
+    if [[ "$requested_binary" != "$requested_repo" &&
+        "$requested_binary" != "$requested_repo"/* &&
+        "$requested_binary" != "$canonical_repo" &&
+        "$requested_binary" != "$canonical_repo"/* &&
+        "$canonical_binary" != "$canonical_repo" &&
+        "$canonical_binary" != "$canonical_repo"/* ]]; then
+        return 1
+    fi
 
     local source
     for source in "$REPO_DIR/Cargo.toml" "$REPO_DIR/Cargo.lock"; do
@@ -568,7 +792,7 @@ updater_build_output_binary() {
         /*) ;;
         *) target_dir="$REPO_DIR/$target_dir" ;;
     esac
-    printf '%s\n' "$target_dir/release/codex-app-updater"
+    printf '%s\n' "$target_dir/release/chatgpt-updater"
 }
 
 ensure_updater_binary() {
@@ -584,13 +808,13 @@ ensure_updater_binary() {
     fi
 
     [ -f "$REPO_DIR/Cargo.toml" ] || error "Missing updater binary: $UPDATER_BINARY_SOURCE"
-    cargo_cmd="$(find_cargo_command)" || error "cargo is required to build codex-app-updater.
+    cargo_cmd="$(find_cargo_command)" || error "cargo is required to build chatgpt-updater.
 Install the Rust toolchain:
   bash scripts/install-deps.sh        # auto-installs via rustup
   # or manually: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
 
-    info "Building codex-app-updater release binary"
-    "$cargo_cmd" build --release -p codex-app-updater >&2
+    info "Building chatgpt-updater release binary"
+    "$cargo_cmd" build --release -p chatgpt-updater >&2
     built_binary="$(updater_build_output_binary)"
     if [ -x "$built_binary" ]; then
         UPDATER_BINARY_SOURCE="$built_binary"
@@ -600,11 +824,19 @@ Install the Rust toolchain:
 
 stage_update_builder_source_info() {
     local update_builder_root="$1"
-    local info_dir="$update_builder_root/.codex-linux"
+    local info_dir="$update_builder_root/.chatgpt-linux"
     local info_file="$info_dir/source-info.json"
+    local reviewed_source_info="${CHATGPT_LINUX_SOURCE_INFO_SOURCE:-}"
     local node_bin
 
     mkdir -p "$info_dir"
+    if [ -n "$reviewed_source_info" ]; then
+        [ -f "$reviewed_source_info" ] && [ ! -L "$reviewed_source_info" ] || \
+            error "CHATGPT_LINUX_SOURCE_INFO_SOURCE must be a regular non-symlink file"
+        cp "$reviewed_source_info" "$info_file"
+        chmod 0644 "$info_file"
+        return 0
+    fi
     node_bin="$(package_node_binary)"
     "$node_bin" - "$REPO_DIR" "$info_file" <<'NODE'
 const childProcess = require("node:child_process");
@@ -613,27 +845,68 @@ const path = require("node:path");
 
 const [repoDir, infoFile] = process.argv.slice(2);
 
-function git(args) {
-  const result = childProcess.spawnSync("git", ["-C", repoDir, ...args], {
+function trustedGitBinary() {
+  for (const candidate of ["/usr/bin/git", "/bin/git"]) {
+    try {
+      const stat = fs.statSync(candidate);
+      fs.accessSync(candidate, fs.constants.X_OK);
+      if (stat.isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Try the next fixed system path.
+    }
+  }
+  return null;
+}
+
+const trustedGit = trustedGitBinary();
+
+function git(args, { allowEmpty = false } = {}) {
+  if (trustedGit == null) {
+    return null;
+  }
+  const result = childProcess.spawnSync(trustedGit, [
+    "-C",
+    repoDir,
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    ...args,
+  ], {
     encoding: "utf8",
+    env: {
+      GIT_CONFIG_NOSYSTEM: "1",
+      HOME: "/nonexistent",
+      LC_ALL: "C",
+      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      XDG_CONFIG_HOME: "/nonexistent",
+    },
     stdio: ["ignore", "pipe", "ignore"],
   });
   if (result.status !== 0) {
     return null;
   }
   const value = result.stdout.trim();
-  return value.length > 0 ? value : null;
+  return value.length > 0 || allowEmpty ? value : null;
 }
 
 function isoTimestamp() {
-  const rawEpoch = process.env.SOURCE_DATE_EPOCH?.trim();
-  if (rawEpoch) {
-    const epochSeconds = Number(rawEpoch);
-    if (Number.isFinite(epochSeconds) && epochSeconds >= 0) {
-      return new Date(Math.trunc(epochSeconds) * 1000).toISOString();
-    }
+  const epochSeconds = sourceDateEpoch();
+  if (epochSeconds != null) {
+    return new Date(epochSeconds * 1000).toISOString();
   }
   return new Date().toISOString();
+}
+
+function sourceDateEpoch() {
+  const rawEpoch = process.env.SOURCE_DATE_EPOCH?.trim();
+  if (!rawEpoch || !/^\d+$/.test(rawEpoch)) {
+    return null;
+  }
+  const epochSeconds = Number(rawEpoch);
+  return Number.isSafeInteger(epochSeconds) && epochSeconds >= 0 ? epochSeconds : null;
 }
 
 function sanitizeGitRemoteUrl(remote) {
@@ -728,6 +1001,7 @@ function sanitizeSourceInfo(info) {
     commitUrl: githubCommitUrl(remote, info.commit),
     provenance: info.provenance ?? "packaged-update-builder",
     recapturedAt: isoTimestamp(),
+    sourceDateEpoch: info.sourceDateEpoch ?? sourceDateEpoch(),
   };
 }
 
@@ -765,38 +1039,57 @@ function githubCommitUrl(remote, commit) {
   return `https://github.com/${ownerAndRepo}/commit/${sha}`;
 }
 
-const stagedInfo = readJsonFile(path.join(repoDir, ".codex-linux", "source-info.json"));
-const commit = process.env.CODEX_LINUX_SOURCE_COMMIT?.trim() || git(["rev-parse", "HEAD"]);
-const status = git(["status", "--porcelain"]);
-const remote = sanitizeGitRemoteUrl(process.env.CODEX_LINUX_SOURCE_REMOTE?.trim() || git(["remote", "get-url", "origin"]));
-const info = stagedInfo?.commit
-  ? sanitizeSourceInfo(stagedInfo)
-  : {
+const stagedInfo = readJsonFile(path.join(repoDir, ".chatgpt-linux", "source-info.json"));
+let info;
+if (stagedInfo?.commit) {
+  info = sanitizeSourceInfo(stagedInfo);
+} else {
+  const commit = process.env.CHATGPT_LINUX_SOURCE_COMMIT?.trim() || git(["rev-parse", "HEAD"]);
+  const status = git(["status", "--porcelain"], { allowEmpty: true });
+  const remote = sanitizeGitRemoteUrl(process.env.CHATGPT_LINUX_SOURCE_REMOTE?.trim() || git(["remote", "get-url", "origin"]));
+  info = {
       commit,
       shortCommit: shortSourceCommit(commit),
       version: readWrapperVersion(repoDir),
-      branch: process.env.CODEX_LINUX_SOURCE_BRANCH?.trim() || git(["branch", "--show-current"]),
+      branch: process.env.CHATGPT_LINUX_SOURCE_BRANCH?.trim() || git(["branch", "--show-current"]),
       remote,
       commitUrl: githubCommitUrl(remote, commit),
-      describe: process.env.CODEX_LINUX_SOURCE_DESCRIBE?.trim() || git(["describe", "--always", "--dirty", "--tags"]),
+      describe: process.env.CHATGPT_LINUX_SOURCE_DESCRIBE?.trim() || git(["describe", "--always", "--dirty", "--tags"]),
       dirty: status == null ? null : status.length > 0,
       provenance: "packaged-update-builder",
       capturedAt: isoTimestamp(),
-    };
+      sourceDateEpoch: sourceDateEpoch(),
+  };
+}
 
 fs.mkdirSync(path.dirname(infoFile), { recursive: true });
 fs.writeFileSync(infoFile, `${JSON.stringify(info, null, 2)}\n`, "utf8");
 NODE
 }
 
+write_update_builder_manifest() {
+    local update_builder_root="$1"
+    local manifest="$update_builder_root/.chatgpt-linux/update-builder-manifest.txt"
+    (
+        cd "$update_builder_root"
+        find . -mindepth 1 -type f \
+            ! -path './node-runtime/*' \
+            ! -path './.chatgpt-linux/update-builder-manifest.txt' \
+            -printf '%P\n' | LC_ALL=C sort > "$manifest"
+    )
+}
+
 stage_common_package_files() {
     local root="$1"
     local app_root="$root/opt/$PACKAGE_NAME"
     local support_root="$root/usr/lib/$PACKAGE_NAME"
-    local polkit_policy="$REPO_DIR/packaging/linux/com.github.nisavid.codex-app.update.policy"
+    local polkit_policy="$REPO_DIR/packaging/linux/com.github.nisavid.chatgpt.update.policy"
+    local staged_generation_receipt
+    local staged_receipt_root
 
     validate_package_inputs
     validate_app_payload_source
+    ensure_app_layout
     if package_with_updater_enabled; then
         ensure_file_exists "$polkit_policy" "polkit policy"
     fi
@@ -807,32 +1100,88 @@ stage_common_package_files() {
         "$support_root" \
         "$root/usr/share/applications" \
         "$root/usr/share/icons/hicolor/256x256/apps"
+    staged_receipt_root="$(cd "$root/opt" && pwd)/.chatgpt-generation-receipts"
 
     rm -rf "$app_root"
-    cp -aT "$APP_DIR" "$app_root"
+    staged_generation_receipt="$(copy_generation_bound_app_payload "$app_root")" || \
+        error "Could not copy the generation-bound app payload"
+    [ "$(dirname "$staged_generation_receipt")" = "$staged_receipt_root" ] && \
+        [[ "$(basename "$staged_generation_receipt")" =~ ^[0-9a-f]{64}\.json$ ]] || \
+        error "Staged generation receipt has an unexpected path: $staged_generation_receipt"
+    if package_with_updater_enabled; then
+        stage_update_builder_bundle "$root" "$app_root"
+    fi
+    rm -f -- "$staged_generation_receipt"
+    rmdir -- "$staged_receipt_root" || \
+        error "Could not remove the package-staging generation receipt root"
     normalize_app_payload_modes "$app_root"
-    mkdir -p "$app_root/.codex-linux"
-    cp "$ICON_SOURCE" "$app_root/.codex-linux/$PACKAGE_NAME.png"
-    cp "$(resolve_tray_icon_source "$app_root")" "$app_root/.codex-linux/$PACKAGE_NAME-tray.png"
-    render_desktop_entry_doctor_helper "$app_root/.codex-linux/codex-app-desktop-entry-doctor.sh"
+    mkdir -p "$app_root/.chatgpt-linux"
+    cp "$ICON_SOURCE" "$app_root/.chatgpt-linux/$PACKAGE_NAME.png"
+    cp "$(resolve_tray_icon_source "$app_root")" "$app_root/.chatgpt-linux/$PACKAGE_NAME-tray.png"
+    cp "$REPO_DIR/launcher/cli-launch-path.py" "$app_root/.chatgpt-linux/cli-launch-path.py"
+    render_desktop_entry_doctor_helper "$app_root/.chatgpt-linux/chatgpt-desktop-entry-doctor.sh"
     render_desktop_entry "$root/usr/share/applications/$PACKAGE_NAME.desktop"
     cp "$ICON_SOURCE" "$root/usr/share/icons/hicolor/256x256/apps/$PACKAGE_NAME.png"
     if package_with_updater_enabled; then
         mkdir -p \
             "$root/usr/lib/systemd/user" \
             "$root/usr/share/polkit-1/actions"
-        cp "$UPDATER_BINARY_SOURCE" "$root/usr/bin/codex-app-updater"
-        chmod 0755 "$root/usr/bin/codex-app-updater"
-        cp "$UPDATER_SERVICE_SOURCE" "$root/usr/lib/systemd/user/codex-app-updater.service"
-        chmod 0644 "$root/usr/lib/systemd/user/codex-app-updater.service"
-        cp "$polkit_policy" "$root/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
-        chmod 0644 "$root/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
+        cp "$UPDATER_BINARY_SOURCE" "$root/usr/bin/chatgpt-updater"
+        chmod 0755 "$root/usr/bin/chatgpt-updater"
+        cp "$UPDATER_SERVICE_SOURCE" "$root/usr/lib/systemd/user/chatgpt-updater.service"
+        chmod 0644 "$root/usr/lib/systemd/user/chatgpt-updater.service"
+        cp "$polkit_policy" "$root/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
+        chmod 0644 "$root/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
     else
         render_no_updater_transition_cleanup_helper \
             "$support_root/no-updater-transition-cleanup.sh"
     fi
     render_packaged_runtime_helper "$support_root/packaged-runtime.sh"
 }
+
+copy_generation_bound_app_payload() (
+    local app_root="$1"
+    local provenance_helper="$REPO_DIR/scripts/lib/package-provenance.py"
+    local receipt_before
+    local receipt_after
+    local expected_broker_digest
+    local expected_app_manifest
+    local staged_receipt
+    local staged_app_manifest
+    local work_dir
+
+    [ -f "$provenance_helper" ] && [ ! -L "$provenance_helper" ] || \
+        error "Missing package provenance helper: $provenance_helper"
+    receipt_before="$(read_generation_bound_mutation_broker_receipt "$APP_DIR")" || \
+        error "Generated app is missing a valid external generation receipt"
+    expected_broker_digest="${receipt_before%% *}"
+    expected_app_manifest="${receipt_before#* }"
+    expected_app_manifest="${expected_app_manifest%% *}"
+    work_dir="$(mktemp -d "${TMPDIR:-/tmp}/chatgpt-app-copy.XXXXXX")" || \
+        error "Could not create app-copy verification workspace"
+    trap 'rm -rf -- "$work_dir"' EXIT
+
+    cp -aT --no-preserve=links "$APP_DIR" "$app_root"
+    python3 "$provenance_helper" manifest "$app_root" "$work_dir/staged.json" || \
+        error "Could not manifest the staged app payload"
+    staged_app_manifest="$(
+        python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifestSha256"])' \
+            "$work_dir/staged.json"
+    )" || error "Could not read the staged app manifest digest"
+    [ "$staged_app_manifest" = "$expected_app_manifest" ] || \
+        error "Staged app payload differs from its generation receipt"
+
+    receipt_after="$(read_generation_bound_mutation_broker_receipt "$APP_DIR")" || \
+        error "Generated app changed while its package payload was copied"
+    [ "$receipt_after" = "$receipt_before" ] || \
+        error "Generated app receipt changed while its package payload was copied"
+    staged_receipt="$(python3 "$provenance_helper" write-generation-receipt \
+        --app "$app_root" \
+        --broker-sha256 "$expected_broker_digest")" || \
+        error "Could not bind the staged app payload to its generation receipt"
+    printf '%s\n' "$staged_receipt"
+)
 
 resolve_tray_icon_source() {
     local app_root="$1"
@@ -863,8 +1212,9 @@ stage_update_builder_bundle() {
     package_with_updater_enabled || return 0
 
     local root="$1"
+    local app_source_root="$2"
     local update_builder_root="$root/usr/lib/$PACKAGE_NAME/update-builder"
-    local node_runtime_source="$APP_DIR/resources/node-runtime"
+    local node_runtime_source="$app_source_root/resources/node-runtime"
 
     mkdir -p \
         "$update_builder_root/scripts" \
@@ -873,15 +1223,21 @@ stage_update_builder_bundle() {
         "$update_builder_root/launcher" \
         "$update_builder_root/port-integrations" \
         "$update_builder_root/packaging/linux" \
-        "$update_builder_root/assets"
+        "$update_builder_root/assets" \
+        "$update_builder_root/prebuilt-helpers"
 
     cp "$REPO_DIR/install.sh" "$update_builder_root/install.sh"
     cp "$REPO_DIR/CHANGELOG.md" "$update_builder_root/CHANGELOG.md"
     cp "$REPO_DIR/launcher/start.sh.template" "$update_builder_root/launcher/start.sh.template"
+    cp "$REPO_DIR/launcher/cli-launch-path.py" "$update_builder_root/launcher/cli-launch-path.py"
     cp "$REPO_DIR/launcher/webview-server.py" "$update_builder_root/launcher/webview-server.py"
     cp "$REPO_DIR/Cargo.toml" "$update_builder_root/Cargo.toml"
     cp "$REPO_DIR/Cargo.lock" "$update_builder_root/Cargo.lock"
+    cp -r "$REPO_DIR/generated-app-mutation-broker" \
+        "$update_builder_root/generated-app-mutation-broker"
     cp -r "$REPO_DIR/computer-use-linux" "$update_builder_root/computer-use-linux"
+    cp -r "$REPO_DIR/notification-actions-linux" "$update_builder_root/notification-actions-linux"
+    cp -r "$REPO_DIR/record-replay-linux" "$update_builder_root/record-replay-linux"
     cp -r "$REPO_DIR/read-aloud-linux" "$update_builder_root/read-aloud-linux"
     cp -r "$REPO_DIR/updater" "$update_builder_root/updater"
     mkdir -p "$update_builder_root/plugins/openai-bundled/plugins"
@@ -893,11 +1249,21 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/build-rpm.sh" "$update_builder_root/scripts/build-rpm.sh"
     cp "$REPO_DIR/scripts/build-pacman.sh" "$update_builder_root/scripts/build-pacman.sh"
     cp "$REPO_DIR/scripts/rebuild-candidate.sh" "$update_builder_root/scripts/rebuild-candidate.sh"
+    cp "$REPO_DIR/scripts/validate-upstream-dmg.js" "$update_builder_root/scripts/validate-upstream-dmg.js"
     cp "$REPO_DIR/scripts/patch-linux-window-ui.js" "$update_builder_root/scripts/patch-linux-window-ui.js"
     cp -r "$REPO_DIR/scripts/patches/." "$update_builder_root/scripts/patches/"
     cp "$REPO_DIR/scripts/lib/package-common.sh" "$update_builder_root/scripts/lib/package-common.sh"
+    cp "$REPO_DIR/scripts/lib/package-provenance.py" \
+        "$update_builder_root/scripts/lib/package-provenance.py"
+    cp "$REPO_DIR/scripts/lib/parcel-watcher-target.js" \
+        "$update_builder_root/scripts/lib/parcel-watcher-target.js"
+    cp -r "$REPO_DIR/scripts/lib/parcel-watcher" \
+        "$update_builder_root/scripts/lib/parcel-watcher"
+    cp "$REPO_DIR/scripts/lib/generated-app-mutation-broker.sh" \
+        "$update_builder_root/scripts/lib/generated-app-mutation-broker.sh"
     cp "$REPO_DIR/scripts/lib/patch-chrome-plugin.js" "$update_builder_root/scripts/lib/patch-chrome-plugin.js"
     cp "$REPO_DIR/scripts/lib/node-runtime.sh" "$update_builder_root/scripts/lib/node-runtime.sh"
+    cp "$REPO_DIR/scripts/lib/upstream-dmg-intel.js" "$update_builder_root/scripts/lib/upstream-dmg-intel.js"
     cp "$REPO_DIR/scripts/lib/install-helpers.sh" "$update_builder_root/scripts/lib/install-helpers.sh"
     cp "$REPO_DIR/scripts/lib/process-detection.sh" "$update_builder_root/scripts/lib/process-detection.sh"
     cp "$REPO_DIR/scripts/lib/dmg.sh" "$update_builder_root/scripts/lib/dmg.sh"
@@ -907,31 +1273,44 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/scripts/lib/bundled-plugins.sh" "$update_builder_root/scripts/lib/bundled-plugins.sh"
     cp "$REPO_DIR/scripts/lib/port-integrations.js" "$update_builder_root/scripts/lib/port-integrations.js"
     cp "$REPO_DIR/scripts/lib/port-integrations.sh" "$update_builder_root/scripts/lib/port-integrations.sh"
+    cp "$REPO_DIR/scripts/lib/notification-actions.sh" "$update_builder_root/scripts/lib/notification-actions.sh"
+    cp "$REPO_DIR/scripts/lib/patch-browser-client-iab-socket-scope.js" \
+        "$update_builder_root/scripts/lib/patch-browser-client-iab-socket-scope.js"
     cp "$REPO_DIR/scripts/lib/linux-target-context.js" "$update_builder_root/scripts/lib/linux-target-context.js"
-    cp "$REPO_DIR/scripts/lib/linux-update-bridge-patch.js" "$update_builder_root/scripts/lib/linux-update-bridge-patch.js"
     cp "$REPO_DIR/scripts/lib/patch-report.js" "$update_builder_root/scripts/lib/patch-report.js"
+    cp "$REPO_DIR/scripts/lib/patch-validation.js" "$update_builder_root/scripts/lib/patch-validation.js"
+    cp "$REPO_DIR/scripts/lib/upstream-dmg-acceptance.js" "$update_builder_root/scripts/lib/upstream-dmg-acceptance.js"
+    cp "$REPO_DIR/scripts/lib/upstream-dmg-release-profile.js" "$update_builder_root/scripts/lib/upstream-dmg-release-profile.js"
+    cp "$REPO_DIR/scripts/lib/candidate-install.sh" "$update_builder_root/scripts/lib/candidate-install.sh"
+    cp "$REPO_DIR/scripts/lib/candidate-promotion.py" "$update_builder_root/scripts/lib/candidate-promotion.py"
     cp "$REPO_DIR/scripts/lib/rebuild-report.sh" "$update_builder_root/scripts/lib/rebuild-report.sh"
     cp "$REPO_DIR/scripts/lib/build-info.js" "$update_builder_root/scripts/lib/build-info.js"
     cp "$REPO_DIR/scripts/lib/build-info.sh" "$update_builder_root/scripts/lib/build-info.sh"
     cp "$REPO_DIR/packaging/linux/control" "$update_builder_root/packaging/linux/control"
-    cp "$REPO_DIR/packaging/linux/codex-app.spec" "$update_builder_root/packaging/linux/codex-app.spec"
-    cp "$REPO_DIR/packaging/linux/codex-app.desktop" "$update_builder_root/packaging/linux/codex-app.desktop"
-    cp "$REPO_DIR/packaging/linux/codex-app-desktop-entry-doctor.sh" \
-        "$update_builder_root/packaging/linux/codex-app-desktop-entry-doctor.sh"
-    cp "$REPO_DIR/packaging/linux/codex-packaged-runtime.sh" "$update_builder_root/packaging/linux/codex-packaged-runtime.sh"
-    cp "$REPO_DIR/packaging/linux/com.github.nisavid.codex-app.update.policy" \
-        "$update_builder_root/packaging/linux/com.github.nisavid.codex-app.update.policy"
-    cp "$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh" \
-        "$update_builder_root/packaging/linux/codex-app-updater-user-service.sh"
+    cp "$REPO_DIR/packaging/linux/chatgpt.spec" "$update_builder_root/packaging/linux/chatgpt.spec"
+    cp "$REPO_DIR/packaging/linux/chatgpt.desktop" "$update_builder_root/packaging/linux/chatgpt.desktop"
+    cp "$REPO_DIR/packaging/linux/chatgpt-desktop-entry-doctor.sh" \
+        "$update_builder_root/packaging/linux/chatgpt-desktop-entry-doctor.sh"
+    cp "$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh" "$update_builder_root/packaging/linux/chatgpt-packaged-runtime.sh"
+    cp "$REPO_DIR/packaging/linux/com.github.nisavid.chatgpt.update.policy" \
+        "$update_builder_root/packaging/linux/com.github.nisavid.chatgpt.update.policy"
+    cp "$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh" \
+        "$update_builder_root/packaging/linux/chatgpt-updater-user-service.sh"
     cp "$REPO_DIR/packaging/linux/PKGBUILD.template" "$update_builder_root/packaging/linux/PKGBUILD.template"
-    cp "$REPO_DIR/packaging/linux/codex-app.install" "$update_builder_root/packaging/linux/codex-app.install"
-    cp "$UPDATER_SERVICE_SOURCE" "$update_builder_root/packaging/linux/codex-app-updater.service"
-    cp "$REPO_DIR/packaging/linux/codex-app-updater.postinst" "$update_builder_root/packaging/linux/codex-app-updater.postinst"
-    cp "$REPO_DIR/packaging/linux/codex-app-updater.prerm" "$update_builder_root/packaging/linux/codex-app-updater.prerm"
+    cp "$REPO_DIR/packaging/linux/chatgpt.install" "$update_builder_root/packaging/linux/chatgpt.install"
+    cp "$UPDATER_SERVICE_SOURCE" "$update_builder_root/packaging/linux/chatgpt-updater.service"
+    cp "$REPO_DIR/packaging/linux/chatgpt-updater.postinst" "$update_builder_root/packaging/linux/chatgpt-updater.postinst"
+    cp "$REPO_DIR/packaging/linux/chatgpt-updater.prerm" "$update_builder_root/packaging/linux/chatgpt-updater.prerm"
     stage_update_builder_port_integrations_tree "$update_builder_root"
-    cp "$REPO_DIR/packaging/linux/codex-app-updater.postrm" "$update_builder_root/packaging/linux/codex-app-updater.postrm"
-    cp "$REPO_DIR/assets/codex.png" "$update_builder_root/assets/codex.png"
+    cp "$REPO_DIR/packaging/linux/chatgpt-updater.postrm" "$update_builder_root/packaging/linux/chatgpt-updater.postrm"
+    if port_integration_enabled "global-dictation"; then
+        stage_update_builder_global_dictation_source "$update_builder_root"
+    fi
+    cp "$REPO_DIR/assets/chatgpt.png" "$update_builder_root/assets/chatgpt.png"
+    cp "$REPO_DIR/assets/chatgpt-linux.png" "$update_builder_root/assets/chatgpt-linux.png"
+    stage_update_builder_prebuilt_helpers "$update_builder_root" "$app_source_root"
     stage_update_builder_source_info "$update_builder_root"
+    write_update_builder_manifest "$update_builder_root"
     if [ -d "$node_runtime_source" ]; then
         cp -a "$node_runtime_source" "$update_builder_root/node-runtime"
     else
@@ -939,11 +1318,80 @@ stage_update_builder_bundle() {
     fi
 }
 
-stage_optional_update_builder_bundle() {
-    if package_with_updater_enabled; then
-        stage_update_builder_bundle "$@"
-    else
-        info "Skipping update-builder bundle (PACKAGE_WITH_UPDATER=0)"
+stage_update_builder_prebuilt_helper() {
+    local source="$1"
+    local destination="$2"
+    local label="$3"
+
+    [ -e "$source" ] || return 1
+    [ -f "$source" ] && [ ! -L "$source" ] && [ -x "$source" ] || \
+        error "Invalid $label helper binary: $source"
+    install -m 0755 "$source" "$destination"
+}
+
+stage_update_builder_prebuilt_helpers() {
+    local update_builder_root="$1"
+    local app_source_root="$2"
+    local helpers_root="$update_builder_root/prebuilt-helpers"
+    local computer_use_root="$app_source_root/resources/plugins/openai-bundled/plugins/computer-use/bin"
+    local notification_actions_source="$app_source_root/resources/native/chatgpt-notification-actions-linux"
+    local global_dictation_source="$app_source_root/resources/native/chatgpt-global-dictation-linux"
+    local read_aloud_mcp_source="$app_source_root/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    local chrome_host_source=""
+    local chrome_arch=""
+    local mutation_broker_source
+
+    resolve_generated_app_mutation_broker || \
+        error "Could not resolve the generated-app mutation broker used by this package build"
+    mutation_broker_source="$CHATGPT_GENERATED_APP_MUTATION_BROKER_RESOLVED"
+    stage_generation_bound_mutation_broker \
+        "$app_source_root" \
+        "$mutation_broker_source" \
+        "$helpers_root/$GENERATED_APP_MUTATION_BROKER_BINARY" || \
+        error "Could not stage the generation-bound generated-app mutation broker"
+
+    case "$(uname -m)" in
+        x86_64) chrome_arch="x64" ;;
+        aarch64|arm64) chrome_arch="arm64" ;;
+    esac
+    if [ -n "$chrome_arch" ]; then
+        chrome_host_source="$app_source_root/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$chrome_arch/extension-host"
+    fi
+
+    local backend_source="$computer_use_root/chatgpt-computer-use-linux"
+    local cosmic_source="$computer_use_root/chatgpt-computer-use-cosmic"
+    if [ -e "$backend_source" ] || [ -e "$cosmic_source" ]; then
+        stage_update_builder_prebuilt_helper \
+            "$backend_source" \
+            "$helpers_root/chatgpt-computer-use-linux" \
+            "Linux Computer Use backend"
+        stage_update_builder_prebuilt_helper \
+            "$cosmic_source" \
+            "$helpers_root/chatgpt-computer-use-cosmic" \
+            "Linux Computer Use COSMIC"
+    fi
+
+    stage_update_builder_prebuilt_helper \
+        "$notification_actions_source" \
+        "$helpers_root/chatgpt-notification-actions-linux" \
+        "notification actions" || true
+    if [ -n "$chrome_host_source" ]; then
+        stage_update_builder_prebuilt_helper \
+            "$chrome_host_source" \
+            "$helpers_root/chatgpt-chrome-extension-host" \
+            "Chrome extension host" || true
+    fi
+    if port_integration_enabled "global-dictation"; then
+        stage_update_builder_prebuilt_helper \
+            "$global_dictation_source" \
+            "$helpers_root/chatgpt-global-dictation-linux" \
+            "global dictation" || error "Enabled Global Dictation helper is missing from the generated app"
+    fi
+    if port_integration_enabled "read-aloud-mcp"; then
+        stage_update_builder_prebuilt_helper \
+            "$read_aloud_mcp_source" \
+            "$helpers_root/chatgpt-read-aloud-linux" \
+            "Read Aloud MCP" || error "Enabled Read Aloud MCP helper is missing from the generated app"
     fi
 }
 
@@ -1009,6 +1457,23 @@ NODE
     fi
 }
 
+restore_port_integration_package_resource_permissions() {
+    local root="$1"
+    local package_format="$2"
+    local helper="$REPO_DIR/scripts/lib/port-integrations.js"
+    local node_bin
+    local app_dir="$root/opt/$PACKAGE_NAME"
+
+    [ -d "$root" ] || error "Missing package root: $root"
+    [ -f "$helper" ] || error "Missing port integrations helper: $helper"
+
+    node_bin="$(package_node_binary)"
+    if ! "$node_bin" "$helper" \
+        --restore-package-resource-permissions "$package_format" "$root" "$app_dir"; then
+        error "Failed to restore port integration package resource permissions"
+    fi
+}
+
 normalize_package_payload_permissions() {
     local root="$1"
 
@@ -1018,12 +1483,43 @@ normalize_package_payload_permissions() {
     find "$root" -type f ! \( -perm /u=x -o -perm /g=x -o -perm /o=x \) -exec chmod 0644 {} +
 }
 
+normalize_package_payload_timestamps() {
+    local root="$1"
+
+    [ -d "$root" ] || error "Missing package root: $root"
+    [ -n "${SOURCE_DATE_EPOCH:-}" ] || error "SOURCE_DATE_EPOCH is required for package timestamps"
+    find "$root" -depth -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+}
+
 write_launcher_stub() {
     local root="$1"
 
     cat > "$root/usr/bin/$PACKAGE_NAME" <<SCRIPT
-#!/bin/bash
+#!/usr/bin/env bash
 exec /opt/$PACKAGE_NAME/start.sh "\$@"
 SCRIPT
     chmod 0755 "$root/usr/bin/$PACKAGE_NAME"
+}
+
+stage_native_package_payload() {
+    local root="$1"
+    local package_format="$2"
+
+    case "$package_format" in
+        deb|rpm|pacman) ;;
+        *) error "Unsupported native package format: $package_format" ;;
+    esac
+
+    ensure_package_source_date_epoch
+    stage_common_package_files "$root"
+    if ! package_with_updater_enabled; then
+        info "Skipping update-builder bundle (PACKAGE_WITH_UPDATER=0)"
+    fi
+    write_launcher_stub "$root"
+    stage_port_integration_package_resources "$root" "$package_format"
+    run_port_integration_package_hooks "$root" "$package_format"
+    normalize_package_payload_permissions "$root"
+    restore_port_integration_payload_permissions "$root"
+    restore_port_integration_package_resource_permissions "$root" "$package_format"
+    normalize_package_payload_timestamps "$root"
 }

@@ -9,7 +9,7 @@ app_dir="${1:?usage: cold-start hook <app-dir> <state-dir> <log-dir>}"
 state_dir="${2:?usage: cold-start hook <app-dir> <state-dir> <log-dir>}"
 pid_file="$state_dir/node-repl-reaper.pid"
 lock_file="$pid_file.lock"
-reaper="$app_dir/.codex-linux/node-repl-reaper.sh"
+reaper="$app_dir/.chatgpt-linux/node-repl-reaper.sh"
 
 [ -x "$reaper" ] || exit 0
 

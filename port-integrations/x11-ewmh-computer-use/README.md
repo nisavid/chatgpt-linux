@@ -1,6 +1,6 @@
 # X11/EWMH Computer Use Port Integration
 
-This optional port integration stages the standalone `codex-computer-use-x11` MCP plugin into Codex Desktop Linux. It stays disabled by default and is enabled only when listed in `port-integrations.json`.
+This optional port integration stages the standalone `chatgpt-computer-use-x11` MCP plugin into ChatGPT for Linux. It stays disabled by default and is enabled only when listed in `port-integrations.json`.
 
 ## Enable
 
@@ -38,15 +38,15 @@ The staged plugin exposes the standalone namespaced tool surface:
 Pinned local artifact mode:
 
 ```bash
-CODEX_X11_COMPUTER_USE_RELEASE_TARBALL=/path/to/codex-computer-use-x11-v<VERSION>-x86_64-unknown-linux-gnu.tar.gz
-CODEX_X11_COMPUTER_USE_RELEASE_SHA256=<expected-sha256>
+CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL=/path/to/chatgpt-computer-use-x11-v<VERSION>-x86_64-unknown-linux-gnu.tar.gz
+CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=<expected-sha256>
 ```
 
 Default pinned release mode downloads and verifies v0.1.3 for x86_64 Linux only. Unsupported architectures fail fast unless you provide an explicit source, binary, tarball, or download override:
 
 ```bash
-CODEX_X11_COMPUTER_USE_DOWNLOAD_URL=https://github.com/AlekseiSeleznev/codex-computer-use-x11/releases/download/v0.1.3/codex-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz
-CODEX_X11_COMPUTER_USE_RELEASE_SHA256=067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b
+CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL=https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11/releases/download/v0.1.3/chatgpt-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz
+CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b
 ```
 
 Those values are built into `stage.sh`; set the variables only to override the pinned artifact.
@@ -54,18 +54,18 @@ Those values are built into `stage.sh`; set the variables only to override the p
 Local source mode:
 
 ```bash
-CODEX_X11_COMPUTER_USE_SOURCE=/path/to/codex-computer-use-x11
+CHATGPT_X11_COMPUTER_USE_SOURCE=/path/to/chatgpt-computer-use-x11
 ```
 
 Direct binary test mode:
 
 ```bash
-CODEX_X11_COMPUTER_USE_BINARY=/path/to/codex-computer-use-x11
+CHATGPT_X11_COMPUTER_USE_BINARY=/path/to/chatgpt-computer-use-x11
 ```
 
 ## Upstream alignment
 
-This port integration wires the separate `codex-computer-use-x11` plugin as an opt-in port integration. It does not move X11/EWMH behavior into the core Computer Use backend and does not replace the bundled `computer-use` plugin.
+This port integration wires the separate `chatgpt-computer-use-x11` plugin as an opt-in port integration. It does not move X11/EWMH behavior into the core Computer Use backend and does not replace the bundled `computer-use` plugin.
 
 `agent-sh/computer-use-linux` selectable backend/flavor work is a separate future investigation. If that route proves a better fit, handle it in a separate change or pull request; no backend/flavor experiment may require enabling this port integration by default or modifying core Computer Use behavior in this port integration.
 

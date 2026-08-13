@@ -51,7 +51,7 @@ behavior into the user-global `syncing-forks-with-upstream` skill.
    changes covered by [Local Gates](#local-gates).
 13. On the first push of any task branch, create a draft PR in the same
    workflow turn.
-14. Use `--repo nisavid/codex-app-linux` on every `gh pr` command in this
+14. Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
    checkout. Do not rely on GitHub CLI's inferred repository; it can target the
    wrong repository in this fork checkout.
 15. Keep the PR in draft until local gates pass and the PR body records
@@ -76,6 +76,10 @@ Every broad upstream sync needs a tracked ledger entry under
 - policy gaps found and codified, or a note that no reusable gap was found;
 - baseline update made in [Fork Divergences](fork-divergences.md);
 - incoming changes that affect local contracts;
+- explicit classification of port-owned `CHATGPT_*` versus inherited OpenAI
+  `CODEX_*` environment interfaces;
+- package transition, no-shim, and journaled XDG migration checks when identity
+  surfaces change;
 - classification for each affected area: preserved, upstream now implements it,
   obsolete by policy, intentionally changed, or uncertain;
 - exact local verification commands and results;
@@ -94,7 +98,7 @@ Before pushing changes that affect the generated app, installer, ASAR patcher,
 package builders, package payload, updater rebuild flow, or bundled runtime
 helpers:
 
-1. Refresh `Codex.dmg`, or verify the cached DMG was refreshed within the last
+1. Refresh `ChatGPT.dmg`, or verify the cached DMG was refreshed within the last
    24 hours.
 2. Run `make build-app` or `./install.sh` from current sources.
 3. If package contents changed, run the relevant package builder and inspect
@@ -110,9 +114,12 @@ build gate.
 
 Review incoming changes against every area in
 [Fork Divergences](fork-divergences.md#divergence-inventory). In particular,
-protect local product names, package names, install paths, XDG/FHS layout,
-package versioning from the OpenAI DMG bundle, updater privilege boundaries,
-package payload shape, and security gates.
+protect the ChatGPT for Linux product and repository identity; `chatgpt` and
+`chatgpt-updater` package, command, service, and XDG names; port-owned
+`CHATGPT_*` environment variables; inherited OpenAI `CODEX_*` interfaces;
+install paths; the no-shim package transition and journaled state migration;
+XDG/FHS layout; package versioning from the OpenAI DMG bundle; updater privilege
+boundaries; package payload shape; and security gates.
 
 If an upstream change appears to implement the same behavior, update the
 divergence inventory to describe the current diff against the synced upstream

@@ -1,8 +1,7 @@
 //! Process liveness checks for the Electron app managed by the updater.
 
-use crate::config::RuntimeConfig;
+use crate::config::{self, RuntimeConfig};
 use anyhow::{Context, Result};
-use directories::BaseDirs;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -10,11 +9,7 @@ use std::{
 
 /// Returns the PID file used by the Linux launcher to track the Electron app.
 pub fn app_pid_file() -> Result<PathBuf> {
-    let base_dirs = BaseDirs::new().context("Could not resolve XDG base directories")?;
-    let state_root = base_dirs
-        .state_dir()
-        .unwrap_or_else(|| base_dirs.data_local_dir());
-    Ok(state_root.join("codex-app").join("app.pid"))
+    Ok(config::resolve_app_state_dir()?.join("app.pid"))
 }
 
 /// Detects whether the managed Electron app is currently running.
@@ -80,12 +75,22 @@ fn read_exe_link(pid: u32) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::{env_lock, EnvRestoreGuard};
     use anyhow::Result;
 
     #[test]
-    fn pid_file_is_located_under_xdg_state() -> Result<()> {
+    fn pid_file_is_located_under_resolved_app_state() -> Result<()> {
+        let _env_guard = env_lock();
+        let _restore_env = EnvRestoreGuard::capture(&[
+            "CHATGPT_LINUX_APP_ID",
+            "CHATGPT_APP_ID",
+            "CHATGPT_LINUX_INSTANCE_ID",
+        ]);
+        std::env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-test");
+        std::env::set_var("CHATGPT_LINUX_INSTANCE_ID", "port-6175");
+
         let pid_file = app_pid_file()?;
-        assert!(pid_file.ends_with("codex-app/app.pid"));
+        assert!(pid_file.ends_with("chatgpt-test/instances/port-6175/app.pid"));
         Ok(())
     }
 
@@ -94,7 +99,7 @@ mod tests {
         let mut config = crate::config::RuntimeConfig::default_with_paths(
             &crate::config::RuntimePaths::detect()?,
         );
-        config.app_executable_path = PathBuf::from("/opt/codex-app/electron");
+        config.app_executable_path = PathBuf::from("/opt/chatgpt/electron");
 
         assert!(!process_matches(
             std::process::id(),

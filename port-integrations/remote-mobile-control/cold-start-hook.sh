@@ -55,8 +55,8 @@ install_remote_mobile_control_runtime() {
     local installer_args=()
 
     mkdir -p "$private_bin"
-    if [ -n "${CODEX_REMOTE_CONTROL_CODEX_RELEASE:-}" ]; then
-        installer_args+=(--release "$CODEX_REMOTE_CONTROL_CODEX_RELEASE")
+    if [ -n "${CHATGPT_REMOTE_CONTROL_CODEX_RELEASE:-}" ]; then
+        installer_args+=(--release "$CHATGPT_REMOTE_CONTROL_CODEX_RELEASE")
     fi
 
     if ! setsid_path="$(PATH="$system_path" command -v setsid 2>/dev/null)"; then
@@ -75,7 +75,7 @@ install_remote_mobile_control_runtime() {
         echo "Remote mobile control runtime install requires tar on the system PATH"
         return 1
     fi
-    if ! installer_file="$(PATH="$system_path" mktemp "${TMPDIR:-/tmp}/codex-remote-control-install.XXXXXX")"; then
+    if ! installer_file="$(PATH="$system_path" mktemp "${TMPDIR:-/tmp}/chatgpt-remote-control-install.XXXXXX")"; then
         echo "Remote mobile control runtime install could not create a temporary installer file"
         return 1
     fi
@@ -90,28 +90,28 @@ install_remote_mobile_control_runtime() {
         rm -f "$installer_file"
         return 1
     fi
-    if [ -n "${CODEX_REMOTE_CONTROL_INSTALLER_SHA256:-}" ]; then
+    if [ -n "${CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256:-}" ]; then
         local sha256sum_path=""
         local actual_sha256=""
         if ! sha256sum_path="$(PATH="$system_path" command -v sha256sum 2>/dev/null)"; then
-            echo "Remote mobile control runtime install requires sha256sum when CODEX_REMOTE_CONTROL_INSTALLER_SHA256 is set"
+            echo "Remote mobile control runtime install requires sha256sum when CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256 is set"
             rm -f "$installer_file"
             return 1
         fi
         read -r actual_sha256 _ < <("$sha256sum_path" "$installer_file")
-        if [ "$actual_sha256" != "$CODEX_REMOTE_CONTROL_INSTALLER_SHA256" ]; then
-            echo "Remote mobile control runtime installer SHA-256 mismatch: expected $CODEX_REMOTE_CONTROL_INSTALLER_SHA256, got $actual_sha256"
+        if [ "$actual_sha256" != "$CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256" ]; then
+            echo "Remote mobile control runtime installer SHA-256 mismatch: expected $CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256, got $actual_sha256"
             rm -f "$installer_file"
             return 1
         fi
     else
-        echo "Remote mobile control runtime installer fetched over HTTPS without a pinned checksum; set CODEX_REMOTE_CONTROL_INSTALLER_SHA256 to require one."
+        echo "Remote mobile control runtime installer fetched over HTTPS without a pinned checksum; set CHATGPT_REMOTE_CONTROL_INSTALLER_SHA256 to require one."
     fi
-    # CODEX_INSTALL_DIR points the official installer at a private bin dir under
+    # CHATGPT_INSTALL_DIR points the official installer at a private bin dir under
     # CODEX_HOME. Running it through setsid and a system-only PATH prevents TTY
     # prompts, user-managed CLI conflict prompts, ~/.local/bin/codex writes, and
     # shell profile PATH blocks.
-    if CODEX_HOME="$codex_home" CODEX_INSTALL_DIR="$private_bin" PATH="$installer_path" "$setsid_path" sh "$installer_file" -- "${installer_args[@]}"; then
+    if CODEX_HOME="$codex_home" CHATGPT_INSTALL_DIR="$private_bin" PATH="$installer_path" "$setsid_path" sh "$installer_file" -- "${installer_args[@]}"; then
         rm -f "$installer_file"
         return 0
     else
@@ -149,52 +149,96 @@ cleanup_stale_remote_mobile_daemon_state() {
 }
 
 desktop_app_server_remote_control_enabled() {
-    local app_dir="${CODEX_LINUX_APP_DIR:-}"
+    local app_dir="${CHATGPT_LINUX_APP_DIR:-}"
     local marker=""
+    local marker_value=""
 
-    if truthy_env_value "${CODEX_REMOTE_CONTROL_FORCE_COLD_START_DAEMON:-}"; then
+    if truthy_env_value "${CHATGPT_REMOTE_CONTROL_FORCE_COLD_START_DAEMON:-}"; then
         return 1
     fi
 
     [ -n "$app_dir" ] || return 1
-    marker="$app_dir/.codex-linux/desktop-app-server-remote-control-enabled"
-    [ -f "$marker" ]
+    marker="$app_dir/.chatgpt-linux/desktop-app-server-remote-control-enabled"
+    [ -f "$marker" ] && [ ! -L "$marker" ] || return 1
+    marker_value="$(cat "$marker" 2>/dev/null || true)"
+    if [ "$marker_value" = "version=1
+owner=desktop" ]; then
+        return 0
+    fi
+    echo "Ignoring invalid remote mobile control Desktop owner marker: $marker" >&2
+    return 1
+}
+
+remote_mobile_control_systemd_state() {
+    command -v systemctl >/dev/null 2>&1 || return 1
+    if systemctl --user is-active --quiet chatgpt-remote-control.service 2>/dev/null; then
+        printf '%s\n' "active"
+    elif systemctl --user is-enabled --quiet chatgpt-remote-control.service 2>/dev/null ||
+        systemctl --user cat chatgpt-remote-control.service >/dev/null 2>&1; then
+        printf '%s\n' "configured"
+    else
+        return 1
+    fi
+}
+
+remote_mobile_control_owner() {
+    local systemd_state=""
+
+    if systemd_state="$(remote_mobile_control_systemd_state)"; then
+        printf '%s:%s\n' "systemd" "$systemd_state"
+    elif truthy_env_value "${CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED:-}"; then
+        printf '%s\n' "disabled"
+    elif desktop_app_server_remote_control_enabled; then
+        printf '%s\n' "desktop"
+    else
+        printf '%s\n' "standalone"
+    fi
 }
 
 remote_mobile_control_main() {
     local codex_home="${CODEX_HOME:-$HOME/.codex}"
+    local owner=""
 
     cleanup_remote_mobile_control_interactive_symlink "$codex_home"
+    owner="$(remote_mobile_control_owner)"
 
-    if truthy_env_value "${CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED:-}"; then
-        echo "Remote mobile control daemon autostart disabled by CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
-        return 0
-    fi
-    if command -v systemctl >/dev/null 2>&1 &&
-        systemctl --user is-active --quiet codex-remote-control.service 2>/dev/null; then
-        echo "Remote mobile control daemon autostart skipped; codex-remote-control.service is already active"
-        return 0
-    fi
-    if desktop_app_server_remote_control_enabled; then
-        cleanup_stale_remote_mobile_daemon_state "$codex_home"
-        echo "Remote mobile control daemon autostart skipped; Desktop app-server launches with remote-control enabled"
-        return 0
-    fi
+    case "$owner" in
+        systemd:active)
+            echo "Remote mobile control owner: systemd (chatgpt-remote-control.service is active)"
+            return 0
+            ;;
+        systemd:configured)
+            echo "Remote mobile control owner: systemd (chatgpt-remote-control.service is configured but inactive)"
+            return 0
+            ;;
+        disabled)
+            echo "Remote mobile control owner: disabled by CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_DISABLED"
+            return 0
+            ;;
+        desktop)
+            cleanup_stale_remote_mobile_daemon_state "$codex_home"
+            echo "Remote mobile control owner: desktop (app-server launches with remote-control enabled)"
+            return 0
+            ;;
+        standalone)
+            echo "Remote mobile control owner: standalone fallback"
+            ;;
+    esac
 
-    local standalone_codex="${CODEX_REMOTE_CONTROL_CODEX_PATH:-$codex_home/packages/standalone/current/codex}"
+    local standalone_codex="${CHATGPT_REMOTE_CONTROL_CODEX_PATH:-$codex_home/packages/standalone/current/codex}"
 
     if [ ! -x "$standalone_codex" ]; then
-        if [ -n "${CODEX_REMOTE_CONTROL_CODEX_PATH:-}" ]; then
-            echo "Remote mobile control daemon runtime override is not executable: $CODEX_REMOTE_CONTROL_CODEX_PATH"
+        if [ -n "${CHATGPT_REMOTE_CONTROL_CODEX_PATH:-}" ]; then
+            echo "Remote mobile control daemon runtime override is not executable: $CHATGPT_REMOTE_CONTROL_CODEX_PATH"
             return 0
         fi
-        if truthy_env_value "${CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED:-}"; then
-            echo "Remote mobile control standalone runtime auto-install disabled by CODEX_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED"
+        if truthy_env_value "${CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED:-}"; then
+            echo "Remote mobile control standalone runtime auto-install disabled by CHATGPT_REMOTE_CONTROL_RUNTIME_AUTO_INSTALL_DISABLED"
             return 0
         fi
         if ! install_remote_mobile_control_runtime "$codex_home"; then
             echo "Remote mobile control is enabled, but the standalone Codex daemon runtime could not be installed at $standalone_codex"
-            echo "Brew or another CLI can remain the interactive Codex CLI; remote mobile control uses CODEX_REMOTE_CONTROL_CODEX_PATH separately."
+            echo "Brew or another CLI can remain the interactive Codex CLI; remote mobile control uses CHATGPT_REMOTE_CONTROL_CODEX_PATH separately."
             return 0
         fi
         if [ ! -x "$standalone_codex" ]; then
@@ -211,7 +255,7 @@ remote_mobile_control_main() {
 }
 
 run_with_timeout() {
-    local timeout_seconds="${CODEX_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS:-30}"
+    local timeout_seconds="${CHATGPT_REMOTE_CONTROL_DAEMON_AUTOSTART_TIMEOUT_SECONDS:-30}"
     if command -v timeout >/dev/null 2>&1; then
         timeout "$timeout_seconds" "$0" --run-main || \
             echo "Remote mobile control hook timed out or failed after ${timeout_seconds}s"

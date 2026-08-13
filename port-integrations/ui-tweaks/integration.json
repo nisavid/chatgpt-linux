@@ -1,0 +1,47 @@
+{
+  "id": "ui-tweaks",
+  "title": "UI Tweaks",
+  "description": "UI customization patches for ChatGPT on Linux.",
+  "defaultEnabled": true,
+  "entrypoints": {
+    "patchDescriptors": "./patch.js",
+    "stageHook": "./stage.sh",
+    "cleanupHook": "./cleanup.sh"
+  },
+  "runtimeHooks": {
+    "prelaunch": {
+      "source": "sync-desktop-icon.sh",
+      "name": "dock-icon-cleanup.sh",
+      "mode": "0755",
+      "retainWhenDisabled": true
+    }
+  },
+  "tweaks": {
+    "appearance": {
+      "dockIcon": {
+        "enabled": true
+      }
+    },
+    "home": {
+      "suggestedPrompts": {
+        "enabled": true
+      }
+    },
+    "modelPicker": {
+      "showModelsByDefault": {
+        "enabled": true
+      }
+    },
+    "reasoning": {
+      "keepEffortLabelsEnglish": {
+        "enabled": true
+      }
+    },
+    "sidebar": {
+      "projectName": {
+        "enabled": true,
+        "style": "font-weight: 700 !important;"
+      }
+    }
+  }
+}

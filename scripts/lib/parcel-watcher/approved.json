@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 2,
+  "watcherVersion": "2.5.6",
+  "targets": [
+    {
+      "id": "linux-x64-glibc",
+      "platform": "linux",
+      "arch": "x64",
+      "libc": "glibc",
+      "kernelMachines": ["x86_64"],
+      "nativePackage": "@parcel/watcher-linux-x64-glibc"
+    },
+    {
+      "id": "linux-arm64-glibc",
+      "platform": "linux",
+      "arch": "arm64",
+      "libc": "glibc",
+      "kernelMachines": ["aarch64", "arm64"],
+      "nativePackage": "@parcel/watcher-linux-arm64-glibc"
+    },
+    {
+      "id": "linux-arm-glibc",
+      "platform": "linux",
+      "arch": "arm",
+      "libc": "glibc",
+      "kernelMachines": ["armv7l"],
+      "armVersion": 7,
+      "armFloatAbi": "hard",
+      "nativePackage": "@parcel/watcher-linux-arm-glibc"
+    }
+  ],
+  "packageJsonSha256": "749da489d079299f8e096eb4207f1457e8bbe44e0aadd0bd39f6bd0df52ce3b9",
+  "packageLockSha256": "85af208b4616dd5e82e0218f55353dff32521b57fa12a7e701746d5f2f65196b",
+  "archives": [
+    {
+      "encodedFile": "archives/detect-libc-2.1.2.tgz.base64",
+      "archiveFile": "detect-libc-2.1.2.tgz",
+      "sha256": "270dec0fc06cff86481da8af2dd8f18dee6b602790b14ef0e1c2c18d7da39427"
+    },
+    {
+      "encodedFile": "archives/is-extglob-2.1.1.tgz.base64",
+      "archiveFile": "is-extglob-2.1.1.tgz",
+      "sha256": "8c5d4286146ad62fc1096981700ce1c22a167708926fca01f9ca74f9bb50bc19"
+    },
+    {
+      "encodedFile": "archives/is-glob-4.0.3.tgz.base64",
+      "archiveFile": "is-glob-4.0.3.tgz",
+      "sha256": "3fe453fb193bb58f6f0505dfb1151230935380b5b55e1f9864261c2aafc1bec6"
+    },
+    {
+      "encodedFile": "archives/node-addon-api-7.1.1.tgz.base64",
+      "archiveFile": "node-addon-api-7.1.1.tgz",
+      "sha256": "b10455d15a977c0cd17a1cb0eb679e03d939f8ef8d4302eb33e1f78dacc71f82"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-2.5.6.tgz",
+      "sha256": "8daa7285bee7e10bebce179007afcf07108c1b8ce9dbe5081f3db319d5453648"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-android-arm64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-android-arm64-2.5.6.tgz",
+      "sha256": "3f4df2346dc502620a19268d695bf76598e4d94046a3179287d5ab530aefc46c"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-darwin-arm64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-darwin-arm64-2.5.6.tgz",
+      "sha256": "9539d1ea47133958518d2a044bcd261920e9f84ae3c4f493701722da4ebb5c61"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-darwin-x64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-darwin-x64-2.5.6.tgz",
+      "sha256": "02975270507a8693eef8cfcb66683268e4d4a5519c2ddd29e171ef9a17bffe96"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-freebsd-x64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-freebsd-x64-2.5.6.tgz",
+      "sha256": "bc7ca01c0b37e4b244314ea6b85280fbcb990a0768c3894e516e32379c42c414"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-arm-glibc-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-arm-glibc-2.5.6.tgz",
+      "sha256": "adebe71af904f3f9abaef37dcb1469a05006b2f550667c961625cd5fe7c160ae"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-arm-musl-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-arm-musl-2.5.6.tgz",
+      "sha256": "9ba1ade6c8376d3dda8414628c6fc74bd5eca8a81ea7d80c450be0b15a7ebc21"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-arm64-glibc-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-arm64-glibc-2.5.6.tgz",
+      "sha256": "084d8a2dbea9c6a4c1b49d680abed344294f413a86a2184b7e013c1b395b30a0"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-arm64-musl-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-arm64-musl-2.5.6.tgz",
+      "sha256": "aed8d6cfbf98c57793e28b75b9ac37063503ca3712dd39aad13ddefec0faeca1"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-x64-glibc-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-x64-glibc-2.5.6.tgz",
+      "sha256": "43eed2f56c7b33d32172cf79513e807b4588ecc4e05d53a306d78fc6c356a42e"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-linux-x64-musl-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-linux-x64-musl-2.5.6.tgz",
+      "sha256": "05afd8e3d424da6aa8b77905fa65d0ef99d3ccb7a66fea4cae896a0e3ec33b26"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-win32-arm64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-win32-arm64-2.5.6.tgz",
+      "sha256": "d832cb29ed2a9942a36fc187173c6fa0e96ab67e6bfaa2336f5338639c558b71"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-win32-ia32-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-win32-ia32-2.5.6.tgz",
+      "sha256": "199d8fd9840db503ef66fda2711abc1ae94efb1f194e84e8c1585c418c896633"
+    },
+    {
+      "encodedFile": "archives/parcel-watcher-win32-x64-2.5.6.tgz.base64",
+      "archiveFile": "parcel-watcher-win32-x64-2.5.6.tgz",
+      "sha256": "b87d018d4128af9ec660a2e528155aa4cc34ee4ff5b7e1b85a9d8e481fe53dea"
+    },
+    {
+      "encodedFile": "archives/picomatch-4.0.5.tgz.base64",
+      "archiveFile": "picomatch-4.0.5.tgz",
+      "sha256": "e89c478225a42b3793bb4a39fd576de142c9829c26a5bd71782249e48b112f51"
+    }
+  ]
+}

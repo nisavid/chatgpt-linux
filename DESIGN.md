@@ -1,7 +1,7 @@
 ---
 version: "alpha"
-name: "Codex App for Linux"
-description: "Codex-native visual guidance for a local hardening and finishing fork layered over the Linux-port upstream."
+name: "ChatGPT for Linux"
+description: "ChatGPT-native visual guidance for a local hardening and finishing fork layered over the Linux-port upstream."
 colors:
   primary: "#1E1E1E"
   on-primary: "#FFFFFF"
@@ -39,28 +39,28 @@ spacing:
   md: "16px"
 ---
 
-# Design System: Codex App for Linux
+# Design System: ChatGPT for Linux
 
 ## Overview
 
-**Creative North Star: "Codex-Native Finishing Layer"**
+**Creative North Star: "ChatGPT-Native Finishing Layer"**
 
-**Visual Theme & Atmosphere:** Codex App for Linux should read as the official
-Codex desktop product running cleanly on Linux: quiet, dense enough for agentic
+**Visual Theme & Atmosphere:** ChatGPT for Linux should read as the official
+ChatGPT desktop app running cleanly on Linux: quiet, dense enough for agentic
 work, and practical without being austere. The atmosphere is product-led rather
 than promotional. Visual attention belongs to the user's task, conversation,
 code review, browser automation, package status, or settings choice.
 
 The fork's own visual layer is secondary. Package, updater, Computer Use,
 remote-control, and port integration surfaces should feel integrated with the
-Codex app shell, not like a separate Linux control panel pasted over it.
+ChatGPT app shell, not like a separate Linux control panel pasted over it.
 
 Current visual evidence is scoped to source, committed assets, and
 privacy-safe inspection:
 
-- The root README uses the committed app icon at `assets/codex.png`, shields,
+- The root README uses the committed app icon at `assets/chatgpt.png`, shields,
   and concise user/maintainer routing.
-- Privacy-safe local inspection of the live Codex app showed a dark,
+- Privacy-safe local inspection of the live ChatGPT app showed a dark,
   task-focused app shell with a compact left navigation rail, pinned/project
   chat sections, dense conversation rows, subdued dividers, right-side document
   and side-chat panels, command/search palettes, overflow menus, Plugins and
@@ -72,17 +72,17 @@ privacy-safe inspection:
   billing categories. Detailed observations intentionally avoid account-specific
   values, local paths, device names, and private chat content.
 - The README visual-capture contract requires future showcase assets to use real
-  Codex app surfaces running on Linux with non-sensitive, reproducible staged
+  ChatGPT app surfaces running on Linux with non-sensitive, reproducible staged
   content.
 - Fork-authored UI snippets exist for updater status controls, startup
   background handling, settings copy, and remote-control/mobile copy patches.
   The updater overlay colors, button dimensions, typography, transition, and
   SHA chip values are observed in
-  `port-integrations/codex-wrapper-updater/patch.js`.
+  `port-integrations/chatgpt-wrapper-updater/patch.js`.
 
 **Key Characteristics:**
 
-- Official Codex product surfaces lead; fork-owned UI stays visually secondary.
+- Official ChatGPT product surfaces lead; fork-owned UI stays visually secondary.
 - Density is practical and task-focused, not promotional.
 - Evidence gaps are explicit so agents do not fabricate service or host state.
 - Fork-owned status colors are role-bound and never decorative.
@@ -105,7 +105,7 @@ remain prose-only evidence so agents do not turn them into a default UI palette.
 ### Functional States
 
 - **Updater Available Green** (`#3A7D44`, border `#4A9D54`) - Fork-authored
-  updater button state for an available Codex App update. Frontmatter token
+  updater button state for an available ChatGPT update. Frontmatter token
   keys: `updater-available`, `updater-available-border`.
 - **Updater Dev-Mode Amber** (`#6B5300`, border `#A07C00`, text `#FFE9A8`) -
   Fork-authored updater button state for a local build ahead of the official
@@ -119,12 +119,12 @@ remain prose-only evidence so agents do not turn them into a default UI palette.
 
 ### Evidence-Only Brand Asset Colors
 
-- **Codex Icon Soft Neutral** (`#F7F7F7`, `#F1F1F1`) - Subtle neutral steps
+- **ChatGPT Icon Soft Neutral** (`#F7F7F7`, `#F1F1F1`) - Subtle neutral steps
   observed in the icon's rounded square, edge, and highlight treatment.
-- **Codex Icon Electric Blue** (`#4165FF`, `#2B14FF`) - Observed saturated
+- **ChatGPT Icon Electric Blue** (`#4165FF`, `#2B14FF`) - Observed saturated
   blue and indigo values in the icon glyph/cloud shape. These are brand-asset
   colors, not default UI accent colors for fork-authored controls.
-- **Codex Icon Lavender Highlight** (`#C2B2FF`, `#EAF0FF`) - Observed soft
+- **ChatGPT Icon Lavender Highlight** (`#C2B2FF`, `#EAF0FF`) - Observed soft
   highlight and glow values in the icon. Use as icon evidence only unless a
   future visual task extracts a broader official token system.
 
@@ -150,7 +150,7 @@ account as user-configurable evidence, not as durable fork-owned tokens.
 
 Use these rules for all future color work:
 
-- Preserve official Codex app colors when source or generated output exposes
+- Preserve official ChatGPT app colors when source or generated output exposes
   them.
 - Use fork-authored status colors only for their documented status roles.
 - Do not turn fork-authored status colors into decoration.
@@ -165,10 +165,10 @@ Use these rules for all future color work:
 **Mono Font:** ui-monospace, SFMono-Regular, Menlo, Consolas, monospace
 
 **Character:** Compact system typography, tuned for a product surface where the
-interface should disappear into the task. Type should feel native to Codex and
+interface should disappear into the task. Type should feel native to ChatGPT and
 the host desktop, not branded for its own sake.
 
-**Typography Rules:** Codex App for Linux should follow the official app's
+**Typography Rules:** ChatGPT for Linux should follow the official app's
 product typography when rendering generated app surfaces. Fork-authored
 overlays should use the same system-sans product vocabulary visible in the
 source snippets: `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Roboto`,
@@ -200,7 +200,7 @@ generated app output.
 ### Named Rules
 
 **The Native Type Rule.** Fork-owned UI uses the system-sans stack unless
-generated output exposes official Codex typography tokens. Do not introduce a
+generated output exposes official ChatGPT typography tokens. Do not introduce a
 display face, decorative serif, or marketing hierarchy.
 
 ## Layout
@@ -210,7 +210,7 @@ workflow: launching, chatting, reviewing changes, staging browser automation,
 checking package state, configuring port integrations, or validating a host
 boundary.
 
-Keep fork-owned UI visually subordinate to the main Codex work surface.
+Keep fork-owned UI visually subordinate to the main ChatGPT work surface.
 Controls that belong to package updates, wrapper state, or port integrations
 should live in the smallest appropriate setting, header, or status location and
 should not take over the screen.
@@ -238,10 +238,10 @@ maintainer surfaces.
 
 ## Elevation & Depth
 
-Codex App for Linux should prefer flat, tonal layering over decorative depth.
+ChatGPT for Linux should prefer flat, tonal layering over decorative depth.
 Fork-authored overlays should use borders, muted fills, and compact placement
 before shadows. If elevation is needed for a menu, tooltip, or transient
-control, keep it functional and subordinate to the official Codex work surface.
+control, keep it functional and subordinate to the official ChatGPT work surface.
 
 The observed command palette and overflow menu use functional elevation: a
 floating dark surface, section labels, selected-row fill, separators, shortcut
@@ -269,7 +269,7 @@ shapes for compact metadata, toggles, or shortcut chips.
 
 ## Components
 
-**Component Stylings:** Follow the official Codex component vocabulary where
+**Component Stylings:** Follow the official ChatGPT component vocabulary where
 available. Fork-authored components should be compact, direct, keyboard
 reachable, visibly focusable, and color-independent.
 
@@ -379,7 +379,7 @@ connected-looking state is not enough by itself.
 
 ## Evidence Gaps
 
-- No generated `codex-app/` tree is present in this checkout, so official
+- No generated `chatgpt/` tree is present in this checkout, so official
   generated bundle tokens, exact app CSS variables, and generated settings
   layouts are not committed here as durable evidence.
 - No committed README showcase asset exists under `docs/assets/readme/` yet.
@@ -399,14 +399,14 @@ connected-looking state is not enough by itself.
 
 ### Do
 
-- Do preserve the official Codex app's product feel, interaction density, and
+- Do preserve the official ChatGPT app's product feel, interaction density, and
   practical tone unless this fork owns the surface being changed.
 - Do expose package, updater, desktop, and port integration details only when
   they help users make correct local decisions.
 - Do use real generated app output, real source patches, real screenshots, and
   reproducible visual-capture pipelines.
 - Do model future settings, side panels, command palettes, and extension
-  directories on the official Codex app patterns observed in live inspection.
+  directories on the official ChatGPT app patterns observed in live inspection.
 - Do target WCAG 2.2 AA for fork-authored UI overlays, docs screenshots, and
   visual acceptance criteria.
 - Do use color-independent labels, icons, or text for status changes.
@@ -416,12 +416,12 @@ connected-looking state is not enough by itself.
 - Don't use a generic Linux-fork label for this repository in durable docs or
   PR text.
 - Don't create a generic Linux showcase that centers distro identity, terminal
-  aesthetics, or community-port novelty ahead of the Codex product.
+  aesthetics, or community-port novelty ahead of the ChatGPT product.
 - Don't describe port integrations as Linux-only capabilities.
 - Don't invent screenshots, metrics, connected clients, host liveness,
   enrollment state, MFA state, remote environments, simulated product state, or
   OpenAI service availability.
-- Don't imply OpenAI supports Linux as a Codex app platform, that this
+- Don't imply OpenAI supports Linux as a ChatGPT app platform, that this
   repository redistributes OpenAI software, or that this fork bypasses
   OpenAI-hosted account, rollout, MFA, remote-control, Browser Use, Computer
   Use, or service policy gates.

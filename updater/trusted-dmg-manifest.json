@@ -6,7 +6,14 @@
       "version": "26.601.21317",
       "sha256": "03f8e6758bc67b71af35295c42890a6b112fbd6d5789e9d7d63e4b328e1a05ec",
       "approved_at": "2026-06-03T00:00:00Z",
-      "notes": "Maintainer-approved DMG digest mirrored from the current flake.nix codexDmg pin."
+      "notes": "Maintainer-approved legacy DMG digest retained from the former flake.nix codexDmg pin."
+    },
+    {
+      "url": "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
+      "version": "26.727.40816",
+      "sha256": "fb93a239c811c7639cf45a90ff36c262fa0290640140cd12da3fdc60b62255ae",
+      "approved_at": "2026-07-31T00:00:00Z",
+      "notes": "Maintainer-approved ChatGPT DMG digest mirrored from the current flake.nix chatgptDmg pin."
     }
   ]
 }

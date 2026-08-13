@@ -4,12 +4,18 @@ unexport BASH_ENV
 unexport BASH_FUNC_module%%
 unexport BASH_FUNC_ml%%
 
-APP_DIR := $(CURDIR)/codex-app
-PACKAGE_NAME := codex-app
-PACMAN_PACKAGE_NAME := codex-app
-NEXT_APP_DIR := $(CURDIR)/codex-app-next
+APP_DIR := $(CURDIR)/chatgpt
+PACKAGE_NAME := chatgpt
+PACMAN_PACKAGE_NAME := chatgpt
+NEXT_APP_DIR := $(CURDIR)/chatgpt-next
 REBUILD_REPORT_DIR := $(CURDIR)/dist-next/rebuild
 PACKAGE_WITH_UPDATER ?= $(if $(filter undefined,$(origin PACKAGE_ENABLE_UPDATER)),1,$(PACKAGE_ENABLE_UPDATER))
+UPSTREAM_INTEL_CANDIDATE ?= $(strip $(DMG))
+UPSTREAM_INTEL_HOST_CANDIDATE := $(if $(strip $(UPSTREAM_INTEL_CANDIDATE)),$(UPSTREAM_INTEL_CANDIDATE),$(CURDIR)/ChatGPT.dmg)
+UPSTREAM_INTEL_BASELINE ?=
+UPSTREAM_INTEL_PATCH_REPORT ?= $(REBUILD_REPORT_DIR)/patch-report.json
+UPSTREAM_INTEL_IMAGE ?= chatgpt-linux-devcontainer:local
+CHATGPT_CLI_BUNDLE_SOURCE ?=
 MAX_BUILD_THREADS ?= 0
 MAX_BUILD_THREADS_VALUE := $(strip $(MAX_BUILD_THREADS))
 MAX_BUILD_THREADS_ENABLED := $(filter-out 0,$(MAX_BUILD_THREADS_VALUE))
@@ -19,8 +25,8 @@ else
 RPM_BINARY_PAYLOAD ?=
 endif
 CARGO_JOBS_ARG = $(if $(MAX_BUILD_THREADS_ENABLED),--jobs $(MAX_BUILD_THREADS_VALUE),)
-DEV_APP_ID ?= codex-cua-lab
-DEV_APP_NAME ?= Codex CUA Lab
+DEV_APP_ID ?= chatgpt-cua-lab
+DEV_APP_NAME ?= ChatGPT CUA Lab
 DEV_APP_DIR ?= $(CURDIR)/$(DEV_APP_ID)-app
 DEV_APP_BIN ?= $(CURDIR)/bin/$(DEV_APP_ID)
 DEB_GLOB := $(CURDIR)/dist/$(PACKAGE_NAME)_*.deb
@@ -60,25 +66,29 @@ if [ -z "$$format" ]; then \
 fi; \
 printf '%s\n' "$$format"
 
-.PHONY: help check test build-updater maybe-build-updater update rebuild rebuild-install inspect-dmg inspect-upstream build-app build-app-fresh bootstrap-native install-native update-native rebuild-next run-app build-dev-app run-dev-app deb rpm pacman appimage package apple-dmg-verify release-gate install service-enable service-status clean clean-dist clean-state
+.PHONY: help check test build-updater build-mutation-broker maybe-build-updater update rebuild rebuild-install inspect-dmg inspect-upstream inspect-upstream-intel inspect-upstream-intel-devcontainer build-app build-app-fresh setup-native bootstrap-native install-native update-native rebuild-next run-app build-dev-app run-dev-app deb rpm pacman appimage package apple-dmg-verify release-gate install service-enable service-status clean clean-dist clean-state
 
 help:
-	@printf '\nCodex App Linux Make Targets\n\n'
-	@printf '  %-18s %s\n' "make check" "Run cargo check for codex-app-updater"
+	@printf '\nChatGPT for Linux Make Targets\n\n'
+	@printf '  %-18s %s\n' "make check" "Run cargo check for chatgpt-updater"
 	@printf '  %-18s %s\n' "make test" "Run updater test suite"
-	@printf '  %-18s %s\n' "make build-updater" "Build codex-app-updater in release mode"
-	@printf '  %-18s %s\n' "make update" "Find a DMG, rebuild, and replace codex-app/ with backup"
+	@printf '  %-18s %s\n' "make build-updater" "Build chatgpt-updater in release mode"
+	@printf '  %-18s %s\n' "make build-mutation-broker" "Build the app-generation mutation broker in release mode"
+	@printf '  %-18s %s\n' "make update" "Find a DMG, rebuild, and replace chatgpt/ with backup"
 	@printf '  %-18s %s\n' "make rebuild" "Inspect a DMG and build a side-by-side candidate"
-	@printf '  %-18s %s\n' "make rebuild-install" "Find a DMG, rebuild, and install into codex-app/"
-	@printf '  %-18s %s\n' "make inspect-dmg" "Inspect a DMG and write rebuild reports without changing codex-app/"
-	@printf '  %-18s %s\n' "make build-app" "Run install.sh and regenerate codex-app/ (reuses cached Codex.dmg)"
-	@printf '  %-18s %s\n' "make build-app-fresh" "Remove cached Codex.dmg and regenerate codex-app/"
+	@printf '  %-18s %s\n' "make rebuild-install" "Find a DMG, rebuild, and install into chatgpt/"
+	@printf '  %-18s %s\n' "make inspect-dmg" "Inspect a DMG and write rebuild reports without changing chatgpt/"
+	@printf '  %-18s %s\n' "make inspect-upstream" "Alias for make inspect-dmg"
+	@printf '  %-18s %s\n' "make inspect-upstream-intel" "Inventory protected official DMG surfaces and write drift reports"
+	@printf '  %-18s %s\n' "make inspect-upstream-intel-devcontainer" "Run official DMG intelligence inside the devcontainer image"
+	@printf '  %-18s %s\n' "make build-app" "Run install.sh and regenerate chatgpt/ (reuses cached ChatGPT.dmg)"
+	@printf '  %-18s %s\n' "make build-app-fresh" "Remove generated app and refresh cached ChatGPT.dmg by default"
 	@printf '  %-18s %s\n' "make setup-native" "Guided setup summary and port integration config helper"
-	@printf '  %-18s %s\n' "make bootstrap-native" "Install deps, fresh-build, package, and install"
-	@printf '  %-18s %s\n' "make install-native" "Fresh-build, package, and install"
-	@printf '  %-18s %s\n' "make update-native" "Pull trusted checkout, fresh-build, package, and install"
-	@printf '  %-18s %s\n' "make rebuild-next" "Build a side-by-side candidate in codex-app-next/"
-	@printf '  %-18s %s\n' "make run-app" "Launch the local generated Electron app from codex-app/"
+	@printf '  %-18s %s\n' "make bootstrap-native" "Install deps, validate/reuse DMG, package, and install"
+	@printf '  %-18s %s\n' "make install-native" "Clean-build, validate/reuse DMG, package, and install"
+	@printf '  %-18s %s\n' "make update-native" "Pull trusted checkout, validate/reuse DMG, package, and install"
+	@printf '  %-18s %s\n' "make rebuild-next" "Build a side-by-side candidate in chatgpt-next/"
+	@printf '  %-18s %s\n' "make run-app" "Launch the local generated Electron app from chatgpt/"
 	@printf '  %-18s %s\n' "make build-dev-app" "Build a side-by-side test app with a distinct app id/bin"
 	@printf '  %-18s %s\n' "make run-dev-app" "Launch the side-by-side test app"
 	@printf '  %-18s %s\n' "make deb" "Build the Debian package into dist/"
@@ -87,23 +97,28 @@ help:
 	@printf '  %-18s %s\n' "make appimage" "Build the AppImage into dist/ (local self-build)"
 	@printf '  %-18s %s\n' "make package" "Build native package (auto-detects deb, rpm, or pacman)"
 	@printf '  %-18s %s\n' "make apple-dmg-verify" "Run macOS Apple trust checks for the official OpenAI DMG"
-	@printf '  %-18s %s\n' "make release-gate" "Verify DMG hash, generated app security, package metadata, checksums, and optional signature"
+	@printf '  %-18s %s\n' "make release-gate" "Verify package provenance and produce signed public-release attestations"
 	@printf '  %-18s %s\n' "make install" "Install the latest generated native package"
-	@printf '  %-18s %s\n' "make service-enable" "Enable and start codex-app-updater.service for the current user"
-	@printf '  %-18s %s\n' "make service-status" "Show codex-app-updater.service status for the current user"
+	@printf '  %-18s %s\n' "make service-enable" "Enable and start chatgpt-updater.service for the current user"
+	@printf '  %-18s %s\n' "make service-status" "Show chatgpt-updater.service status for the current user"
 	@printf '  %-18s %s\n' "make clean" "Remove generated app, cached DMG, and dist/ artifacts"
 	@printf '  %-18s %s\n' "make clean-dist" "Remove generated dist/ artifacts"
 	@printf '  %-18s %s\n' "make clean-state" "Remove updater runtime state from XDG directories"
 	@printf '\nVariables:\n\n'
-	@printf '  %-18s %s\n' "DMG=/path/file.dmg" "Override the DMG; rebuild commands auto-find ./Codex.dmg"
+	@printf '  %-18s %s\n' "DMG=/path/file.dmg" "Override the DMG; devcontainer intel downloads latest when omitted"
+	@printf '  %-18s %s\n' "UPSTREAM_INTEL_BASELINE=..." "Optional known-good DMG/.app; defaults to ./ChatGPT.dmg when different"
+	@printf '  %-18s %s\n' "UPSTREAM_INTEL_PATCH_REPORT=..." "Optional patch-report.json folded into upstream intelligence drift"
+	@printf '  %-18s %s\n' "UPSTREAM_INTEL_IMAGE=..." "Docker image for make inspect-upstream-intel-devcontainer"
 	@printf '  %-18s %s\n' "NEXT_APP_DIR=..." "Override side-by-side rebuild candidate directory"
 	@printf '  %-18s %s\n' "APP_DIR=..." "Override final app directory for make rebuild-install"
 	@printf '  %-18s %s\n' "REBUILD_REPORT_DIR=..." "Override inspect/rebuild report output directory"
-	@printf '  %-18s %s\n' "DEV_APP_ID=..." "Override side-by-side test app id/bin (default: codex-cua-lab)"
+	@printf '  %-18s %s\n' "DEV_APP_ID=..." "Override side-by-side test app id/bin (default: chatgpt-cua-lab)"
 	@printf '  %-18s %s\n' "DEV_APP_NAME=..." "Override side-by-side test app display name"
 	@printf '  %-18s %s\n' "PACKAGE_VERSION=..." "Override the package version for make deb / make rpm / make pacman / make appimage"
-	@printf '  %-18s %s\n' "PACKAGE_WITH_UPDATER=0" "Build packages without codex-app-updater or the updater service"
+	@printf '  %-18s %s\n' "PACKAGE_WITH_UPDATER=0" "Build packages without chatgpt-updater or the updater service"
+	@printf '  %-18s %s\n' "CHATGPT_CLI_BUNDLE_SOURCE=..." "Embed an installed Codex CLI package in a local AppImage"
 	@printf '  %-18s %s\n' "MAX_BUILD_THREADS=8" "Set supported build jobs/compression threads (default: 0, tool/user defaults)"
+	@printf '  %-18s %s\n' "CHATGPT_SUDO_ALERT=1" "Play a best-effort alert before an interactive sudo password prompt"
 	@printf '  %-18s %s\n' "RPM_BINARY_PAYLOAD=..." "Advanced RPM payload flags override (default follows MAX_BUILD_THREADS)"
 	@printf '  %-18s %s\n' "APPIMAGETOOL=..." "Override the appimagetool executable for make appimage"
 	@printf '  %-18s %s\n' "DEB=/path/file.deb" "Override the .deb used by make install"
@@ -112,18 +127,24 @@ help:
 	@printf '\nExamples:\n\n'
 	@printf '  %s\n' "make update"
 	@printf '  %s\n' "make rebuild-install"
-	@printf '  %s\n' "make rebuild DMG=/tmp/Codex.dmg"
-	@printf '  %s\n' "make build-app DMG=/tmp/Codex.dmg"
+	@printf '  %s\n' "make rebuild DMG=/tmp/ChatGPT.dmg"
+	@printf '  %s\n' "make build-app DMG=/tmp/ChatGPT.dmg"
 	@printf '  %s\n' "make build-app-fresh"
 	@printf '  %s\n' "make setup-native"
 	@printf '  %s\n' "make bootstrap-native"
 	@printf '  %s\n' "make install-native"
+	@printf '  %s\n' "CHATGPT_SUDO_ALERT=1 make install-native"
 	@printf '  %s\n' "PACKAGE_WITH_UPDATER=0 make update-native"
-	@printf '  %s\n' "make inspect-dmg DMG=/tmp/Codex.dmg"
-	@printf '  %s\n' "make rebuild-next DMG=/tmp/Codex.dmg"
+	@printf '  %s\n' "make inspect-dmg DMG=/tmp/ChatGPT.dmg"
+	@printf '  %s\n' "CHATGPT_CLI_BUNDLE_SOURCE=/path/to/node_modules/@openai/codex make appimage"
+	@printf '  %s\n' "make inspect-upstream DMG=/tmp/ChatGPT.dmg"
+	@printf '  %s\n' "make inspect-upstream-intel DMG=/tmp/ChatGPT-new.dmg"
+	@printf '  %s\n' "make inspect-upstream-intel-devcontainer"
+	@printf '  %s\n' "make inspect-upstream-intel-devcontainer DMG=/tmp/ChatGPT-new.dmg"
+	@printf '  %s\n' "make rebuild-next DMG=/tmp/ChatGPT.dmg"
 	@printf '  %s\n' "make run-app"
 	@printf '  %s\n' "make build-dev-app"
-	@printf '  %s\n' "./bin/codex-cua-lab"
+	@printf '  %s\n' "./bin/chatgpt-cua-lab"
 	@printf '  %s\n' "make deb"
 	@printf '  %s\n' "make rpm"
 	@printf '  %s\n' "make pacman"
@@ -135,20 +156,24 @@ help:
 
 check:
 	@echo "[make] Running cargo check"
-	cargo check $(CARGO_JOBS_ARG) -p codex-app-updater
+	cargo check $(CARGO_JOBS_ARG) -p chatgpt-updater
 
 test:
 	@echo "[make] Running cargo test"
-	cargo test $(CARGO_JOBS_ARG) -p codex-app-updater
+	cargo test $(CARGO_JOBS_ARG) -p chatgpt-updater
 
 build-updater:
-	@echo "[make] Building codex-app-updater (release)"
-	cargo build $(CARGO_JOBS_ARG) --release -p codex-app-updater
+	@echo "[make] Building chatgpt-updater (release)"
+	cargo build $(CARGO_JOBS_ARG) --release -p chatgpt-updater
+
+build-mutation-broker:
+	@echo "[make] Building generated-app mutation broker (release)"
+	cargo build $(CARGO_JOBS_ARG) --locked --release -p generated-app-mutation-broker
 
 maybe-build-updater:
 	@case "$(PACKAGE_WITH_UPDATER)" in \
 		0|false|False|FALSE|no|No|NO|off|Off|OFF) \
-			echo "[make] Skipping codex-app-updater build (PACKAGE_WITH_UPDATER=0)" ;; \
+			echo "[make] Skipping chatgpt-updater build (PACKAGE_WITH_UPDATER=0)" ;; \
 		*) \
 			$(MAKE) build-updater ;; \
 	esac
@@ -159,16 +184,16 @@ rebuild:
 	@echo "[make] Running safe rebuild flow"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" \
 	REBUILD_REPORT_DIR="$(REBUILD_REPORT_DIR)" \
-	CODEX_NEXT_APP_DIR="$(NEXT_APP_DIR)" \
-		./scripts/rebuild-candidate.sh "$(DMG)"
+	CHATGPT_NEXT_APP_DIR="$(NEXT_APP_DIR)" \
+		./scripts/rebuild-candidate.sh $(if $(strip $(DMG)),"$(DMG)")
 
 rebuild-install:
 	@echo "[make] Running rebuild and local install flow"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" \
 	REBUILD_REPORT_DIR="$(REBUILD_REPORT_DIR)" \
-	CODEX_NEXT_APP_DIR="$(NEXT_APP_DIR)" \
-	CODEX_FINAL_APP_DIR="$(APP_DIR)" \
-		./scripts/rebuild-candidate.sh --install "$(DMG)"
+	CHATGPT_NEXT_APP_DIR="$(NEXT_APP_DIR)" \
+	CHATGPT_FINAL_APP_DIR="$(APP_DIR)" \
+		./scripts/rebuild-candidate.sh --install $(if $(strip $(DMG)),"$(DMG)")
 
 inspect-dmg:
 	@echo "[make] Inspecting official OpenAI DMG"
@@ -176,12 +201,37 @@ inspect-dmg:
 
 inspect-upstream: inspect-dmg
 
+inspect-upstream-intel:
+	@echo "[make] Building upstream DMG intelligence report"
+	@args=(--candidate "$(UPSTREAM_INTEL_HOST_CANDIDATE)"); \
+	if [ -n "$(UPSTREAM_INTEL_BASELINE)" ]; then \
+		args+=("--baseline" "$(UPSTREAM_INTEL_BASELINE)"); \
+	fi; \
+	if [ -f "$(UPSTREAM_INTEL_PATCH_REPORT)" ]; then \
+		args+=("--patch-report" "$(UPSTREAM_INTEL_PATCH_REPORT)"); \
+	fi; \
+	node scripts/dev/upstream-dmg-intel.js "$${args[@]}"
+
+inspect-upstream-intel-devcontainer:
+	@echo "[make] Building upstream DMG intelligence report in devcontainer"
+	@args=(--image "$(UPSTREAM_INTEL_IMAGE)"); \
+	if [ -n "$(UPSTREAM_INTEL_CANDIDATE)" ]; then \
+		args+=("--candidate" "$(UPSTREAM_INTEL_CANDIDATE)"); \
+	fi; \
+	if [ -n "$(UPSTREAM_INTEL_BASELINE)" ]; then \
+		args+=("--baseline" "$(UPSTREAM_INTEL_BASELINE)"); \
+	fi; \
+	if [ -f "$(UPSTREAM_INTEL_PATCH_REPORT)" ]; then \
+		args+=("--patch-report" "$(UPSTREAM_INTEL_PATCH_REPORT)"); \
+	fi; \
+	scripts/dev/upstream-dmg-intel-devcontainer "$${args[@]}"
+
 build-app:
-	@echo "[make] Regenerating codex-app from DMG"
+	@echo "[make] Regenerating chatgpt from DMG"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" ./install.sh "$(DMG)"
 
 build-app-fresh:
-	@echo "[make] Regenerating codex-app from fresh DMG"
+	@echo "[make] Regenerating chatgpt from fresh DMG"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" ./install.sh --fresh "$(DMG)"
 
 setup-native:
@@ -194,7 +244,7 @@ bootstrap-native:
 	PATH="$$HOME/.cargo/bin:$$PATH" $(MAKE) install-native
 
 install-native:
-	$(MAKE) build-app-fresh
+	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" ./install.sh --fresh --reuse-dmg "$(DMG)"
 	$(MAKE) package
 	$(MAKE) install
 	@echo "[make] Native package install complete"
@@ -207,9 +257,9 @@ update-native:
 rebuild-next:
 	@echo "[make] Building side-by-side rebuild candidate"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" \
-	CODEX_INSTALL_DIR="$(NEXT_APP_DIR)" \
-	CODEX_PATCH_REPORT_JSON="$(REBUILD_REPORT_DIR)/patch-report.json" \
-	CODEX_REBUILD_REPORT_JSON="$(REBUILD_REPORT_DIR)/rebuild-report.json" \
+	CHATGPT_INSTALL_DIR="$(NEXT_APP_DIR)" \
+	CHATGPT_PATCH_REPORT_JSON="$(REBUILD_REPORT_DIR)/patch-report.json" \
+	CHATGPT_REBUILD_REPORT_JSON="$(REBUILD_REPORT_DIR)/rebuild-report.json" \
 	REBUILD_REPORT_DIR="$(REBUILD_REPORT_DIR)" \
 		./install.sh "$(DMG)"
 	@echo "[make] Candidate app: $(NEXT_APP_DIR)"
@@ -217,17 +267,18 @@ rebuild-next:
 
 run-app:
 	@echo "[make] Launching local Electron app"
+	@[ -x "$(APP_DIR)/start.sh" ] || { echo "[make] Missing launcher: $(APP_DIR)/start.sh. Run make build-app first." >&2; exit 1; }
 	"$(APP_DIR)/start.sh"
 
 build-dev-app:
 	@echo "[make] Building side-by-side Electron app as $(DEV_APP_ID)"
 	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" \
-	CODEX_APP_ID="$(DEV_APP_ID)" \
-	CODEX_APP_DISPLAY_NAME="$(DEV_APP_NAME)" \
-	CODEX_INSTALL_DIR="$(DEV_APP_DIR)" \
+	CHATGPT_APP_ID="$(DEV_APP_ID)" \
+	CHATGPT_APP_DISPLAY_NAME="$(DEV_APP_NAME)" \
+	CHATGPT_INSTALL_DIR="$(DEV_APP_DIR)" \
 		./install.sh "$(DMG)"
 	@mkdir -p "$(CURDIR)/bin"
-	@ln -sfn "$(DEV_APP_DIR)/start.sh" "$(DEV_APP_BIN)"
+	@ln -sfn "$$(realpath --relative-to="$$(dirname "$(DEV_APP_BIN)")" "$(DEV_APP_DIR)/start.sh")" "$(DEV_APP_BIN)"
 	@echo "[make] Side-by-side launcher: $(DEV_APP_BIN)"
 
 run-dev-app:
@@ -248,7 +299,7 @@ pacman: maybe-build-updater
 
 appimage:
 	@echo "[make] Building AppImage"
-	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" PACKAGE_VERSION="$(or $(PACKAGE_VERSION),)" ./scripts/build-appimage.sh
+	MAX_BUILD_THREADS="$(MAX_BUILD_THREADS)" PACKAGE_VERSION="$(or $(PACKAGE_VERSION),)" CHATGPT_CLI_BUNDLE_SOURCE="$(CHATGPT_CLI_BUNDLE_SOURCE)" ./scripts/build-appimage.sh
 
 package: maybe-build-updater
 	@echo "[make] Building native package (auto-detecting distro)"
@@ -292,7 +343,7 @@ install:
 			echo "[make] No pacman package found. Run 'make pacman' first." >&2; exit 1; \
 		fi; \
 		echo "[make] Installing $$pkg"; \
-		sudo pacman -U --noconfirm "$$pkg"; \
+		"$(CURDIR)/scripts/sudo-with-alert.sh" pacman -U --noconfirm "$$pkg"; \
 	elif [ "$$format" = "rpm" ] && { command -v dnf5 >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; }; then \
 		rpm="$${RPM:-$$(latest_matching_file "$(RPM_GLOB)")}"; \
 		if [ -z "$$rpm" ]; then \
@@ -300,9 +351,9 @@ install:
 		fi; \
 		echo "[make] Installing $$rpm"; \
 		if command -v dnf5 >/dev/null 2>&1; then \
-			sudo dnf5 install -y "$$rpm"; \
+			"$(CURDIR)/scripts/sudo-with-alert.sh" dnf5 install -y "$$rpm"; \
 		else \
-			sudo dnf install -y "$$rpm"; \
+			"$(CURDIR)/scripts/sudo-with-alert.sh" dnf install -y "$$rpm"; \
 		fi; \
 	elif [ "$$format" = "rpm" ] && command -v zypper >/dev/null 2>&1; then \
 		rpm="$${RPM:-$$(latest_matching_file "$(RPM_GLOB)")}"; \
@@ -318,14 +369,14 @@ install:
 		set -- --non-interactive; \
 		case "$$rpm" in "$$dist_dir"/*.rpm) set -- "$$@" --allow-unsigned-rpm ;; esac; \
 		echo "[make] Installing $$rpm"; \
-		sudo zypper "$$@" install -y "$$rpm"; \
+		"$(CURDIR)/scripts/sudo-with-alert.sh" zypper "$$@" install -y "$$rpm"; \
 	elif [ "$$format" = "rpm" ]; then \
 		rpm="$${RPM:-$$(latest_matching_file "$(RPM_GLOB)")}"; \
 		if [ -z "$$rpm" ]; then \
 			echo "[make] No RPM package found. Run 'make rpm' first." >&2; exit 1; \
 		fi; \
 		echo "[make] Installing $$rpm"; \
-		sudo rpm -Uvh "$$rpm"; \
+		"$(CURDIR)/scripts/sudo-with-alert.sh" rpm -Uvh "$$rpm"; \
 	elif [ "$$format" = "deb" ]; then \
 		deb="$${DEB:-$$(latest_matching_file "$(DEB_GLOB)")}"; \
 		if [ -z "$$deb" ]; then \
@@ -335,21 +386,21 @@ install:
 		installed=0; \
 		if command -v apt >/dev/null 2>&1; then \
 			deb_abs="$$(readlink -f "$$deb")"; \
-			if sudo apt install -y "$$deb_abs"; then \
+			if "$(CURDIR)/scripts/sudo-with-alert.sh" apt install -y "$$deb_abs"; then \
 				installed=1; \
 			else \
 				echo "[make] apt install failed; falling back to dpkg -i" >&2; \
 			fi; \
 		fi; \
 		if [ "$$installed" -eq 0 ]; then \
-			if ! sudo dpkg -i "$$deb"; then \
+			if ! "$(CURDIR)/scripts/sudo-with-alert.sh" dpkg -i "$$deb"; then \
 				if command -v apt-get >/dev/null 2>&1; then \
-					sudo apt-get -f install -y; \
+					"$(CURDIR)/scripts/sudo-with-alert.sh" apt-get -f install -y; \
 				else \
 					exit 1; \
 				fi; \
 			elif command -v apt-get >/dev/null 2>&1; then \
-				sudo apt-get -f install -y; \
+				"$(CURDIR)/scripts/sudo-with-alert.sh" apt-get -f install -y; \
 			fi; \
 		fi; \
 	else \
@@ -357,17 +408,17 @@ install:
 	fi
 
 service-enable:
-	@echo "[make] Enabling and starting codex-app-updater.service"
+	@echo "[make] Enabling and starting chatgpt-updater.service"
 	systemctl --user daemon-reload
-	systemctl --user enable --now codex-app-updater.service
+	systemctl --user enable --now chatgpt-updater.service
 
 service-status:
-	@echo "[make] Showing codex-app-updater.service status"
-	systemctl --user status codex-app-updater.service --no-pager
+	@echo "[make] Showing chatgpt-updater.service status"
+	systemctl --user status chatgpt-updater.service --no-pager
 
 clean:
 	@echo "[make] Removing generated app, cached DMG, dist/, and rebuild artifacts"
-	rm -rf "$(CURDIR)/codex-app" "$(CURDIR)/Codex.dmg" "$(CURDIR)/dist" "$(NEXT_APP_DIR)" "$(REBUILD_REPORT_DIR)"
+	rm -rf "$(CURDIR)/chatgpt" "$(CURDIR)/.chatgpt-generation-receipts" "$(CURDIR)/ChatGPT.dmg" "$(CURDIR)/dist" "$(NEXT_APP_DIR)" "$(REBUILD_REPORT_DIR)"
 
 clean-dist:
 	@echo "[make] Removing dist/ and rebuild reports"
@@ -376,6 +427,6 @@ clean-dist:
 clean-state:
 	@echo "[make] Removing updater runtime state"
 	rm -rf \
-		"$$HOME/.config/codex-app-updater" \
-		"$$HOME/.local/state/codex-app-updater" \
-		"$$HOME/.cache/codex-app-updater"
+		"$$HOME/.config/chatgpt-updater" \
+		"$$HOME/.local/state/chatgpt-updater" \
+		"$$HOME/.cache/chatgpt-updater"

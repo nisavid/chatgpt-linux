@@ -1,0 +1,402 @@
+#!/bin/bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(realpath -- "${BASH_SOURCE[0]}")"
+REPO_DIR="${SCRIPT_PATH%/*/*}"
+TEST_TMP="$(mktemp -d)"
+
+# Invoked through the EXIT trap.
+# shellcheck disable=SC2329
+cleanup() {
+    rm -rf "$TEST_TMP"
+}
+trap cleanup EXIT
+
+fail() {
+    printf 'release gate public-contract test failed: %s\n' "$*" >&2
+    exit 1
+}
+
+CHATGPT_RELEASE_GATE_LIBRARY=1
+# shellcheck source=scripts/release-gate.sh
+. "$REPO_DIR/scripts/release-gate.sh"
+
+PROVENANCE_HELPER="$REPO_DIR/scripts/lib/package-provenance.py"
+SHEBANG_HELPER="$REPO_DIR/scripts/lib/normalize-portable-shebangs.py"
+
+CLEAN_SOURCE_ROOT="$TEST_TMP/clean-source"
+CLEAN_SOURCE_INFO_ROOT="$TEST_TMP/clean-source-info"
+NO_GIT_SOURCE_ROOT="$TEST_TMP/no-git-source"
+NO_GIT_SOURCE_INFO_ROOT="$TEST_TMP/no-git-source-info"
+ORIGINAL_REPO_DIR="$REPO_DIR"
+git clone --no-hardlinks --quiet "$REPO_DIR" "$CLEAN_SOURCE_ROOT"
+SOURCE_DATE_EPOCH="$(git -C "$CLEAN_SOURCE_ROOT" show -s --format=%ct HEAD)"
+CHATGPT_PACKAGE_NODE_SOURCE="$(node -p 'process.execPath')"
+REPO_DIR="$CLEAN_SOURCE_ROOT"
+stage_update_builder_source_info "$CLEAN_SOURCE_INFO_ROOT"
+python3 - "$CLEAN_SOURCE_INFO_ROOT/.chatgpt-linux/source-info.json" <<'PY' || \
+    fail "clean reviewed source metadata did not record dirty=false"
+import json
+import pathlib
+import sys
+
+source_info = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert source_info["dirty"] is False
+PY
+
+mkdir -p "$NO_GIT_SOURCE_ROOT"
+git -C "$CLEAN_SOURCE_ROOT" archive HEAD | tar -x -C "$NO_GIT_SOURCE_ROOT"
+REPO_DIR="$NO_GIT_SOURCE_ROOT"
+stage_update_builder_source_info "$NO_GIT_SOURCE_INFO_ROOT"
+python3 - "$NO_GIT_SOURCE_INFO_ROOT/.chatgpt-linux/source-info.json" <<'PY' || \
+    fail "source metadata without Git authority did not remain indeterminate"
+import json
+import pathlib
+import sys
+
+source_info = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert source_info["dirty"] is None
+PY
+REPO_DIR="$ORIGINAL_REPO_DIR"
+unset CHATGPT_PACKAGE_NODE_SOURCE SOURCE_DATE_EPOCH
+
+# This assertion intentionally matches the literal shell variables in the release gate.
+# shellcheck disable=SC2016
+grep -Fq \
+    'source_git -c tar.umask=0022 archive --format=tar --output="$archive" "$SOURCE_COMMIT_START"' \
+    "$REPO_DIR/scripts/release-gate.sh" || \
+    fail "public reviewed-source archive does not fix portable source modes"
+ARCHIVE_MODE_ROOT="$TEST_TMP/archive-modes"
+ARCHIVE_MODE_TAR="$TEST_TMP/archive-modes.tar"
+mkdir -p "$ARCHIVE_MODE_ROOT"
+(
+    umask 0002
+    SOURCE_CHECKOUT_DIR="$REPO_DIR"
+    source_git -c tar.umask=0022 archive \
+        --format=tar \
+        --output="$ARCHIVE_MODE_TAR" \
+        HEAD \
+        -- \
+        port-integrations/agent-workspace/README.md \
+        port-integrations/agent-workspace/install-skill.sh
+)
+tar --no-same-owner --same-permissions -xf "$ARCHIVE_MODE_TAR" -C "$ARCHIVE_MODE_ROOT"
+[ "$(stat -c '%a' "$ARCHIVE_MODE_ROOT/port-integrations/agent-workspace/README.md")" = 644 ] || \
+    fail "reviewed-source archive did not normalize a regular integration file to mode 0644"
+[ "$(stat -c '%a' "$ARCHIVE_MODE_ROOT/port-integrations/agent-workspace/install-skill.sh")" = 755 ] || \
+    fail "reviewed-source archive did not normalize an executable integration file to mode 0755"
+
+SHEBANG_ROOT="$TEST_TMP/shebang-root"
+mkdir -p "$SHEBANG_ROOT/bin"
+cat >"$SHEBANG_ROOT/bin/bash-tool" <<'EOF'
+#!/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bash-5.3p9/bin/bash
+printf 'bash tool\n'
+EOF
+cat >"$SHEBANG_ROOT/bin/node-tool" <<'EOF'
+#!/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-nodejs-22.22.2/bin/node
+console.log("node tool");
+EOF
+printf '\177ELF/nix/store/cccccccccccccccccccccccccccccccc-bash-5.3p9\n' \
+    >"$SHEBANG_ROOT/native.node"
+chmod 0751 "$SHEBANG_ROOT/bin/bash-tool" "$SHEBANG_ROOT/bin/node-tool"
+python3 "$SHEBANG_HELPER" "$SHEBANG_ROOT" || \
+    fail "portable shebang normalization failed"
+[ "$(head -n 1 "$SHEBANG_ROOT/bin/bash-tool")" = '#!/usr/bin/env bash' ] || \
+    fail "Nix Bash shebang was not normalized"
+[ "$(head -n 1 "$SHEBANG_ROOT/bin/node-tool")" = '#!/usr/bin/env node' ] || \
+    fail "Nix Node shebang was not normalized"
+[ "$(stat -c '%a' "$SHEBANG_ROOT/bin/bash-tool")" = 751 ] || \
+    fail "portable shebang normalization changed the executable mode"
+grep -Fq '/nix/store/cccccccccccccccccccccccccccccccc-bash-5.3p9' \
+    "$SHEBANG_ROOT/native.node" || \
+    fail "portable shebang normalization changed non-shebang binary bytes"
+
+python3 - "$REPO_DIR/flake.nix" <<'PY' || \
+    fail "Nix release-app receipt finalization contract is incomplete"
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+assert 'nixpkgsBaseline.url = "github:NixOS/nixpkgs/' in text
+assert "baselinePkgs = import nixpkgsBaseline" in text
+nix_electron_archive = text[
+    text.index("nixElectronZip ="):
+    text.index("runtimeNodePlatform =")
+]
+managed_nix_node = text[
+    text.index("managedNixNode ="):
+    text.index("electronHeaders =")
+]
+managed_portable_node = text[
+    text.index("managedPortableNode ="):
+    text.index("managedNixNode =")
+]
+native_modules = text[
+    text.index("chatgptNativeModules ="):
+    text.index("electronLibs =")
+]
+native_modules_node_modules = text[
+    text.index("nativeModulesNodeModules ="):
+    text.index("chatgptNativeModules =")
+]
+computer_use_binaries = text[
+    text.index("chatgptComputerUseBinaries ="):
+    text.index("updaterManifest =")
+]
+release_helpers = text[
+    text.index("chatgptReleaseHelpers ="):
+    text.index("chatgptGeneratedAppMutationBroker =")
+]
+read_aloud_binary = text[
+    text.index("chatgptReadAloudMcpBinary ="):
+    text.index("chatgptNotificationActionsBinary =")
+]
+notification_binary = text[
+    text.index("chatgptNotificationActionsBinary ="):
+    text.index("chatgptMcpHelperReaper =")
+]
+reaper_binary = text[
+    text.index("chatgptMcpHelperReaper ="):
+    text.index("chatgptGlobalDictationBinary =")
+]
+dictation_binary = text[
+    text.index("chatgptGlobalDictationBinary ="):
+    text.index("nativeModulesNodeModules =")
+]
+block = text[
+    text.index("mkChatGPTReleaseApp ="):
+    text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
+]
+release_source_info = text[
+    text.index("flakeSourceDirty ="):
+    text.index("releaseSandboxCanaryPathFile =")
+]
+payload_block = text[
+    text.index("mkChatGPTPayload ="):
+    text.index("payload = mkChatGPTPayload")
+]
+private_broker_copy = (
+    'mutation_broker_build="$TMPDIR/chatgpt-generated-app-mutation-broker"'
+)
+store_broker_export = (
+    'export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${'
+)
+assert private_broker_copy in block
+assert private_broker_copy in payload_block
+assert store_broker_export not in block
+assert store_broker_export not in payload_block
+assert "dontPatchShebangs = true;" in block
+assert "pkgs.removeReferencesTo" in block
+assert "pkgs.runCommand" in nix_electron_archive
+assert "--set-interpreter" in nix_electron_archive
+assert "--set-rpath" in nix_electron_archive
+assert "pkgs.runCommandLocal" in managed_nix_node
+assert "dontPatchShebangs = true;" in managed_nix_node
+assert "dontPatchShebangs = true;" in managed_portable_node
+assert "dontPatchShebangs = true;" in native_modules_node_modules
+assert "dontPatchShebangs = true;" in native_modules
+assert "baselinePkgs.stdenv.mkDerivation" in native_modules
+for portable_rust_binary in (
+    computer_use_binaries,
+    read_aloud_binary,
+    notification_binary,
+    reaper_binary,
+    dictation_binary,
+):
+    assert "portableRustPlatform.buildRustPackage" in portable_rust_binary
+assert "src = sourceRoot;" in notification_binary
+assert '''cargoTestFlags = [
+            "-p"
+            "chatgpt-notification-actions-linux"
+          ];''' in notification_binary
+for scoped_workspace in (computer_use_binaries, release_helpers):
+    assert '''preBuild = ''
+            cargo generate-lockfile --offline
+          '';''' in scoped_workspace
+assert "notificationActionsBuildSource" not in text
+assert "normalize-portable-shebangs.py" in native_modules
+assert "cp -a ${managedPortableNode}" in managed_nix_node
+assert "--set-interpreter" in managed_nix_node
+assert "--set-rpath" in managed_nix_node
+assert 'test -f "$out/lib/node_modules/npm/bin/npm-cli.js"' in managed_nix_node
+assert text.count(
+    'export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"'
+) == 3
+assert 'export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"' not in text
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block
+assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in payload_block
+electron_library_path = 'export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"'
+assert electron_library_path in block
+assert electron_library_path in payload_block
+transaction_active = block.index("export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1")
+transaction_candidate = block.index(
+    '${pkgs.coreutils}/bin/install -d -m 0700 "$CHATGPT_INSTALL_DIR"'
+)
+copy_source = block.index('cp -R ./. "$source_dir/"')
+discard_staged_source_info = block.index(
+    'rm -f -- "$source_dir/.chatgpt-linux/source-info.json"'
+)
+write_reviewed_source_info = block.index(
+    'cat > "$source_dir/.chatgpt-linux/source-info.json" <<\'JSON\''
+)
+install = block.index('"$source_dir/install.sh"')
+assert "if self ? rev then false" in release_source_info
+assert "else if self ? dirtyRev then true" in release_source_info
+assert "else (stagedSourceInfo.dirty or null);" in release_source_info
+assert "dirty = flakeSourceDirty;" in release_source_info
+assert "sourceDateEpoch = builtins.fromJSON flakeSourceDateEpoch;" in release_source_info
+assert (
+    copy_source
+    < discard_staged_source_info
+    < write_reviewed_source_info
+    < transaction_active
+    < transaction_candidate
+    < install
+)
+post_install = block.index("runHook postInstall")
+symlink_portability_scan = block.index(
+    'find "$CHATGPT_INSTALL_DIR" -type l -print0'
+)
+discard_early_receipt = block.index('rm -rf -- "$generation_receipt_root"')
+make_elf_writable = block.index('chmod u+w "$file"', discard_early_receipt)
+elf_postprocessing = block.index("--set-interpreter", discard_early_receipt)
+active_elf_validation = block.index(
+    '[[ "$rpath" != *\'/nix/store/\'* ]]',
+    elf_postprocessing,
+)
+make_elf_parent_writable = block.index(
+    'chmod u+w "$(dirname "$file")"',
+    active_elf_validation,
+)
+inactive_reference_scrub = block.index(
+    'remove-references-to -t "$store_root" "$file"',
+    make_elf_parent_writable,
+)
+raw_reference_audit = block.index(
+    'release app file contains a Nix-store reference:',
+    inactive_reference_scrub,
+)
+assert 'scrubbed_store_hash="$(printf \'e%.0s\' {1..32})"' in block
+assert 'case "$store_path" in' in block
+assert '/nix/store/$scrubbed_store_hash-*) continue ;;' in block
+assert "grep -aoE '/nix/store/[0-9a-z]{32}-" in block
+store_mode_normalization = block.index(
+    'find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555',
+    raw_reference_audit,
+)
+discard_postprocessing_receipt = block.index(
+    'rm -rf -- "$generation_receipt_root"',
+    store_mode_normalization,
+)
+write_receipt = block.index("write-generation-receipt")
+validate_receipt = block.index("validate-generation-receipt")
+assert install < post_install < discard_early_receipt < symlink_portability_scan
+assert (
+    symlink_portability_scan
+    < make_elf_writable
+    < elf_postprocessing
+    < active_elf_validation
+    < make_elf_parent_writable
+    < inactive_reference_scrub
+    < raw_reference_audit
+    < store_mode_normalization
+    < discard_postprocessing_receipt
+    < write_receipt
+    < validate_receipt
+)
+assert "chatgptReleaseAppReceiptValidation = pkgs.runCommand" in text
+assert "release-app-generation-receipt = chatgptReleaseAppReceiptValidation" in text
+assert "portableOwnedElfBaseline = pkgs.runCommand" in text
+assert "portable-owned-elf-baseline = portableOwnedElfBaseline" in text
+for portable_output in (
+    "${chatgptComputerUseBinaries}",
+    "${chatgptReadAloudMcpBinary}",
+    "${chatgptNotificationActionsBinary}",
+    "${chatgptMcpHelperReaper}",
+    "${chatgptGlobalDictationBinary}",
+    "${chatgptNativeModules}",
+):
+    assert portable_output in text
+assert "check-portable-elf-dependencies.sh" in block
+assert "--versions-only" in block
+PY
+
+READ_ONLY_CLEANUP_ROOT="$TEST_TMP/read-only-release-cleanup"
+mkdir -p "$READ_ONLY_CLEANUP_ROOT/subdir"
+printf 'immutable snapshot bytes\n' >"$READ_ONLY_CLEANUP_ROOT/subdir/file"
+chmod 0555 "$READ_ONLY_CLEANUP_ROOT" "$READ_ONLY_CLEANUP_ROOT/subdir"
+chmod 0444 "$READ_ONLY_CLEANUP_ROOT/subdir/file"
+RELEASE_GATE_TMP_DIR="$READ_ONLY_CLEANUP_ROOT"
+cleanup || fail "release cleanup could not remove a read-only Nix app snapshot"
+[ ! -e "$READ_ONLY_CLEANUP_ROOT" ] || \
+    fail "release cleanup left a read-only Nix app snapshot behind"
+RELEASE_GATE_TMP_DIR=""
+
+python3 - "$REPO_DIR/.github/workflows/ci.yml" <<'PY' || \
+    fail "Nix public release helper smoke contract is incomplete"
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+assert '"$release_helpers_store/bin/chatgpt-updater" --help' in text
+assert '"$release_helpers_store/bin/chatgpt-updater" --version' not in text
+assert 'PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION"' in text
+assert 'PACKAGE_VERSION="$CHATGPT_VERSION"' not in text
+assert "sudo apt-get install -y binutils file gnupg nodejs p7zip-full" in text
+assert "sudo install -m 0755 \"$(command -v nix)\" /usr/bin/nix" in text
+assert 'apt-get install -y binutils file "$deb_file"' in text
+assert 'bash /check-portable-elf-dependencies.sh /usr/lib/chatgpt' in text
+PY
+
+RELEASE_GATE_TMP_DIR="$TEST_TMP/gate"
+SUBMITTED_APP_DIR="$TEST_TMP/submitted-app"
+REFERENCE_APP_STORE_PATH="$TEST_TMP/reference-output"
+REFERENCE_APP_DIR="$REFERENCE_APP_STORE_PATH/opt/chatgpt"
+RELEASE_MODE=public
+mkdir -p \
+    "$RELEASE_GATE_TMP_DIR" \
+    "$SUBMITTED_APP_DIR/.chatgpt-linux" \
+    "$REFERENCE_APP_DIR/.chatgpt-linux"
+printf 'reviewed runtime bytes\n' >"$SUBMITTED_APP_DIR/runtime"
+printf '{"schemaVersion":1}\n' >"$SUBMITTED_APP_DIR/.chatgpt-linux/build-info.json"
+BROKER_DIGEST="$(printf '0%.0s' {1..64})"
+printf '%s  chatgpt-generated-app-mutation-broker\n' "$BROKER_DIGEST" \
+    >"$SUBMITTED_APP_DIR/.chatgpt-linux/generated-app-mutation-broker.sha256"
+cp -aT "$SUBMITTED_APP_DIR" "$REFERENCE_APP_DIR"
+python3 "$PROVENANCE_HELPER" write-generation-receipt \
+    --app "$SUBMITTED_APP_DIR" \
+    --broker-sha256 "$BROKER_DIGEST" >/dev/null
+python3 "$PROVENANCE_HELPER" write-generation-receipt \
+    --app "$REFERENCE_APP_DIR" \
+    --broker-sha256 "$BROKER_DIGEST" >/dev/null
+
+build_reviewed_nix_output() {
+    [ "$1" = "chatgpt-release-app" ] || fail "unexpected Nix output request: $1"
+    printf '%s\n' "$REFERENCE_APP_STORE_PATH"
+}
+
+build_and_compare_reference_app
+[ "$APP_DIR" = "$REFERENCE_APP_DIR" ] || \
+    fail "public package authority was not rebound to the independent reference app"
+
+printf 'forged submitted bytes\n' >"$SUBMITTED_APP_DIR/runtime"
+if (build_and_compare_reference_app) >"$TEST_TMP/stdout" 2>"$TEST_TMP/stderr"; then
+    fail "a self-consistent but changed submitted app matched the independent reference"
+fi
+grep -Fq 'Submitted generated app does not exactly match the independent release reference' \
+    "$TEST_TMP/stderr" || fail "app mismatch did not fail at the independent reference boundary"
+
+rm -f "$SUBMITTED_APP_DIR/runtime"
+if (build_and_compare_reference_app) >"$TEST_TMP/stdout" 2>"$TEST_TMP/stderr"; then
+    fail "a submitted app with a removed file matched the independent reference"
+fi
+
+cp "$REFERENCE_APP_DIR/runtime" "$SUBMITTED_APP_DIR/runtime"
+chmod 0600 "$SUBMITTED_APP_DIR/runtime"
+if (build_and_compare_reference_app) >"$TEST_TMP/stdout" 2>"$TEST_TMP/stderr"; then
+    fail "a submitted app with changed mode matched the independent reference"
+fi
+
+printf 'release gate public contract tests passed\n'

@@ -36,8 +36,8 @@ def split_fragment_at_limit(text: str, max_chars: int) -> tuple[str, str]:
 
 
 def split_for_streaming(text: str) -> list[str]:
-    first_chars = max(40, env_int("CODEX_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS", 90))
-    chunk_chars = max(80, env_int("CODEX_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS", 180))
+    first_chars = max(40, env_int("CHATGPT_LINUX_READ_ALOUD_KOKORO_FIRST_CHARS", 90))
+    chunk_chars = max(80, env_int("CHATGPT_LINUX_READ_ALOUD_KOKORO_CHUNK_CHARS", 180))
     cleaned = text.strip()
     sentences = re.split(r"(?<=[.!?])\s+", cleaned)
     chunks: list[str] = []
@@ -101,7 +101,7 @@ def synthesize_chunks(
 
 
 def main() -> int:
-    threads = str(env_int("CODEX_LINUX_READ_ALOUD_KOKORO_THREADS", 4))
+    threads = str(env_int("CHATGPT_LINUX_READ_ALOUD_KOKORO_THREADS", 4))
     os.environ.setdefault("OMP_NUM_THREADS", threads)
     os.environ.setdefault("ORT_NUM_THREADS", threads)
 
@@ -109,11 +109,11 @@ def main() -> int:
     if not text:
         return 0
 
-    model = os.environ["CODEX_LINUX_READ_ALOUD_KOKORO_MODEL"]
-    voices = os.environ["CODEX_LINUX_READ_ALOUD_KOKORO_VOICES"]
-    voice = os.environ.get("CODEX_LINUX_READ_ALOUD_KOKORO_VOICE", "bm_george")
-    speed = min(1.4, max(0.7, env_float("CODEX_LINUX_READ_ALOUD_KOKORO_SPEED", 1.05)))
-    lang = os.environ.get("CODEX_LINUX_READ_ALOUD_KOKORO_LANG", "en-us")
+    model = os.environ["CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL"]
+    voices = os.environ["CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES"]
+    voice = os.environ.get("CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICE", "bm_george")
+    speed = min(1.4, max(0.7, env_float("CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED", 1.05)))
+    lang = os.environ.get("CHATGPT_LINUX_READ_ALOUD_KOKORO_LANG", "en-us")
 
     sample_rate = 24000
     chunks = split_for_streaming(text)

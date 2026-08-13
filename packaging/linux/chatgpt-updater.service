@@ -1,0 +1,18 @@
+[Unit]
+Description=ChatGPT Update Manager
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=/opt/chatgpt/.chatgpt-linux/state-migration.py --forward
+ExecStart=/usr/bin/chatgpt-updater daemon
+Restart=on-failure
+RestartSec=10
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=077
+
+[Install]
+WantedBy=default.target

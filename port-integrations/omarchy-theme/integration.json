@@ -1,0 +1,28 @@
+{
+  "id": "omarchy-theme",
+  "title": "Omarchy Theme",
+  "description": "Loads user CSS generated from the active Omarchy theme into ChatGPT when Omarchy is installed.",
+  "defaultEnabled": true,
+  "entrypoints": {
+    "patchDescriptors": "./patch.js"
+  },
+  "resources": [
+    {
+      "source": "chatgpt.css.tpl",
+      "target": ".chatgpt-linux/integrations/omarchy-theme/chatgpt.css.tpl",
+      "mode": "0644"
+    }
+  ],
+  "runtimeHooks": {
+    "env": {
+      "source": "user-stylesheet.env",
+      "name": "user-stylesheet.env",
+      "mode": "0644"
+    },
+    "prelaunch": {
+      "source": "install-template.sh",
+      "name": "install-template.sh",
+      "mode": "0755"
+    }
+  }
+}

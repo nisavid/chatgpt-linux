@@ -3,10 +3,14 @@
 node_modules/
 __pycache__/
 *.py[cod]
-codex-app/
-codex-app.backup-*/
+chatgpt/
+chatgpt.backup-*/
+.chatgpt.candidate-*/
+.chatgpt.promotion.json
+.chatgpt.promotion.lock
+.chatgpt-generation-receipts/
 codex-*-app/
-codex-app-next/
+chatgpt-next/
 bin/codex-*
 target/
 dist/
@@ -14,6 +18,7 @@ dist-next/
 port-integrations/integrations.json
 port-integrations/features.json
 port-integrations/local/
+reports/upstream-dmg/
 linux-features/features.json
 linux-features/local/
 .idea/

@@ -22,7 +22,7 @@ function applyThoriumChromeExtensionStatusPatch(source) {
 
   if (
     patched === source &&
-    source.includes("codexLinuxChromeProfileRoots") &&
+    source.includes("chatgptLinuxChromeProfileRoots") &&
     !source.includes("`thorium`")
   ) {
     warn("Could not find Linux Chrome extension status helper shape");
@@ -31,7 +31,7 @@ function applyThoriumChromeExtensionStatusPatch(source) {
 }
 
 module.exports = {
-  patches: [
+  descriptors: [
     {
       id: "chrome-extension-status",
       phase: "main-bundle",

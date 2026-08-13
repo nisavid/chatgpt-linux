@@ -2,11 +2,11 @@
 set -Eeuo pipefail
 
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-venv="${CODEX_LINUX_READ_ALOUD_KOKORO_VENV:-$data_home/codex-app/read-aloud/kokoro-venv}"
-model="${CODEX_LINUX_READ_ALOUD_KOKORO_MODEL:-$data_home/kokoro/kokoro-v1.0.onnx}"
-voices="${CODEX_LINUX_READ_ALOUD_KOKORO_VOICES:-$data_home/kokoro/voices-v1.0.bin}"
-model_url="${CODEX_LINUX_READ_ALOUD_KOKORO_MODEL_URL:-https://huggingface.co/zijuncheng/kokoro_model_v1.0/resolve/main/kokoro-v1.0.onnx}"
-voices_url="${CODEX_LINUX_READ_ALOUD_KOKORO_VOICES_URL:-https://huggingface.co/zijuncheng/kokoro_model_v1.0/resolve/main/voices-v1.0.bin}"
+venv="${CHATGPT_LINUX_READ_ALOUD_KOKORO_VENV:-$data_home/chatgpt/read-aloud/kokoro-venv}"
+model="${CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL:-$data_home/kokoro/kokoro-v1.0.onnx}"
+voices="${CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES:-$data_home/kokoro/voices-v1.0.bin}"
+model_url="${CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL_URL:-https://huggingface.co/zijuncheng/kokoro_model_v1.0/resolve/main/kokoro-v1.0.onnx}"
+voices_url="${CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES_URL:-https://huggingface.co/zijuncheng/kokoro_model_v1.0/resolve/main/voices-v1.0.bin}"
 
 choose_python() {
     local candidate
@@ -36,14 +36,14 @@ download_file() {
     rm -f "$target" "$tmp"
 
     if command -v curl >/dev/null 2>&1; then
-        curl --fail --location --show-error --user-agent "codex-app-read-aloud" --output "$tmp" "$url"
+        curl --fail --location --show-error --user-agent "chatgpt-read-aloud" --output "$tmp" "$url"
     elif command -v wget >/dev/null 2>&1; then
-        wget --user-agent="codex-app-read-aloud" --output-document "$tmp" "$url"
+        wget --user-agent="chatgpt-read-aloud" --output-document "$tmp" "$url"
     else
         "$python_bin" - "$url" "$tmp" <<'PY'
 import sys
 import urllib.request
-request = urllib.request.Request(sys.argv[1], headers={"User-Agent": "codex-app-read-aloud"})
+request = urllib.request.Request(sys.argv[1], headers={"User-Agent": "chatgpt-read-aloud"})
 with urllib.request.urlopen(request) as response, open(sys.argv[2], "wb") as output:
     output.write(response.read())
 PY
@@ -83,7 +83,7 @@ fi
 
 echo "Kokoro runtime installed at $venv" >&2
 
-if [ "${CODEX_LINUX_READ_ALOUD_SKIP_MODEL_DOWNLOAD:-0}" != "1" ]; then
+if [ "${CHATGPT_LINUX_READ_ALOUD_SKIP_MODEL_DOWNLOAD:-0}" != "1" ]; then
     download_file "$model_url" "$model" 50000000
     download_file "$voices_url" "$voices" 1000000
     echo "Kokoro model installed at $model" >&2

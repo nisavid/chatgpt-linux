@@ -15,10 +15,10 @@ use std::{
     thread,
 };
 
-const SETTINGS_KOKORO_PYTHON: &str = "codex-linux-read-aloud-kokoro-python";
-const SETTINGS_KOKORO_MODEL: &str = "codex-linux-read-aloud-kokoro-model";
-const SETTINGS_KOKORO_VOICES: &str = "codex-linux-read-aloud-kokoro-voices";
-const SETTINGS_KOKORO_SPEED: &str = "codex-linux-read-aloud-kokoro-speed";
+const SETTINGS_KOKORO_PYTHON: &str = "chatgpt-linux-read-aloud-kokoro-python";
+const SETTINGS_KOKORO_MODEL: &str = "chatgpt-linux-read-aloud-kokoro-model";
+const SETTINGS_KOKORO_VOICES: &str = "chatgpt-linux-read-aloud-kokoro-voices";
+const SETTINGS_KOKORO_SPEED: &str = "chatgpt-linux-read-aloud-kokoro-speed";
 const DEFAULT_KOKORO_VOICE: &str = "bm_george";
 const DEFAULT_KOKORO_LANG: &str = "en-us";
 const DEFAULT_KOKORO_SPEED: f32 = 1.05;
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
 
 fn print_help() {
     println!(
-        "codex-read-aloud-linux\n\nUsage:\n  codex-read-aloud-linux mcp\n  codex-read-aloud-linux doctor\n  codex-read-aloud-linux speak [TEXT]\n\nThe MCP server exposes doctor, read_aloud, and stop."
+        "chatgpt-read-aloud-linux\n\nUsage:\n  chatgpt-read-aloud-linux mcp\n  chatgpt-read-aloud-linux doctor\n  chatgpt-read-aloud-linux speak [TEXT]\n\nThe MCP server exposes doctor, read_aloud, and stop."
     );
 }
 
@@ -116,7 +116,7 @@ impl ReadAloudLinux {
 }
 
 #[tool_handler(
-    name = "codex-read-aloud-linux",
+    name = "chatgpt-read-aloud-linux",
     version = "0.1.0",
     instructions = "Use Read Aloud only after the user explicitly asks to hear text or enters an explicit voice/conversation mode. Call doctor before first use in a session when setup is uncertain. Use read_aloud with interrupt=true when the user asks to read a newer answer or steer an active spoken response. Call stop when the user asks to stop speaking."
 )]
@@ -205,7 +205,7 @@ impl ReadAloudLinux {
         &self,
         params: &ReadAloudParams,
     ) -> std::result::Result<BackendCommand, ReadAloudOutput> {
-        if let Some(command) = env_trimmed("CODEX_LINUX_READ_ALOUD_COMMAND") {
+        if let Some(command) = env_trimmed("CHATGPT_LINUX_READ_ALOUD_COMMAND") {
             if command_exists(&command) {
                 return Ok(BackendCommand {
                     name: "custom".to_string(),
@@ -213,7 +213,7 @@ impl ReadAloudLinux {
                     args: Vec::new(),
                     envs: Vec::new(),
                     stdin: true,
-                    note: "Using CODEX_LINUX_READ_ALOUD_COMMAND.".to_string(),
+                    note: "Using CHATGPT_LINUX_READ_ALOUD_COMMAND.".to_string(),
                 });
             }
         }
@@ -227,27 +227,27 @@ impl ReadAloudLinux {
                 args: Vec::new(),
                 envs: vec![
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON".to_string(),
                         kokoro.python,
                     ),
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_MODEL".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL".to_string(),
                         kokoro.model,
                     ),
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_VOICES".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES".to_string(),
                         kokoro.voices,
                     ),
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_VOICE".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICE".to_string(),
                         kokoro.voice,
                     ),
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_SPEED".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED".to_string(),
                         format!("{:.2}", kokoro.speed),
                     ),
                     (
-                        "CODEX_LINUX_READ_ALOUD_KOKORO_LANG".to_string(),
+                        "CHATGPT_LINUX_READ_ALOUD_KOKORO_LANG".to_string(),
                         kokoro.lang,
                     ),
                 ],
@@ -273,10 +273,10 @@ impl ReadAloudLinux {
                     command: "espeak-ng".to_string(),
                     args: vec![
                         "-v".to_string(),
-                        env_trimmed("CODEX_LINUX_READ_ALOUD_VOICE")
+                        env_trimmed("CHATGPT_LINUX_READ_ALOUD_VOICE")
                             .unwrap_or_else(|| "en-us".to_string()),
                         "-s".to_string(),
-                        env_trimmed("CODEX_LINUX_READ_ALOUD_ESPEAK_RATE")
+                        env_trimmed("CHATGPT_LINUX_READ_ALOUD_ESPEAK_RATE")
                             .unwrap_or_else(|| "165".to_string()),
                         "--".to_string(),
                     ],
@@ -292,7 +292,7 @@ impl ReadAloudLinux {
             backend: None,
             reason: Some("kokoro-unavailable".to_string()),
             message: format!(
-                "Kokoro is not ready: {}. Run the Read Aloud setup/download flow or provide the paths with CODEX_LINUX_READ_ALOUD_KOKORO_*.",
+                "Kokoro is not ready: {}. Run the Read Aloud setup/download flow or provide the paths with CHATGPT_LINUX_READ_ALOUD_KOKORO_*.",
                 missing.join(", ")
             ),
         })
@@ -521,7 +521,7 @@ fn doctor_report(active_backend: Option<String>) -> DoctorReport {
     };
 
     let custom_command =
-        env_trimmed("CODEX_LINUX_READ_ALOUD_COMMAND").map(|command| command_doctor(&command));
+        env_trimmed("CHATGPT_LINUX_READ_ALOUD_COMMAND").map(|command| command_doctor(&command));
     let native_fallback_enabled = native_fallback_enabled();
     let native_fallbacks = ["spd-say", "espeak-ng"]
         .iter()
@@ -562,7 +562,7 @@ fn doctor_report(active_backend: Option<String>) -> DoctorReport {
         native_fallback_enabled,
         native_fallbacks,
         message,
-        setup_hint: "Use the Read Aloud settings download flow, run port-integrations/read-aloud/install-kokoro-runtime.sh, or set CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON/MODEL/VOICES.".to_string(),
+        setup_hint: "Use the Read Aloud settings download flow, run port-integrations/read-aloud/install-kokoro-runtime.sh, or set CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON/MODEL/VOICES.".to_string(),
     }
 }
 
@@ -570,16 +570,16 @@ fn kokoro_config(params: &ReadAloudParams) -> KokoroConfig {
     let settings = read_settings_json();
     let data_home = xdg_data_home();
     let runner =
-        env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_RUNNER").unwrap_or_else(default_kokoro_runner);
-    let python = env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON")
+        env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_RUNNER").unwrap_or_else(default_kokoro_runner);
+    let python = env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON")
         .or_else(|| settings_string(&settings, SETTINGS_KOKORO_PYTHON))
         .unwrap_or_else(|| {
             data_home
-                .join("codex-app/read-aloud/kokoro-venv/bin/python")
+                .join("chatgpt/read-aloud/kokoro-venv/bin/python")
                 .display()
                 .to_string()
         });
-    let model = env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_MODEL")
+    let model = env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL")
         .or_else(|| settings_string(&settings, SETTINGS_KOKORO_MODEL))
         .unwrap_or_else(|| {
             data_home
@@ -587,7 +587,7 @@ fn kokoro_config(params: &ReadAloudParams) -> KokoroConfig {
                 .display()
                 .to_string()
         });
-    let voices = env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_VOICES")
+    let voices = env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES")
         .or_else(|| settings_string(&settings, SETTINGS_KOKORO_VOICES))
         .unwrap_or_else(|| {
             data_home
@@ -598,7 +598,8 @@ fn kokoro_config(params: &ReadAloudParams) -> KokoroConfig {
     let speed = params
         .pace
         .or_else(|| {
-            env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_SPEED").and_then(|value| value.parse().ok())
+            env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_SPEED")
+                .and_then(|value| value.parse().ok())
         })
         .or_else(|| {
             settings
@@ -613,9 +614,9 @@ fn kokoro_config(params: &ReadAloudParams) -> KokoroConfig {
         .as_deref()
         .and_then(non_empty)
         .map(str::to_string)
-        .or_else(|| env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_VOICE"))
+        .or_else(|| env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICE"))
         .unwrap_or_else(|| DEFAULT_KOKORO_VOICE.to_string());
-    let lang = env_trimmed("CODEX_LINUX_READ_ALOUD_KOKORO_LANG")
+    let lang = env_trimmed("CHATGPT_LINUX_READ_ALOUD_KOKORO_LANG")
         .unwrap_or_else(|| DEFAULT_KOKORO_LANG.to_string());
 
     KokoroConfig {
@@ -642,8 +643,8 @@ fn default_kokoro_runner() -> String {
 }
 
 fn read_settings_json() -> serde_json::Map<String, serde_json::Value> {
-    let path = env_trimmed("CODEX_LINUX_READ_ALOUD_SETTINGS_JSON")
-        .or_else(|| env_trimmed("CODEX_LINUX_SETTINGS_FILE"))
+    let path = env_trimmed("CHATGPT_LINUX_READ_ALOUD_SETTINGS_JSON")
+        .or_else(|| env_trimmed("CHATGPT_LINUX_SETTINGS_FILE"))
         .map(PathBuf::from)
         .unwrap_or_else(default_settings_path);
     let Ok(source) = fs::read_to_string(path) else {
@@ -656,10 +657,10 @@ fn read_settings_json() -> serde_json::Map<String, serde_json::Value> {
 }
 
 fn default_settings_path() -> PathBuf {
-    let app_id = env_trimmed("CODEX_LINUX_APP_ID")
-        .or_else(|| env_trimmed("CODEX_APP_ID"))
+    let app_id = env_trimmed("CHATGPT_LINUX_APP_ID")
+        .or_else(|| env_trimmed("CHATGPT_APP_ID"))
         .filter(|value| is_safe_app_id(value))
-        .unwrap_or_else(|| "codex-app".to_string());
+        .unwrap_or_else(|| "chatgpt".to_string());
     xdg_config_home().join(app_id).join("settings.json")
 }
 
@@ -770,13 +771,13 @@ fn env_trimmed(name: &str) -> Option<String> {
 fn spd_say_args() -> Vec<String> {
     let mut args = vec![
         "-r".to_string(),
-        env_trimmed("CODEX_LINUX_READ_ALOUD_RATE").unwrap_or_else(|| "-10".to_string()),
+        env_trimmed("CHATGPT_LINUX_READ_ALOUD_RATE").unwrap_or_else(|| "-10".to_string()),
     ];
-    if let Some(voice_type) = env_trimmed("CODEX_LINUX_READ_ALOUD_VOICE_TYPE") {
+    if let Some(voice_type) = env_trimmed("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE") {
         args.push("-t".to_string());
         args.push(voice_type);
     }
-    if let Some(voice) = env_trimmed("CODEX_LINUX_READ_ALOUD_VOICE") {
+    if let Some(voice) = env_trimmed("CHATGPT_LINUX_READ_ALOUD_VOICE") {
         args.push("-y".to_string());
         args.push(voice);
     }
@@ -785,7 +786,7 @@ fn spd_say_args() -> Vec<String> {
 }
 
 fn native_fallback_enabled() -> bool {
-    env::var("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK")
+    env::var("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK")
         .ok()
         .and_then(|value| non_empty(&value).map(|value| value.to_ascii_lowercase()))
         .map(|value| !matches!(value.as_str(), "0" | "false" | "off" | "no"))
@@ -875,38 +876,38 @@ mod tests {
     #[test]
     fn app_id_settings_path_supports_side_by_side_apps() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous_app_id = env::var_os("CODEX_LINUX_APP_ID");
-        let previous_codex_app_id = env::var_os("CODEX_APP_ID");
-        env::set_var("CODEX_LINUX_APP_ID", "codex-app-5");
-        env::set_var("CODEX_APP_ID", "codex-app");
+        let previous_app_id = env::var_os("CHATGPT_LINUX_APP_ID");
+        let previous_chatgpt_app_id = env::var_os("CHATGPT_APP_ID");
+        env::set_var("CHATGPT_LINUX_APP_ID", "chatgpt-5");
+        env::set_var("CHATGPT_APP_ID", "chatgpt");
 
         let path = default_settings_path();
 
-        assert!(path.ends_with("codex-app-5/settings.json"));
-        restore_env("CODEX_LINUX_APP_ID", previous_app_id);
-        restore_env("CODEX_APP_ID", previous_codex_app_id);
+        assert!(path.ends_with("chatgpt-5/settings.json"));
+        restore_env("CHATGPT_LINUX_APP_ID", previous_app_id);
+        restore_env("CHATGPT_APP_ID", previous_chatgpt_app_id);
     }
 
     #[test]
     fn app_id_settings_path_rejects_unsafe_app_ids() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous_app_id = env::var_os("CODEX_LINUX_APP_ID");
-        let previous_codex_app_id = env::var_os("CODEX_APP_ID");
-        env::set_var("CODEX_LINUX_APP_ID", "../bad");
-        env::remove_var("CODEX_APP_ID");
+        let previous_app_id = env::var_os("CHATGPT_LINUX_APP_ID");
+        let previous_chatgpt_app_id = env::var_os("CHATGPT_APP_ID");
+        env::set_var("CHATGPT_LINUX_APP_ID", "../bad");
+        env::remove_var("CHATGPT_APP_ID");
 
         let path = default_settings_path();
 
-        assert!(path.ends_with("codex-app/settings.json"));
-        restore_env("CODEX_LINUX_APP_ID", previous_app_id);
-        restore_env("CODEX_APP_ID", previous_codex_app_id);
+        assert!(path.ends_with("chatgpt/settings.json"));
+        restore_env("CHATGPT_LINUX_APP_ID", previous_app_id);
+        restore_env("CHATGPT_APP_ID", previous_chatgpt_app_id);
     }
 
     #[test]
     fn audio_session_envs_preserves_existing_runtime_dir() {
         let _guard = ENV_LOCK.lock().unwrap();
         let previous_runtime_dir = env::var_os("XDG_RUNTIME_DIR");
-        env::set_var("XDG_RUNTIME_DIR", "/tmp/codex-existing-runtime");
+        env::set_var("XDG_RUNTIME_DIR", "/tmp/chatgpt-existing-runtime");
 
         assert!(audio_session_envs().is_empty());
         restore_env("XDG_RUNTIME_DIR", previous_runtime_dir);
@@ -915,37 +916,37 @@ mod tests {
     #[test]
     fn native_fallback_defaults_to_enabled() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous = env::var_os("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK");
-        env::remove_var("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK");
+        let previous = env::var_os("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK");
+        env::remove_var("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK");
 
         assert!(native_fallback_enabled());
-        restore_env("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK", previous);
+        restore_env("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK", previous);
     }
 
     #[test]
     fn native_fallback_can_be_disabled_explicitly() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous = env::var_os("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK");
+        let previous = env::var_os("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK");
 
         for value in ["0", "false", "off", "no"] {
-            env::set_var("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK", value);
+            env::set_var("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK", value);
             assert!(
                 !native_fallback_enabled(),
                 "{value} should disable fallback"
             );
         }
-        env::set_var("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK", "1");
+        env::set_var("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK", "1");
         assert!(native_fallback_enabled());
-        restore_env("CODEX_LINUX_READ_ALOUD_NATIVE_FALLBACK", previous);
+        restore_env("CHATGPT_LINUX_READ_ALOUD_NATIVE_FALLBACK", previous);
     }
 
     #[test]
     fn spd_say_args_do_not_force_voice_type_by_default() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous_type = env::var_os("CODEX_LINUX_READ_ALOUD_VOICE_TYPE");
-        let previous_voice = env::var_os("CODEX_LINUX_READ_ALOUD_VOICE");
-        env::remove_var("CODEX_LINUX_READ_ALOUD_VOICE_TYPE");
-        env::remove_var("CODEX_LINUX_READ_ALOUD_VOICE");
+        let previous_type = env::var_os("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE");
+        let previous_voice = env::var_os("CHATGPT_LINUX_READ_ALOUD_VOICE");
+        env::remove_var("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE");
+        env::remove_var("CHATGPT_LINUX_READ_ALOUD_VOICE");
 
         let args = spd_say_args();
 
@@ -953,22 +954,22 @@ mod tests {
             .windows(2)
             .any(|pair| pair[0] == "-t" && pair[1] == "female1"));
         assert!(!args.iter().any(|arg| arg == "-t"));
-        restore_env("CODEX_LINUX_READ_ALOUD_VOICE_TYPE", previous_type);
-        restore_env("CODEX_LINUX_READ_ALOUD_VOICE", previous_voice);
+        restore_env("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE", previous_type);
+        restore_env("CHATGPT_LINUX_READ_ALOUD_VOICE", previous_voice);
     }
 
     #[test]
     fn spd_say_args_honor_explicit_voice_type() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let previous_type = env::var_os("CODEX_LINUX_READ_ALOUD_VOICE_TYPE");
-        env::set_var("CODEX_LINUX_READ_ALOUD_VOICE_TYPE", "male1");
+        let previous_type = env::var_os("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE");
+        env::set_var("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE", "male1");
 
         let args = spd_say_args();
 
         assert!(args
             .windows(2)
             .any(|pair| pair[0] == "-t" && pair[1] == "male1"));
-        restore_env("CODEX_LINUX_READ_ALOUD_VOICE_TYPE", previous_type);
+        restore_env("CHATGPT_LINUX_READ_ALOUD_VOICE_TYPE", previous_type);
     }
 
     fn restore_env(name: &str, value: Option<std::ffi::OsString>) {

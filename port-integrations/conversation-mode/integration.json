@@ -3,7 +3,10 @@
   "name": "Conversation mode",
   "description": "Linux voice conversation loop for normal Codex turns using dictation and Read Aloud.",
   "defaultEnabled": true,
+  "requires": [
+    "read-aloud"
+  ],
   "entrypoints": {
-    "patches": "./patch.js"
+    "patchDescriptors": "./patch.js"
   }
 }

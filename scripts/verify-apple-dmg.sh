@@ -4,13 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DMG_PATH="${DMG:-$PWD/Codex.dmg}"
+DMG_PATH="${DMG:-$PWD/ChatGPT.dmg}"
 EXPECTED_BUNDLE_ID="com.openai.codex"
 EXPECTED_TEAM_ID="2DC432GLL2"
 EXPECTED_DEVELOPER_ID="Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)"
 EXPECTED_SPARKLE_KEY="rhcBvttuqDFriyNqwTQJR3L4UT1WjIK4QxtwtwusVic="
-REQUIRE_DMG_GATEKEEPER="${CODEX_REQUIRE_DMG_GATEKEEPER:-0}"
-REQUIRE_DMG_STAPLE="${CODEX_REQUIRE_DMG_STAPLE:-0}"
+REQUIRE_DMG_GATEKEEPER="${CHATGPT_REQUIRE_DMG_GATEKEEPER:-0}"
+REQUIRE_DMG_STAPLE="${CHATGPT_REQUIRE_DMG_STAPLE:-0}"
 MOUNT_DIR=""
 APP_PATH=""
 
@@ -18,17 +18,17 @@ usage() {
     cat <<'EOF'
 Usage: verify-apple-dmg.sh [--dmg PATH]
 
-Runs macOS trust checks for the official OpenAI Codex DMG and contained
-Codex.app.
+Runs macOS trust checks for the official OpenAI ChatGPT DMG and contained
+ChatGPT.app.
 The app bundle checks are required. DMG Gatekeeper/staple checks are recorded
-by default and can be made fatal with CODEX_REQUIRE_DMG_GATEKEEPER=1 and
-CODEX_REQUIRE_DMG_STAPLE=1.
+by default and can be made fatal with CHATGPT_REQUIRE_DMG_GATEKEEPER=1 and
+CHATGPT_REQUIRE_DMG_STAPLE=1.
 
 Environment:
-  CODEX_DMG_SHA256                       Expected DMG SHA-256 hex digest
-  CODEX_DMG_SRI                          Expected DMG sha256-... SRI digest
-  CODEX_REQUIRE_DMG_GATEKEEPER=1         Fail when DMG Gatekeeper assessment fails
-  CODEX_REQUIRE_DMG_STAPLE=1             Fail when DMG stapler validation fails
+  CHATGPT_DMG_SHA256                       Expected DMG SHA-256 hex digest
+  CHATGPT_DMG_SRI                          Expected DMG sha256-... SRI digest
+  CHATGPT_REQUIRE_DMG_GATEKEEPER=1         Fail when DMG Gatekeeper assessment fails
+  CHATGPT_REQUIRE_DMG_STAPLE=1             Fail when DMG stapler validation fails
 EOF
 }
 
@@ -69,18 +69,18 @@ sri_to_hex() {
 
 flake_dmg_sri() {
     awk '
-        /Codex\.dmg/ { found_dmg = 1 }
+        /ChatGPT\.dmg/ { found_dmg = 1 }
         found_dmg && /hash = "sha256-/ { print; exit }
     ' "$REPO_DIR/flake.nix" | sed -E 's/.*(sha256-[^"]+).*/\1/'
 }
 
 expected_dmg_sha256() {
-    if [ -n "${CODEX_DMG_SHA256:-}" ]; then
-        printf '%s\n' "$CODEX_DMG_SHA256"
+    if [ -n "${CHATGPT_DMG_SHA256:-}" ]; then
+        printf '%s\n' "$CHATGPT_DMG_SHA256"
         return
     fi
 
-    local sri="${CODEX_DMG_SRI:-}"
+    local sri="${CHATGPT_DMG_SRI:-}"
     if [ -z "$sri" ] && [ -f "$REPO_DIR/flake.nix" ]; then
         sri="$(flake_dmg_sri || true)"
     fi
@@ -92,7 +92,7 @@ expected_dmg_sha256() {
 verify_dmg_hash() {
     local expected actual
     expected="$(expected_dmg_sha256)"
-    [ -n "$expected" ] || error "Set CODEX_DMG_SHA256 or CODEX_DMG_SRI before Apple DMG verification"
+    [ -n "$expected" ] || error "Set CHATGPT_DMG_SHA256 or CHATGPT_DMG_SRI before Apple DMG verification"
     [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]] || error "Trusted DMG hash is not a hex SHA-256 digest"
 
     expected="$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')"
@@ -105,11 +105,11 @@ mount_dmg() {
     MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-dmg.XXXXXX")"
     hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT_DIR" "$DMG_PATH" >/dev/null
     local app_matches match_count
-    app_matches="$(find "$MOUNT_DIR" -maxdepth 4 -type d -name 'Codex.app' -print)"
+    app_matches="$(find "$MOUNT_DIR" -maxdepth 4 -type d -name 'ChatGPT.app' -print)"
     match_count="$(printf '%s\n' "$app_matches" | sed '/^$/d' | wc -l | tr -d ' ')"
-    [ "$match_count" = "1" ] || error "Expected exactly one Codex.app under $MOUNT_DIR, found $match_count"
+    [ "$match_count" = "1" ] || error "Expected exactly one ChatGPT.app under $MOUNT_DIR, found $match_count"
     APP_PATH="$app_matches"
-    [ -d "$APP_PATH" ] || error "Expected to find Codex.app under $MOUNT_DIR"
+    [ -d "$APP_PATH" ] || error "Expected to find ChatGPT.app under $MOUNT_DIR"
     info "Found app bundle: $APP_PATH"
 }
 

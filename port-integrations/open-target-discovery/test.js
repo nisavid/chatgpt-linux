@@ -8,29 +8,33 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
-const { applyMainBundlePatch } = require("./patch.js");
 const {
+  applyMainBundlePatch,
+  applyNativeOpenTargetSelectionPatch,
+  applyOpenInTargetCommandPatch,
+  applyOpenInTargetRegistryCommandPatch,
+  applyOpenInTargetsBridgeDetectionPatch,
+  applyOpenInTargetsAvailabilityPatch,
+  applyOpenInTargetsDirectoryModePatch,
+  descriptors,
+} = require("./patch.js");
+const {
+  discoverPortIntegrationManifests,
   enabledPortIntegrationIds,
-  loadPortIntegrationMainBundlePatches,
+  loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
 const {
   createPatchReport,
-  patchExtractedApp,
+} = require("../../scripts/lib/patch-report.js");
+const {
+  patchExtractedApp: patchExtractedAppProduction,
   patchMainBundleSource,
-} = require("../../scripts/patch-linux-window-ui.js");
+} = require("../../scripts/patches/runner.js");
 
-const DEFAULT_INTEGRATION_IDS = [
-  "agent-workspace",
-  "appshots",
-  "codex-wrapper-updater",
-  "conversation-mode",
-  "copilot-reasoning-effort",
-  "open-target-discovery",
-  "read-aloud",
-  "read-aloud-mcp",
-  "remote-control-ui",
-  "remote-mobile-control",
-];
+const integrationsRoot = path.resolve(__dirname, "..");
+const DEFAULT_INTEGRATION_IDS = discoverPortIntegrationManifests({ integrationsRoot })
+  .filter(({ manifest }) => manifest.defaultEnabled === true)
+  .map(({ id }) => id);
 
 const mainBundlePrefix =
   "let n=require(`electron`),i=require(`node:path`),o=require(`node:fs`),u=require(`node:child_process`);";
@@ -39,15 +43,29 @@ const fileManagerBundle =
 const terminalOpenTargetBundle =
   "var uh={id:`terminal`,platforms:{darwin:{label:`Terminal`,icon:`apps/terminal.png`,kind:`terminal`,detect:()=>`open`,args:e=>[`-a`,`Terminal`,e]},win32:{label:`Terminal`,icon:`apps/microsoft-terminal.png`,kind:`terminal`,detect:vh,iconPath:()=>null,args:yh,open:({command:e,path:t})=>bh(e,yh(t))}}};function vh(){return `wt.exe`}function yh(e){return[`-d`,e]}async function bh(){}";
 const ideOpenTargetsBundle =
-  "function ih({id:e,label:t,icon:n,darwinDetect:r,win32Detect:i,darwinEnv:a,darwinArgs:o,hidden:s}){return{id:e,platforms:{darwin:r?{label:t,icon:n,kind:`editor`,hidden:s,detect:r,env:a,args:o??ah,supportsSsh:!0}:void 0,win32:i?{label:t,icon:n,kind:`editor`,hidden:s,detect:i,args:ah,supportsSsh:!0}:void 0}}}var ah=(e,t)=>t?[`${e}:${t.line}:${t.column}`]:[e];var Og=ih({id:`vscode`,label:`VS Code`,icon:`apps/vscode.png`,darwinDetect:()=>`open`,win32Detect:()=>`Code.exe`});var jh=ih({id:`cursor`,label:`Cursor`,icon:`apps/cursor.png`,darwinDetect:()=>`open`,win32Detect:()=>`Cursor.exe`});function sg({id:e,label:t,icon:n,toolboxTarget:r,macExecutable:i,windowsPathCommands:a,windowsInstallDirPrefixes:o,windowsInstallExecutables:s}){return{id:e,platforms:{darwin:{label:t,icon:n,kind:`editor`,detect:()=>`open`,args:mg},win32:a&&o&&s?{label:t,icon:n,kind:`editor`,detect:()=>`idea.exe`,args:mg}:void 0}}}function mg(e,t){return t?[`--line`,t.line.toString(),`--column`,t.column.toString(),e]:[e]}var $h=sg({id:`intellij`,label:`IntelliJ IDEA`,icon:`apps/intellij.png`,toolboxTarget:`intellij`,macExecutable:`idea`,windowsPathCommands:[`idea`],windowsInstallDirPrefixes:[`idea`],windowsInstallExecutables:[`idea`]});var Wg={id:`zed`,platforms:{darwin:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Gg,args:hg},win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg}}};function Gg(){}function Kg(){}function hg(e,t){return t?[`${e}:${t.line}:${t.column}`]:[e]}var Xg=[Og,jh,Wg,$h];";
+  "function ih({id:e,label:t,icon:n,darwinDetect:r,win32Detect:i,linuxDetect:a,darwinEnv:o,darwinArgs:s,hidden:l}){return{id:e,platforms:{darwin:r?{label:t,icon:n,kind:`editor`,hidden:l,detect:r,env:o,args:s??ah,supportsSsh:!0}:void 0,win32:i?{label:t,icon:n,kind:`editor`,hidden:l,detect:i,args:ah,supportsSsh:!0}:void 0,linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:ah,supportsSsh:!0}:void 0}}}var ah=(e,t)=>t?[`${e}:${t.line}:${t.column}`]:[e];var Og=ih({id:`vscode`,label:`VS Code`,icon:`apps/vscode.png`,darwinDetect:()=>`open`,win32Detect:()=>`Code.exe`,linuxDetect:()=>chatgptLinuxFindExecutable(`code`)});var jh=ih({id:`cursor`,label:`Cursor`,icon:`apps/cursor.png`,darwinDetect:()=>`open`,win32Detect:()=>`Cursor.exe`,linuxDetect:()=>chatgptLinuxFindExecutable(`cursor`)});function sg({id:e,label:t,icon:n,toolboxTarget:r,macExecutable:i,windowsPathCommands:a,windowsInstallDirPrefixes:o,windowsInstallExecutables:s}){return{id:e,platforms:{darwin:{label:t,icon:n,kind:`editor`,detect:()=>`open`,args:mg},win32:a&&o&&s?{label:t,icon:n,kind:`editor`,detect:()=>`idea.exe`,args:mg}:void 0}}}function mg(e,t){return t?[`--line`,t.line.toString(),`--column`,t.column.toString(),e]:[e]}var $h=sg({id:`intellij`,label:`IntelliJ IDEA`,icon:`apps/intellij.png`,toolboxTarget:`intellij`,macExecutable:`idea`,windowsPathCommands:[`idea`],windowsInstallDirPrefixes:[`idea`],windowsInstallExecutables:[`idea`]});var Wg={id:`zed`,platforms:{darwin:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Gg,args:hg},win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg},linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:hg}}};function Gg(){}function Kg(){}function hg(e,t){return t?[`${e}:${t.line}:${t.column}`]:[e]}var Xg=[Og,jh,Wg,$h];";
 const openTargetsBundle = `${mainBundlePrefix}${fileManagerBundle}${terminalOpenTargetBundle}${ideOpenTargetsBundle}`;
 const collidingPathAliasBundle =
   "let n=require(`electron`),o=require(`node:path`),c=require(`node:fs`),u=require(`node:child_process`);" +
   fileManagerBundle +
   terminalOpenTargetBundle +
   ideOpenTargetsBundle;
-const iconResolverBundle =
-  "async function c_(e,t,a){return e===`win32`?Promise.all(t.map(async e=>{let t=a?.get(e.id)??null,r=e.iconPath?e.iconPath(t):t;return{id:e.id,label:e.label,icon:await d_(r,e.icon),kind:e.kind,hidden:e.hidden,supportsSsh:e.supportsSsh}})):l_(t)}function l_(e){return e.map(({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a})=>({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a}))}async function d_(e,t){if(!e)return t;try{let r=e.toLowerCase().endsWith(`.lnk`)?await f_(e):await n.app.getFileIcon(e,{size:`normal`});return!r||r.isEmpty()?t:r.toDataURL()}catch(e){return t}}async function f_(e){return n.nativeImage.createFromPath(e)}";
+const currentIconResolverBundle =
+  "async function VN(e,t,n){return e===`win32`?Promise.all(t.map(async e=>{let t=n?.get(e.id)??null,r=e.iconPath?e.iconPath(t):t;return{id:e.id,label:e.label,icon:await WN(r,e.icon),kind:e.kind,hidden:e.hidden,supportsSsh:e.supportsSsh}})):HN(t)}function HN(e){return e.map(({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a})=>({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a}))}async function WN(e,t){if(!e)return t;try{let r=e.toLowerCase().endsWith(`.lnk`)?await UN(e):await n.app.getFileIcon(e,{size:`normal`});return!r||r.isEmpty()?t:r.toDataURL()}catch(e){return t}}async function UN(e){return n.nativeImage.createFromPath(e)}";
+const currentAppRegistryFunction =
+  "function QN(e){let t=e.getEffective(`customFileHandlers`);if(t==null)return PN;let r=BN.get(t);if(r!=null)return r;let i=t,a=i.length===0?PN:[...PN,...i];return BN.set(t,a),a}";
+const currentAppOpenTargetPrelude =
+  `var PN=[],FN=async e=>\`shortcut:\${e}\`,BN=new WeakMap;function RN(e){return e.map(({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a})=>({id:e,label:t,icon:n,kind:r,hidden:i,supportsSsh:a}))}function HN(e){return RN(QN(e))}function UN(e,t){let n=QN(e).find(e=>e.id===t);return n?.configuredCommand==null||n.configuredIcon==null?{target:t}:{target:t,customTarget:{command:n.configuredCommand,icon:n.configuredIcon}}}${currentAppRegistryFunction}async function LN(e,t,{detectedCommand:r,targets:c=PN}={}){let l=c.find(t=>t.id===e);if(!l)throw Error(\`Unknown open target "\${e}"\`);let u=r??await l.detect(FN);if(!u)throw Error(\`Open target "\${e}" is not available\`);return u}var WRONG={};async function unrelated(e){return await e.detect(WRONG)}function zN(){return{error(){},warning(){}}}`;
+const currentAppOpenInCommandBundle =
+  `${currentAppOpenTargetPrelude}class App{constructor(e,t){this.settingsStore=e;this.requestOpenInWorker=t}async openTarget(e){return this.#t(e)}async#t(e){let{command:t}=await this.#n()({method:\`get-target-command\`,params:UN(this.settingsStore,e)});if(t==null)throw Error(\`Open target "\${e}" is not available\`);return t}#n(){if(this.requestOpenInWorker==null)throw Error(\`Open in worker unavailable\`);return this.requestOpenInWorker}}`;
+const currentAppOpenInAvailabilityBundle =
+  `${currentAppOpenTargetPrelude}async function WN(e,t){let n=await Promise.all(HN(e).map(async n=>{let r=UN(e,n.id),[i,a]=await Promise.all([t({method:\`get-target-command\`,params:r}).then(e=>e.command).catch(e=>(zN().error(\`Failed to detect open target\`,{safe:{},sensitive:{id:n.id,error:e}}),null)),process.platform===\`win32\`?t({method:\`load-target-icon\`,params:r}).then(e=>e.icon).catch(e=>(zN().warning(\`Failed to resolve open target icon\`,{safe:{},sensitive:{id:n.id,error:e}}),n.icon)):n.icon]);return{command:i,metadata:{...n,icon:a}}}));return{allAvailableTargets:n.flatMap(({command:e,metadata:t})=>e==null?[]:[t.id]),targetMetadata:n.map(({metadata:e})=>e)}}`;
+const currentAppOpenInBridgeBundle =
+  `${currentAppOpenTargetPrelude}class App{constructor(e,t){this.settingsStore=e;this.requestOpenInWorker=t}#n(){return this.requestOpenInWorker}async detectTarget({target:e}){let{command:t}=await this.#n()({method:\`get-target-command\`,params:UN(this.settingsStore,e)});return{available:t!=null}}}`;
+const currentAppOpenInTargetsBundle =
+  '"open-in-targets":async({cwd:e,deferEnrichment:t=!1,hostId:r,nativeBrowserDiscovery:i=`scan`,path:a})=>{let o=this.getRequestAppServerClient(r??void 0),s=this.getSettingsStore();if(t&&a==null){let t=XN(s,e);return{preferredTarget:t,availableTargets:[],mode:`editor`,targets:uj(HN(s),o.hostConfig)}}let{allAvailableTargets:c,targetMetadata:l}=await WN(s,this.getOpenInWorker()),u=a?.replace(/^([ab])[\\\\/]/,``)??null,d=u!=null&&xF(u)&&!n.eo(o.hostConfig),f=u==null||d||n.eo(o.hostConfig)?null:this.resolveOpenFilePath(u,e),p=lj(o.hostConfig,c,l),m=new Set(p),h=YN(s,e,m),g=d||f!=null&&n.ys(f),_=f!=null&&KA(f),v=f!=null&&JA(f),y=g?await yF(i):_?await vF({filePath:f}):[];return{preferredTarget:h,availableTargets:Array.from(m),mode:g||v?`native`:`editor`,targets:l}}';
+const currentAppOpenTargetSelectionBundle =
+  "function lQ({targets:e,availableTargets:t,includeHiddenTargets:n=!1,mode:r=`editor`}){let i=e.filter(e=>e.appPath!=null);if(i.length>0)return i;if(r===`native`)return e.filter(e=>e.target===`systemDefault`||e.target===`fileManager`);let a=new Set(t);return e.filter(e=>a.has(e.target)&&(n||!e.hidden))}function uQ({preferredTarget:e,targets:t,availableTargets:n,includeHiddenTargets:r=!0,mode:i=`editor`}){let a=lQ({targets:t,availableTargets:n,includeHiddenTargets:r,mode:i});return a.length===0?null:e?a.find(t=>t.target===e)??a[0]??null:a[0]??null}function jnr(e){return e.appPath==null&&e.kind===`editor`}";
 
 function applyPatchTwice(patchFn, source, ...args) {
   const patched = patchFn(source, ...args);
@@ -66,6 +84,38 @@ function captureWarns(fn) {
   } finally {
     console.warn = originalWarn;
   }
+}
+
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+}
+
+function currentAppSettingsStore(targets) {
+  return {
+    getEffective(key) {
+      assert.equal(key, "customFileHandlers");
+      return targets;
+    },
+  };
 }
 
 function makeExecutable(dir, name) {
@@ -142,48 +192,58 @@ function evaluatePatched(source, env, expression, spawnRecorder, openPathCalls) 
 }
 
 function downgradeOpenTargetGuard(source) {
-  const fsVar = "codexLinuxNodeFs()";
-  const pathVar = "codexLinuxNodePath()";
+  const fsVar = "chatgptLinuxNodeFs()";
+  const pathVar = "chatgptLinuxNodePath()";
   const guard =
-    "function codexLinuxOpenTargetPath(e){if(typeof e!==`string`||e.trim().length===0||e.startsWith(`-`)||/[\\x00-\\x1F\\x7F]/u.test(e)||/^[A-Za-z][A-Za-z0-9+.-]*:/u.test(e))throw Error(`Unsafe Linux open target`);return e}";
+    "function chatgptLinuxOpenTargetPath(e){if(typeof e!==`string`||e.trim().length===0||e.startsWith(`-`)||/[\\x00-\\x1F\\x7F]/u.test(e)||/^[A-Za-z][A-Za-z0-9+.-]*:/u.test(e))throw Error(`Unsafe Linux open target`);return e}";
   const guardedResolve =
-    `function codexLinuxResolveExistingTarget(e){e=codexLinuxOpenTargetPath(e);let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
+    `function chatgptLinuxResolveExistingTarget(e){e=chatgptLinuxOpenTargetPath(e);let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
   const legacyResolve =
-    `function codexLinuxResolveExistingTarget(e){if(typeof e!==\`string\`||e.length===0)return null;let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
+    `function chatgptLinuxResolveExistingTarget(e){if(typeof e!==\`string\`||e.length===0)return null;let t=e;for(;;){try{if((0,${fsVar}.existsSync)(t))return t}catch{}let n=(0,${pathVar}.dirname)(t);if(n===t)return null;t=n}}`;
   const guardedTerminalCwd =
-    `function codexLinuxTerminalCwd(e){let t=codexLinuxResolveExistingTarget(e)??codexLinuxOpenTargetPath(e);try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
+    `function chatgptLinuxTerminalCwd(e){let t=chatgptLinuxResolveExistingTarget(e)??chatgptLinuxOpenTargetPath(e);try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
   const legacyTerminalCwd =
-    `function codexLinuxTerminalCwd(e){let t=codexLinuxResolveExistingTarget(e)??e;if(typeof t!==\`string\`||t.length===0)return process.env.HOME||\`/\`;try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
+    `function chatgptLinuxTerminalCwd(e){let t=chatgptLinuxResolveExistingTarget(e)??e;if(typeof t!==\`string\`||t.length===0)return process.env.HOME||\`/\`;try{if((0,${fsVar}.existsSync)(t)){let e=(0,${fsVar}.statSync)(t);if(e.isDirectory())return t;if(e.isFile())return(0,${pathVar}.dirname)(t)}}catch{}return(0,${pathVar}.dirname)(t)}`;
   const guardedDesktopArgs =
-    `function codexLinuxDesktopArgs(e,t){t=codexLinuxOpenTargetPath(t);let n=[],r=codexLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
+    `function chatgptLinuxDesktopArgs(e,t){t=chatgptLinuxOpenTargetPath(t);let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/%[fFuUdDnN]/u.test(a))throw Error(\`Unsafe embedded desktop-entry field code\`);if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const legacyDesktopArgs =
-    `function codexLinuxDesktopArgs(e,t){let n=[],r=codexLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
+    `function chatgptLinuxDesktopArgs(e,t){let n=[],r=chatgptLinuxPathToFileUri(t);for(let a of e){if(a===\`%%\`){n.push(\`%\`);continue}if(/^%[fF]$/u.test(a)){n.push(t);continue}if(/^%[uU]$/u.test(a)){n.push(r);continue}if(/^%[dD]$/u.test(a)){n.push((0,${pathVar}.dirname)(t));continue}if(/^%[nN]$/u.test(a)){n.push((0,${pathVar}.basename)(t));continue}if(/^%[ickvm]$/u.test(a))continue;let o=a.replace(/%[fF]/gu,t).replace(/%[uU]/gu,r).replace(/%[dD]/gu,(0,${pathVar}.dirname)(t)).replace(/%[nN]/gu,(0,${pathVar}.basename)(t)).replace(/%%/gu,\`%\`).replace(/%[A-Za-z]/gu,\`\`);o&&n.push(o)}return n}`;
   const guardedLaunchDesktopEntry =
-    "async function codexLinuxLaunchDesktopEntry(e,t,n,r){t=codexLinuxOpenTargetPath(t);let i=codexLinuxFindExecutable(`gio`),a=codexLinuxDesktopLaunchOptions();if(i)try{await codexLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=codexLinuxFindExecutable(`gtk-launch`);if(o)try{await codexLinuxLaunchDetached(o,[codexLinuxDesktopEntryLaunchId(e),codexLinuxPathToFileUri(t)],a);return}catch{}await codexLinuxLaunchDetached(n,codexLinuxDesktopArgs(r,t),a)}";
+    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){t=chatgptLinuxOpenTargetPath(t);let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}let s=chatgptLinuxDesktopArgs(r,t),l=(0,chatgptLinuxNodePath().basename)(n),c=new Set([`sh`,`bash`,`dash`,`zsh`,`fish`]);if(c.has(l)&&s.some(e=>e===`-c`||e===`-C`||e===`--command`||/^-[^-]*c/u.test(e)))throw Error(`Unsafe shell-based desktop entry fallback`);await chatgptLinuxLaunchDetached(n,s,a)}";
   const legacyLaunchDesktopEntry =
-    "async function codexLinuxLaunchDesktopEntry(e,t,n,r){let i=codexLinuxFindExecutable(`gio`),a=codexLinuxDesktopLaunchOptions();if(i)try{await codexLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=codexLinuxFindExecutable(`gtk-launch`);if(o)try{await codexLinuxLaunchDetached(o,[codexLinuxDesktopEntryLaunchId(e),codexLinuxPathToFileUri(t)],a);return}catch{}await codexLinuxLaunchDetached(n,codexLinuxDesktopArgs(r,t),a)}";
+    "async function chatgptLinuxLaunchDesktopEntry(e,t,n,r){let i=chatgptLinuxFindExecutable(`gio`),a=chatgptLinuxDesktopLaunchOptions();if(i)try{await chatgptLinuxLaunchDetached(i,[`launch`,e,t],a);return}catch{}let o=chatgptLinuxFindExecutable(`gtk-launch`);if(o)try{await chatgptLinuxLaunchDetached(o,[chatgptLinuxDesktopEntryLaunchId(e),chatgptLinuxPathToFileUri(t)],a);return}catch{}await chatgptLinuxLaunchDetached(n,chatgptLinuxDesktopArgs(r,t),a)}";
   const guardedIdePlatform =
-    "function codexLinuxIdePlatform(e,t,n,r,i){let a=codexLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:(...e)=>i(codexLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0}";
+    "function chatgptLinuxIdePlatform(e,t,n,r,i){let a=chatgptLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:(...e)=>i(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0}";
   const legacyIdePlatform =
-    "function codexLinuxIdePlatform(e,t,n,r,i){let a=codexLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:i,supportsSsh:!0}:void 0}";
+    "function chatgptLinuxIdePlatform(e,t,n,r,i){let a=chatgptLinuxIdeCommand(e);return a?{label:t,icon:n,kind:`editor`,hidden:r,detect:()=>a,args:i,supportsSsh:!0}:void 0}";
   const guardedJetBrainsIdePlatform =
-    "function codexLinuxJetBrainsIdePlatform(e,t,n,r){let i=codexLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:(...e)=>r(codexLinuxOpenTargetPath(e[0]),...e.slice(1))}:void 0}";
+    "function chatgptLinuxJetBrainsIdePlatform(e,t,n,r){let i=chatgptLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:(...e)=>r(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}:void 0}";
   const legacyJetBrainsIdePlatform =
-    "function codexLinuxJetBrainsIdePlatform(e,t,n,r){let i=codexLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:r}:void 0}";
+    "function chatgptLinuxJetBrainsIdePlatform(e,t,n,r){let i=chatgptLinuxIdeCommand(e);return i?{label:t,icon:n,kind:`editor`,detect:()=>i,args:r}:void 0}";
   const guardedZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxIdeCommand(`zed`),args:(...e)=>hg(codexLinuxOpenTargetPath(e[0]),...e.slice(1))}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxIdeCommand(`zed`),args:(...e)=>hg(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}";
   const legacyZed =
-    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>codexLinuxIdeCommand(`zed`),args:hg}";
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxIdeCommand(`zed`),args:hg}";
+  const guardedCurrentFactory =
+    "linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:(...e)=>ah(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1)),supportsSsh:!0}:void 0";
+  const legacyCurrentFactory =
+    "linux:a?{label:t,icon:n,kind:`editor`,hidden:l,detect:a,args:ah,supportsSsh:!0}:void 0";
+  const guardedCurrentZed =
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:(...e)=>hg(chatgptLinuxOpenTargetPath(e[0]),...e.slice(1))}";
+  const legacyCurrentZed =
+    "linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:()=>chatgptLinuxFindExecutable(`zed`),args:hg}";
 
   const downgraded = source
     .replace(guard, "")
     .replace(guardedResolve, legacyResolve)
-    .replace("args:e=>[codexLinuxOpenTargetPath(e)],open:async({path:e})=>{e=codexLinuxOpenTargetPath(e);await", "args:e=>[e],open:async({path:e})=>{await")
+    .replace("args:e=>[chatgptLinuxOpenTargetPath(e)],open:async({path:e})=>{e=chatgptLinuxOpenTargetPath(e);await", "args:e=>[e],open:async({path:e})=>{await")
     .replace(guardedTerminalCwd, legacyTerminalCwd)
     .replace(guardedDesktopArgs, legacyDesktopArgs)
     .replace(guardedLaunchDesktopEntry, legacyLaunchDesktopEntry)
     .replace(guardedIdePlatform, legacyIdePlatform)
     .replace(guardedJetBrainsIdePlatform, legacyJetBrainsIdePlatform)
+    .replace(guardedCurrentFactory, legacyCurrentFactory)
+    .replace(guardedCurrentZed, legacyCurrentZed)
     .replace(
       guardedZed,
       legacyZed,
@@ -196,7 +256,8 @@ function downgradeOpenTargetGuard(source) {
     guardedLaunchDesktopEntry,
     guardedIdePlatform,
     guardedJetBrainsIdePlatform,
-    guardedZed,
+    guardedCurrentFactory,
+    guardedCurrentZed,
   ]) {
     assert.ok(!downgraded.includes(guardedSnippet), "downgradeOpenTargetGuard left a guarded snippet");
   }
@@ -207,54 +268,89 @@ function downgradeOpenTargetGuard(source) {
     legacyLaunchDesktopEntry,
     legacyIdePlatform,
     legacyJetBrainsIdePlatform,
-    legacyZed,
+    legacyCurrentFactory,
+    legacyCurrentZed,
   ]) {
-    assert.ok(downgraded.includes(legacySnippet), "downgradeOpenTargetGuard missed a legacy snippet");
+    assert.ok(
+      downgraded.includes(legacySnippet),
+      `downgradeOpenTargetGuard missed a legacy snippet: ${legacySnippet}`,
+    );
   }
   return downgraded;
 }
 
 function withTempIntegrationConfig(config, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const root = path.resolve(__dirname, "..");
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-config-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    const configData = Array.isArray(config) ? { enabled: config } : config;
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
+    const configData = Array.isArray(config) ? { enabled: config } : { enabled: [], ...config };
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 function withPortIntegrationRootEnv(root, fn) {
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
   }
 }
 
-test("open-target discovery directly adds file manager, terminal, and IDE support", () => {
+async function withTempIntegrationConfigAsync(config, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-config-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    const configData = Array.isArray(config) ? { enabled: config } : { enabled: [], ...config };
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(configData, null, 2));
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
+test("open-target discovery upgrades file manager and terminal support and adds dynamic IDEs", () => {
   const patched = applyPatchTwice(applyMainBundlePatch, openTargetsBundle);
 
-  assert.match(patched, /codexLinuxOpenFileManager\(e\)/);
+  assert.match(patched, /chatgptLinuxOpenFileManager\(e\)/);
   assert.match(patched, /linux:\{label:`Terminal`/);
-  assert.match(patched, /linux:codexLinuxIdePlatform\(/);
-  assert.match(patched, /linux:codexLinuxJetBrainsIdePlatform\(/);
-  assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
+  assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
 });
 
 test("open-target discovery prefers xdg-terminal-exec for Terminal", () => {
@@ -331,6 +427,45 @@ test("open-target discovery finds IDEs from desktop entries", () => {
     assert.ok(fleet);
     assert.equal(fleet.command, editorCommand);
     assert.deepEqual(fleet.args(projectFile), ["--goto", projectFile]);
+  });
+});
+
+test("open-target discovery finds Linuxbrew VS Code outside GUI PATH", () => {
+  withTempDir((tmp) => {
+    const dataHome = path.join(tmp, "share");
+    const appsDir = path.join(dataHome, "applications");
+    const emptyBin = path.join(tmp, "empty-bin");
+    const linuxbrewPrefix = path.join(tmp, "linuxbrew", ".linuxbrew");
+    const code = makeExecutable(path.join(linuxbrewPrefix, "bin"), "code");
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.mkdirSync(emptyBin, { recursive: true });
+    fs.writeFileSync(
+      path.join(appsDir, "code.desktop"),
+      [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Visual Studio Code",
+        "Exec=code --reuse-window %U",
+        "Categories=Development;IDE;",
+      ].join("\n"),
+    );
+
+    const targets = evaluatePatched(
+      openTargetsBundle,
+      {
+        HOME: tmp,
+        PATH: emptyBin,
+        HOMEBREW_PREFIX: linuxbrewPrefix,
+        XDG_DATA_HOME: dataHome,
+        XDG_DATA_DIRS: path.join(tmp, "empty"),
+      },
+      "Xg.flatMap((target)=>{let platform=target.platforms.linux;return platform?[{id:target.id,label:platform.label,command:platform.detect?.()}]:[]})",
+    );
+
+    const vscode = targets.find((target) => target.id === "vscode");
+    assert.ok(vscode);
+    assert.equal(vscode.command, code);
+    assert.equal(targets.some((target) => target.id === "linux-desktop-code"), false);
   });
 });
 
@@ -446,7 +581,7 @@ const tryExecCases = [
   [false, "sh -c '! command -v cursor >/dev/null 2>&1'", ["sh", "cursor"]],
   [false, "sh -c 'which /bin/ls >/dev/null 2>&1'", ["sh"]],
   [false, "bash", []],
-  [true, "sh -c 'exec /bin/true && false'", ["sh"]],
+  [true, "sh -c 'exec true && false'", ["sh", "true"]],
   [false, "sh -c 'exec /missing/cursor || true'", ["sh"]],
   [false, "missing-wrapper bash -lc 'command -v cursor >/dev/null 2>&1'", ["bash", "cursor"]],
   [false, "fish -C 'hash cursor >/dev/null 2>&1'", ["fish", "cursor"]],
@@ -470,7 +605,7 @@ test("open-target discovery evaluates TryExec parser", () => {
     const result = evaluatePatched(
       openTargetsBundle,
       tryExecEnv(tmp, { binNames, flatpakApps, setup }),
-      "[codexLinuxDesktopTryExecAvailable(" + quoted + "),codexLinuxTerminalTryExecAvailable(" + quoted + ")]",
+      "[chatgptLinuxDesktopTryExecAvailable(" + quoted + "),chatgptLinuxTerminalTryExecAvailable(" + quoted + ")]",
     );
     assert.deepEqual(result, [expected, expected], command);
   });
@@ -482,7 +617,7 @@ test("open-target discovery tolerates path and fs aliases used by helper locals"
     const result = evaluatePatched(
       collidingPathAliasBundle,
       tryExecEnv(tmp, { binNames: ["env"] }),
-      "[codexLinuxDesktopTryExecAvailable(" + JSON.stringify(command) + "),codexLinuxTerminalTryExecAvailable(" + JSON.stringify(command) + ")]",
+      "[chatgptLinuxDesktopTryExecAvailable(" + JSON.stringify(command) + "),chatgptLinuxTerminalTryExecAvailable(" + JSON.stringify(command) + ")]",
     );
 
     assert.deepEqual(result, [false, false]);
@@ -586,7 +721,14 @@ test("open-target discovery falls back to the Exec command", async () => {
     const editorCommand = makeExecutable(path.join(tmp, "toolbox", "bin"), "workspace-agent");
     const desktopFile = path.join(appsDir, "workspace-agent.desktop");
     const projectDir = path.join(tmp, "project");
-    const spawnRecorder = createSpawnRecorder();
+    const spawnRecorder = createSpawnRecorder({
+      failCommands: [
+        "/home/linuxbrew/.linuxbrew/bin/gio",
+        "/home/linuxbrew/.linuxbrew/bin/gtk-launch",
+        "/var/home/linuxbrew/.linuxbrew/bin/gio",
+        "/var/home/linuxbrew/.linuxbrew/bin/gtk-launch",
+      ],
+    });
     fs.mkdirSync(appsDir, { recursive: true });
     fs.mkdirSync(projectDir, { recursive: true });
     fs.writeFileSync(
@@ -615,9 +757,56 @@ test("open-target discovery falls back to the Exec command", async () => {
 
     await platform.open({ command: editorCommand, path: projectDir });
 
-    assert.deepEqual(spawnRecorder.calls, [
-      { command: editorCommand, args: ["--goto", projectDir] },
-    ]);
+    assert.deepEqual(spawnRecorder.calls.at(-1), { command: editorCommand, args: ["--goto", projectDir] });
+  });
+});
+
+test("open-target discovery rejects embedded path fields and shell-command fallback", async () => {
+  await withTempDir(async (tmp) => {
+    const dataHome = path.join(tmp, "share");
+    const appsDir = path.join(dataHome, "applications");
+    const shellCommand = makeExecutable(path.join(tmp, "bin"), "sh");
+    const desktopFile = path.join(appsDir, "workspace-shell.desktop");
+    const projectDir = path.join(tmp, "project;touch-not-data");
+    const spawnRecorder = createSpawnRecorder();
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(
+      desktopFile,
+      [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Workspace Shell IDE",
+        `Exec=${shellCommand} -c \"open-editor\" %f`,
+        "Categories=Development;IDE;",
+      ].join("\n"),
+    );
+
+    const helpers = evaluatePatched(
+      openTargetsBundle,
+      {
+        HOME: tmp,
+        PATH: path.dirname(shellCommand),
+        XDG_DATA_HOME: dataHome,
+        XDG_DATA_DIRS: path.join(tmp, "empty"),
+      },
+      "({desktopArgs:chatgptLinuxDesktopArgs,platform:Xg.find((target)=>target.platforms.linux?.label===`Workspace Shell IDE`).platforms.linux})",
+      spawnRecorder,
+    );
+
+    for (const field of ["%f", "%u", "%d", "%n"]) {
+      assert.throws(
+        () => helpers.desktopArgs([`prefix-${field}`], projectDir),
+        /Unsafe embedded desktop-entry field code/u,
+      );
+    }
+    assert.deepEqual(helpers.desktopArgs(["--goto", "%f"], projectDir), ["--goto", projectDir]);
+
+    await assert.rejects(
+      helpers.platform.open({ command: shellCommand, path: projectDir }),
+      /Unsafe shell-based desktop entry fallback/u,
+    );
+    assert.deepEqual(spawnRecorder.calls, []);
   });
 });
 
@@ -652,9 +841,11 @@ test("open-target discovery sanitizes desktop launch environment", async () => {
         PATH: `${binDir}:${path.dirname(editorCommand)}`,
         XDG_DATA_HOME: dataHome,
         XDG_DATA_DIRS: path.join(tmp, "empty"),
+        LD_LIBRARY_PATH: "/codex/electron/lib",
+        LD_PRELOAD: "/codex/electron/lib/libhook.so",
         CHROME_DESKTOP: "codex-open-target-launchers.desktop",
         ELECTRON_RENDERER_URL: "http://127.0.0.1:5203/",
-        CODEX_ELECTRON_USER_DATA_DIR: path.join(
+        CHATGPT_ELECTRON_USER_DATA_DIR: path.join(
           tmp,
           ".local",
           "state",
@@ -671,10 +862,12 @@ test("open-target discovery sanitizes desktop launch environment", async () => {
 
     assert.equal(spawnRecorder.calls[0].command, gio);
     assert.equal(spawnRecorder.calls[0].options.cwd, tmp);
+    assert.equal(spawnRecorder.calls[0].options.env.LD_LIBRARY_PATH, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.LD_PRELOAD, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.CHROME_DESKTOP, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.ELECTRON_RENDERER_URL, undefined);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_ELECTRON_USER_DATA_DIR, undefined);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_LINUX_APP_ID, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_ELECTRON_USER_DATA_DIR, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_LINUX_APP_ID, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.XDG_CONFIG_HOME, undefined);
   });
 });
@@ -779,7 +972,7 @@ test("open-target discovery upgrades previously patched target paths", async () 
     );
 
     const legacySource = downgradeOpenTargetGuard(applyMainBundlePatch(openTargetsBundle));
-    assert.doesNotMatch(legacySource, /codexLinuxOpenTargetPath/);
+    assert.doesNotMatch(legacySource, /chatgptLinuxOpenTargetPath/);
 
     const targets = evaluatePatched(
       legacySource,
@@ -914,7 +1107,7 @@ test("open-target discovery preserves user-scoped XDG_CONFIG_HOME", async () => 
         XDG_CONFIG_HOME: userConfigHome,
         XDG_DATA_HOME: dataHome,
         XDG_DATA_DIRS: path.join(tmp, "empty"),
-        CODEX_ELECTRON_USER_DATA_DIR: path.join(tmp, "codex-user-data"),
+        CHATGPT_ELECTRON_USER_DATA_DIR: path.join(tmp, "codex-user-data"),
       },
       "Xg.find((target)=>target.platforms.linux?.label===`Workspace Agent`).platforms.linux",
       spawnRecorder,
@@ -923,7 +1116,7 @@ test("open-target discovery preserves user-scoped XDG_CONFIG_HOME", async () => 
     await platform.open({ command: editorCommand, path: projectDir });
 
     assert.equal(spawnRecorder.calls[0].command, gio);
-    assert.equal(spawnRecorder.calls[0].options.env.CODEX_ELECTRON_USER_DATA_DIR, undefined);
+    assert.equal(spawnRecorder.calls[0].options.env.CHATGPT_ELECTRON_USER_DATA_DIR, undefined);
     assert.equal(spawnRecorder.calls[0].options.env.XDG_CONFIG_HOME, userConfigHome);
   });
 });
@@ -963,27 +1156,65 @@ test("open-target discovery uses desktop entry icons when available", () => {
   });
 });
 
-test("open-target discovery resolves iconPath on Linux", async () => {
-  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${iconResolverBundle}`);
-  const iconPath = "/tmp/codex-icon.png";
-  const image = {
-    isEmpty: () => false,
-    toDataURL: () => "data:image/png;base64,codex",
-  };
+test("open-target discovery follows symlinked desktop entry icons", () => {
+  withTempDir((tmp) => {
+    const dataHome = path.join(tmp, "share");
+    const appsDir = path.join(dataHome, "applications");
+    const iconDir = path.join(dataHome, "icons", "hicolor", "128x128", "apps");
+    const targetIconPath = path.join(tmp, "flatpak-app", "export", "icons", "hicolor", "128x128", "apps", "com.example.Agent.png");
+    const symlinkIconPath = path.join(iconDir, "com.example.Agent.png");
+    const editorCommand = makeExecutable(path.join(tmp, "flatpak", "exports", "bin"), "com.example.Agent");
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.mkdirSync(iconDir, { recursive: true });
+    fs.mkdirSync(path.dirname(targetIconPath), { recursive: true });
+    fs.writeFileSync(targetIconPath, "png");
+    fs.symlinkSync(targetIconPath, symlinkIconPath);
+    fs.writeFileSync(
+      path.join(appsDir, "com.example.Agent.desktop"),
+      [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=Flatpak Agent",
+        `Exec=${editorCommand} %U`,
+        "Icon=com.example.Agent",
+        "Categories=Development;",
+      ].join("\n"),
+    );
+
+    const targets = evaluatePatched(
+      openTargetsBundle,
+      { HOME: tmp, PATH: path.join(tmp, "bin"), XDG_DATA_HOME: dataHome, XDG_DATA_DIRS: path.join(tmp, "empty") },
+      "Xg.flatMap((target)=>{let platform=target.platforms.linux;return platform?[{label:platform.label,iconPath:platform.iconPath?.()}]:[]})",
+    );
+    const agent = targets.find((target) => target.label === "Flatpak Agent");
+
+    assert.ok(agent);
+    assert.equal(agent.iconPath, symlinkIconPath);
+  });
+});
+
+test("open-target discovery resolves iconPath on current upstream bundle shape", async () => {
+  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+  const iconPath = path.join(os.tmpdir(), "codex-current-open-target-icon.svg");
+  fs.writeFileSync(iconPath, "<svg/>");
+  let nativeImageUsed = false;
   const electron = {
     app: {
       getFileIcon: async () => {
-        throw new Error("should prefer nativeImage for image files");
+        throw new Error("should not need getFileIcon for image files");
       },
     },
     nativeImage: {
       createFromPath: (target) => {
+        nativeImageUsed = true;
         assert.equal(target, iconPath);
-        return image;
+        return {
+          isEmpty: () => false,
+          toDataURL: () => "data:image/png;base64,converted-svg",
+        };
       },
     },
   };
-
   const targets = [
     {
       id: "linux-desktop-agent",
@@ -993,13 +1224,512 @@ test("open-target discovery resolves iconPath on Linux", async () => {
       iconPath: () => iconPath,
     },
   ];
-  const result = await new Function("require", "process", `${patched};return c_('linux', arguments[2], new Map());`)(
+
+  assert.match(patched, /return\(e===`win32`\|\|e===`linux`\)\?Promise\.all/);
+  assert.match(patched, /function chatgptLinuxOpenTargetIconImage/);
+  const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], new Map());`)(
     (name) => (name === "electron" ? electron : require(name)),
     { platform: "linux", env: {} },
     targets,
   );
 
-  assert.equal(result[0].icon, "data:image/png;base64,codex");
+  assert.equal(nativeImageUsed, true);
+  assert.equal(result[0].icon, "data:image/png;base64,converted-svg");
+  fs.rmSync(iconPath, { force: true });
+});
+
+test("open-target discovery rasterizes undecodable SVG iconPath", async () => {
+  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+  const iconPath = path.join(os.tmpdir(), "codex-current-open-target-empty-svg.svg");
+  const svg = "<svg><rect width=\"16\" height=\"16\" /></svg>";
+  fs.writeFileSync(iconPath, svg);
+  const electron = {
+    app: {
+      getFileIcon: async () => {
+        throw new Error("should not fall back to file type icons for SVG iconPath");
+      },
+    },
+    nativeImage: {
+      createFromPath: (target) => {
+        assert.equal(target, iconPath);
+        return { isEmpty: () => true };
+      },
+    },
+    BrowserWindow: class {
+      webContents = {
+        capturePage: async () => ({
+          isEmpty: () => false,
+          toDataURL: () => "data:image/png;base64,rasterized-svg",
+          getSize: () => ({ width: 64, height: 64 }),
+        }),
+      };
+      async loadURL(url) {
+        assert.match(url, /^data:text\/html;charset=utf-8,/);
+      }
+      destroy() {}
+    },
+  };
+  const targets = [
+    {
+      id: "linux-desktop-agent",
+      label: "Agent",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      iconPath: () => iconPath,
+    },
+  ];
+
+  const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], new Map());`)(
+    (name) => (name === "electron" ? electron : require(name)),
+    { platform: "linux", env: {} },
+    targets,
+  );
+
+  assert.equal(result[0].icon, "data:image/png;base64,rasterized-svg");
+  fs.rmSync(iconPath, { force: true });
+});
+
+test("open-target discovery keeps built-in icons for Linux targets without iconPath", async () => {
+  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+  const commandPath = path.join(os.tmpdir(), "codex-current-open-target-command");
+  fs.writeFileSync(commandPath, "binary");
+  const electron = {
+    app: {
+      getFileIcon: async () => {
+        throw new Error("should not inspect command paths for Linux targets without iconPath");
+      },
+    },
+    nativeImage: {
+      createFromPath: () => {
+        throw new Error("should not inspect command paths for Linux targets without iconPath");
+      },
+    },
+  };
+  const targets = [
+    {
+      id: "webstorm",
+      label: "WebStorm",
+      icon: "apps/webstorm.svg",
+      kind: "editor",
+    },
+  ];
+
+  const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], arguments[3]);`)(
+    (name) => (name === "electron" ? electron : require(name)),
+    { platform: "linux", env: {} },
+    targets,
+    new Map([["webstorm", commandPath]]),
+  );
+
+  assert.equal(result[0].icon, "apps/webstorm.svg");
+  fs.rmSync(commandPath, { force: true });
+});
+
+test("open-target discovery preserves bundled SVG fallback icons in Linux open menus", async () => {
+  withTempDir(async (tmp) => {
+    const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+    const electron = {
+      app: {
+        getFileIcon: async () => {
+          throw new Error("should not inspect command paths for Linux targets without iconPath");
+        },
+      },
+      nativeImage: {
+        createFromPath: () => {
+          throw new Error("should not convert bundled fallback icons");
+        },
+      },
+    };
+    const targets = [
+      {
+        id: "webstorm",
+        label: "WebStorm",
+        icon: "apps/webstorm.svg",
+        kind: "editor",
+      },
+    ];
+
+    const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], new Map());`)(
+      (name) => (name === "electron" ? electron : require(name)),
+      { platform: "linux", env: {} },
+      targets,
+    );
+
+    assert.equal(result[0].icon, "apps/webstorm.svg");
+  });
+});
+
+test("open-target discovery rasterizes bundled SVG fallback icons when available", async () => {
+  withTempDir(async (tmp) => {
+    const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+    const resourcesPath = path.join(tmp, "resources");
+    const bundledIconPath = path.join(resourcesPath, "app.asar", "webview", "apps", "webstorm.svg");
+    fs.mkdirSync(path.dirname(bundledIconPath), { recursive: true });
+    fs.writeFileSync(bundledIconPath, "<svg><rect width=\"16\" height=\"16\" /></svg>");
+    const electron = {
+      app: {
+        getFileIcon: async () => {
+          throw new Error("should not inspect command paths for bundled fallback icons");
+        },
+      },
+      nativeImage: {
+        createFromPath: (target) => {
+          assert.equal(target, bundledIconPath);
+          return { isEmpty: () => true };
+        },
+      },
+      BrowserWindow: class {
+        webContents = {
+          capturePage: async () => ({
+            isEmpty: () => false,
+            toDataURL: () => "data:image/png;base64,bundled-webstorm",
+            getSize: () => ({ width: 64, height: 64 }),
+          }),
+        };
+        async loadURL(url) {
+          assert.match(url, /^data:text\/html;charset=utf-8,/);
+        }
+        destroy() {}
+      },
+    };
+    const targets = [
+      {
+        id: "webstorm",
+        label: "WebStorm",
+        icon: "apps/webstorm.svg",
+        kind: "editor",
+      },
+    ];
+
+    const result = await new Function("require", "process", `${patched};return VN('linux', arguments[2], new Map());`)(
+      (name) => (name === "electron" ? electron : require(name)),
+      { platform: "linux", env: {}, resourcesPath },
+      targets,
+    );
+
+    assert.equal(result[0].icon, "data:image/png;base64,bundled-webstorm");
+  });
+});
+
+test("open-target discovery resolves iconPath in Linux target summaries", async () => {
+  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+  const iconPath = path.join(os.tmpdir(), "codex-current-open-target-summary-icon.png");
+  fs.writeFileSync(iconPath, "summary");
+  const electron = {
+    app: {
+      getFileIcon: async () => {
+        throw new Error("should prefer direct data URL for Linux summaries");
+      },
+    },
+    nativeImage: {
+      createFromPath: () => {
+        throw new Error("should not need nativeImage for PNG summaries");
+      },
+    },
+  };
+  const targets = [
+    {
+      id: "linux-desktop-agent",
+      label: "Agent",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      iconPath: () => iconPath,
+    },
+  ];
+
+  assert.match(patched, /function chatgptLinuxOpenTargetSummaryIcon/);
+  const result = new Function("require", "process", `${patched};return HN(arguments[2]);`)(
+    (name) => (name === "electron" ? electron : require(name)),
+    { platform: "linux", env: {} },
+    targets,
+  );
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal(result[0].icon, `data:image/png;base64,${Buffer.from("summary").toString("base64")}`);
+  fs.rmSync(iconPath, { force: true });
+});
+
+test("open-target discovery resolves SVG iconPath in Linux target summaries", async () => {
+  const patched = applyPatchTwice(applyMainBundlePatch, `${mainBundlePrefix}${currentIconResolverBundle}`);
+  const iconPath = path.join(os.tmpdir(), "codex-current-open-target-summary-icon.svg");
+  const svg = "<svg><rect width=\"16\" height=\"16\" /></svg>";
+  fs.writeFileSync(iconPath, svg);
+  const electron = {
+    app: {
+      getFileIcon: async () => {
+        throw new Error("should prefer direct SVG data URL for Linux summaries");
+      },
+    },
+    nativeImage: {
+      createFromPath: () => {
+        throw new Error("summary mapping should stay synchronous");
+      },
+    },
+  };
+  const targets = [
+    {
+      id: "linux-desktop-agent",
+      label: "Agent",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      iconPath: () => iconPath,
+    },
+  ];
+
+  const result = new Function("require", "process", `${patched};return HN(arguments[2]);`)(
+    (name) => (name === "electron" ? electron : require(name)),
+    { platform: "linux", env: {} },
+    targets,
+  );
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal(result[0].icon, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  fs.rmSync(iconPath, { force: true });
+});
+
+test("open-target discovery patches current app command lookup through its registry", async () => {
+  let workerCalls = 0;
+  const settingsStore = currentAppSettingsStore([
+    {
+      id: "linux-desktop-agent",
+      detect: async (readShortcutLink) =>
+        typeof readShortcutLink === "function" && await readShortcutLink("entry") === "shortcut:entry"
+          ? "main-command"
+          : null,
+    },
+    { id: "broken", detect: async () => { throw new Error("probe failed"); } },
+  ]);
+  const patched = applyPatchTwice(applyOpenInTargetCommandPatch, currentAppOpenInCommandBundle);
+  const app = new Function("process", `${patched};return new App(arguments[1],arguments[2]);`)(
+    { platform: "linux" },
+    settingsStore,
+    async () => {
+      workerCalls += 1;
+      return { command: "worker-command" };
+    },
+  );
+
+  assert.equal(await app.openTarget("linux-desktop-agent"), "main-command");
+  await assert.rejects(() => app.openTarget("broken"), /not available/);
+  assert.equal(workerCalls, 0);
+  assert.match(patched, /n\.detect\(FN\)/);
+  assert.doesNotMatch(patched, /n\.detect\(WRONG\)|n\.detect\(void 0\)/);
+  assert.match(patched, /_chatgptLinuxOpenTargetCommand/);
+
+  const darwinApp = new Function("process", `${patched};return new App(arguments[1],arguments[2]);`)(
+    { platform: "darwin" },
+    settingsStore,
+    async () => {
+      workerCalls += 1;
+      return { command: "worker-command" };
+    },
+  );
+  assert.equal(await darwinApp.openTarget("linux-desktop-agent"), "worker-command");
+  assert.equal(workerCalls, 1);
+});
+
+test("open-target discovery rejects current command lookup drift before changing the main bundle", () => {
+  const source =
+    mainBundlePrefix +
+    fileManagerBundle +
+    terminalOpenTargetBundle +
+    ideOpenTargetsBundle +
+    currentAppOpenInCommandBundle.replace(
+      "params:UN(this.settingsStore,e)",
+      "params:UN(this.otherStore,e)",
+    );
+  const { value, warnings } = captureWarns(() => applyMainBundlePatch(source));
+
+  assert.equal(value, source);
+  assert.ok(warnings.some((warning) => warning.includes("open target command lookup")));
+});
+
+test("open-target discovery rejects a partial current command marker byte-identically", () => {
+  const source =
+    mainBundlePrefix +
+    fileManagerBundle +
+    terminalOpenTargetBundle +
+    ideOpenTargetsBundle +
+    currentAppOpenInCommandBundle.replace(
+      "async#t(e){",
+      "async#t(e){let _chatgptLinuxOpenTargetCommand=null;",
+    );
+  const { value, warnings } = captureWarns(() => applyMainBundlePatch(source));
+
+  assert.equal(value, source);
+  assert.ok(warnings.some((warning) => warning.includes("partially patched open target command lookup")));
+});
+
+test("open-target discovery rejects a corrupted patched command guard byte-identically", () => {
+  const original =
+    mainBundlePrefix +
+    fileManagerBundle +
+    terminalOpenTargetBundle +
+    ideOpenTargetsBundle +
+    currentAppOpenInCommandBundle;
+  const patched = applyMainBundlePatch(original);
+  const source = patched.replace(
+    "if(process.platform===`linux`){let _chatgptLinuxOpenTargetCommand=",
+    "if(process.platform===`darwin`){let _chatgptLinuxOpenTargetCommand=",
+  );
+  assert.notEqual(source, patched);
+
+  const { value, warnings } = captureWarns(() => applyMainBundlePatch(source));
+
+  assert.equal(value, source);
+  assert.ok(warnings.some((warning) => warning.includes("partially patched open target command lookup")));
+});
+
+test("open-target discovery patches current app availability through its registry", async () => {
+  let workerCalls = 0;
+  const settingsStore = currentAppSettingsStore([
+    {
+      id: "linux-desktop-agent",
+      label: "Agent",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      detect: async (readShortcutLink) =>
+        typeof readShortcutLink === "function" && await readShortcutLink("entry") === "shortcut:entry"
+          ? "/usr/bin/agent"
+          : null,
+    },
+    {
+      id: "missing",
+      label: "Missing",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      detect: async () => null,
+    },
+    {
+      id: "broken",
+      label: "Broken",
+      icon: "apps/terminal.png",
+      kind: "editor",
+      detect: async () => { throw new Error("probe failed"); },
+    },
+  ]);
+  const patched = applyPatchTwice(applyOpenInTargetsAvailabilityPatch, currentAppOpenInAvailabilityBundle);
+  const result = await new Function(
+    "process",
+    `${patched};return WN(arguments[1],arguments[2]);`,
+  )({ platform: "linux" }, settingsStore, async () => {
+    workerCalls += 1;
+    return { command: "worker-command" };
+  });
+
+  assert.deepEqual(result.allAvailableTargets, ["linux-desktop-agent"]);
+  assert.deepEqual(result.targetMetadata.map((target) => target.id), ["linux-desktop-agent", "missing", "broken"]);
+  assert.equal(workerCalls, 0);
+});
+
+test("open-target discovery patches current app bridge detection through its registry", async () => {
+  let workerCalls = 0;
+  const settingsStore = currentAppSettingsStore([
+    {
+      id: "linux-desktop-agent",
+      detect: async (readShortcutLink) =>
+        typeof readShortcutLink === "function" && await readShortcutLink("entry") === "shortcut:entry"
+          ? "main-command"
+          : null,
+    },
+    { id: "missing", detect: async () => null },
+    { id: "broken", detect: async () => { throw new Error("probe failed"); } },
+  ]);
+  const patched = applyPatchTwice(applyOpenInTargetsBridgeDetectionPatch, currentAppOpenInBridgeBundle);
+  const app = new Function("process", `${patched};return new App(arguments[1],arguments[2]);`)(
+    { platform: "linux" },
+    settingsStore,
+    async () => {
+      workerCalls += 1;
+      return { command: "worker-command" };
+    },
+  );
+
+  assert.deepEqual(await app.detectTarget({ target: "linux-desktop-agent" }), { available: true });
+  assert.deepEqual(await app.detectTarget({ target: "missing" }), { available: false });
+  assert.deepEqual(await app.detectTarget({ target: "broken" }), { available: false });
+  assert.equal(workerCalls, 0);
+  assert.match(patched, /if\(process\.platform===`linux`\)\{let t=await chatgptLinuxOpenTargetRegistryCommand/);
+});
+
+test("open-target discovery inserts shared Linux registry command helper", async () => {
+  const patched = applyPatchTwice(applyOpenInTargetRegistryCommandPatch, currentAppOpenTargetPrelude);
+  const settingsStore = currentAppSettingsStore([
+    {
+      id: "kate",
+      detect: async (readShortcutLink) => await readShortcutLink("kate") === "shortcut:kate" ? "/usr/bin/kate" : null,
+    },
+  ]);
+  const command = await new Function(
+    "process",
+    `${patched};return chatgptLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
+  )({ platform: "linux" }, settingsStore);
+
+  assert.match(patched, /async function chatgptLinuxOpenTargetRegistryCommand/);
+  assert.match(patched, /n\.detect\(FN\)/);
+  assert.equal(command, "/usr/bin/kate");
+});
+
+test("open-target discovery inserts registry helper in the registry module scope", async () => {
+  const source =
+    `function chatgptLinuxPatchExternalOpen(){async function __codexOpenExternal(){}}` +
+    currentAppOpenTargetPrelude;
+  const patched = applyPatchTwice(applyOpenInTargetRegistryCommandPatch, source);
+  const settingsStore = currentAppSettingsStore([
+    {
+      id: "kate",
+      detect: async () => "/usr/bin/kate",
+    },
+  ]);
+  const command = await new Function(
+    "process",
+    `${patched};return chatgptLinuxOpenTargetRegistryCommand(arguments[1], 'kate');`,
+  )({ platform: "linux" }, settingsStore);
+
+  assert.match(
+    patched,
+    /async function chatgptLinuxOpenTargetRegistryCommand[\s\S]*?function QN\(e\)/,
+  );
+  assert.equal(command, "/usr/bin/kate");
+});
+
+test("open-target discovery reports missing current registry once per main patch", () => {
+  const source =
+    mainBundlePrefix +
+    currentAppOpenInAvailabilityBundle.replace(currentAppRegistryFunction, "");
+  const { warnings } = captureWarns(() => applyMainBundlePatch(source));
+
+  assert.equal(warnings.filter((warning) => warning.includes("Could not find open target registry")).length, 1);
+});
+
+test("open-target discovery patches current app directory mode expression", () => {
+  const patched = applyPatchTwice(applyOpenInTargetsDirectoryModePatch, currentAppOpenInTargetsBundle);
+
+  assert.match(patched, /chatgptLinuxOpenTargetIsDirectory/);
+  assert.match(patched, /f!=null&&chatgptLinuxOpenTargetIsDirectory\(f\)/);
+  assert.match(patched, /g=d\|\|[^,]+\|\|f!=null&&n\.ys\(f\)/);
+});
+
+test("open-target discovery native selector includes available directory-capable targets", () => {
+  const patched = applyPatchTwice(applyNativeOpenTargetSelectionPatch, currentAppOpenTargetSelectionBundle);
+  const { selectTargets } = new Function(`${patched};return {selectTargets:lQ};`)();
+  const targets = [
+    { target: "fileManager", appPath: "/usr/bin/dolphin" },
+    { target: "systemDefault", appPath: "/usr/share/applications/kate.desktop" },
+    { target: "terminal", available: true, kind: "terminal" },
+    { target: "vscode", available: true, kind: "editor" },
+    { target: "linux-desktop-kate", available: true, kind: "editor" },
+    { target: "linux-desktop-hidden", available: false, kind: "editor" },
+  ];
+
+  assert.deepEqual(
+    selectTargets({
+      targets,
+      availableTargets: targets.map((target) => target.target),
+      mode: "native",
+    }).map((target) => target.target),
+    ["fileManager", "systemDefault", "terminal", "vscode", "linux-desktop-kate"],
+  );
 });
 
 test("open-target discovery respects hidden desktop entry overrides", () => {
@@ -1048,7 +1778,7 @@ test("open-target discovery filters broad non-IDE desktop entries", () => {
       ["pinta", "Pinta", "Image Editor", "Graphics;2DGraphics;RasterGraphics;GTK;"],
       ["electron37", "Electron 37", "", "Development;GTK;"],
       ["cmake-gui", "CMake", "Cross-platform buildsystem", "Development;Building;"],
-      ["codex-desktop", "Codex Desktop", "Run Codex Desktop on Linux", "Development;"],
+      ["chatgpt", "ChatGPT", "Run ChatGPT for Linux", "Development;"],
       ["codex-monitor", "Codex Monitor", "Orchestrate Codex agents across local workspaces", "Development;"],
       ["stably-orca", "Orca", "Agentic Coding IDE", "Development;IDE;TextEditor;"],
     ];
@@ -1106,15 +1836,15 @@ test("open-target discovery is enabled by default", () => {
   withTempIntegrationConfig({}, (root) => {
     assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), DEFAULT_INTEGRATION_IDS);
     assert.ok(
-      loadPortIntegrationMainBundlePatches({ integrationsRoot: root })
-        .some((patch) => patch.name === "integration:open-target-discovery"),
+      loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
+        .some((patch) => patch.id === "integration:open-target-discovery:main-bundle-open-target-discovery"),
     );
 
     withPortIntegrationRootEnv(root, () => {
       const patched = captureWarns(() => patchMainBundleSource(openTargetsBundle, null)).value;
       assert.match(patched, /linux:\{label:`Terminal`/);
-      assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
-      assert.match(patched, /codexLinuxOpenFileManager\(e\)/);
+      assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+      assert.match(patched, /chatgptLinuxOpenFileManager\(e\)/);
     });
   });
 });
@@ -1126,46 +1856,91 @@ test("open-target discovery can be disabled in integrations.json", () => {
       DEFAULT_INTEGRATION_IDS.filter((id) => id !== "open-target-discovery"),
     );
     assert.equal(
-      loadPortIntegrationMainBundlePatches({ integrationsRoot: root })
-        .some((patch) => patch.name === "integration:open-target-discovery"),
+      loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
+        .some((patch) => patch.id === "integration:open-target-discovery:main-bundle-open-target-discovery"),
       false,
     );
 
     withPortIntegrationRootEnv(root, () => {
       const patched = captureWarns(() => patchMainBundleSource(openTargetsBundle, null)).value;
       assert.doesNotMatch(patched, /linux:\{label:`Terminal`/);
-      assert.doesNotMatch(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
-      assert.doesNotMatch(patched, /codexLinuxOpenFileManager\(e\)/);
+      assert.doesNotMatch(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+      assert.doesNotMatch(patched, /chatgptLinuxOpenFileManager\(e\)/);
     });
   });
 });
 
-test("open-target discovery participates in integration loading and patch reports", () => {
-  withTempIntegrationConfig({ enabled: ["open-target-discovery"] }, (root) => {
+test("open-target discovery targets only the current native selector bundle", () => {
+  const descriptor = descriptors.find(
+    (candidate) => candidate.id === "webview-native-open-target-selection",
+  );
+
+  assert.ok(descriptor);
+  assert.match("app-initial-BTphDPeq.js", descriptor.pattern);
+  assert.doesNotMatch(
+    "app-initial~app-main~onboarding-page~hotkey-window-thread-page~quick-chat-window-page~chatg~gwqc41kz-CnQKtQ6U.js",
+    descriptor.pattern,
+  );
+  assert.doesNotMatch(
+    "app-initial~app-main~quick-chat-window-page~work-home-page~chatgpt-conversation-page-BqLP6EDd.js",
+    descriptor.pattern,
+  );
+  assert.doesNotMatch(
+    "app-initial~app-main~new-thread-panel-page~appgen-library-page~hotkey-window-thread-page~ho~iufn7mg3-MXsOJYYa.js",
+    descriptor.pattern,
+  );
+  assert.doesNotMatch(
+    "app-initial~app-main~new-thread-panel-page~onboarding-page~appgen-library-page~hotkey-windo~nrw3o0ql-CI1_Z0oj.js",
+    descriptor.pattern,
+  );
+  assert.doesNotMatch("open-target-selection-legacy.js", descriptor.pattern);
+  assert.doesNotMatch(
+    "app-initial~app-main~pull-request-code-review~onboarding-page~hotkey-window-thread-page~cha~b76hmflu-y0KJWbm3.js",
+    descriptor.pattern,
+  );
+});
+
+test("open-target discovery participates in integration loading and patch reports", async () => {
+  await withTempIntegrationConfigAsync({ enabled: ["open-target-discovery"] }, async (root) => {
     assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), DEFAULT_INTEGRATION_IDS);
     assert.ok(
-      loadPortIntegrationMainBundlePatches({ integrationsRoot: root })
-        .some((patch) => patch.name === "integration:open-target-discovery"),
+      loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
+        .some((patch) => patch.id === "integration:open-target-discovery:main-bundle-open-target-discovery"),
     );
 
-    withPortIntegrationRootEnv(root, () => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
       const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
         const assetsDir = path.join(tempApp, "webview", "assets");
         fs.mkdirSync(buildDir, { recursive: true });
         fs.mkdirSync(assetsDir, { recursive: true });
-        fs.writeFileSync(path.join(buildDir, "main.js"), openTargetsBundle);
+        fs.writeFileSync(
+          path.join(buildDir, "main.js"),
+          openTargetsBundle + currentAppOpenInCommandBundle,
+        );
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
 
         const report = createPatchReport();
-        captureWarns(() => patchExtractedApp(tempApp, { report }));
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         const patched = fs.readFileSync(path.join(buildDir, "main.js"), "utf8");
 
         assert.match(patched, /linux:\{label:`Terminal`/);
-        assert.match(patched, /\.\.\.codexLinuxDiscoveredIdeTargets\(\)/);
+        assert.match(patched, /\.\.\.chatgptLinuxDiscoveredIdeTargets\(\)/);
+        assert.match(patched, /_chatgptLinuxOpenTargetCommand/);
         assert.ok(
-          report.patches.some((patch) => patch.name === "integration:open-target-discovery" && patch.status === "applied"),
+          report.patches.some((patch) => patch.name === "integration:open-target-discovery:main-bundle-open-target-discovery" && patch.status === "applied"),
+        );
+
+        const secondReport = createPatchReport();
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report: secondReport }));
+        assert.equal(fs.readFileSync(path.join(buildDir, "main.js"), "utf8"), patched);
+        assert.ok(
+          secondReport.patches.some(
+            (patch) =>
+              patch.name === "integration:open-target-discovery:main-bundle-open-target-discovery" &&
+              patch.status === "already-applied",
+          ),
         );
       } finally {
         fs.rmSync(tempApp, { recursive: true, force: true });
@@ -1174,7 +1949,39 @@ test("open-target discovery participates in integration loading and patch report
   });
 });
 
-test("open-target discovery does not add a second built-in Zed target", () => {
+test("open-target discovery reports current command lookup drift as an enabled integration failure", async () => {
+  await withTempIntegrationConfigAsync({ enabled: ["open-target-discovery"] }, async (root) => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
+      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-open-target-drift-"));
+      try {
+        const buildDir = path.join(tempApp, ".vite", "build");
+        fs.mkdirSync(buildDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(buildDir, "main.js"),
+          openTargetsBundle +
+            currentAppOpenInCommandBundle.replace(
+              "params:UN(this.settingsStore,e)",
+              "params:UN(this.otherStore,e)",
+            ),
+        );
+        fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
+
+        const report = createPatchReport();
+        await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
+        const integrationPatch = report.patches.find(
+          (patch) => patch.name === "integration:open-target-discovery:main-bundle-open-target-discovery",
+        );
+
+        assert.equal(integrationPatch?.status, "skipped-optional");
+        assert.match(integrationPatch?.reason ?? "", /open target command lookup/);
+      } finally {
+        fs.rmSync(tempApp, { recursive: true, force: true });
+      }
+    });
+  });
+});
+
+test("open-target discovery preserves the upstream built-in Zed target without duplication", () => {
   const zedAlreadyLinux = openTargetsBundle.replace(
     "win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg}}",
     "win32:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Kg,args:hg},linux:{label:`Zed`,icon:`apps/zed.png`,kind:`editor`,detect:Gg,args:hg}}",
@@ -1182,4 +1989,9 @@ test("open-target discovery does not add a second built-in Zed target", () => {
   const patched = applyPatchTwice(applyMainBundlePatch, zedAlreadyLinux);
 
   assert.equal((patched.match(/linux:\{label:`Zed`/g) || []).length, 1);
+  assert.match(
+    patched,
+    /linux:\{label:`Zed`,icon:`apps\/zed\.png`,kind:`editor`,detect:\(\)=>chatgptLinuxFindExecutable\(`zed`\),args:\(\.\.\.e\)=>hg\(chatgptLinuxOpenTargetPath\(e\[0\]\)/,
+  );
+  assert.doesNotMatch(patched, /detect:\(\)=>chatgptLinuxIdeCommand\(`zed`\)/);
 });

@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const test = require("node:test");
+const vm = require("node:vm");
+
+const {
+  loadPortIntegrationPatchDescriptors,
+} = require("../../scripts/lib/port-integrations.js");
+const { patchAssetFiles } = require("../../scripts/patches/lib/assets.js");
+const {
+  applyProjectGroupLastUpdatedSortPatch,
+  descriptors,
+} = require("./patch.js");
+
+const currentProjectSource = [
+  "function O6i(e,t){let n=new Set(e.map(e=>e.projectId)),r=(t??[]).filter(e=>n.has(e)),i=new Set(r);return[...e.map(e=>e.projectId).filter(e=>!i.has(e)),...r]}",
+  "function A6i(e,t){let n=O6i(e,t),r=new Map(n.map((e,t)=>[e,t]));return[...e].sort((e,t)=>(r.get(e.projectId)??2**53-1)-(r.get(t.projectId)??2**53-1))}",
+  "function O8o({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return A6i(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}",
+  "const prioritySortId=`sidebarElectron.sortMenu.priority`;",
+  "const updatedSortId=`sidebarElectron.sortMenu.updated`;",
+  "const manualSortId=`sidebarElectron.sortMenu.manual`;",
+  "const M=t(IH).projectSortMode;N=O8o({groups:A,items:f,projectOrder:Dm(t,yu.PROJECT_ORDER)});",
+].join("");
+
+function captureWarns(fn) {
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (message) => warnings.push(message);
+  try {
+    return { value: fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+function applyPatchTwice(source) {
+  const patched = applyProjectGroupLastUpdatedSortPatch(source);
+  const { value: secondPass, warnings } = captureWarns(() =>
+    applyProjectGroupLastUpdatedSortPatch(patched),
+  );
+  assert.equal(secondPass, patched);
+  assert.deepEqual(warnings, []);
+  return patched;
+}
+
+function integrationSelection(integrationsRoot, enabled) {
+  const disabled = fs.readdirSync(integrationsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(integrationsRoot, entry.name, "integration.json"))
+    .filter((manifestPath) => fs.existsSync(manifestPath))
+    .map((manifestPath) => JSON.parse(fs.readFileSync(manifestPath, "utf8")).id)
+    .filter((id) => !enabled.includes(id));
+  return { enabled, disabled };
+}
+
+function withFeatureConfig(enabled, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "project-group-last-updated-sort-"),
+  );
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled)));
+    return fn();
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function evaluateGroupSorter(source) {
+  const context = {};
+  const sorterSource = source.slice(0, source.indexOf("const prioritySortId"));
+  vm.runInNewContext(`${sorterSource};globalThis.sortProjectGroups=O8o`, context);
+  return context.sortProjectGroups;
+}
+
+test("feature is disabled until selected", () => {
+  const integrationsRoot = path.resolve(__dirname, "..");
+  withFeatureConfig([], () => {
+    assert.equal(
+      loadPortIntegrationPatchDescriptors({ integrationsRoot }).some(
+        (descriptor) =>
+          descriptor.id ===
+          "integration:project-group-last-updated-sort:last-updated-project-groups",
+      ),
+      false,
+    );
+  });
+  withFeatureConfig(["project-group-last-updated-sort"], () => {
+    assert.equal(
+      loadPortIntegrationPatchDescriptors({ integrationsRoot }).some(
+        (descriptor) =>
+          descriptor.id ===
+          "integration:project-group-last-updated-sort:last-updated-project-groups",
+      ),
+      true,
+    );
+  });
+});
+
+test("Last updated sorts project groups by their newest task", () => {
+  const patched = applyPatchTwice(currentProjectSource);
+  const sortProjectGroups = evaluateGroupSorter(patched);
+  const groups = [
+    { projectId: "nix", threadKeys: ["nix-task"] },
+    { projectId: "delta", threadKeys: ["delta-task"] },
+    { projectId: "multi", threadKeys: ["multi-task"] },
+    { projectId: "chezmoi", threadKeys: ["chezmoi-task"] },
+    { projectId: "tapas", threadKeys: ["tapas-task"] },
+  ];
+  const items = [
+    { task: { key: "nix-task" }, recencyAt: 1 },
+    { task: { key: "delta-task" }, recencyAt: 2 },
+    { task: { key: "multi-task" }, recencyAt: 3 },
+    { task: { key: "chezmoi-task" }, recencyAt: 4 },
+    { task: { key: "tapas-task" }, recencyAt: 5 },
+  ];
+  const projectOrder = ["nix", "delta", "multi", "chezmoi", "tapas"];
+
+  assert.deepEqual(
+    Array.from(
+      sortProjectGroups({ groups, items, projectOrder, sortMode: "updated_at" }),
+      (group) => group.projectId,
+    ),
+    ["tapas", "chezmoi", "multi", "delta", "nix"],
+  );
+});
+
+test("non-updated modes preserve the upstream saved project order", () => {
+  const patched = applyPatchTwice(currentProjectSource);
+  const sortProjectGroups = evaluateGroupSorter(patched);
+  const groups = [
+    { projectId: "newer", threadKeys: ["newer-task"] },
+    { projectId: "older", threadKeys: ["older-task"] },
+  ];
+  const items = [
+    { task: { key: "newer-task" }, recencyAt: 2 },
+    { task: { key: "older-task" }, recencyAt: 1 },
+  ];
+  const projectOrder = ["older", "newer"];
+
+  for (const sortMode of ["manual", "priority"]) {
+    assert.deepEqual(
+      Array.from(
+        sortProjectGroups({ groups, items, projectOrder, sortMode }),
+        (group) => group.projectId,
+      ),
+      ["older", "newer"],
+    );
+  }
+});
+
+test("patch passes the selected project sort mode into the group sorter", () => {
+  const patched = applyPatchTwice(currentProjectSource);
+  assert.ok(
+    patched.includes(
+      "projectOrder:Dm(t,yu.PROJECT_ORDER),sortMode:M",
+    ),
+  );
+});
+
+test("drift leaves the asset byte-identical", () => {
+  const source = currentProjectSource.replace(
+    "function O8o({groups:e,items:t,projectOrder:n})",
+    "function O8o({groups:e,items:t,projectOrder:n,unknown:o})",
+  );
+  const { value, warnings } = captureWarns(() =>
+    applyProjectGroupLastUpdatedSortPatch(source),
+  );
+
+  assert.equal(value, source);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /project group sorting insertion points/);
+});
+
+test("missing current call site leaves the asset byte-identical", () => {
+  const source = currentProjectSource.replace(
+    "projectOrder:Dm(t,yu.PROJECT_ORDER)",
+    "projectOrder:unknownProjectOrder",
+  );
+  const { value, warnings } = captureWarns(() =>
+    applyProjectGroupLastUpdatedSortPatch(source),
+  );
+
+  assert.equal(value, source);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /project group sorting insertion points/);
+});
+
+test("mixed patched and clean helpers are rejected byte-identically", () => {
+  const mixed = `${applyProjectGroupLastUpdatedSortPatch(
+    currentProjectSource,
+  )}${currentProjectSource}`;
+  const { value, warnings } = captureWarns(() =>
+    applyProjectGroupLastUpdatedSortPatch(mixed),
+  );
+
+  assert.equal(value, mixed);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /project group sorting insertion points/);
+});
+
+test("descriptor targets and patches only the current project sidebar chunk", () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "project-group-last-updated-sort-assets-"),
+  );
+  try {
+    const assetsDir = path.join(tempDir, "webview", "assets");
+    const assetPath = path.join(
+      assetsDir,
+      "app-initial-BYOVlUBL.js",
+    );
+    fs.mkdirSync(assetsDir, { recursive: true });
+    fs.writeFileSync(assetPath, currentProjectSource);
+
+    const result = patchAssetFiles(
+      tempDir,
+      descriptors[0].pattern,
+      descriptors[0].apply,
+      "missing",
+    );
+
+    assert.deepEqual(result, { matched: 1, changed: 1 });
+    assert.notEqual(fs.readFileSync(assetPath, "utf8"), currentProjectSource);
+    assert.equal(
+      descriptors[0].pattern.test(
+        "app-initial~app-main~projects-index-page~remote-conversation-page-old.js",
+      ),
+      false,
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

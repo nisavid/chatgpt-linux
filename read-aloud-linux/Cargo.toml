@@ -1,10 +1,10 @@
 [package]
-name = "codex-read-aloud-linux"
+name = "chatgpt-read-aloud-linux"
 version = "0.1.0-linux-alpha1"
 edition = "2021"
 
 [[bin]]
-name = "codex-read-aloud-linux"
+name = "chatgpt-read-aloud-linux"
 path = "src/main.rs"
 
 [dependencies]

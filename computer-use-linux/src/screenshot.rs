@@ -145,7 +145,7 @@ impl ScreenshotPayloadOptions {
 
 /// Environment variable forcing a single capture backend, skipping the
 /// fallback chain. Accepts `gnome-shell`, `portal`, or `gnome-screenshot`.
-const SCREENSHOT_BACKEND_ENV: &str = "CODEX_COMPUTER_USE_SCREENSHOT_BACKEND";
+const SCREENSHOT_BACKEND_ENV: &str = "CHATGPT_COMPUTER_USE_SCREENSHOT_BACKEND";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScreenshotBackend {
@@ -737,6 +737,7 @@ mod tests {
             ScreenshotBackend::parse("gnome-shell"),
             Some(ScreenshotBackend::GnomeShell)
         );
+        assert_eq!(ScreenshotBackend::parse("gnome-extension"), None);
         assert_eq!(
             ScreenshotBackend::parse("  Portal "),
             Some(ScreenshotBackend::Portal)
@@ -768,6 +769,12 @@ mod tests {
 
         unsafe {
             std::env::set_var(SCREENSHOT_BACKEND_ENV, "bogus");
+        }
+        let error = forced_backend().unwrap_err();
+        assert!(error.to_string().contains("not a recognized backend"));
+
+        unsafe {
+            std::env::set_var(SCREENSHOT_BACKEND_ENV, "gnome-extension");
         }
         let error = forced_backend().unwrap_err();
         assert!(error.to_string().contains("not a recognized backend"));

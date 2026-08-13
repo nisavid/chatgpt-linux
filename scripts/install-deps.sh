@@ -1,8 +1,18 @@
 #!/bin/bash
-# install-deps.sh — Install system dependencies for Codex App Linux
-# Supports: Debian/Ubuntu (apt), Fedora 41+ (dnf5), Fedora <41 (dnf), Arch (pacman), openSUSE (zypper)
+# install-deps.sh — Install system dependencies for ChatGPT for Linux
+# Supports: Debian/Ubuntu (apt), Fedora 41+ (dnf5), Fedora <41 (dnf), Fedora Atomic detection (rpm-ostree), Arch (pacman), openSUSE (zypper)
 # Also installs the Rust toolchain (cargo) via rustup when not already present.
 set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/linux-target-detect.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/sevenzip-bootstrap.sh"
+
+sudo() {
+    "$SCRIPT_DIR/sudo-with-alert.sh" "$@"
+}
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -158,7 +168,7 @@ ensure_nodejs_compatible() {
         return
     fi
 
-    if [ "$distro" = "dnf5" ]; then
+    if [ "$distro" = "dnf5" ] || [ "$distro" = "rpm-ostree" ]; then
         info "Skipping system Node.js check; install.sh provides the managed Node.js runtime"
         return
     fi
@@ -187,86 +197,8 @@ Install a supported Node.js version for this distro, or use install.sh to downlo
 Check apt output above or install Node.js ${MIN_NODE_MAJOR}+ manually."
 }
 
-# ---------------------------------------------------------------------------
-# Distro detection
-# ---------------------------------------------------------------------------
-os_release_field() {
-    local field="$1"
-    local file line value
-
-    for file in ${OS_RELEASE_FILE:-} /etc/os-release /usr/lib/os-release; do
-        [ -n "$file" ] || continue
-        [ -r "$file" ] || continue
-        while IFS= read -r line; do
-            case "$line" in
-                "$field="*)
-                    value="${line#*=}"
-                    value="${value#\"}"
-                    value="${value%\"}"
-                    value="${value#\'}"
-                    value="${value%\'}"
-                    printf '%s\n' "${value,,}"
-                    return 0
-                    ;;
-            esac
-        done < "$file"
-    done
-
-    return 1
-}
-
-os_release_matches() {
-    local expected token
-    for expected in "$@"; do
-        [ "${OS_RELEASE_ID:-}" = "$expected" ] && return 0
-        for token in ${OS_RELEASE_ID_LIKE:-}; do
-            [ "$token" = "$expected" ] && return 0
-        done
-    done
-    return 1
-}
-
-os_release_version_major() {
-    local version="${OS_RELEASE_VERSION_ID:-}"
-    version="${version%%.*}"
-    case "$version" in
-        ''|*[!0-9]*) return 1 ;;
-        *) printf '%s\n' "$version" ;;
-    esac
-}
-
 detect_distro() {
-    if os_release_matches debian ubuntu linuxmint pop elementary zorin && command -v apt-get &>/dev/null; then
-        echo "apt"
-    elif os_release_matches arch archlinux manjaro endeavouros artix && command -v pacman &>/dev/null; then
-        echo "pacman"
-    elif os_release_matches opensuse suse sles && command -v zypper &>/dev/null; then
-        echo "zypper"
-    elif os_release_matches fedora rhel centos rocky almalinux ol; then
-        local major
-        major="$(os_release_version_major 2>/dev/null || true)"
-        if [ "${OS_RELEASE_ID:-}" = "fedora" ] && [ -n "$major" ] && [ "$major" -lt 41 ] && command -v dnf &>/dev/null; then
-            echo "dnf"
-        elif command -v dnf5 &>/dev/null; then
-            echo "dnf5"
-        elif command -v dnf &>/dev/null; then
-            echo "dnf"
-        else
-            echo "unknown"
-        fi
-    elif command -v apt-get &>/dev/null; then
-        echo "apt"
-    elif command -v dnf5 &>/dev/null; then
-        echo "dnf5"
-    elif command -v dnf &>/dev/null; then
-        echo "dnf"
-    elif command -v pacman &>/dev/null; then
-        echo "pacman"
-    elif command -v zypper &>/dev/null; then
-        echo "zypper"
-    else
-        echo "unknown"
-    fi
+    detect_package_manager
 }
 
 preferred_gui_prompt_package() {
@@ -296,11 +228,11 @@ install_apt() {
 
 install_dnf5() {
     info "Detected RPM-based distro (dnf5)"
-    # Fedora 42 still packages 7z via p7zip + p7zip-plugins; @development-tools is the group syntax.
-    # Node.js is provided by install.sh's managed runtime on Fedora 41+.
+    # dnf5: 7zip provides /usr/bin/7z; @development-tools is the group syntax.
+    # Install make and gcc-c++ explicitly because the group may already be marked
+    # installed without providing the g++ executable required by install.sh.
     sudo dnf5 install -y \
-        python3 p7zip p7zip-plugins curl unzip \
-        rpm-build gcc-c++ make \
+        python3 7zip curl unzip rpm-build make gcc-c++ \
         @development-tools
 }
 
@@ -309,14 +241,48 @@ install_dnf() {
     # Older dnf: 7z comes from p7zip + p7zip-plugins
     sudo dnf install -y \
         nodejs npm python3 \
-        p7zip p7zip-plugins curl unzip rpm-build
+        p7zip p7zip-plugins curl unzip rpm-build make gcc-c++
     sudo dnf groupinstall -y 'Development Tools'
+}
+
+install_rpm_ostree() {
+    info "Detected Fedora Atomic / rpm-ostree host"
+
+    local -a missing=()
+    command -v python3 >/dev/null 2>&1 || missing+=("python3")
+    if ! command -v 7zz >/dev/null 2>&1 && ! command -v 7z >/dev/null 2>&1; then
+        missing+=("7zip")
+    fi
+    command -v curl >/dev/null 2>&1 || missing+=("curl")
+    command -v unzip >/dev/null 2>&1 || missing+=("unzip")
+    command -v rpmbuild >/dev/null 2>&1 || missing+=("rpm-build")
+    command -v make >/dev/null 2>&1 || missing+=("make")
+    command -v g++ >/dev/null 2>&1 || missing+=("gcc-c++")
+
+    if [ "${#missing[@]}" -eq 0 ]; then
+        info "rpm-ostree layered build dependencies are already available"
+        return
+    fi
+
+    error "Fedora Atomic hosts layer packages with rpm-ostree and usually need a reboot before new tools are available.
+Review and run manually if this is the host you want to layer:
+  sudo rpm-ostree install python3 7zip curl unzip rpm-build make gcc-c++
+  systemctl reboot
+Then rerun this script after the reboot.
+Still missing: ${missing[*]}"
 }
 
 install_pacman() {
     info "Detected Arch Linux (pacman)"
+    local node_packages=(nodejs npm)
+
+    if has_compatible_nodejs; then
+        info "Compatible Node.js toolchain already available; skipping pacman nodejs/npm packages"
+        node_packages=()
+    fi
+
     sudo pacman -S --needed --noconfirm \
-        nodejs npm python \
+        "${node_packages[@]}" python \
         p7zip curl unzip zstd \
         base-devel
 }
@@ -364,7 +330,7 @@ bootstrap_7zz() {
     fi
 
     # System 7z is already new enough — skip. p7zip 17.05 still cannot
-    # extract current APFS-based Codex DMGs, so only accept non-p7zip 7z.
+    # extract current APFS-based ChatGPT DMGs, so only accept non-p7zip 7z.
     if command -v 7z &>/dev/null; then
         local seven_zip_banner
         seven_zip_banner="$(7z 2>&1 | head -n 3 || true)"
@@ -390,16 +356,32 @@ bootstrap_7zz() {
         install_dir="/usr/local/bin"
     fi
 
-    # Try pinned versions newest-first with HEAD verification — no HTML parsing
-    local -a versions=(2600 2500 2409)
-    local version="" url="" candidate_url
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmpdir'" EXIT
+
+    # Try reviewed versions newest-first by downloading the tarball directly.
+    # Archive and executable bytes must match the source-controlled manifest.
+    local -a versions=(2600)
+    local version="" url="" candidate_url expected_sha256 expected_member_sha256 candidate
     for candidate in "${versions[@]}"; do
         candidate_url="https://www.7-zip.org/a/7z${candidate}-linux-${sevenzip_arch}.tar.xz"
-        if curl -fsI "$candidate_url" >/dev/null 2>&1; then
+        expected_sha256="$(chatgpt_sevenzip_expected_sha256 "$candidate" "$sevenzip_arch")" \
+            || error "No reviewed archive digest for 7zz ${candidate}/${sevenzip_arch}"
+        expected_member_sha256="$(chatgpt_sevenzip_expected_member_sha256 "$candidate" "$sevenzip_arch")" \
+            || error "No reviewed executable digest for 7zz ${candidate}/${sevenzip_arch}"
+        if curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            -fsSL --retry 2 --retry-delay 2 -o "$tmpdir/7z.tar.xz" "$candidate_url"; then
+            chatgpt_verify_sevenzip_archive_sha256 "$tmpdir/7z.tar.xz" "$expected_sha256" \
+                || error "Downloaded 7zz ${candidate}/${sevenzip_arch} failed archive SHA-256 verification"
+            chatgpt_validate_sevenzip_archive "$tmpdir/7z.tar.xz" \
+                || error "Downloaded 7zz ${candidate}/${sevenzip_arch} has an unsafe archive shape"
             version="$candidate"
             url="$candidate_url"
             break
         fi
+        rm -f -- "$tmpdir/7z.tar.xz"
     done
 
     if [ -z "$url" ]; then
@@ -408,14 +390,11 @@ Tried versions: ${versions[*]}
 Install 7zz manually from https://www.7-zip.org/download.html and ensure it is on your PATH."
     fi
 
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    # shellcheck disable=SC2064
-    trap "rm -rf '$tmpdir'" EXIT
-
-    info "Downloading 7zz ${version} from $url"
-    curl -fL --progress-bar -o "$tmpdir/7z.tar.xz" "$url"
-    tar -C "$tmpdir" -xf "$tmpdir/7z.tar.xz" 7zz
+    info "Installing 7zz ${version} from $url"
+    chatgpt_extract_sevenzip_archive "$tmpdir/7z.tar.xz" "$tmpdir" \
+        || error "Could not safely extract authenticated 7zz ${version}/${sevenzip_arch}"
+    chatgpt_verify_sevenzip_archive_sha256 "$tmpdir/7zz" "$expected_member_sha256" \
+        || error "Extracted 7zz ${version}/${sevenzip_arch} failed executable SHA-256 verification"
 
     if [ "$install_dir" = "/usr/local/bin" ]; then
         sudo install -d -m 755 "$install_dir"
@@ -479,18 +458,20 @@ case "$DISTRO" in
     apt)     install_apt    ;;
     dnf5)    install_dnf5   ;;
     dnf)     install_dnf    ;;
+    rpm-ostree) install_rpm_ostree ;;
     pacman)  install_pacman ;;
     zypper)  install_zypper ;;
     *)
         error "Unsupported package manager. Install manually:
   # Debian/Ubuntu: install Node.js 20+ with npm/npx from NodeSource, nvm, or another compatible source, then:
-  sudo apt install python3 p7zip-full curl unzip coreutils tar build-essential       # Debian/Ubuntu
-  sudo dnf5 install python3 p7zip p7zip-plugins curl unzip coreutils tar rpm-build gcc-c++ make @development-tools # Fedora 41+ (dnf5; install.sh provides managed Node.js)
-  sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip coreutils tar rpm-build # Fedora <41 (dnf)
-  sudo dnf groupinstall 'Development Tools'                                          # Fedora <41 (dnf)
-  sudo pacman -S nodejs npm python p7zip curl unzip coreutils tar zstd base-devel    # Arch
-  sudo zypper install nodejs-default npm-default python3 p7zip-full curl unzip coreutils tar # openSUSE
-  sudo zypper install -t pattern devel_basis                                         # openSUSE"
+  sudo apt install python3 p7zip-full curl unzip coreutils tar build-essential                   # Debian/Ubuntu
+  sudo dnf5 install python3 7zip curl unzip coreutils tar rpm-build make gcc-c++ @development-tools # Fedora 41+ (dnf5)
+  sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip coreutils tar rpm-build make gcc-c++ # Fedora <41 (dnf)
+  sudo dnf groupinstall 'Development Tools'                                                      # Fedora <41 (dnf)
+  sudo rpm-ostree install python3 7zip curl unzip rpm-build make gcc-c++                          # Fedora Atomic (reboot required)
+  sudo pacman -S nodejs npm python p7zip curl unzip coreutils tar zstd base-devel                 # Arch
+  sudo zypper install nodejs-default npm-default python3 p7zip-full curl unzip coreutils tar      # openSUSE
+  sudo zypper install -t pattern devel_basis                                                      # openSUSE"
         ;;
 esac
 

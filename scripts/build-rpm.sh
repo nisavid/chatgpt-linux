@@ -3,26 +3,26 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/codex-app}"
+APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
-SPEC_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.spec"
-DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/codex-app.desktop"
-SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater.service"
-USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/codex-app-updater-user-service.sh"
-ICON_SOURCE="$REPO_DIR/assets/codex.png"
-PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/codex-packaged-runtime.sh"
+SPEC_TEMPLATE="${CHATGPT_RPM_SPEC_TEMPLATE_SOURCE:-$REPO_DIR/packaging/linux/chatgpt.spec}"
+DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
+SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
+USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
+PACKAGED_RUNTIME_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-packaged-runtime.sh"
 
 # Keep the installed update-builder payload aligned with the other package formats.
 # shellcheck source=scripts/lib/package-common.sh
 . "$REPO_DIR/scripts/lib/package-common.sh"
 
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
 MAX_BUILD_THREADS="${MAX_BUILD_THREADS:-0}"
 RPM_BINARY_PAYLOAD="${RPM_BINARY_PAYLOAD:-}"
-UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/codex-app-updater}"
+UPDATER_BINARY_SOURCE="${UPDATER_BINARY_SOURCE:-$REPO_DIR/target/release/chatgpt-updater}"
 UPDATER_SERVICE_SOURCE="${UPDATER_SERVICE_SOURCE:-$SERVICE_TEMPLATE}"
 PACKAGED_RUNTIME_SOURCE="${PACKAGED_RUNTIME_SOURCE:-$PACKAGED_RUNTIME_TEMPLATE}"
+ICON_SOURCE="$(resolve_package_icon_source)"
 
 validate_max_build_threads() {
     case "$MAX_BUILD_THREADS" in
@@ -60,8 +60,7 @@ main() {
         RPM_BINARY_PAYLOAD="w19T${MAX_BUILD_THREADS}.zstdio"
     fi
 
-    [ -d "$APP_DIR" ] || error "Missing app directory: $APP_DIR. Run ./install.sh first."
-    [ -x "$APP_DIR/start.sh" ] || error "Missing launcher: $APP_DIR/start.sh"
+    ensure_app_layout
     [ -f "$SPEC_TEMPLATE" ] || error "Missing spec template: $SPEC_TEMPLATE"
     [ -f "$DESKTOP_TEMPLATE" ] || error "Missing desktop template: $DESKTOP_TEMPLATE"
     [ -f "$ICON_SOURCE" ] || error "Missing icon: $ICON_SOURCE"
@@ -70,7 +69,7 @@ main() {
         [ -f "$UPDATER_SERVICE_SOURCE" ] || error "Missing updater service template: $UPDATER_SERVICE_SOURCE"
         [ -f "$USER_SERVICE_HELPER_TEMPLATE" ] || error "Missing updater user service helper: $USER_SERVICE_HELPER_TEMPLATE"
     else
-        info "Building package without codex-app-updater (PACKAGE_WITH_UPDATER=0)"
+        info "Building package without chatgpt-updater (PACKAGE_WITH_UPDATER=0)"
     fi
     command -v rpmbuild >/dev/null 2>&1 || error "rpmbuild is required (install rpm-build)"
 
@@ -91,64 +90,62 @@ main() {
 
     local staging_root="$build_root/STAGING"
 
-    stage_common_package_files "$staging_root"
-    stage_optional_update_builder_bundle "$staging_root"
+    stage_native_package_payload "$staging_root" "rpm"
 
-    cat > "$staging_root/usr/bin/$PACKAGE_NAME" <<SCRIPT
-#!/bin/bash
-exec /opt/$PACKAGE_NAME/start.sh "\$@"
-SCRIPT
-    chmod 0755 "$staging_root/usr/bin/$PACKAGE_NAME"
-    run_port_integration_package_hooks "$staging_root" "rpm"
-    normalize_package_payload_permissions "$staging_root"
-    restore_port_integration_payload_permissions "$staging_root"
-
-    local spec_file="$build_root/codex-app.spec"
+    local spec_file="$build_root/chatgpt.spec"
+    local integration_dependency_suffix
+    local integration_files
     local updater_requires=""
     local updater_description=""
     local updater_files=""
     local updater_post=""
     local updater_preun=""
     local updater_postun=""
-    local desktop_doctor_post=""
-    desktop_doctor_post="DESKTOP_ENTRY_DOCTOR=/opt/$PACKAGE_NAME/.codex-linux/codex-app-desktop-entry-doctor.sh
-if [ -f \"\$DESKTOP_ENTRY_DOCTOR\" ]; then
-    . \"\$DESKTOP_ENTRY_DOCTOR\"
-    codex_app_repair_system_package_shadow_entries $PACKAGE_NAME || true
-fi"
     if package_with_updater_enabled; then
         updater_requires="Requires:       /usr/bin/7z, polkit, curl, unzip, gcc-c++, make"
-        updater_description="Local auto-updates rebuild a Linux package from the official OpenAI Codex.dmg and therefore
+        updater_description="Local auto-updates rebuild a Linux package from the official OpenAI ChatGPT.dmg and therefore
 use the bundled managed Node.js runtime plus the local packaging toolchain listed in Requires."
-        updater_files="/usr/bin/codex-app-updater
-/usr/lib/systemd/user/codex-app-updater.service
-/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy"
-        updater_post="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
+        updater_files="/usr/bin/chatgpt-updater
+/usr/lib/systemd/user/chatgpt-updater.service
+/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy"
+        updater_post="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/chatgpt-updater-user-service.sh
 if [ -f \"\$SERVICE_HELPER\" ]; then
     . \"\$SERVICE_HELPER\"
-    codex_ensure_user_service_running || true
-fi
-$desktop_doctor_post"
-        updater_preun="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
+    if [ \${1:-0} -eq 1 ]; then
+        chatgpt_ensure_user_service_running || true
+    else
+        chatgpt_start_enabled_user_service || true
+    fi
+fi"
+        updater_preun="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/chatgpt-updater-user-service.sh
 [ -f \"\$SERVICE_HELPER\" ] && . \"\$SERVICE_HELPER\"
 if [ \$1 -eq 0 ] && [ -f \"\$SERVICE_HELPER\" ]; then
-    codex_cleanup_user_service stop || true
-    codex_cleanup_user_service disable || true
+    chatgpt_cleanup_user_service stop || true
+    chatgpt_cleanup_user_service disable || true
 fi"
-        updater_postun="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/codex-app-updater-user-service.sh
+        updater_postun="SERVICE_HELPER=/usr/lib/$PACKAGE_NAME/update-builder/packaging/linux/chatgpt-updater-user-service.sh
 if [ -f \"\$SERVICE_HELPER\" ]; then
     . \"\$SERVICE_HELPER\"
-    codex_reload_user_managers || true
+    chatgpt_reload_user_managers || true
 fi"
     else
-        updater_description="This package was built without codex-app-updater. Update manually from a trusted checkout."
+        updater_description="This package was built without chatgpt-updater. Update manually from a trusted checkout."
         updater_post="CLEANUP_HELPER=/usr/lib/$PACKAGE_NAME/no-updater-transition-cleanup.sh
 if [ -f \"\$CLEANUP_HELPER\" ]; then
     . \"\$CLEANUP_HELPER\"
-    codex_no_updater_cleanup_update_manager_service || true
-fi
-$desktop_doctor_post"
+    chatgpt_no_updater_cleanup_update_manager_service || true
+fi"
         updater_preun="$updater_post"
+    fi
+    if ! integration_dependency_suffix="$(
+        port_integration_package_dependency_suffix rpm "$staging_root/opt/$PACKAGE_NAME"
+    )"; then
+        error "Failed to render port integration dependencies for rpm"
+    fi
+    if ! integration_files="$(
+        port_integration_package_files rpm "$staging_root/opt/$PACKAGE_NAME"
+    )"; then
+        error "Failed to render port integration files for rpm"
     fi
     AWK_PACKAGE_NAME="$PACKAGE_NAME" \
     AWK_RPM_VERSION="$rpm_ver" \
@@ -182,6 +179,14 @@ $desktop_doctor_post"
             print
         }
     ' "$SPEC_TEMPLATE" > "$spec_file"
+    replace_literal_file_token \
+        "$spec_file" \
+        "__PORT_INTEGRATION_DEPENDENCIES__" \
+        "$integration_dependency_suffix"
+    replace_literal_file_token \
+        "$spec_file" \
+        "__PORT_INTEGRATION_FILES__" \
+        "$integration_files"
 
     local rpmbuild_dir="$build_root/rpmbuild"
     mkdir -p \
@@ -189,17 +194,22 @@ $desktop_doctor_post"
         "$rpmbuild_dir/SRPMS" \
         "$rpmbuild_dir/BUILD" \
         "$rpmbuild_dir/SOURCES" \
-        "$rpmbuild_dir/SPECS"
+        "$rpmbuild_dir/SPECS" \
+        "$build_root/rpmdb" \
+        "$build_root/tmp"
 
     mkdir -p "$DIST_DIR"
     info "Building $PACKAGE_NAME-${rpm_ver}-${rpm_rel}.${arch}.rpm"
     local -a rpmbuild_args=(
         -bb
+        --define "use_source_date_epoch_as_buildtime 1" \
         --define "_rpmdir $rpmbuild_dir/RPMS" \
         --define "_srcrpmdir $rpmbuild_dir/SRPMS" \
         --define "_builddir $rpmbuild_dir/BUILD" \
         --define "_sourcedir $rpmbuild_dir/SOURCES" \
         --define "_specdir $build_root" \
+        --define "_dbpath $build_root/rpmdb" \
+        --define "_tmppath $build_root/tmp" \
         --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
     )
     if [ -n "$RPM_BINARY_PAYLOAD" ]; then
@@ -209,7 +219,15 @@ $desktop_doctor_post"
         info "RPM binary payload compression: tool default"
     fi
     rpmbuild_args+=("$spec_file")
-    rpmbuild "${rpmbuild_args[@]}" >&2
+    local environment_name
+    local -a rpmbuild_command=(env)
+    while IFS='=' read -r environment_name _; do
+        case "$environment_name" in
+            BASH_FUNC_*) rpmbuild_command+=(-u "$environment_name") ;;
+        esac
+    done < <(env)
+    rpmbuild_command+=(rpmbuild "${rpmbuild_args[@]}")
+    "${rpmbuild_command[@]}" >&2
 
     local rpm_file
     rpm_file="$(find "$rpmbuild_dir/RPMS" -name "*.rpm" | head -n 1)"

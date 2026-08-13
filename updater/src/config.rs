@@ -1,6 +1,7 @@
 //! Runtime configuration loading and XDG path discovery for the updater.
 
 use anyhow::{Context, Result};
+use chrono::Duration as ChronoDuration;
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,11 +9,51 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use tracing::warn;
 
-const SERVICE_NAME: &str = "codex-app-updater";
-pub const PACKAGED_BUILDER_BUNDLE_ROOT: &str = "/usr/lib/codex-app/update-builder";
+const SERVICE_NAME: &str = "chatgpt-updater";
+pub const PACKAGED_BUILDER_BUNDLE_ROOT: &str = "/usr/lib/chatgpt/update-builder";
+const SECONDS_PER_HOUR: u64 = 60 * 60;
+const DEFAULT_CHECK_INTERVAL_HOURS: u64 = 6;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Optional cleanup for generated wrapper checkout artifacts such as `dist/`
+/// and `target/`. Disabled by default; when enabled, cleanup only runs if the
+/// filesystem containing a configured root is below `min_free_bytes`.
+pub struct GeneratedArtifactCleanupConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_generated_artifact_cleanup_min_free_bytes")]
+    pub min_free_bytes: u64,
+    #[serde(default)]
+    pub roots: Vec<PathBuf>,
+    #[serde(default = "default_generated_artifact_cleanup_entries")]
+    pub entries: Vec<PathBuf>,
+}
+
+impl Default for GeneratedArtifactCleanupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_free_bytes: default_generated_artifact_cleanup_min_free_bytes(),
+            roots: Vec::new(),
+            entries: default_generated_artifact_cleanup_entries(),
+        }
+    }
+}
+
+fn default_generated_artifact_cleanup_min_free_bytes() -> u64 {
+    10 * 1024 * 1024 * 1024
+}
+
+fn default_generated_artifact_cleanup_entries() -> Vec<PathBuf> {
+    ["chatgpt", "chatgpt-next", "dist", "dist-next", "target"]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// Runtime configuration values that control how the updater behaves on Linux.
@@ -29,8 +70,8 @@ pub struct RuntimeConfig {
     pub app_executable_path: PathBuf,
     #[serde(default)]
     pub cli_path: Option<PathBuf>,
-    /// Opt-in tracking of newer codex-app wrapper releases in addition to the
-    /// official Codex DMG. Off by default so existing installs keep DMG-only
+    /// Opt-in tracking of newer chatgpt wrapper releases in addition to the
+    /// official ChatGPT DMG. Off by default so existing installs keep DMG-only
     /// behavior.
     #[serde(default)]
     pub enable_wrapper_updates: bool,
@@ -41,6 +82,11 @@ pub struct RuntimeConfig {
     /// Branch to track for wrapper updates.
     #[serde(default = "default_wrapper_branch")]
     pub wrapper_branch: String,
+    /// Optional cleanup for generated wrapper checkout artifacts. This is
+    /// intentionally opt-in so users keep manual build output unless they
+    /// configure cleanup.
+    #[serde(default)]
+    pub generated_artifact_cleanup: GeneratedArtifactCleanupConfig,
 }
 
 fn default_wrapper_branch() -> String {
@@ -63,6 +109,7 @@ struct RuntimeConfigOverlay {
     enable_wrapper_updates: Option<bool>,
     wrapper_remote: Option<String>,
     wrapper_branch: Option<String>,
+    generated_artifact_cleanup: Option<GeneratedArtifactCleanupConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,30 +165,27 @@ impl RuntimeConfig {
     /// Builds the default runtime configuration for the resolved paths.
     pub fn default_with_paths(paths: &RuntimePaths) -> Self {
         let packaged_bundle_root = PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT);
-        let builder_bundle_root = if packaged_bundle_root.exists() {
-            packaged_bundle_root
-        } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .expect("updater crate should live inside the repository root")
-                .to_path_buf()
-        };
 
-        Self {
-            dmg_url: "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg".to_string(),
+        let config = Self {
+            dmg_url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 30,
-            check_interval_hours: 6,
+            check_interval_hours: DEFAULT_CHECK_INTERVAL_HOURS,
             auto_install_on_app_exit: true,
             notifications: true,
             developer_mode: false,
             workspace_root: paths.cache_dir.clone(),
-            builder_bundle_root,
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
+            builder_bundle_root: packaged_bundle_root,
+            app_executable_path: PathBuf::from("/opt/chatgpt/electron"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: default_wrapper_branch(),
-        }
+            generated_artifact_cleanup: GeneratedArtifactCleanupConfig::default(),
+        };
+        config
+            .validate()
+            .expect("default runtime configuration must be valid");
+        config
     }
 
     /// Loads the runtime configuration from disk, or returns defaults if missing.
@@ -154,9 +198,27 @@ impl RuntimeConfig {
             .with_context(|| format!("Failed to read {}", paths.config_file.display()))?;
         let overlay = toml::from_str::<RuntimeConfigOverlay>(&content)
             .with_context(|| format!("Failed to parse {}", paths.config_file.display()))?;
+        let configured_builder_bundle_root = overlay.builder_bundle_root.clone();
         let mut config = Self::default_with_paths(paths);
         config.apply_overlay(overlay);
-        config.enforce_packaged_builder_root(Path::new(PACKAGED_BUILDER_BUNDLE_ROOT));
+        if config.check_interval_hours == 0 {
+            warn!(
+                config_path = %paths.config_file.display(),
+                configured_hours = 0,
+                default_hours = DEFAULT_CHECK_INTERVAL_HOURS,
+                "invalid check_interval_hours; using default"
+            );
+            config.check_interval_hours = DEFAULT_CHECK_INTERVAL_HOURS;
+        }
+        config.builder_bundle_root = select_builder_bundle_root(
+            Path::new(PACKAGED_BUILDER_BUNDLE_ROOT),
+            config.developer_mode,
+            configured_builder_bundle_root,
+            development_builder_bundle_root(),
+        );
+        config
+            .validate()
+            .with_context(|| format!("Invalid configuration {}", paths.config_file.display()))?;
         Ok(config)
     }
 
@@ -200,35 +262,83 @@ impl RuntimeConfig {
         if let Some(value) = overlay.wrapper_branch {
             self.wrapper_branch = value;
         }
+        if let Some(value) = overlay.generated_artifact_cleanup {
+            self.generated_artifact_cleanup = value;
+        }
     }
 
-    fn enforce_packaged_builder_root(&mut self, packaged_root: &Path) {
-        if packaged_root.exists() && !self.developer_mode {
-            self.builder_bundle_root = packaged_root.to_path_buf();
+    fn validate(&self) -> Result<()> {
+        if !self.developer_mode {
+            anyhow::ensure!(
+                self.builder_bundle_root == Path::new(PACKAGED_BUILDER_BUNDLE_ROOT),
+                "non-developer updater configuration must use the packaged update-builder path"
+            );
         }
+        let interval = self.check_interval_duration()?;
+        self.check_interval_chrono_duration()?;
+        Instant::now()
+            .checked_add(interval)
+            .context("check_interval_hours exceeds the platform timer range")?;
+        let _ = self.initial_check_delay_duration();
+        Ok(())
+    }
+
+    pub(crate) fn initial_check_delay_duration(&self) -> Duration {
+        Duration::from_secs(self.initial_check_delay_seconds)
+    }
+
+    pub(crate) fn check_interval_duration(&self) -> Result<Duration> {
+        let seconds = self
+            .check_interval_hours
+            .checked_mul(SECONDS_PER_HOUR)
+            .context("check_interval_hours overflows seconds")?;
+        Ok(Duration::from_secs(seconds))
+    }
+
+    pub(crate) fn check_interval_chrono_duration(&self) -> Result<ChronoDuration> {
+        let hours = i64::try_from(self.check_interval_hours)
+            .context("check_interval_hours exceeds the Chrono hour range")?;
+        ChronoDuration::try_hours(hours)
+            .context("check_interval_hours exceeds the Chrono duration range")
+    }
+}
+
+fn development_builder_bundle_root() -> Option<PathBuf> {
+    let executable = std::env::current_exe().ok()?;
+    executable.ancestors().find_map(|ancestor| {
+        let candidate = ancestor.join("updater").join("Cargo.toml");
+        candidate.is_file().then(|| ancestor.to_path_buf())
+    })
+}
+
+fn select_builder_bundle_root(
+    packaged_root: &Path,
+    developer_mode: bool,
+    configured_root: Option<PathBuf>,
+    development_root: Option<PathBuf>,
+) -> PathBuf {
+    if !developer_mode {
+        packaged_root.to_path_buf()
+    } else {
+        configured_root
+            .or(development_root)
+            .unwrap_or_else(|| packaged_root.to_path_buf())
     }
 }
 
 const APP_SETTINGS_FILE: &str = "settings.json";
-const DEFAULT_APP_ID: &str = "codex-app";
-const AUTO_INSTALL_SETTING_KEY: &str = "codex-linux-auto-update-on-exit";
-const WRAPPER_UPDATES_SETTING_KEY: &str = "codex-linux-wrapper-updates-enabled";
+pub(crate) const DEFAULT_APP_ID: &str = "chatgpt";
+const AUTO_INSTALL_SETTING_KEY: &str = "chatgpt-linux-auto-update-on-exit";
+const WRAPPER_UPDATES_SETTING_KEY: &str = "chatgpt-linux-wrapper-updates-enabled";
 
-/// Resolves the Codex App id the same way the Linux launcher and main bundle do:
-/// `CODEX_LINUX_APP_ID`, then `CODEX_APP_ID`, then `codex-app`.
+/// Resolves the ChatGPT id the same way the Linux launcher and main bundle do:
+/// `CHATGPT_LINUX_APP_ID`, then `CHATGPT_APP_ID`, then `chatgpt`.
 /// Invalid ids fall back to the default so a malformed env value can never point
 /// the lookup at an attacker-controlled path.
-fn resolve_app_id() -> String {
-    fn valid(id: &str) -> bool {
-        !id.is_empty()
-            && id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
-    }
-
-    for var in ["CODEX_LINUX_APP_ID", "CODEX_APP_ID"] {
+pub(crate) fn resolve_app_id() -> String {
+    for var in ["CHATGPT_LINUX_APP_ID", "CHATGPT_APP_ID"] {
         if let Ok(value) = std::env::var(var) {
-            if valid(&value) {
+            if valid_app_id(&value) {
                 return value;
             }
         }
@@ -236,12 +346,37 @@ fn resolve_app_id() -> String {
     DEFAULT_APP_ID.to_string()
 }
 
+pub(crate) fn valid_app_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+}
+
+pub(crate) fn resolve_launch_instance_id() -> Option<String> {
+    std::env::var("CHATGPT_LINUX_INSTANCE_ID")
+        .ok()
+        .filter(|value| valid_app_id(value))
+}
+
+pub(crate) fn resolve_app_state_dir() -> Result<PathBuf> {
+    let base_dirs = BaseDirs::new().context("Could not resolve XDG base directories")?;
+    let state_root = base_dirs
+        .state_dir()
+        .unwrap_or_else(|| base_dirs.data_local_dir());
+    let app_state_dir = state_root.join(resolve_app_id());
+    Ok(match resolve_launch_instance_id() {
+        Some(instance) => app_state_dir.join("instances").join(instance),
+        None => app_state_dir,
+    })
+}
+
 /// Resolves the app `settings.json` path mirroring the launcher
 /// (`launcher/start.sh.template`) and the main-bundle persistence helper
-/// (`scripts/patches/launch-actions.js`): honor `CODEX_LINUX_SETTINGS_FILE`
+/// (`scripts/patches/launch-actions.js`): honor `CHATGPT_LINUX_SETTINGS_FILE`
 /// first, then `XDG_CONFIG_HOME`, then `$HOME/.config`, joined with the app id.
 fn app_settings_path() -> Option<PathBuf> {
-    if let Ok(explicit) = std::env::var("CODEX_LINUX_SETTINGS_FILE") {
+    if let Ok(explicit) = std::env::var("CHATGPT_LINUX_SETTINGS_FILE") {
         if !explicit.is_empty() {
             return Some(PathBuf::from(explicit));
         }
@@ -296,20 +431,20 @@ pub fn settings_wrapper_updates_override() -> Option<bool> {
     settings_bool_override(WRAPPER_UPDATES_SETTING_KEY)
 }
 
-const FEATURE_CONFIG_FILE: &str = "port-integrations.json";
-const PACKAGED_FEATURE_CONFIG_DIR: &str = ".codex-linux";
-const BUNDLED_FEATURE_CONFIG_FILE: &str = "integrations.json";
-const FEATURE_PICKER_ON_UPDATE_SETTING_KEY: &str = "codex-linux-integration-picker-on-update";
+const PORT_INTEGRATIONS_CONFIG_FILE: &str = "port-integrations.json";
+const PACKAGED_PORT_INTEGRATIONS_CONFIG_DIR: &str = ".chatgpt-linux";
+const BUNDLED_PORT_INTEGRATIONS_CONFIG_FILE: &str = "integrations.json";
+const INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY: &str = "chatgpt-linux-integration-picker-on-update";
 
 /// Resolves the stable per-user port-integration config path
 /// (`<config>/<appId>/port-integrations.json`), alongside `settings.json`. The
 /// wrapper-update picker writes the chosen `{"enabled":[...]}` here, and the
-/// rebuild points `CODEX_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside
+/// rebuild points `CHATGPT_PORT_INTEGRATIONS_CONFIG` at it. Deliberately outside
 /// any wrapper-src checkout so a fresh clone cannot clobber it.
 pub fn integration_config_path() -> Option<PathBuf> {
     let settings = app_settings_path()?;
     let dir = settings.parent()?;
-    Some(dir.join(FEATURE_CONFIG_FILE))
+    Some(dir.join(PORT_INTEGRATIONS_CONFIG_FILE))
 }
 
 /// Returns the port-integration config that should drive a rebuild. A saved
@@ -321,15 +456,15 @@ pub fn effective_integration_config_path(config: &RuntimeConfig) -> Option<PathB
         .or_else(|| {
             let packaged = config
                 .builder_bundle_root
-                .join(PACKAGED_FEATURE_CONFIG_DIR)
-                .join(FEATURE_CONFIG_FILE);
+                .join(PACKAGED_PORT_INTEGRATIONS_CONFIG_DIR)
+                .join(PORT_INTEGRATIONS_CONFIG_FILE);
             packaged.is_file().then_some(packaged)
         })
         .or_else(|| {
             let bundled = config
                 .builder_bundle_root
                 .join("port-integrations")
-                .join(BUNDLED_FEATURE_CONFIG_FILE);
+                .join(BUNDLED_PORT_INTEGRATIONS_CONFIG_FILE);
             bundled.is_file().then_some(bundled)
         })
 }
@@ -337,7 +472,7 @@ pub fn effective_integration_config_path(config: &RuntimeConfig) -> Option<PathB
 /// Reads the user's "ask which integrations to enable on update" preference.
 /// Absent means callers use their default.
 pub fn settings_integration_picker_on_update_override() -> Option<bool> {
-    settings_bool_override(FEATURE_PICKER_ON_UPDATE_SETTING_KEY)
+    settings_bool_override(INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY)
 }
 
 /// Persists the "Ask which integrations to enable on update" preference to the app
@@ -345,7 +480,7 @@ pub fn settings_integration_picker_on_update_override() -> Option<bool> {
 /// key). Used to honor the picker's "Don't ask again" row. Never panics; returns
 /// the IO/serialization error so the caller can log-and-continue.
 pub fn write_integration_picker_on_update(value: bool) -> Result<()> {
-    write_settings_bool(FEATURE_PICKER_ON_UPDATE_SETTING_KEY, value)
+    write_settings_bool(INTEGRATION_PICKER_ON_UPDATE_SETTING_KEY, value)
 }
 
 /// Read-modify-writes a boolean key into the app `settings.json`, preserving all
@@ -422,10 +557,37 @@ fn atomic_temp_path(path: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use anyhow::Result;
+    use std::path::Path;
     use tempfile::tempdir;
 
+    fn test_paths(root: &Path) -> RuntimePaths {
+        RuntimePaths {
+            config_file: root.join("config/config.toml"),
+            state_file: root.join("state/state.json"),
+            log_file: root.join("state/service.log"),
+            cache_dir: root.join("cache"),
+            state_dir: root.join("state"),
+            config_dir: root.join("config"),
+        }
+    }
+
+    fn runtime_config_toml(initial_delay: u64, check_interval: u64) -> String {
+        format!(
+            r#"
+dmg_url = "https://example.com/ChatGPT.dmg"
+initial_check_delay_seconds = {initial_delay}
+check_interval_hours = {check_interval}
+auto_install_on_app_exit = false
+notifications = false
+workspace_root = "/tmp/chatgpt-workspaces"
+builder_bundle_root = "/tmp/chatgpt-builder"
+app_executable_path = "/opt/chatgpt/electron"
+"#
+        )
+    }
+
     /// Writes `settings.json` content to a tempfile, points
-    /// `CODEX_LINUX_SETTINGS_FILE` at it, and returns the override result.
+    /// `CHATGPT_LINUX_SETTINGS_FILE` at it, and returns the override result.
     /// `None` content means "do not create the file" (missing-file case).
     fn override_with_settings(content: Option<&str>, key: &str) -> Option<bool> {
         let _guard = crate::test_util::env_lock();
@@ -434,9 +596,9 @@ mod tests {
         if let Some(body) = content {
             std::fs::write(&settings_path, body).expect("write settings");
         }
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_path);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_path);
         let result = settings_bool_override(key);
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
         result
     }
 
@@ -444,14 +606,14 @@ mod tests {
     fn settings_override_reads_explicit_bool() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": false}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": false}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": true}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": true}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
@@ -462,28 +624,28 @@ mod tests {
     fn settings_override_coerces_string_and_number() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": "off"}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": "off"}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": "on"}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": "on"}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": 0}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": 0}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(false)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-auto-update-on-exit": 1}"#),
+                Some(r#"{"chatgpt-linux-auto-update-on-exit": 1}"#),
                 AUTO_INSTALL_SETTING_KEY
             ),
             Some(true)
@@ -512,14 +674,14 @@ mod tests {
     fn wrapper_settings_override_reads_explicit_bool() {
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-wrapper-updates-enabled": true}"#),
+                Some(r#"{"chatgpt-linux-wrapper-updates-enabled": true}"#),
                 WRAPPER_UPDATES_SETTING_KEY
             ),
             Some(true)
         );
         assert_eq!(
             override_with_settings(
-                Some(r#"{"codex-linux-wrapper-updates-enabled": false}"#),
+                Some(r#"{"chatgpt-linux-wrapper-updates-enabled": false}"#),
                 WRAPPER_UPDATES_SETTING_KEY
             ),
             Some(false)
@@ -534,7 +696,7 @@ mod tests {
         fs::write(&settings_path, r#"{"theme":"dark"}"#)?;
         let _settings_guard = crate::test_util::EnvVarGuard::set(
             &_guard,
-            "CODEX_LINUX_SETTINGS_FILE",
+            "CHATGPT_LINUX_SETTINGS_FILE",
             &settings_path,
         );
 
@@ -544,7 +706,7 @@ mod tests {
         let value = serde_json::from_str::<serde_json::Value>(&settings)?;
         assert_eq!(value["theme"], serde_json::Value::String("dark".into()));
         assert_eq!(
-            value["codex-linux-integration-picker-on-update"],
+            value["chatgpt-linux-integration-picker-on-update"],
             serde_json::Value::Bool(false)
         );
         let temp_entries = fs::read_dir(temp.path())?
@@ -571,7 +733,7 @@ mod tests {
         let saved_integration_config = settings_dir.join("port-integrations.json");
         let packaged_integration_config = temp
             .path()
-            .join("builder/.codex-linux/port-integrations.json");
+            .join("builder/.chatgpt-linux/port-integrations.json");
         let builder_integration_config = temp
             .path()
             .join("builder/port-integrations/integrations.json");
@@ -584,9 +746,9 @@ mod tests {
         )?;
         fs::write(
             &builder_integration_config,
-            r#"{"enabled":["codex-wrapper-updater"]}"#,
+            r#"{"enabled":["chatgpt-wrapper-updater"]}"#,
         )?;
-        std::env::set_var("CODEX_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
 
         let paths = RuntimePaths {
             config_file: temp.path().join("config/config.toml"),
@@ -622,7 +784,91 @@ mod tests {
             Some(saved_integration_config)
         );
 
-        std::env::remove_var("CODEX_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        Ok(())
+    }
+
+    #[test]
+    fn non_developer_selection_always_uses_packaged_path() {
+        let temp = tempdir().expect("tempdir");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
+        let configured_root = temp.path().join("configured-builder");
+        let checkout_root = temp.path().join("checkout");
+
+        assert_eq!(
+            select_builder_bundle_root(
+                &packaged_root,
+                false,
+                Some(configured_root),
+                Some(checkout_root),
+            ),
+            packaged_root
+        );
+    }
+
+    #[test]
+    fn developer_selection_prefers_configured_then_checkout_root() {
+        let temp = tempdir().expect("tempdir");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
+        let configured_root = temp.path().join("configured-builder");
+        let checkout_root = temp.path().join("checkout");
+
+        assert_eq!(
+            select_builder_bundle_root(
+                &packaged_root,
+                true,
+                Some(configured_root.clone()),
+                Some(checkout_root.clone()),
+            ),
+            configured_root
+        );
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, None, Some(checkout_root.clone())),
+            checkout_root
+        );
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, None, None),
+            packaged_root
+        );
+    }
+
+    #[test]
+    fn non_developer_overlay_cannot_replace_packaged_builder_root() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(
+            &paths.config_file,
+            r#"
+developer_mode = false
+builder_bundle_root = "/tmp/untrusted-chatgpt-builder"
+"#,
+        )?;
+
+        let config = RuntimeConfig::load_or_default(&paths)?;
+
+        assert!(!config.developer_mode);
+        assert_eq!(
+            config.builder_bundle_root,
+            PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn non_developer_validation_rejects_non_packaged_builder_root() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        let mut config = RuntimeConfig::default_with_paths(&paths);
+        config.builder_bundle_root = temp.path().join("untrusted-builder");
+
+        let error = config
+            .validate()
+            .expect_err("non-developer configuration must retain the packaged builder path");
+
+        assert!(error
+            .to_string()
+            .contains("must use the packaged update-builder path"));
         Ok(())
     }
 
@@ -642,7 +888,25 @@ mod tests {
         assert_eq!(config.initial_check_delay_seconds, 30);
         assert!(config.auto_install_on_app_exit);
         assert_eq!(config.workspace_root, paths.cache_dir);
-        assert!(config.builder_bundle_root.is_absolute());
+        assert_eq!(
+            config.builder_bundle_root,
+            PathBuf::from(PACKAGED_BUILDER_BUNDLE_ROOT)
+        );
+        assert!(!config.generated_artifact_cleanup.enabled);
+        assert_eq!(
+            config.generated_artifact_cleanup.min_free_bytes,
+            10 * 1024 * 1024 * 1024
+        );
+        assert_eq!(
+            config.generated_artifact_cleanup.entries,
+            vec![
+                PathBuf::from("chatgpt"),
+                PathBuf::from("chatgpt-next"),
+                PathBuf::from("dist"),
+                PathBuf::from("dist-next"),
+                PathBuf::from("target"),
+            ]
+        );
         Ok(())
     }
 
@@ -661,39 +925,72 @@ mod tests {
         fs::write(
             &paths.config_file,
             r#"
-dmg_url = "https://example.com/Codex.dmg"
+dmg_url = "https://example.com/ChatGPT.dmg"
 initial_check_delay_seconds = 5
 check_interval_hours = 12
 auto_install_on_app_exit = false
 notifications = false
 developer_mode = true
-workspace_root = "/tmp/codex-workspaces"
-builder_bundle_root = "/tmp/codex-builder"
-app_executable_path = "/opt/codex-app/electron"
+workspace_root = "/tmp/chatgpt-workspaces"
+builder_bundle_root = "/tmp/chatgpt-builder"
+app_executable_path = "/opt/chatgpt/electron"
 cli_path = "/opt/codex/bin/codex"
+
+
+[generated_artifact_cleanup]
+enabled = true
+min_free_bytes = 2147483648
+roots = ["/tmp/chatgpt-linux"]
+entries = ["dist", "target", "ChatGPT.dmg"]
 "#,
         )?;
 
         let config = RuntimeConfig::load_or_default(&paths)?;
-        assert_eq!(config.dmg_url, "https://example.com/Codex.dmg");
+        assert_eq!(config.dmg_url, "https://example.com/ChatGPT.dmg");
         assert_eq!(config.initial_check_delay_seconds, 5);
         assert_eq!(config.check_interval_hours, 12);
+        assert_eq!(
+            config.initial_check_delay_duration(),
+            Duration::from_secs(5)
+        );
+        assert_eq!(
+            config.check_interval_duration()?,
+            Duration::from_secs(12 * SECONDS_PER_HOUR)
+        );
+        assert_eq!(
+            config.check_interval_chrono_duration()?,
+            ChronoDuration::hours(12)
+        );
         assert!(!config.auto_install_on_app_exit);
         assert!(!config.notifications);
         assert!(config.developer_mode);
         assert_eq!(
             config.workspace_root,
-            PathBuf::from("/tmp/codex-workspaces")
+            PathBuf::from("/tmp/chatgpt-workspaces")
         );
         assert_eq!(
             config.builder_bundle_root,
-            PathBuf::from("/tmp/codex-builder")
+            PathBuf::from("/tmp/chatgpt-builder")
         );
         assert_eq!(
             config.app_executable_path,
-            PathBuf::from("/opt/codex-app/electron")
+            PathBuf::from("/opt/chatgpt/electron")
         );
         assert_eq!(config.cli_path, Some(PathBuf::from("/opt/codex/bin/codex")));
+        assert!(config.generated_artifact_cleanup.enabled);
+        assert_eq!(config.generated_artifact_cleanup.min_free_bytes, 2147483648);
+        assert_eq!(
+            config.generated_artifact_cleanup.roots,
+            vec![PathBuf::from("/tmp/chatgpt-linux")]
+        );
+        assert_eq!(
+            config.generated_artifact_cleanup.entries,
+            vec![
+                PathBuf::from("dist"),
+                PathBuf::from("target"),
+                PathBuf::from("ChatGPT.dmg"),
+            ]
+        );
         Ok(())
     }
 
@@ -720,6 +1017,47 @@ cli_path = "/opt/codex/bin/codex"
     }
 
     #[test]
+    fn zero_check_interval_warns_and_falls_back_to_default() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(&paths.config_file, runtime_config_toml(5, 0))?;
+
+        #[derive(Clone)]
+        struct BufferWriter(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for BufferWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("log buffer lock")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let output = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let writer = BufferWriter(output.clone());
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let config = tracing::subscriber::with_default(subscriber, || {
+            RuntimeConfig::load_or_default(&paths)
+        })?;
+        let message = String::from_utf8(output.lock().expect("log buffer lock").clone())?;
+
+        assert_eq!(config.check_interval_hours, DEFAULT_CHECK_INTERVAL_HOURS);
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("invalid check_interval_hours; using default"));
+        assert!(message.contains("default_hours=6"));
+        Ok(())
+    }
+
+    #[test]
     fn rejects_unknown_config_keys() -> Result<()> {
         let temp = tempdir()?;
         let paths = RuntimePaths {
@@ -741,55 +1079,27 @@ cli_path = "/opt/codex/bin/codex"
     #[test]
     fn packaged_builder_root_overrides_configured_root_without_developer_mode() {
         let temp = tempdir().expect("tempdir");
-        let packaged_root = temp.path().join("usr/lib/codex-app/update-builder");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
-        let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
-            initial_check_delay_seconds: 5,
-            check_interval_hours: 12,
-            auto_install_on_app_exit: false,
-            notifications: false,
-            developer_mode: false,
-            workspace_root: temp.path().join("workspace"),
-            builder_bundle_root: configured_root,
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
-            cli_path: None,
-            enable_wrapper_updates: false,
-            wrapper_remote: String::new(),
-            wrapper_branch: "main".to_string(),
-        };
 
-        config.enforce_packaged_builder_root(&packaged_root);
-
-        assert_eq!(config.builder_bundle_root, packaged_root);
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, false, Some(configured_root), None),
+            packaged_root
+        );
     }
 
     #[test]
     fn developer_mode_preserves_configured_builder_root() {
         let temp = tempdir().expect("tempdir");
-        let packaged_root = temp.path().join("usr/lib/codex-app/update-builder");
+        let packaged_root = temp.path().join("usr/lib/chatgpt/update-builder");
         fs::create_dir_all(&packaged_root).expect("packaged root");
         let configured_root = temp.path().join("custom-builder");
-        let mut config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
-            initial_check_delay_seconds: 5,
-            check_interval_hours: 12,
-            auto_install_on_app_exit: false,
-            notifications: false,
-            developer_mode: true,
-            workspace_root: temp.path().join("workspace"),
-            builder_bundle_root: configured_root.clone(),
-            app_executable_path: PathBuf::from("/opt/codex-app/electron"),
-            cli_path: None,
-            enable_wrapper_updates: false,
-            wrapper_remote: String::new(),
-            wrapper_branch: "main".to_string(),
-        };
 
-        config.enforce_packaged_builder_root(&packaged_root);
-
-        assert_eq!(config.builder_bundle_root, configured_root);
+        assert_eq!(
+            select_builder_bundle_root(&packaged_root, true, Some(configured_root.clone()), None,),
+            configured_root
+        );
     }
 
     #[test]
@@ -807,18 +1117,88 @@ cli_path = "/opt/codex/bin/codex"
         fs::write(
             &paths.config_file,
             r#"
-dmg_url = "https://example.com/Codex.dmg"
+dmg_url = "https://example.com/ChatGPT.dmg"
 notifications = false
 "#,
         )?;
 
         let config = RuntimeConfig::load_or_default(&paths)?;
-        assert_eq!(config.dmg_url, "https://example.com/Codex.dmg");
+        assert_eq!(config.dmg_url, "https://example.com/ChatGPT.dmg");
         assert_eq!(config.initial_check_delay_seconds, 30);
         assert_eq!(config.check_interval_hours, 6);
         assert!(config.auto_install_on_app_exit);
         assert!(!config.notifications);
         assert_eq!(config.workspace_root, paths.cache_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_check_interval_that_overflows_seconds() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(
+            &paths.config_file,
+            runtime_config_toml(5, u64::MAX / SECONDS_PER_HOUR + 1),
+        )?;
+
+        let error =
+            RuntimeConfig::load_or_default(&paths).expect_err("overflowing interval should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("check_interval_hours overflows seconds"));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_check_interval_outside_chrono_range() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        let chrono_millisecond_overflow_hours = (i64::MAX as u64) / (SECONDS_PER_HOUR * 1000) + 1;
+        fs::write(
+            &paths.config_file,
+            runtime_config_toml(5, chrono_millisecond_overflow_hours),
+        )?;
+
+        let error = RuntimeConfig::load_or_default(&paths)
+            .expect_err("interval outside Chrono range should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        assert!(message.contains("check_interval_hours exceeds the Chrono duration range"));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_errors_include_config_path() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        fs::create_dir_all(&paths.config_dir)?;
+        fs::write(&paths.config_file, "check_interval_hours = [")?;
+
+        let error = RuntimeConfig::load_or_default(&paths).expect_err("invalid TOML should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains("Failed to parse"));
+        assert!(message.contains(&paths.config_file.display().to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn initial_check_delay_conversion_accepts_extreme_u64() -> Result<()> {
+        let temp = tempdir()?;
+        let paths = test_paths(temp.path());
+        let mut config = RuntimeConfig::default_with_paths(&paths);
+        config.initial_check_delay_seconds = u64::MAX;
+
+        config.validate()?;
+
+        assert_eq!(
+            config.initial_check_delay_duration(),
+            Duration::from_secs(u64::MAX)
+        );
         Ok(())
     }
 }

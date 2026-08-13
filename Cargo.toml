@@ -1,3 +1,10 @@
 [workspace]
-members = ["computer-use-linux", "read-aloud-linux", "updater"]
+members = [
+  "generated-app-mutation-broker",
+  "computer-use-linux",
+  "notification-actions-linux",
+  "read-aloud-linux",
+  "updater",
+  "record-replay-linux",
+]
 resolver = "2"

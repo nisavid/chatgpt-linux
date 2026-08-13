@@ -2,7 +2,7 @@
 
 `port-integrations/` is the source path for this fork's configurable
 port integration registry. A port integration is a build-time integration module that
-adapts official Codex app behavior or local runtime helpers to this Linux port.
+adapts official ChatGPT app behavior or local runtime helpers to this Linux port.
 Integrations are not official Codex plugins and are not necessarily Linux-only
 Codex feature concepts. They can add ASAR patches, webview or extracted-app
 patches, staged resources, or build/install hooks.
@@ -22,21 +22,25 @@ changed without moving code into the core patch registry.
 ## Defaults And Local Overrides
 
 This fork enables the current supported integration set by default:
-`agent-workspace`, `appshots`, `codex-wrapper-updater`, `conversation-mode`,
-`copilot-reasoning-effort`, `open-target-discovery`, `read-aloud`,
-`read-aloud-mcp`, `remote-control-ui`, and `remote-mobile-control`. Open target
-discovery improves the Linux Open menus with terminal, editor, and file-manager
-targets. It reads the current user's desktop app entries and launches selected
+`agent-workspace`, `api-key-model-visibility`, `api-key-service-tier`,
+`appshots`, `chatgpt-wrapper-updater`, `conversation-mode`,
+`copilot-reasoning-effort`, `global-dictation`, `omarchy-theme`,
+`open-target-discovery`, `persistent-status-panel`, `pet-overlay`,
+`project-group-last-updated-sort`, `project-task-sort`, `read-aloud`,
+`read-aloud-mcp`, `remote-control-ui`, `remote-mobile-control`,
+`shared-app-server-socket`, `ssh-command-wrapper`, and `ui-tweaks`.
+Open target discovery improves the Linux Open menus with terminal, editor, and
+file-manager targets. It reads the current user's desktop app entries and launches selected
 targets as that same user; see
 [`open-target-discovery/README.md`](open-target-discovery/README.md) for the
 scope and trust notes. Agent Workspaces remains controlled from its settings page
 for the normal UI flow; main-process hardening for direct bridge calls is tracked
-in [#99](https://github.com/nisavid/codex-app-linux/issues/99). AppShots uses
+in [#99](https://github.com/nisavid/chatgpt-linux/issues/99). AppShots uses
 best-effort focused-window capture, preserves the upstream availability flag, and
 keeps global hotkeys inactive until the user selects one. Wrapper update checks
 remain off at runtime until the user enables them in Settings. Copilot reasoning
 effort defaults only affect Copilot auth sessions; backend entitlement semantics
-are tracked in [#100](https://github.com/nisavid/codex-app-linux/issues/100).
+are tracked in [#100](https://github.com/nisavid/chatgpt-linux/issues/100).
 The remote control and voice integrations still depend on OpenAI account rollout,
 local audio, connected-client state, and host network availability.
 
@@ -51,7 +55,7 @@ rerun `./install.sh` or the package build:
     "conversation-mode",
     "agent-workspace",
     "appshots",
-    "codex-wrapper-updater",
+    "chatgpt-wrapper-updater",
     "copilot-reasoning-effort",
     "remote-control-ui",
     "remote-mobile-control",
@@ -67,7 +71,7 @@ To enable a still-optional integration, list it under `enabled`:
 {
   "enabled": [
     "node-repl-reaper",
-    "zed-opener"
+    "frameless-titlebar"
   ],
   "disabled": []
 }
@@ -92,15 +96,15 @@ read during the install/build pipeline; if you change this file after an app
 has already been generated, rerun the install/build step.
 
 Packaged installs and updater rebuilds can use a persistent user override at
-`${XDG_CONFIG_HOME:-$HOME/.config}/codex-app/port-integrations.json` with the same
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` with the same
 shape. Checkout builds intentionally ignore that persistent user file when the
 repo has a `.git` directory or worktree pointer, so packaged-install preferences
 do not silently change local development builds or tests. For one-off builds,
-set `CODEX_PORT_INTEGRATIONS_CONFIG=/path/to/file.json` to point at an explicit
+set `CHATGPT_PORT_INTEGRATIONS_CONFIG=/path/to/file.json` to point at an explicit
 config file.
 Native packages omit checkout-local integration config from the packaged
 update-builder bundle. Updater rebuilds resolve the persistent user override at
-`${XDG_CONFIG_HOME:-$HOME/.config}/codex-app/port-integrations.json`, then fall
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`, then fall
 back to the default-enabled integration manifests in the bundle.
 
 You can also let the guided native setup helper discover integration manifests and
@@ -110,9 +114,9 @@ write `integrations.json`:
 make setup-native
 
 # non-interactive integration edits:
-CODEX_BOOTSTRAP_NONINTERACTIVE=1 \
-CODEX_PORT_INTEGRATIONS=remote-mobile-control,read-aloud \
-CODEX_DISABLE_PORT_INTEGRATIONS=conversation-mode \
+CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
+CHATGPT_PORT_INTEGRATIONS=remote-mobile-control,read-aloud \
+CHATGPT_DISABLE_PORT_INTEGRATIONS=conversation-mode \
 make setup-native
 ```
 
@@ -122,15 +126,12 @@ runtimes, or ydotool services. Integration-owned cleanup is a separate interacti
 action:
 
 ```bash
-CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS=remote-mobile-control,read-aloud make setup-native
+CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS=remote-mobile-control,read-aloud make setup-native
 ```
 
 The helper lists exact paths and deletes only paths confirmed with
-`DELETE <exact path>`. Add `CODEX_BOOTSTRAP_DRY_RUN=1` to preview cleanup
-targets without deleting them. Legacy `CODEX_LINUX_FEATURES_*` and
-`CODEX_BOOTSTRAP_CLEANUP_FEATURES` variables are accepted as compatibility
-aliases, but new docs and scripts should use `CODEX_PORT_INTEGRATIONS_*` and
-`CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS`.
+`DELETE <exact path>`. Add `CHATGPT_BOOTSTRAP_DRY_RUN=1` to preview cleanup
+targets without deleting them.
 
 Each integration directory should include:
 
@@ -142,8 +143,7 @@ Each integration directory should include:
 - optional `test.js` — self-contained tests for the integration
 
 `stage.sh` hooks run with `SCRIPT_DIR`, `INSTALL_DIR`, `WORK_DIR`, `ARCH`, and
-`CODEX_OFFICIAL_APP_DIR` in the environment. `CODEX_UPSTREAM_APP_DIR` remains a
-legacy alias for existing hooks.
+`CHATGPT_OFFICIAL_APP_DIR` in the environment.
 
 Descriptor patches use the same shape as `scripts/patches/core/**/patch.js`.
 They can target `main-bundle`, `webview-asset`, or `extracted-app` phases.

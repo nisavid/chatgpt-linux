@@ -1,8 +1,43 @@
 #!/bin/bash
-# Webview asset extraction and patched app.asar install into the codex-app/ tree.
+# Webview asset extraction and patched app.asar install into the chatgpt/ tree.
 #
 # Sourced by install.sh. Do not run directly.
 # shellcheck shell=bash
+
+replace_linux_webview_icon_assets() {
+    local assets_dir="$INSTALL_DIR/content/webview/assets"
+    local -a icon_assets=()
+    local icon_asset linux_icon_source
+
+    linux_icon_source="${LINUX_ICON_SOURCE:-${CHATGPT_LINUX_ICON_SOURCE:-$SCRIPT_DIR/assets/chatgpt-linux.png}}"
+    [ -f "$linux_icon_source" ] || linux_icon_source="$ICON_SOURCE"
+
+    [ -f "$linux_icon_source" ] || {
+        warn "Linux icon not found at $linux_icon_source; leaving upstream webview icon assets unchanged"
+        return 0
+    }
+    [ -d "$assets_dir" ] || return 0
+
+    while IFS= read -r -d '' icon_asset; do
+        icon_assets+=("$icon_asset")
+    done < <(find "$assets_dir" -maxdepth 1 -type f -name 'app-*.png' -print0 | sort -z)
+
+    if [ "${#icon_assets[@]}" -eq 0 ]; then
+        warn "Could not find webview app icon assets in $assets_dir; leaving upstream icon unchanged"
+        return 0
+    fi
+
+    for icon_asset in "${icon_assets[@]}"; do
+        cp "$linux_icon_source" "$icon_asset"
+    done
+    info "Linux app icon applied to ${#icon_assets[@]} webview asset(s)"
+}
+
+require_webview_entrypoint() {
+    local webview_index="$INSTALL_DIR/content/webview/index.html"
+
+    [ -f "$webview_index" ] || error "Missing webview entrypoint: $webview_index. Upstream ASAR layout may have changed."
+}
 
 # ---- Extract webview files ----
 extract_webview() {
@@ -12,26 +47,24 @@ extract_webview() {
 
     # Webview files are inside the extracted asar at webview/
     local asar_extracted="$WORK_DIR/app-extracted"
-    if [ -d "$asar_extracted/webview" ]; then
-        cp -aT "$asar_extracted/webview" "$target_webview"
-        # Replace transparent startup background with an opaque color for Linux.
-        # The official OpenAI app bundle relies on macOS vibrancy for the transparent effect;
-        # on Linux the transparent background causes flickering.
-        local webview_index="$target_webview/index.html"
-        if [ -f "$webview_index" ]; then
-            sed -i 's/--startup-background: transparent/--startup-background: #1e1e1e/' "$webview_index"
-        fi
-        write_webview_integrity_manifest "$install_dir" || return $?
-        info "Webview files copied"
-    else
-        warn "Webview directory not found in asar — app may not work"
-    fi
+    [ -d "$asar_extracted/webview" ] || error "Webview directory not found in extracted asar: $asar_extracted/webview"
+
+    cp -aT "$asar_extracted/webview" "$target_webview"
+    require_webview_entrypoint
+
+    # Replace transparent startup background with an opaque color for Linux.
+    # The official OpenAI app bundle relies on macOS vibrancy for the transparent effect;
+    # on Linux the transparent background causes flickering.
+    sed -i 's/--startup-background: transparent/--startup-background: #1e1e1e/' "$target_webview/index.html"
+    replace_linux_webview_icon_assets
+    write_webview_integrity_manifest "$install_dir" || return $?
+    info "Webview files copied"
 }
 
 write_webview_integrity_manifest() {
     local install_dir="$1"
     local target_webview="$install_dir/content/webview"
-    local manifest_dir="$install_dir/.codex-linux"
+    local manifest_dir="$install_dir/.chatgpt-linux"
     local manifest_file="$manifest_dir/webview-integrity.sha256"
 
     mkdir -p "$manifest_dir"
@@ -344,7 +377,14 @@ def collect_startup_asset_graph(initial_paths):
             raise SystemExit(f"missing webview startup asset: {relative_path}")
 
         for reference, require_existing, allow_plain in iter_dependency_references(relative_path, asset_path):
-            normalized = normalize_asset_reference(reference, relative_path, allow_plain)
+            try:
+                normalized = normalize_asset_reference(reference, relative_path, allow_plain)
+            except SystemExit:
+                if require_existing:
+                    raise
+                # Bundlers retain source-module IDs such as ../../../node_modules/...
+                # as object keys. They are not runtime asset edges.
+                continue
             if normalized is None:
                 continue
             dependency_path = webview_asset_path(normalized)
@@ -378,10 +418,261 @@ PY
 }
 
 # ---- Install app.asar ----
+install_git_repository_watcher_dependency() {
+    local app_package_json="$WORK_DIR/app-extracted/package.json"
+    local resources_dir="$INSTALL_DIR/resources"
+    local managed_node="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/node"
+    local managed_npm="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/bin/npm"
+    local managed_npm_cli="$CHATGPT_MANAGED_NODE_RUNTIME_DIR/lib/node_modules/npm/bin/npm-cli.js"
+    local approved_bundle_dir="$SCRIPT_DIR/scripts/lib/parcel-watcher"
+    local target_helper="$SCRIPT_DIR/scripts/lib/parcel-watcher-target.js"
+    local watcher_version
+
+    [ -f "$app_package_json" ] || error "Missing extracted app package metadata: $app_package_json"
+    [ -x "$managed_node" ] || error "Managed Node.js runtime is missing node: $managed_node"
+    [ -x "$managed_npm" ] || error "Managed Node.js runtime is missing npm: $managed_npm"
+    [ -f "$managed_npm_cli" ] && [ ! -L "$managed_npm_cli" ] \
+        || error "Managed Node.js runtime is missing npm CLI: $managed_npm_cli"
+    [ -f "$target_helper" ] && [ ! -L "$target_helper" ] \
+        || error "Parcel watcher target verifier is missing: $target_helper"
+
+    watcher_version="$("$managed_node" - "$app_package_json" <<'NODE'
+const packageJson = require(process.argv[2]);
+const version = packageJson.dependencies?.["@parcel/watcher"];
+const exactSemver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+if (typeof version !== "string" || !exactSemver.test(version)) {
+  process.exit(1);
+}
+process.stdout.write(version);
+NODE
+)" || error "Official app does not declare an exact @parcel/watcher dependency"
+
+    [ -d "$approved_bundle_dir" ] \
+        || error "Approved @parcel/watcher offline bundle is missing: $approved_bundle_dir"
+    [ ! -e "$resources_dir/node_modules" ] && [ ! -L "$resources_dir/node_modules" ] \
+        || error "Generated app resources already contain node_modules"
+
+    info "Installing approved offline Git repository watcher dependency: @parcel/watcher@$watcher_version"
+    (
+        set -Eeuo pipefail
+        local staging_dir
+        staging_dir="$(mktemp -d "$resources_dir/.parcel-watcher.XXXXXX")" \
+            || error "Could not create private @parcel/watcher staging directory"
+        trap 'rm -rf -- "$staging_dir"' EXIT
+
+        mkdir -p "$staging_dir/archives" "$staging_dir/npm-cache"
+        chmod 0700 "$staging_dir" "$staging_dir/archives" "$staging_dir/npm-cache"
+
+        "$managed_node" - \
+            "$approved_bundle_dir" \
+            "$staging_dir" \
+            "$watcher_version" \
+            "$target_helper" <<'NODE' \
+            || error "Approved @parcel/watcher bundle verification failed"
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const bundleDir = path.resolve(process.argv[2]);
+const stagingDir = path.resolve(process.argv[3]);
+const expectedVersion = process.argv[4];
+const targetHelperPath = path.resolve(process.argv[5]);
+const archivesDir = path.join(stagingDir, "archives");
+const { detectHostTarget, selectApprovedTarget } = require(targetHelperPath);
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function readRegularFile(filePath, label) {
+  const stat = fs.lstatSync(filePath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    fail(`${label} must be a regular file`);
+  }
+  return fs.readFileSync(filePath);
+}
+
+function sha256(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function verifyDigest(bytes, expected, label) {
+  if (typeof expected !== "string" || !/^[0-9a-f]{64}$/u.test(expected)) {
+    fail(`${label} has an invalid approved SHA-256`);
+  }
+  const actual = sha256(bytes);
+  if (!crypto.timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"))) {
+    fail(`${label} does not match its approved SHA-256`);
+  }
+}
+
+const manifestPath = path.join(bundleDir, "approved.json");
+const manifest = JSON.parse(readRegularFile(manifestPath, "approval manifest").toString("utf8"));
+if (manifest.schemaVersion !== 2) {
+  fail("unsupported @parcel/watcher approval manifest schema");
+}
+if (manifest.watcherVersion !== expectedVersion) {
+  fail(`official @parcel/watcher ${expectedVersion} is not approved (approved: ${manifest.watcherVersion})`);
+}
+
+const packageJsonBytes = readRegularFile(path.join(bundleDir, "package.json"), "approved package.json");
+const packageLockBytes = readRegularFile(path.join(bundleDir, "package-lock.json"), "approved package-lock.json");
+verifyDigest(packageJsonBytes, manifest.packageJsonSha256, "approved package.json");
+verifyDigest(packageLockBytes, manifest.packageLockSha256, "approved package-lock.json");
+
+const packageJson = JSON.parse(packageJsonBytes.toString("utf8"));
+const packageLock = JSON.parse(packageLockBytes.toString("utf8"));
+const selectedTarget = selectApprovedTarget(manifest, detectHostTarget());
+if (packageJson.dependencies?.["@parcel/watcher"] !== `file:archives/parcel-watcher-${expectedVersion}.tgz`) {
+  fail("approved package.json does not bind the expected @parcel/watcher archive");
+}
+if (
+  typeof packageJson.optionalDependencies?.[selectedTarget.nativePackage] !== "string" ||
+  !packageJson.optionalDependencies[selectedTarget.nativePackage].startsWith("file:archives/")
+) {
+  fail(`approved target ${selectedTarget.id} is not bound to an offline native package`);
+}
+if (packageLock.lockfileVersion !== 3 || packageLock.packages?.[""] == null) {
+  fail("approved package-lock.json must be a complete npm lockfile v3");
+}
+
+const dependencySpecs = {
+  ...(packageJson.dependencies ?? {}),
+  ...(packageJson.optionalDependencies ?? {}),
+};
+const referencedArchives = new Set();
+for (const [name, spec] of Object.entries(dependencySpecs)) {
+  if (typeof spec !== "string" || !/^file:archives\/[A-Za-z0-9._-]+\.tgz$/u.test(spec)) {
+    fail(`approved dependency ${name} is not bound to a local archive`);
+  }
+  referencedArchives.add(spec.slice("file:archives/".length));
+}
+
+if (!Array.isArray(manifest.archives) || manifest.archives.length === 0) {
+  fail("approval manifest has no offline archives");
+}
+const approvedArchives = new Set();
+for (const archive of manifest.archives) {
+  if (
+    archive == null ||
+    typeof archive !== "object" ||
+    typeof archive.encodedFile !== "string" ||
+    !/^archives\/[A-Za-z0-9._-]+\.tgz\.base64$/u.test(archive.encodedFile) ||
+    typeof archive.archiveFile !== "string" ||
+    !/^[A-Za-z0-9._-]+\.tgz$/u.test(archive.archiveFile) ||
+    archive.encodedFile !== `archives/${archive.archiveFile}.base64` ||
+    approvedArchives.has(archive.archiveFile)
+  ) {
+    fail("approval manifest contains an invalid or duplicate archive entry");
+  }
+  const encodedBytes = readRegularFile(path.join(bundleDir, archive.encodedFile), archive.encodedFile);
+  const encoded = encodedBytes.toString("ascii").replace(/\s+/gu, "");
+  if (encoded.length === 0 || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)) {
+    fail(`${archive.encodedFile} is not canonical base64`);
+  }
+  const archiveBytes = Buffer.from(encoded, "base64");
+  verifyDigest(archiveBytes, archive.sha256, archive.archiveFile);
+  fs.writeFileSync(path.join(archivesDir, archive.archiveFile), archiveBytes, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  approvedArchives.add(archive.archiveFile);
+}
+
+if (
+  approvedArchives.size !== referencedArchives.size ||
+  [...approvedArchives].some((name) => !referencedArchives.has(name))
+) {
+  fail("approved package manifest and offline archive set do not match");
+}
+
+for (const [packagePath, entry] of Object.entries(packageLock.packages)) {
+  if (packagePath === "") {
+    continue;
+  }
+  if (
+    entry == null ||
+    typeof entry !== "object" ||
+    typeof entry.resolved !== "string" ||
+    !/^file:archives\/[A-Za-z0-9._-]+\.tgz$/u.test(entry.resolved) ||
+    typeof entry.integrity !== "string" ||
+    !/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(entry.integrity)
+  ) {
+    fail(`approved lock entry ${packagePath} is not integrity-bound to an offline archive`);
+  }
+  if (!approvedArchives.has(entry.resolved.slice("file:archives/".length))) {
+    fail(`approved lock entry ${packagePath} references an unapproved archive`);
+  }
+}
+
+fs.writeFileSync(path.join(stagingDir, "package.json"), packageJsonBytes, { flag: "wx", mode: 0o600 });
+fs.writeFileSync(path.join(stagingDir, "package-lock.json"), packageLockBytes, { flag: "wx", mode: 0o600 });
+fs.writeFileSync(
+  path.join(stagingDir, ".selected-target.json"),
+  `${JSON.stringify({ id: selectedTarget.id, nativePackage: selectedTarget.nativePackage })}\n`,
+  { flag: "wx", mode: 0o600 },
+);
+NODE
+
+        "$managed_node" "$managed_npm_cli" ci \
+            --prefix "$staging_dir" \
+            --cache "$staging_dir/npm-cache" \
+            --offline \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --registry=http://127.0.0.1:9 >&2 \
+            || error "Failed to install approved offline @parcel/watcher@$watcher_version"
+
+        "$managed_node" - "$staging_dir" <<'NODE' \
+            || error "Approved @parcel/watcher installation selected an unexpected native package"
+const fs = require("node:fs");
+const path = require("node:path");
+
+const stagingDir = path.resolve(process.argv[2]);
+const selected = JSON.parse(fs.readFileSync(path.join(stagingDir, ".selected-target.json"), "utf8"));
+const parcelScope = path.join(stagingDir, "node_modules", "@parcel");
+const expectedEntry = selected.nativePackage.slice("@parcel/".length);
+const entries = fs.readdirSync(parcelScope).filter((entry) => entry.startsWith("watcher"));
+if (!entries.includes("watcher") || !entries.includes(expectedEntry)) {
+  process.exit(1);
+}
+const unexpected = entries.filter((entry) => entry !== "watcher" && entry !== expectedEntry);
+if (unexpected.length !== 0) {
+  process.exit(1);
+}
+NODE
+
+        [ -x "$INSTALL_DIR/electron" ] || error "Generated Electron runtime is missing: $INSTALL_DIR/electron"
+        ELECTRON_RUN_AS_NODE=1 "$INSTALL_DIR/electron" - "$staging_dir/package.json" "$watcher_version" <<'NODE' \
+            || error "Generated app cannot load the approved offline @parcel/watcher"
+const { createRequire } = require("node:module");
+const stagedPackagePath = process.argv[2];
+const expectedVersion = process.argv[3];
+const fromStaging = createRequire(stagedPackagePath);
+const watcher = fromStaging("@parcel/watcher");
+const watcherPackage = fromStaging("@parcel/watcher/package.json");
+if (watcherPackage.version !== expectedVersion || typeof watcher.subscribe !== "function") {
+  process.exit(1);
+}
+NODE
+
+        [ -d "$staging_dir/node_modules" ] \
+            || error "Approved offline @parcel/watcher installation produced no node_modules"
+        [ ! -e "$resources_dir/node_modules" ] && [ ! -L "$resources_dir/node_modules" ] \
+            || error "Generated app resources gained node_modules before watcher promotion"
+        mv "$staging_dir/node_modules" "$resources_dir/node_modules" \
+            || error "Could not promote approved offline @parcel/watcher"
+    ) || return $?
+
+    info "Approved offline Git repository watcher dependency installed"
+}
+
 install_app() {
     cp "$WORK_DIR/app.asar" "$INSTALL_DIR/resources/"
     if [ -d "$WORK_DIR/app.asar.unpacked" ]; then
         cp -r "$WORK_DIR/app.asar.unpacked" "$INSTALL_DIR/resources/"
     fi
+    install_git_repository_watcher_dependency || return $?
     info "app.asar installed"
 }

@@ -1,11 +1,11 @@
 //! Command-line interface definition for the updater binary.
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Debug, Parser)]
-#[command(name = "codex-app-updater")]
-#[command(about = "Local update manager for Codex App on Linux")]
+#[command(name = "chatgpt-updater")]
+#[command(about = "Local update manager for ChatGPT on Linux")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -19,7 +19,7 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         if_stale: bool,
     },
-    /// Check whether a newer codex-app wrapper release is available, and record
+    /// Check whether a newer chatgpt wrapper release is available, and record
     /// its changelog.
     CheckWrapper {
         #[arg(long, default_value_t = false)]
@@ -30,8 +30,8 @@ pub enum Commands {
     /// Show a GUI checklist of optional port integrations and save the
     /// selection so the next wrapper rebuild honors it.
     /// Invoked by the in-app Update button at click time (display still alive).
-    #[command(name = "pick-integrations", alias = "pick-features")]
-    PickFeatures {
+    #[command(name = "pick-integrations")]
+    PickIntegrations {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -43,6 +43,29 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         allow_install_missing: bool,
     },
+    /// Reinstall a removed standalone CLI tree with a permission-safe installer
+    /// child. This command never overwrites an existing standalone tree.
+    RecoverStandaloneCli {
+        #[arg(long)]
+        codex_home: Option<PathBuf>,
+        #[arg(long)]
+        install_dir: Option<PathBuf>,
+        #[arg(long)]
+        print_path: bool,
+    },
+    RepairCli,
+    #[command(hide = true)]
+    RunNpmSupervisor {
+        #[arg(long)]
+        owner_pid: u32,
+        #[arg(long)]
+        timeout_millis: u64,
+        #[arg(long)]
+        install_lock_fd: i32,
+        program: PathBuf,
+        #[arg(last = true, allow_hyphen_values = true)]
+        args: Vec<OsString>,
+    },
     PromptInstallCli {
         #[arg(long)]
         cli_path: Option<PathBuf>,
@@ -50,6 +73,11 @@ pub enum Commands {
         print_path: bool,
     },
     Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print read-only post-update/runtime diagnostics for support and smoke checks.
+    Diagnose {
         #[arg(long)]
         json: bool,
     },
@@ -129,4 +157,32 @@ pub enum Commands {
         #[arg(long, hide = true)]
         expected_package_version: Option<String>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Commands};
+    use clap::{CommandFactory, Parser};
+
+    #[test]
+    fn command_uses_canonical_chatgpt_updater_identity() {
+        let command = Cli::command();
+
+        assert_eq!(command.get_name(), "chatgpt-updater");
+        assert_eq!(
+            command.get_about().map(ToString::to_string).as_deref(),
+            Some("Local update manager for ChatGPT on Linux")
+        );
+    }
+
+    #[test]
+    fn integration_picker_rejects_the_removed_feature_alias() {
+        assert!(matches!(
+            Cli::try_parse_from(["chatgpt-updater", "pick-integrations"]),
+            Ok(Cli {
+                command: Commands::PickIntegrations { json: false }
+            })
+        ));
+        assert!(Cli::try_parse_from(["chatgpt-updater", "pick-features"]).is_err());
+    }
 }

@@ -6,13 +6,17 @@ const {
   findCodexRequestWebviewAsset,
   findImportedAsset,
   findRequiredWebviewAsset,
+} = require("../../scripts/patches/lib/assets.js");
+const {
   requireName,
-} = require("../../scripts/patches/shared.js");
+} = require("../../scripts/patches/lib/minified-js.js");
 
 const SETTINGS_ASSET = "agent-workspaces-linux.js";
 const SETTINGS_SLUG = "agent-workspaces";
-const SETTINGS_COMMAND_KEY = "codex-linux-agent-workspace-command";
-const SETTINGS_PERMISSIONS_KEY = "codex-linux-agent-workspace-permissions";
+const SETTINGS_COMMAND_KEY = "chatgpt-linux-agent-workspace-command";
+const SETTINGS_PERMISSIONS_KEY = "chatgpt-linux-agent-workspace-permissions";
+const LEGACY_SETTINGS_COMMAND_KEY = "codex-linux-agent-workspace-command";
+const LEGACY_SETTINGS_PERMISSIONS_KEY = "codex-linux-agent-workspace-permissions";
 
 function warn(message, patchName) {
   console.warn(`WARN: ${message} - skipping ${patchName}`);
@@ -22,20 +26,20 @@ function agentWorkspaceAppPickerBridgeSource({ fsVar, pathVar }) {
   return [
     `"linux-agent-workspace-pick-app":async()=>{let __codexElectron;try{__codexElectron=require("electron")}catch(e){return{ok:!1,action:"pickStartupApp",message:"file picker unavailable"}}`,
     `let __codexDesktopTokens=e=>{let t=[],n="",r=null,a=!1,o=String(e||"");for(let i=0;i<o.length;i++){let c=o[i];if(a){n+=c,a=!1;continue}if(c==="\\\\"){a=!0;continue}if(r){if(c===r)r=null;else n+=c;continue}if(c==="'"||c==='"'){r=c;continue}if(/\\s/.test(c)){if(n)t.push(n),n="";continue}n+=c}if(a)n+="\\\\";if(n)t.push(n);return t};`,
-    `let __codexDesktopEntry=__codexPath=>{if(typeof __codexPath!=="string"||!__codexPath.endsWith(".desktop"))return null;try{let __codexText=${fsVar}.readFileSync(__codexPath,"utf8"),__codexInEntry=!1,__codexName=null,__codexExec=null;for(let __codexLine of __codexText.split(/\\r?\\n/)){let __codexTrimmed=__codexLine.trim();if(!__codexTrimmed||__codexTrimmed.startsWith("#"))continue;if(__codexTrimmed.startsWith("[")&&__codexTrimmed.endsWith("]")){__codexInEntry=__codexTrimmed==="[Desktop Entry]";continue}if(!__codexInEntry)continue;let __codexEquals=__codexTrimmed.indexOf("=");if(__codexEquals<1)continue;let __codexKey=__codexTrimmed.slice(0,__codexEquals),__codexValue=__codexTrimmed.slice(__codexEquals+1).trim();if((__codexKey==="Name"||__codexKey.startsWith("Name["))&&!__codexName)__codexName=__codexValue;else if(__codexKey==="Exec"&&!__codexExec)__codexExec=__codexValue}if(!__codexExec)return null;let __codexPercent="__CODEX_PERCENT__",__codexCleanExec=__codexExec.replace(/%%/g,__codexPercent).replace(/%[A-Za-z]/g,"").replace(new RegExp(__codexPercent,"g"),"%").trim(),__codexCommand=__codexDesktopTokens(__codexCleanExec);return __codexCommand.length?{name:__codexName||${pathVar}.basename(__codexPath,".desktop"),command:__codexCommand,desktop_file:__codexPath}:null}catch{return null}};`,
+    `let __codexDesktopEntry=__codexPath=>{if(typeof __codexPath!=="string"||!__codexPath.endsWith(".desktop"))return null;try{let __codexText=${fsVar}.readFileSync(__codexPath,"utf8"),__codexInEntry=!1,__codexName=null,__codexExec=null;for(let __codexLine of __codexText.split(/\\r?\\n/)){let __codexTrimmed=__codexLine.trim();if(!__codexTrimmed||__codexTrimmed.startsWith("#"))continue;if(__codexTrimmed.startsWith("[")&&__codexTrimmed.endsWith("]")){__codexInEntry=__codexTrimmed==="[Desktop Entry]";continue}if(!__codexInEntry)continue;let __codexEquals=__codexTrimmed.indexOf("=");if(__codexEquals<1)continue;let __codexKey=__codexTrimmed.slice(0,__codexEquals),__codexValue=__codexTrimmed.slice(__codexEquals+1).trim();if((__codexKey==="Name"||__codexKey.startsWith("Name["))&&!__codexName)__codexName=__codexValue;else if(__codexKey==="Exec"&&!__codexExec)__codexExec=__codexValue}if(!__codexExec)return null;let __codexPercent="__CHATGPT_PERCENT__",__codexCleanExec=__codexExec.replace(/%%/g,__codexPercent).replace(/%[A-Za-z]/g,"").replace(new RegExp(__codexPercent,"g"),"%").trim(),__codexCommand=__codexDesktopTokens(__codexCleanExec);return __codexCommand.length?{name:__codexName||${pathVar}.basename(__codexPath,".desktop"),command:__codexCommand,desktop_file:__codexPath}:null}catch{return null}};`,
     `try{let e=await __codexElectron.dialog.showOpenDialog({title:"Choose startup app",properties:["openFile"]});let t=Array.isArray(e.filePaths)?e.filePaths:[],n=t[0]||null,r=__codexDesktopEntry(n);return{ok:!e.canceled&&t.length>0,action:"pickStartupApp",json:{canceled:!!e.canceled,path:n,paths:t,startup_app:r,desktop:!!r}}}catch(e){return{ok:!1,action:"pickStartupApp",message:e instanceof Error?e.message:String(e)}}}`,
   ].join("");
 }
 
 // Binary resolution precedence (highest to lowest), all via execFile (never a shell):
 //   1. Settings field (globalState SETTINGS_COMMAND_KEY) - explicit user override.
-//   2. CODEX_AGENT_WORKSPACE_BIN env var.
+//   2. CHATGPT_AGENT_WORKSPACE_BIN env var.
 //   3. Existing binary under CARGO_HOME/bin or ~/.cargo/bin.
 //   4. npm global install under NPM_CONFIG_PREFIX, common home prefixes, or /usr/local.
 //   5. PATH search for `agent-workspace-linux`.
 //   6. ~/.local/bin/agent-workspace-linux - the local manual-install fallback.
 //   7. Bare `agent-workspace-linux` - let the OS resolve and fail with a clear error.
-const AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE = "\"linux-agent-workspace-pick-app\":async()=>{let __codexElectron;try{__codexElectron=require(\"electron\")}catch(e){return{ok:!1,action:\"pickStartupApp\",message:\"file picker unavailable\"}}let __codexDesktopTokens=e=>{let t=[],n=\"\",r=null,a=!1,o=String(e||\"\");for(let i=0;i<o.length;i++){let c=o[i];if(a){n+=c,a=!1;continue}if(c===\"\\\\\"){a=!0;continue}if(r){if(c===r)r=null;else n+=c;continue}if(c===\"'\"||c==='\"'){r=c;continue}if(/\\s/.test(c)){if(n)t.push(n),n=\"\";continue}n+=c}if(a)n+=\"\\\\\";if(n)t.push(n);return t};let __codexDesktopEntry=__codexPath=>{if(typeof __codexPath!==\"string\"||!__codexPath.endsWith(\".desktop\"))return null;try{let __codexText=__CODEX_FS_VAR__.readFileSync(__codexPath,\"utf8\"),__codexInEntry=!1,__codexName=null,__codexExec=null;for(let __codexLine of __codexText.split(/\\r?\\n/)){let __codexTrimmed=__codexLine.trim();if(!__codexTrimmed||__codexTrimmed.startsWith(\"#\"))continue;if(__codexTrimmed.startsWith(\"[\")&&__codexTrimmed.endsWith(\"]\")){__codexInEntry=__codexTrimmed===\"[Desktop Entry]\";continue}if(!__codexInEntry)continue;let __codexEquals=__codexTrimmed.indexOf(\"=\");if(__codexEquals<1)continue;let __codexKey=__codexTrimmed.slice(0,__codexEquals),__codexValue=__codexTrimmed.slice(__codexEquals+1).trim();if((__codexKey===\"Name\"||__codexKey.startsWith(\"Name[\"))&&!__codexName)__codexName=__codexValue;else if(__codexKey===\"Exec\"&&!__codexExec)__codexExec=__codexValue}if(!__codexExec)return null;let __codexPercent=\"__CODEX_PERCENT__\",__codexCleanExec=__codexExec.replace(/%%/g,__codexPercent).replace(/%[A-Za-z]/g,\"\").replace(new RegExp(__codexPercent,\"g\"),\"%\").trim(),__codexCommand=__codexDesktopTokens(__codexCleanExec);return __codexCommand.length?{name:__codexName||__CODEX_PATH_VAR__.basename(__codexPath,\".desktop\"),command:__codexCommand,desktop_file:__codexPath}:null}catch{return null}};try{let e=await __codexElectron.dialog.showOpenDialog({title:\"Choose startup app\",properties:[\"openFile\"]});let t=Array.isArray(e.filePaths)?e.filePaths:[],n=t[0]||null,r=__codexDesktopEntry(n);return{ok:!e.canceled&&t.length>0,action:\"pickStartupApp\",json:{canceled:!!e.canceled,path:n,paths:t,startup_app:r,desktop:!!r}}}catch(e){return{ok:!1,action:\"pickStartupApp\",message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-pick-mount\":async()=>{let __codexElectron;try{__codexElectron=require(`electron`)}catch(e){return{ok:!1,action:`pickMount`,message:`file picker unavailable`}}try{let e=await __codexElectron.dialog.showOpenDialog({title:`Choose file or folder to mount`,properties:[`openFile`,`openDirectory`,`multiSelections`]});let t=Array.isArray(e.filePaths)?e.filePaths:[];return{ok:!e.canceled&&t.length>0,action:`pickMount`,json:{canceled:!!e.canceled,path:t[0]||null,paths:t}}}catch(e){return{ok:!1,action:`pickMount`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-pick-browser-data\":async()=>{let __codexElectron;try{__codexElectron=require(`electron`)}catch(e){return{ok:!1,action:`pickBrowserData`,message:`file picker unavailable`}}try{let e=await __codexElectron.dialog.showOpenDialog({title:`Choose browser data folder`,properties:[`openDirectory`]});let t=Array.isArray(e.filePaths)?e.filePaths:[];return{ok:!e.canceled&&t.length>0,action:`pickBrowserData`,json:{canceled:!!e.canceled,path:t[0]||null,paths:t}}}catch(e){return{ok:!1,action:`pickBrowserData`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-copy-browser-data\":async({sourcePath:__codexSourcePath,profileId:__codexProfileId}={})=>{let __codexString=e=>typeof e===`string`&&e.trim().length>0?e.trim():null,__codexHome=()=>typeof process.env.HOME===`string`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpand=e=>{let t=__codexString(e),n=__codexHome();return t&&t.startsWith(`~/`)&&n?__CODEX_PATH_VAR__.join(n,t.slice(2)):t},__codexSafe=e=>String(e||`browser-session`).toLowerCase().replace(/[^a-z0-9._-]+/g,`-`).replace(/^-+|-+$/g,``)||`browser-session`;try{let e=__codexExpand(__codexSourcePath);if(!e)return{ok:!1,action:`copyBrowserData`,message:`browser data folder is required`};if(!__CODEX_FS_VAR__.existsSync(e)||!__CODEX_FS_VAR__.statSync(e).isDirectory())return{ok:!1,action:`copyBrowserData`,message:`browser data folder does not exist`,json:{source_path:e}};let t=__codexSafe(__codexProfileId),n=__codexExpand(process.env.XDG_DATA_HOME)||(__codexHome()?__CODEX_PATH_VAR__.join(__codexHome(),`.local`,`share`):__CODEX_PATH_VAR__.join(process.env.TMPDIR||`/tmp`,`codex-agent-workspace-data`)),r=__CODEX_PATH_VAR__.join(n,`agent-workspace-linux`,`browser-sessions`,t);if(__CODEX_FS_VAR__.existsSync(r))return{ok:!1,action:`copyBrowserData`,message:`managed browser-session copy already exists`,json:{source_path:e,path:r,profile_id:t}};__CODEX_FS_VAR__.mkdirSync(__CODEX_PATH_VAR__.dirname(r),{recursive:!0,mode:448});let a=new Set([`SingletonCookie`,`SingletonLock`,`SingletonSocket`,`lockfile`,`.parentlock`]);await __CODEX_FS_VAR__.promises.cp(e,r,{recursive:!0,force:!1,errorOnExist:!0,filter:(e)=>{let t=__CODEX_PATH_VAR__.basename(e);return !a.has(t)&&!t.startsWith(`Singleton`)}});return{ok:!0,action:`copyBrowserData`,json:{source_path:e,path:r,profile_id:t,copied:!0,excluded_lock_files:!0}}}catch(e){return{ok:!1,action:`copyBrowserData`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace\":async({action:__codexAction,timeoutMs:__codexTimeoutMs,profileId:__codexProfileId,profile:__codexProfile,replace:__codexReplace,dryRun:__codexDryRun,workspaceId:__codexWorkspaceId,purpose:__codexPurpose,runSetup:__codexRunSetup,ackHiddenWorkspace:__codexAckHiddenWorkspace,ackUnenforcedPolicy:__codexAckUnenforcedPolicy,startupWaitWindow:__codexStartupWaitWindow,startupScreenshotWindow:__codexStartupScreenshotWindow,cleanupId:__codexCleanupId,outputPath:__codexOutputPath,templateKind:__codexTemplateKind,hostPath:__codexHostPath,browserPath:__codexBrowserPath,userDataDir:__codexUserDataDir,alwaysOnTop:__codexAlwaysOnTop,permissions:__codexPermissions}={})=>{let __codexHome=()=>typeof process.env.HOME===`string`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpandCommand=e=>{if(typeof e!==`string`)return e;let t=e.trim(),n=__codexHome();return t.startsWith(`~/`)&&n?__CODEX_PATH_VAR__.join(n,t.slice(2)):t},__codexBinExists=p=>{try{return typeof p===`string`&&p.length>0&&__CODEX_FS_VAR__.existsSync(p)&&__CODEX_FS_VAR__.statSync(p).isFile()}catch{return!1}},__codexAddCandidate=(e,t)=>{t&&e.indexOf(t)===-1&&e.push(t)},__codexFromPathCandidates=e=>{let t=[];if(typeof process.env.PATH!==`string`||process.env.PATH.length===0)return t;for(let n of process.env.PATH.split(__CODEX_PATH_VAR__.delimiter)){if(!n)continue;__codexAddCandidate(t,__CODEX_PATH_VAR__.join(n,e))}return t},__codexFirstExisting=e=>{for(let t of e){if(__codexBinExists(t))return t}return null},__codexDefaultCandidates=()=>{let e=[],t=__codexHome(),n=(typeof process.env.CARGO_HOME===`string`&&process.env.CARGO_HOME.trim().length>0?process.env.CARGO_HOME.trim():null);n=__codexExpandCommand(n||(t?__CODEX_PATH_VAR__.join(t,`.cargo`):null)),__codexAddCandidate(e,n?__CODEX_PATH_VAR__.join(n,`bin`,`agent-workspace-linux`):null);let r=(typeof process.env.NPM_CONFIG_PREFIX===`string`&&process.env.NPM_CONFIG_PREFIX.trim().length>0?process.env.NPM_CONFIG_PREFIX.trim():null);r&&__codexAddCandidate(e,__CODEX_PATH_VAR__.join(__codexExpandCommand(r),`bin`,`agent-workspace-linux`));if(t){__codexAddCandidate(e,__CODEX_PATH_VAR__.join(t,`.npm-global`,`bin`,`agent-workspace-linux`));__codexAddCandidate(e,__CODEX_PATH_VAR__.join(t,`.local`,`share`,`npm`,`bin`,`agent-workspace-linux`))}__codexAddCandidate(e,`/usr/local/bin/agent-workspace-linux`);__codexAddCandidate(e,`/usr/local/lib/node_modules/@agent-sh/agent-workspace-linux/bin/agent-workspace-linux.js`);__codexAddCandidate(e,`/usr/local/lib/node_modules/@agent-sh/agent-workspace-linux/bin/agent-workspace-linux`);for(let t of __codexFromPathCandidates(`agent-workspace-linux`))__codexAddCandidate(e,t);t&&__codexAddCandidate(e,__CODEX_PATH_VAR__.join(t,`.local`,`bin`,`agent-workspace-linux`));return e},__codexFromPath=()=>__codexFirstExisting(__codexFromPathCandidates(`agent-workspace-linux`)),__codexDefaultCommand=()=>{let e=process.env.CODEX_AGENT_WORKSPACE_BIN;if(typeof e===`string`&&e.trim().length>0)return __codexExpandCommand(e);return __codexFirstExisting(__codexDefaultCandidates())||`agent-workspace-linux`},__codexCommand=this.globalState.get(`codex-linux-agent-workspace-command`)||__codexDefaultCommand();if(typeof __codexCommand!==`string`||__codexCommand.trim().length===0)__codexCommand=__codexDefaultCommand();__codexCommand=__codexExpandCommand(__codexCommand);let __codexArgs=[],__codexTempPath=null,__codexString=e=>typeof e===`string`&&e.trim().length>0?e.trim():null,__codexDataHome=()=>{let e=__codexString(process.env.XDG_DATA_HOME);return e?__codexExpandCommand(e):(__codexHome()?__CODEX_PATH_VAR__.join(__codexHome(),`.local`,`share`):__CODEX_PATH_VAR__.join(process.env.TMPDIR||`/tmp`,`codex-agent-workspace-data`))},__codexPermissionPath=__codexString(this.globalState.get(`codex-linux-agent-workspace-permissions`));__codexPermissionPath&&(__codexPermissionPath=__codexExpandCommand(__codexPermissionPath));let __codexReadPermissionConfig=e=>{if(!e)return{configured:!1,restricted:!1,permissions_path:null,message:`No workspace permission file configured`};let t=null,n=null;try{__CODEX_FS_VAR__.existsSync(e)?t=JSON.parse(__CODEX_FS_VAR__.readFileSync(e,`utf8`)):n=`permission file does not exist`}catch(e){n=e instanceof Error?e.message:String(e)}let r=!!(t&&((t.network&&t.network.mode&&t.network.mode!==`inherit_host`)||(Array.isArray(t.mounts)&&t.mounts.length>0)||(Array.isArray(t.apps?.allow)&&t.apps.allow.length>0)));return{configured:!0,restricted:n?!0:r,permissions_path:e,ceiling:t,error:n,message:n?`Permission file could not be loaded`:r?`Permission file is active`:`Permission file is configured but open; Codex session permissions apply`}},__codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),__codexPushId=(e,t)=>{let n=__codexString(t);if(n)__codexArgs.push(e,n)},__codexActionName=__codexString(__codexAction);try{switch(__codexActionName){case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,n=[`install`,`-g`,`@agent-sh/agent-workspace-linux`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;return await new Promise(o=>{__CODEX_CHILD_PROCESS_VAR__.execFile(t,n,{encoding:`utf8`,timeout:r,maxBuffer:16777216},(r,a,i)=>{r?o({ok:!1,action:__codexActionName,manager:e,command:t,args:n,message:r instanceof Error?r.message:String(r),code:r?.code??null,stdout:a||``,stderr:i||``}):o({ok:!0,action:__codexActionName,manager:e,command:t,args:n,stdout:a||``,stderr:i||``,json:{ok:!0,manager:e}})})})}case`permissionConfig`:return{ok:!__codexPermissionConfig.error,action:__codexActionName,json:__codexPermissionConfig,message:__codexPermissionConfig.error||void 0};case`permissionSave`:{let e=__codexPermissions;if(!e||typeof e!==`object`||Array.isArray(e))return{ok:!1,action:__codexActionName,message:`permissions object is required`};let t=JSON.parse(JSON.stringify(e)),n=t.network;if(n!=null){if(typeof n!==`object`||Array.isArray(n))return{ok:!1,action:__codexActionName,message:`permission network must be an object`};let e=__codexString(n.mode)||`inherit_host`;if(![`inherit_host`,`disabled`,`local_only`].includes(e))return{ok:!1,action:__codexActionName,message:`permission network mode must be inherit_host, disabled, or local_only`};n.mode=e,n.allow_hosts=Array.isArray(n.allow_hosts)?n.allow_hosts.map(String).filter(Boolean):[]}t.network=n||{mode:`inherit_host`},Array.isArray(t.mounts)||(t.mounts=[]);for(let e of t.mounts){if(!e||typeof e!==`object`||Array.isArray(e))return{ok:!1,action:__codexActionName,message:`permission mounts must contain objects`};if(typeof e.host_path!==`string`||!e.host_path.startsWith(`/`))return{ok:!1,action:__codexActionName,message:`permission mount host_path must be absolute`};if(typeof e.workspace_path!==`string`||!e.workspace_path.startsWith(`/`))return{ok:!1,action:__codexActionName,message:`permission mount workspace_path must be absolute`};e.mode=e.mode===`read_write`?`read_write`:`read_only`}(!t.apps||typeof t.apps!==`object`||Array.isArray(t.apps))&&(t.apps={}),Array.isArray(t.apps.allow)||(t.apps.allow=[]);for(let e of t.apps.allow){if(typeof e!==`string`||!e.trim())return{ok:!1,action:__codexActionName,message:`permission app allow entries must be non-empty strings`};if(!e.startsWith(`/`)&&e.includes(`/`))return{ok:!1,action:__codexActionName,message:`permission app allow entries must be absolute paths or bare command names`}}let r=__CODEX_PATH_VAR__.join(__codexDataHome(),`agent-workspace-linux`,`permissions`),a=__CODEX_PATH_VAR__.join(r,`codex-agent-workspace-permissions.json`);try{__CODEX_FS_VAR__.mkdirSync(r,{recursive:!0,mode:448}),__CODEX_FS_VAR__.writeFileSync(a,JSON.stringify(t,null,2)+`\\n`,{encoding:`utf8`,mode:384}),this.globalState.set(`codex-linux-agent-workspace-permissions`,a)}catch(e){return{ok:!1,action:__codexActionName,message:e instanceof Error?e.message:String(e)}}__codexPermissionConfig=__codexReadPermissionConfig(a);return{ok:!__codexPermissionConfig.error,action:__codexActionName,json:__codexPermissionConfig,message:__codexPermissionConfig.error||void 0}}case`doctor`:__codexArgs=[`doctor`];break;case`guardrails`:__codexArgs=[`guardrails`];break;case`profilePath`:__codexArgs=[`profile`,`path`];break;case`profileList`:__codexArgs=[`profile`,`list`];break;case`profileGet`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`get`,e];break}case`profileCheck`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`check`,e];break}case`profileDelete`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`delete`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexArgs.push(e);break}case`profileExport`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`export`,e],__codexPushId(`--output`,__codexOutputPath),__codexReplace&&__codexArgs.push(`--replace`);break}case`profileTemplate`:{let e=__codexString(__codexTemplateKind)||`project-dev`;__codexArgs=[`profile`,`template`,e],__codexPushId(`--id`,__codexProfileId),__codexPushId(`--host-path`,__codexHostPath),__codexPushId(`--browser-path`,__codexBrowserPath),__codexPushId(`--user-data-dir`,__codexUserDataDir);break}case`profileValidate`:{if(!__codexProfile||typeof __codexProfile!==`object`||Array.isArray(__codexProfile))throw Error(`profile object is required`);let e=process.env.XDG_RUNTIME_DIR||process.env.TMPDIR||`/tmp`,t=__CODEX_FS_VAR__.mkdtempSync(__CODEX_PATH_VAR__.join(e,`codex-agent-workspace-`));__codexTempPath=__CODEX_PATH_VAR__.join(t,`profile.json`),__CODEX_FS_VAR__.writeFileSync(__codexTempPath,JSON.stringify(__codexProfile,null,2)+`\\n`,{encoding:`utf8`,mode:384}),__codexArgs=[`profile`,`validate`,`--json`,__codexTempPath];break}case`profileSave`:{if(!__codexProfile||typeof __codexProfile!==`object`||Array.isArray(__codexProfile))throw Error(`profile object is required`);let e=process.env.XDG_RUNTIME_DIR||process.env.TMPDIR||`/tmp`,t=__CODEX_FS_VAR__.mkdtempSync(__CODEX_PATH_VAR__.join(e,`codex-agent-workspace-`));__codexTempPath=__CODEX_PATH_VAR__.join(t,`profile.json`),__CODEX_FS_VAR__.writeFileSync(__codexTempPath,JSON.stringify(__codexProfile,null,2)+`\\n`,{encoding:`utf8`,mode:384}),__codexArgs=[`profile`,`put`,`--json`,__codexTempPath],__codexReplace&&__codexArgs.push(`--replace`),__codexDryRun&&__codexArgs.push(`--dry-run`);break}case`workspaceList`:__codexArgs=[`workspace`,`list`];break;case`workspaceStatus`:__codexArgs=[`workspace`,`status`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceManifest`:__codexArgs=[`workspace`,`manifest`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceArtifacts`:__codexArgs=[`workspace`,`artifacts`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceOpenProfile`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`workspace`,`open-profile`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexAckHiddenWorkspace&&__codexArgs.push(`--ack-hidden-workspace`),__codexAckUnenforcedPolicy&&__codexArgs.push(`--ack-unenforced-policy`),__codexArgs.push(`--profile`,e),__codexPushId(`--id`,__codexWorkspaceId),__codexPushId(`--purpose`,__codexPurpose),__codexRunSetup&&__codexArgs.push(`--setup`),__codexStartupWaitWindow&&__codexArgs.push(`--startup-wait-window`),__codexStartupScreenshotWindow&&__codexArgs.push(`--startup-screenshot-window`);break}case`workspaceOpenViewer`:{let e=__codexString(__codexWorkspaceId);__codexArgs=[`viewer`],e&&__codexArgs.push(`--id`,e,`--exit-when-workspace-gone`),__codexAlwaysOnTop&&__codexArgs.push(`--always-on-top`);break}case`workspaceStart`:{__codexArgs=[`workspace`,`start`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexAckHiddenWorkspace&&__codexArgs.push(`--ack-hidden-workspace`),__codexAckUnenforcedPolicy&&__codexArgs.push(`--ack-unenforced-policy`),__codexPushId(`--profile`,__codexProfileId),__codexPushId(`--id`,__codexWorkspaceId),__codexPushId(`--purpose`,__codexPurpose);break}case`workspaceStop`:__codexArgs=[`workspace`,`stop`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceCleanup`:__codexArgs=[`workspace`,`cleanup`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexPushId(`--id`,__codexCleanupId);break;default:throw Error(`unsupported agent workspace action`)}}catch(e){return{ok:!1,action:__codexActionName,message:e instanceof Error?e.message:String(e)}}if(__codexPermissionConfig?.error)return{ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:`Workspace permission file could not be loaded: ${__codexPermissionConfig.error}`,json:__codexPermissionConfig};if(__codexPermissionConfig?.permissions_path)__codexArgs=[`--permissions`,__codexPermissionConfig.permissions_path,...__codexArgs];if(__codexActionName===`workspaceOpenViewer`){return await new Promise(e=>{let t=!1,n=null,r=a=>{if(t)return;t=!0,n&&clearTimeout(n),e(a)},m=a=>a instanceof Error?a.message:String(a);try{let a=__CODEX_CHILD_PROCESS_VAR__.spawn(__codexCommand,__codexArgs,{detached:!0,stdio:`ignore`}),p={ok:!0,action:__codexActionName,command:__codexCommand,args:__codexArgs,json:{ok:!0,id:__codexString(__codexWorkspaceId)||`default`,pid:a?.pid??null,always_on_top:!!__codexAlwaysOnTop,exit_when_workspace_gone:!!__codexString(__codexWorkspaceId)}};a?.once?.(`error`,e=>r({ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:m(e)}));a?.once?.(`spawn`,()=>{a?.unref?.();r(p)});n=setTimeout(()=>{a?.unref?.();r(p)},25)}catch(a){r({ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:m(a)})}})}let __codexParse=e=>{let t=String(e||``).trim();if(t.length===0)return null;try{return JSON.parse(t)}catch{return{raw:t}}};try{let e=await new Promise((e,t)=>{let n=__CODEX_CHILD_PROCESS_VAR__.execFile(__codexCommand,__codexArgs,{encoding:`utf8`,timeout:Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):15e3,maxBuffer:8388608},(n,r,i)=>{n?(n.stdout=r,n.stderr=i,t(n)):e({stdout:r,stderr:i})})}),t=__codexParse(e.stdout);return{ok:!0,action:__codexActionName,command:__codexCommand,args:__codexArgs,stdout:e.stdout,stderr:e.stderr,json:t}}catch(e){let t=__codexParse(e?.stdout);return{ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:e instanceof Error?e.message:String(e),code:e?.code??null,stdout:e?.stdout??``,stderr:e?.stderr??``,json:t}}finally{if(__codexTempPath)try{__CODEX_FS_VAR__.rmSync(__CODEX_PATH_VAR__.dirname(__codexTempPath),{recursive:!0,force:!0})}catch{}}}";
+const AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE = "\"linux-agent-workspace-pick-app\":async()=>{let __codexElectron;try{__codexElectron=require(\"electron\")}catch(e){return{ok:!1,action:\"pickStartupApp\",message:\"file picker unavailable\"}}let __codexDesktopTokens=e=>{let t=[],n=\"\",r=null,a=!1,o=String(e||\"\");for(let i=0;i<o.length;i++){let c=o[i];if(a){n+=c,a=!1;continue}if(c===\"\\\\\"){a=!0;continue}if(r){if(c===r)r=null;else n+=c;continue}if(c===\"'\"||c==='\"'){r=c;continue}if(/\\s/.test(c)){if(n)t.push(n),n=\"\";continue}n+=c}if(a)n+=\"\\\\\";if(n)t.push(n);return t};let __codexDesktopEntry=__codexPath=>{if(typeof __codexPath!==\"string\"||!__codexPath.endsWith(\".desktop\"))return null;try{let __codexText=__CHATGPT_FS_VAR__.readFileSync(__codexPath,\"utf8\"),__codexInEntry=!1,__codexName=null,__codexExec=null;for(let __codexLine of __codexText.split(/\\r?\\n/)){let __codexTrimmed=__codexLine.trim();if(!__codexTrimmed||__codexTrimmed.startsWith(\"#\"))continue;if(__codexTrimmed.startsWith(\"[\")&&__codexTrimmed.endsWith(\"]\")){__codexInEntry=__codexTrimmed===\"[Desktop Entry]\";continue}if(!__codexInEntry)continue;let __codexEquals=__codexTrimmed.indexOf(\"=\");if(__codexEquals<1)continue;let __codexKey=__codexTrimmed.slice(0,__codexEquals),__codexValue=__codexTrimmed.slice(__codexEquals+1).trim();if((__codexKey===\"Name\"||__codexKey.startsWith(\"Name[\"))&&!__codexName)__codexName=__codexValue;else if(__codexKey===\"Exec\"&&!__codexExec)__codexExec=__codexValue}if(!__codexExec)return null;let __codexPercent=\"__CHATGPT_PERCENT__\",__codexCleanExec=__codexExec.replace(/%%/g,__codexPercent).replace(/%[A-Za-z]/g,\"\").replace(new RegExp(__codexPercent,\"g\"),\"%\").trim(),__codexCommand=__codexDesktopTokens(__codexCleanExec);return __codexCommand.length?{name:__codexName||__CHATGPT_PATH_VAR__.basename(__codexPath,\".desktop\"),command:__codexCommand,desktop_file:__codexPath}:null}catch{return null}};try{let e=await __codexElectron.dialog.showOpenDialog({title:\"Choose startup app\",properties:[\"openFile\"]});let t=Array.isArray(e.filePaths)?e.filePaths:[],n=t[0]||null,r=__codexDesktopEntry(n);return{ok:!e.canceled&&t.length>0,action:\"pickStartupApp\",json:{canceled:!!e.canceled,path:n,paths:t,startup_app:r,desktop:!!r}}}catch(e){return{ok:!1,action:\"pickStartupApp\",message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-pick-mount\":async()=>{let __codexElectron;try{__codexElectron=require(`electron`)}catch(e){return{ok:!1,action:`pickMount`,message:`file picker unavailable`}}try{let e=await __codexElectron.dialog.showOpenDialog({title:`Choose file or folder to mount`,properties:[`openFile`,`openDirectory`,`multiSelections`]});let t=Array.isArray(e.filePaths)?e.filePaths:[];return{ok:!e.canceled&&t.length>0,action:`pickMount`,json:{canceled:!!e.canceled,path:t[0]||null,paths:t}}}catch(e){return{ok:!1,action:`pickMount`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-pick-browser-data\":async()=>{let __codexElectron;try{__codexElectron=require(`electron`)}catch(e){return{ok:!1,action:`pickBrowserData`,message:`file picker unavailable`}}try{let e=await __codexElectron.dialog.showOpenDialog({title:`Choose browser data folder`,properties:[`openDirectory`]});let t=Array.isArray(e.filePaths)?e.filePaths:[];return{ok:!e.canceled&&t.length>0,action:`pickBrowserData`,json:{canceled:!!e.canceled,path:t[0]||null,paths:t}}}catch(e){return{ok:!1,action:`pickBrowserData`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace-copy-browser-data\":async({sourcePath:__codexSourcePath,profileId:__codexProfileId}={})=>{let __codexString=e=>typeof e===`string`&&e.trim().length>0?e.trim():null,__codexHome=()=>typeof process.env.HOME===`string`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpand=e=>{let t=__codexString(e),n=__codexHome();return t&&t.startsWith(`~/`)&&n?__CHATGPT_PATH_VAR__.join(n,t.slice(2)):t},__codexSafe=e=>String(e||`browser-session`).toLowerCase().replace(/[^a-z0-9._-]+/g,`-`).replace(/^-+|-+$/g,``)||`browser-session`;try{let e=__codexExpand(__codexSourcePath);if(!e)return{ok:!1,action:`copyBrowserData`,message:`browser data folder is required`};if(!__CHATGPT_FS_VAR__.existsSync(e)||!__CHATGPT_FS_VAR__.statSync(e).isDirectory())return{ok:!1,action:`copyBrowserData`,message:`browser data folder does not exist`,json:{source_path:e}};let t=__codexSafe(__codexProfileId),n=__codexExpand(process.env.XDG_DATA_HOME)||(__codexHome()?__CHATGPT_PATH_VAR__.join(__codexHome(),`.local`,`share`):__CHATGPT_PATH_VAR__.join(process.env.TMPDIR||`/tmp`,`chatgpt-agent-workspace-data`)),r=__CHATGPT_PATH_VAR__.join(n,`agent-workspace-linux`,`browser-sessions`,t);if(__CHATGPT_FS_VAR__.existsSync(r))return{ok:!1,action:`copyBrowserData`,message:`managed browser-session copy already exists`,json:{source_path:e,path:r,profile_id:t}};__CHATGPT_FS_VAR__.mkdirSync(__CHATGPT_PATH_VAR__.dirname(r),{recursive:!0,mode:448});let a=new Set([`SingletonCookie`,`SingletonLock`,`SingletonSocket`,`lockfile`,`.parentlock`]);await __CHATGPT_FS_VAR__.promises.cp(e,r,{recursive:!0,force:!1,errorOnExist:!0,filter:(e)=>{let t=__CHATGPT_PATH_VAR__.basename(e);return !a.has(t)&&!t.startsWith(`Singleton`)}});return{ok:!0,action:`copyBrowserData`,json:{source_path:e,path:r,profile_id:t,copied:!0,excluded_lock_files:!0}}}catch(e){return{ok:!1,action:`copyBrowserData`,message:e instanceof Error?e.message:String(e)}}},\"linux-agent-workspace\":async({action:__codexAction,timeoutMs:__codexTimeoutMs,profileId:__codexProfileId,profile:__codexProfile,replace:__codexReplace,dryRun:__codexDryRun,workspaceId:__codexWorkspaceId,purpose:__codexPurpose,runSetup:__codexRunSetup,ackHiddenWorkspace:__codexAckHiddenWorkspace,ackUnenforcedPolicy:__codexAckUnenforcedPolicy,startupWaitWindow:__codexStartupWaitWindow,startupScreenshotWindow:__codexStartupScreenshotWindow,cleanupId:__codexCleanupId,outputPath:__codexOutputPath,templateKind:__codexTemplateKind,hostPath:__codexHostPath,browserPath:__codexBrowserPath,userDataDir:__codexUserDataDir,alwaysOnTop:__codexAlwaysOnTop,permissions:__codexPermissions}={})=>{let __codexHome=()=>typeof process.env.HOME===`string`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpandCommand=e=>{if(typeof e!==`string`)return e;let t=e.trim(),n=__codexHome();return t.startsWith(`~/`)&&n?__CHATGPT_PATH_VAR__.join(n,t.slice(2)):t},__codexBinExists=p=>{try{return typeof p===`string`&&p.length>0&&__CHATGPT_FS_VAR__.existsSync(p)&&__CHATGPT_FS_VAR__.statSync(p).isFile()}catch{return!1}},__codexAddCandidate=(e,t)=>{t&&e.indexOf(t)===-1&&e.push(t)},__codexFromPathCandidates=e=>{let t=[];if(typeof process.env.PATH!==`string`||process.env.PATH.length===0)return t;for(let n of process.env.PATH.split(__CHATGPT_PATH_VAR__.delimiter)){if(!n)continue;__codexAddCandidate(t,__CHATGPT_PATH_VAR__.join(n,e))}return t},__codexFirstExisting=e=>{for(let t of e){if(__codexBinExists(t))return t}return null},__codexDefaultCandidates=()=>{let e=[],t=__codexHome(),n=(typeof process.env.CARGO_HOME===`string`&&process.env.CARGO_HOME.trim().length>0?process.env.CARGO_HOME.trim():null);n=__codexExpandCommand(n||(t?__CHATGPT_PATH_VAR__.join(t,`.cargo`):null)),__codexAddCandidate(e,n?__CHATGPT_PATH_VAR__.join(n,`bin`,`agent-workspace-linux`):null);let r=(typeof process.env.NPM_CONFIG_PREFIX===`string`&&process.env.NPM_CONFIG_PREFIX.trim().length>0?process.env.NPM_CONFIG_PREFIX.trim():null);r&&__codexAddCandidate(e,__CHATGPT_PATH_VAR__.join(__codexExpandCommand(r),`bin`,`agent-workspace-linux`));if(t){__codexAddCandidate(e,__CHATGPT_PATH_VAR__.join(t,`.npm-global`,`bin`,`agent-workspace-linux`));__codexAddCandidate(e,__CHATGPT_PATH_VAR__.join(t,`.local`,`share`,`npm`,`bin`,`agent-workspace-linux`))}__codexAddCandidate(e,`/usr/local/bin/agent-workspace-linux`);__codexAddCandidate(e,`/usr/local/lib/node_modules/@agent-sh/agent-workspace-linux/bin/agent-workspace-linux.js`);__codexAddCandidate(e,`/usr/local/lib/node_modules/@agent-sh/agent-workspace-linux/bin/agent-workspace-linux`);for(let t of __codexFromPathCandidates(`agent-workspace-linux`))__codexAddCandidate(e,t);t&&__codexAddCandidate(e,__CHATGPT_PATH_VAR__.join(t,`.local`,`bin`,`agent-workspace-linux`));return e},__codexFromPath=()=>__codexFirstExisting(__codexFromPathCandidates(`agent-workspace-linux`)),__codexDefaultCommand=()=>{let e=process.env.CHATGPT_AGENT_WORKSPACE_BIN;if(typeof e===`string`&&e.trim().length>0)return __codexExpandCommand(e);return __codexFirstExisting(__codexDefaultCandidates())||`agent-workspace-linux`},__codexCommand=this.globalState.get(`chatgpt-linux-agent-workspace-command`)||__codexDefaultCommand();if(typeof __codexCommand!==`string`||__codexCommand.trim().length===0)__codexCommand=__codexDefaultCommand();__codexCommand=__codexExpandCommand(__codexCommand);let __codexArgs=[],__codexTempPath=null,__codexString=e=>typeof e===`string`&&e.trim().length>0?e.trim():null,__codexDataHome=()=>{let e=__codexString(process.env.XDG_DATA_HOME);return e?__codexExpandCommand(e):(__codexHome()?__CHATGPT_PATH_VAR__.join(__codexHome(),`.local`,`share`):__CHATGPT_PATH_VAR__.join(process.env.TMPDIR||`/tmp`,`chatgpt-agent-workspace-data`))},__codexPermissionPath=__codexString(this.globalState.get(`chatgpt-linux-agent-workspace-permissions`));__codexPermissionPath&&(__codexPermissionPath=__codexExpandCommand(__codexPermissionPath));let __codexReadPermissionConfig=e=>{if(!e)return{configured:!1,restricted:!1,permissions_path:null,message:`No workspace permission file configured`};let t=null,n=null;try{__CHATGPT_FS_VAR__.existsSync(e)?t=JSON.parse(__CHATGPT_FS_VAR__.readFileSync(e,`utf8`)):n=`permission file does not exist`}catch(e){n=e instanceof Error?e.message:String(e)}let r=!!(t&&((t.network&&t.network.mode&&t.network.mode!==`inherit_host`)||(Array.isArray(t.mounts)&&t.mounts.length>0)||(Array.isArray(t.apps?.allow)&&t.apps.allow.length>0)));return{configured:!0,restricted:n?!0:r,permissions_path:e,ceiling:t,error:n,message:n?`Permission file could not be loaded`:r?`Permission file is active`:`Permission file is configured but open; Codex session permissions apply`}},__codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),__codexPushId=(e,t)=>{let n=__codexString(t);if(n)__codexArgs.push(e,n)},__codexActionName=__codexString(__codexAction);try{switch(__codexActionName){case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,n=[`install`,`-g`,`@agent-sh/agent-workspace-linux`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;return await new Promise(o=>{__CHATGPT_CHILD_PROCESS_VAR__.execFile(t,n,{encoding:`utf8`,timeout:r,maxBuffer:16777216},(r,a,i)=>{r?o({ok:!1,action:__codexActionName,manager:e,command:t,args:n,message:r instanceof Error?r.message:String(r),code:r?.code??null,stdout:a||``,stderr:i||``}):o({ok:!0,action:__codexActionName,manager:e,command:t,args:n,stdout:a||``,stderr:i||``,json:{ok:!0,manager:e}})})})}case`permissionConfig`:return{ok:!__codexPermissionConfig.error,action:__codexActionName,json:__codexPermissionConfig,message:__codexPermissionConfig.error||void 0};case`permissionSave`:{let e=__codexPermissions;if(!e||typeof e!==`object`||Array.isArray(e))return{ok:!1,action:__codexActionName,message:`permissions object is required`};let t=JSON.parse(JSON.stringify(e)),n=t.network;if(n!=null){if(typeof n!==`object`||Array.isArray(n))return{ok:!1,action:__codexActionName,message:`permission network must be an object`};let e=__codexString(n.mode)||`inherit_host`;if(![`inherit_host`,`disabled`,`local_only`].includes(e))return{ok:!1,action:__codexActionName,message:`permission network mode must be inherit_host, disabled, or local_only`};n.mode=e,n.allow_hosts=Array.isArray(n.allow_hosts)?n.allow_hosts.map(String).filter(Boolean):[]}t.network=n||{mode:`inherit_host`},Array.isArray(t.mounts)||(t.mounts=[]);for(let e of t.mounts){if(!e||typeof e!==`object`||Array.isArray(e))return{ok:!1,action:__codexActionName,message:`permission mounts must contain objects`};if(typeof e.host_path!==`string`||!e.host_path.startsWith(`/`))return{ok:!1,action:__codexActionName,message:`permission mount host_path must be absolute`};if(typeof e.workspace_path!==`string`||!e.workspace_path.startsWith(`/`))return{ok:!1,action:__codexActionName,message:`permission mount workspace_path must be absolute`};e.mode=e.mode===`read_write`?`read_write`:`read_only`}(!t.apps||typeof t.apps!==`object`||Array.isArray(t.apps))&&(t.apps={}),Array.isArray(t.apps.allow)||(t.apps.allow=[]);for(let e of t.apps.allow){if(typeof e!==`string`||!e.trim())return{ok:!1,action:__codexActionName,message:`permission app allow entries must be non-empty strings`};if(!e.startsWith(`/`)&&e.includes(`/`))return{ok:!1,action:__codexActionName,message:`permission app allow entries must be absolute paths or bare command names`}}let r=__CHATGPT_PATH_VAR__.join(__codexDataHome(),`agent-workspace-linux`,`permissions`),a=__CHATGPT_PATH_VAR__.join(r,`chatgpt-agent-workspace-permissions.json`);try{__CHATGPT_FS_VAR__.mkdirSync(r,{recursive:!0,mode:448}),__CHATGPT_FS_VAR__.writeFileSync(a,JSON.stringify(t,null,2)+`\\n`,{encoding:`utf8`,mode:384}),this.globalState.set(`chatgpt-linux-agent-workspace-permissions`,a)}catch(e){return{ok:!1,action:__codexActionName,message:e instanceof Error?e.message:String(e)}}__codexPermissionConfig=__codexReadPermissionConfig(a);return{ok:!__codexPermissionConfig.error,action:__codexActionName,json:__codexPermissionConfig,message:__codexPermissionConfig.error||void 0}}case`doctor`:__codexArgs=[`doctor`];break;case`guardrails`:__codexArgs=[`guardrails`];break;case`profilePath`:__codexArgs=[`profile`,`path`];break;case`profileList`:__codexArgs=[`profile`,`list`];break;case`profileGet`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`get`,e];break}case`profileCheck`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`check`,e];break}case`profileDelete`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`delete`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexArgs.push(e);break}case`profileExport`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`profile`,`export`,e],__codexPushId(`--output`,__codexOutputPath),__codexReplace&&__codexArgs.push(`--replace`);break}case`profileTemplate`:{let e=__codexString(__codexTemplateKind)||`project-dev`;__codexArgs=[`profile`,`template`,e],__codexPushId(`--id`,__codexProfileId),__codexPushId(`--host-path`,__codexHostPath),__codexPushId(`--browser-path`,__codexBrowserPath),__codexPushId(`--user-data-dir`,__codexUserDataDir);break}case`profileValidate`:{if(!__codexProfile||typeof __codexProfile!==`object`||Array.isArray(__codexProfile))throw Error(`profile object is required`);let e=process.env.XDG_RUNTIME_DIR||process.env.TMPDIR||`/tmp`,t=__CHATGPT_FS_VAR__.mkdtempSync(__CHATGPT_PATH_VAR__.join(e,`chatgpt-agent-workspace-`));__codexTempPath=__CHATGPT_PATH_VAR__.join(t,`profile.json`),__CHATGPT_FS_VAR__.writeFileSync(__codexTempPath,JSON.stringify(__codexProfile,null,2)+`\\n`,{encoding:`utf8`,mode:384}),__codexArgs=[`profile`,`validate`,`--json`,__codexTempPath];break}case`profileSave`:{if(!__codexProfile||typeof __codexProfile!==`object`||Array.isArray(__codexProfile))throw Error(`profile object is required`);let e=process.env.XDG_RUNTIME_DIR||process.env.TMPDIR||`/tmp`,t=__CHATGPT_FS_VAR__.mkdtempSync(__CHATGPT_PATH_VAR__.join(e,`chatgpt-agent-workspace-`));__codexTempPath=__CHATGPT_PATH_VAR__.join(t,`profile.json`),__CHATGPT_FS_VAR__.writeFileSync(__codexTempPath,JSON.stringify(__codexProfile,null,2)+`\\n`,{encoding:`utf8`,mode:384}),__codexArgs=[`profile`,`put`,`--json`,__codexTempPath],__codexReplace&&__codexArgs.push(`--replace`),__codexDryRun&&__codexArgs.push(`--dry-run`);break}case`workspaceList`:__codexArgs=[`workspace`,`list`];break;case`workspaceStatus`:__codexArgs=[`workspace`,`status`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceManifest`:__codexArgs=[`workspace`,`manifest`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceArtifacts`:__codexArgs=[`workspace`,`artifacts`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceOpenProfile`:{let e=__codexString(__codexProfileId);if(!e)throw Error(`profile id is required`);__codexArgs=[`workspace`,`open-profile`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexAckHiddenWorkspace&&__codexArgs.push(`--ack-hidden-workspace`),__codexAckUnenforcedPolicy&&__codexArgs.push(`--ack-unenforced-policy`),__codexArgs.push(`--profile`,e),__codexPushId(`--id`,__codexWorkspaceId),__codexPushId(`--purpose`,__codexPurpose),__codexRunSetup&&__codexArgs.push(`--setup`),__codexStartupWaitWindow&&__codexArgs.push(`--startup-wait-window`),__codexStartupScreenshotWindow&&__codexArgs.push(`--startup-screenshot-window`);break}case`workspaceOpenViewer`:{let e=__codexString(__codexWorkspaceId);__codexArgs=[`viewer`],e&&__codexArgs.push(`--id`,e,`--exit-when-workspace-gone`),__codexAlwaysOnTop&&__codexArgs.push(`--always-on-top`);break}case`workspaceStart`:{__codexArgs=[`workspace`,`start`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexAckHiddenWorkspace&&__codexArgs.push(`--ack-hidden-workspace`),__codexAckUnenforcedPolicy&&__codexArgs.push(`--ack-unenforced-policy`),__codexPushId(`--profile`,__codexProfileId),__codexPushId(`--id`,__codexWorkspaceId),__codexPushId(`--purpose`,__codexPurpose);break}case`workspaceStop`:__codexArgs=[`workspace`,`stop`],__codexPushId(`--id`,__codexWorkspaceId);break;case`workspaceCleanup`:__codexArgs=[`workspace`,`cleanup`],__codexDryRun&&__codexArgs.push(`--dry-run`),__codexPushId(`--id`,__codexCleanupId);break;default:throw Error(`unsupported agent workspace action`)}}catch(e){return{ok:!1,action:__codexActionName,message:e instanceof Error?e.message:String(e)}}if(__codexPermissionConfig?.error)return{ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:`Workspace permission file could not be loaded: ${__codexPermissionConfig.error}`,json:__codexPermissionConfig};if(__codexPermissionConfig?.permissions_path)__codexArgs=[`--permissions`,__codexPermissionConfig.permissions_path,...__codexArgs];if(__codexActionName===`workspaceOpenViewer`){return await new Promise(e=>{let t=!1,n=null,r=a=>{if(t)return;t=!0,n&&clearTimeout(n),e(a)},m=a=>a instanceof Error?a.message:String(a);try{let a=__CHATGPT_CHILD_PROCESS_VAR__.spawn(__codexCommand,__codexArgs,{detached:!0,stdio:`ignore`}),p={ok:!0,action:__codexActionName,command:__codexCommand,args:__codexArgs,json:{ok:!0,id:__codexString(__codexWorkspaceId)||`default`,pid:a?.pid??null,always_on_top:!!__codexAlwaysOnTop,exit_when_workspace_gone:!!__codexString(__codexWorkspaceId)}};a?.once?.(`error`,e=>r({ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:m(e)}));a?.once?.(`spawn`,()=>{a?.unref?.();r(p)});n=setTimeout(()=>{a?.unref?.();r(p)},25)}catch(a){r({ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:m(a)})}})}let __codexParse=e=>{let t=String(e||``).trim();if(t.length===0)return null;try{return JSON.parse(t)}catch{return{raw:t}}};try{let e=await new Promise((e,t)=>{let n=__CHATGPT_CHILD_PROCESS_VAR__.execFile(__codexCommand,__codexArgs,{encoding:`utf8`,timeout:Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):15e3,maxBuffer:8388608},(n,r,i)=>{n?(n.stdout=r,n.stderr=i,t(n)):e({stdout:r,stderr:i})})}),t=__codexParse(e.stdout);return{ok:!0,action:__codexActionName,command:__codexCommand,args:__codexArgs,stdout:e.stdout,stderr:e.stderr,json:t}}catch(e){let t=__codexParse(e?.stdout);return{ok:!1,action:__codexActionName,command:__codexCommand,args:__codexArgs,message:e instanceof Error?e.message:String(e),code:e?.code??null,stdout:e?.stdout??``,stderr:e?.stderr??``,json:t}}finally{if(__codexTempPath)try{__CHATGPT_FS_VAR__.rmSync(__CHATGPT_PATH_VAR__.dirname(__codexTempPath),{recursive:!0,force:!0})}catch{}}}";
 
 function agentWorkspaceMountPickerBridgeSource() {
   return `"linux-agent-workspace-pick-mount":async()=>{let __codexElectron;try{__codexElectron=require(\`electron\`)}catch(e){return{ok:!1,action:\`pickMount\`,message:\`file picker unavailable\`}}try{let e=await __codexElectron.dialog.showOpenDialog({title:\`Choose file or folder to mount\`,properties:[\`openFile\`,\`openDirectory\`,\`multiSelections\`]});let t=Array.isArray(e.filePaths)?e.filePaths:[];return{ok:!e.canceled&&t.length>0,action:\`pickMount\`,json:{canceled:!!e.canceled,path:t[0]||null,paths:t}}}catch(e){return{ok:!1,action:\`pickMount\`,message:e instanceof Error?e.message:String(e)}}}`;
@@ -46,23 +50,68 @@ function agentWorkspaceBrowserDataPickerBridgeSource() {
 }
 
 function agentWorkspaceBrowserDataCopyBridgeSource({ fsVar, pathVar }) {
-  return `"linux-agent-workspace-copy-browser-data":async({sourcePath:__codexSourcePath,profileId:__codexProfileId}={})=>{let __codexString=e=>typeof e===\`string\`&&e.trim().length>0?e.trim():null,__codexHome=()=>typeof process.env.HOME===\`string\`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpand=e=>{let t=__codexString(e),n=__codexHome();return t&&t.startsWith(\`~/\`)&&n?${pathVar}.join(n,t.slice(2)):t},__codexSafe=e=>String(e||\`browser-session\`).toLowerCase().replace(/[^a-z0-9._-]+/g,\`-\`).replace(/^-+|-+$/g,\`\`)||\`browser-session\`;try{let e=__codexExpand(__codexSourcePath);if(!e)return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder is required\`};if(!${fsVar}.existsSync(e)||!${fsVar}.statSync(e).isDirectory())return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder does not exist\`,json:{source_path:e}};let t=__codexSafe(__codexProfileId),n=__codexExpand(process.env.XDG_DATA_HOME)||(__codexHome()?${pathVar}.join(__codexHome(),\`.local\`,\`share\`):${pathVar}.join(process.env.TMPDIR||\`/tmp\`,\`codex-agent-workspace-data\`)),r=${pathVar}.join(n,\`agent-workspace-linux\`,\`browser-sessions\`,t);if(${fsVar}.existsSync(r))return{ok:!1,action:\`copyBrowserData\`,message:\`managed browser-session copy already exists\`,json:{source_path:e,path:r,profile_id:t}};${fsVar}.mkdirSync(${pathVar}.dirname(r),{recursive:!0,mode:448});let a=new Set([\`SingletonCookie\`,\`SingletonLock\`,\`SingletonSocket\`,\`lockfile\`,\`.parentlock\`]);await ${fsVar}.promises.cp(e,r,{recursive:!0,force:!1,errorOnExist:!0,filter:(e)=>{let t=${pathVar}.basename(e);return !a.has(t)&&!t.startsWith(\`Singleton\`)}});return{ok:!0,action:\`copyBrowserData\`,json:{source_path:e,path:r,profile_id:t,copied:!0,excluded_lock_files:!0}}}catch(e){return{ok:!1,action:\`copyBrowserData\`,message:e instanceof Error?e.message:String(e)}}}`;
+  return `"linux-agent-workspace-copy-browser-data":async({sourcePath:__codexSourcePath,profileId:__codexProfileId}={})=>{let __codexString=e=>typeof e===\`string\`&&e.trim().length>0?e.trim():null,__codexHome=()=>typeof process.env.HOME===\`string\`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpand=e=>{let t=__codexString(e),n=__codexHome();return t&&t.startsWith(\`~/\`)&&n?${pathVar}.join(n,t.slice(2)):t},__codexSafe=e=>String(e||\`browser-session\`).toLowerCase().replace(/[^a-z0-9._-]+/g,\`-\`).replace(/^-+|-+$/g,\`\`)||\`browser-session\`;try{let e=__codexExpand(__codexSourcePath);if(!e)return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder is required\`};if(!${fsVar}.existsSync(e)||!${fsVar}.statSync(e).isDirectory())return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder does not exist\`,json:{source_path:e}};let t=__codexSafe(__codexProfileId),n=__codexExpand(process.env.XDG_DATA_HOME)||(__codexHome()?${pathVar}.join(__codexHome(),\`.local\`,\`share\`):${pathVar}.join(process.env.TMPDIR||\`/tmp\`,\`chatgpt-agent-workspace-data\`)),r=${pathVar}.join(n,\`agent-workspace-linux\`,\`browser-sessions\`,t);if(${fsVar}.existsSync(r))return{ok:!1,action:\`copyBrowserData\`,message:\`managed browser-session copy already exists\`,json:{source_path:e,path:r,profile_id:t}};${fsVar}.mkdirSync(${pathVar}.dirname(r),{recursive:!0,mode:448});let a=new Set([\`SingletonCookie\`,\`SingletonLock\`,\`SingletonSocket\`,\`lockfile\`,\`.parentlock\`]);await ${fsVar}.promises.cp(e,r,{recursive:!0,force:!1,errorOnExist:!0,filter:(e)=>{let t=${pathVar}.basename(e);return !a.has(t)&&!t.startsWith(\`Singleton\`)}});return{ok:!0,action:\`copyBrowserData\`,json:{source_path:e,path:r,profile_id:t,copied:!0,excluded_lock_files:!0}}}catch(e){return{ok:!1,action:\`copyBrowserData\`,message:e instanceof Error?e.message:String(e)}}}`;
 }
 
 function useUserWritableNpmPrefixForInstallRuntime(source) {
   const needle = "case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,n=[`install`,`-g`,`@agent-sh/agent-workspace-linux`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;";
-  const replacement = "case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,p=__codexString(process.env.NPM_CONFIG_PREFIX);p=p?__codexExpandCommand(p):(__codexHome()?__CODEX_PATH_VAR__.join(__codexHome(),`.local`):null);let n=[`install`,`-g`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;p&&n.push(`--prefix`,p);n.push(`@agent-sh/agent-workspace-linux`);";
+  const replacement = "case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,p=__codexString(process.env.NPM_CONFIG_PREFIX);p=p?__codexExpandCommand(p):(__codexHome()?__CHATGPT_PATH_VAR__.join(__codexHome(),`.local`):null);let n=[`install`,`-g`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;p&&n.push(`--prefix`,p);n.push(`@agent-sh/agent-workspace-linux`);";
   if (!source.includes(needle)) {
     throw new Error("could not update agent workspace npm install command");
   }
   return source.replace(needle, replacement);
 }
 
+function migrateLegacyAgentWorkspaceState(source) {
+  const commandNeedle = `__codexCommand=this.globalState.get(\`${SETTINGS_COMMAND_KEY}\`)||__codexDefaultCommand();if(typeof __codexCommand!==\`string\`||__codexCommand.trim().length===0)__codexCommand=__codexDefaultCommand();__codexCommand=__codexExpandCommand(__codexCommand);`;
+  const commandReplacement = `__codexCommand=null;`;
+  const permissionNeedle = `__codexPermissionPath=__codexString(this.globalState.get(\`${SETTINGS_PERMISSIONS_KEY}\`));__codexPermissionPath&&(__codexPermissionPath=__codexExpandCommand(__codexPermissionPath));`;
+  const permissionReplacement = `__codexPermissionPath=null;`;
+  const configNeedle = `,__codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),`;
+  const migrationSource = [
+    `,__codexStateMigrationError=null;`,
+    `try{`,
+    `let __codexNormalizeState=(e,t)=>{if(e==null)return null;if(typeof e!==\`string\`||e.trim().length===0)throw Error(\`Invalid legacy ${"${t}"} state\`);return e.trim()},`,
+    `__codexCurrentCommand=__codexNormalizeState(this.globalState.get(\`${SETTINGS_COMMAND_KEY}\`),\`command\`),`,
+    `__codexLegacyCommand=__codexNormalizeState(this.globalState.get(\`${LEGACY_SETTINGS_COMMAND_KEY}\`),\`command\`),`,
+    `__codexCurrentPermission=__codexNormalizeState(this.globalState.get(\`${SETTINGS_PERMISSIONS_KEY}\`),\`permission\`),`,
+    `__codexLegacyPermission=__codexNormalizeState(this.globalState.get(\`${LEGACY_SETTINGS_PERMISSIONS_KEY}\`),\`permission\`);`,
+    `if(__codexCurrentCommand&&__codexLegacyCommand&&__codexCurrentCommand!==__codexLegacyCommand)throw Error(\`Conflicting legacy command state\`);`,
+    `if(__codexCurrentPermission&&__codexLegacyPermission&&__codexCurrentPermission!==__codexLegacyPermission)throw Error(\`Conflicting legacy permission state\`);`,
+    `let __codexEffectiveCommand=__codexCurrentCommand||__codexLegacyCommand,`,
+    `__codexEffectivePermission=__codexCurrentPermission||__codexLegacyPermission;`,
+    `__codexPermissionPath=__codexEffectivePermission?__codexExpandCommand(__codexEffectivePermission):null;`,
+    `if(__codexLegacyPermission){let e=__codexReadPermissionConfig(__codexPermissionPath);if(e.error)throw Error(\`Legacy permission file could not be loaded: ${"${e.error}"}\`)}`,
+    `let __codexPersistState=(e,t,n)=>{if(!t&&n){this.globalState.set(e,n);if(this.globalState.get(e)!==n)throw Error(\`Could not persist migrated agent workspace state\`)}},`,
+    `__codexDeleteLegacy=e=>{typeof this.globalState.delete===\`function\`?this.globalState.delete(e):this.globalState.set(e,void 0);if(this.globalState.get(e)!==void 0)throw Error(\`Could not remove legacy agent workspace state\`)};`,
+    `__codexPersistState(\`${SETTINGS_COMMAND_KEY}\`,__codexCurrentCommand,__codexLegacyCommand);`,
+    `__codexPersistState(\`${SETTINGS_PERMISSIONS_KEY}\`,__codexCurrentPermission,__codexLegacyPermission);`,
+    `if(__codexLegacyCommand)__codexDeleteLegacy(\`${LEGACY_SETTINGS_COMMAND_KEY}\`);`,
+    `if(__codexLegacyPermission)__codexDeleteLegacy(\`${LEGACY_SETTINGS_PERMISSIONS_KEY}\`);`,
+    `__codexCommand=__codexExpandCommand(__codexEffectiveCommand||__codexDefaultCommand());`,
+    `}catch(e){__codexStateMigrationError=e instanceof Error?e.message:String(e);__codexCommand=__codexDefaultCommand();__codexPermissionPath=null}`,
+    `;let __codexPermissionConfig=__codexReadPermissionConfig(__codexPermissionPath),`,
+  ].join("");
+  const actionNeedle = `,__codexActionName=__codexString(__codexAction);try{switch`;
+  const actionReplacement = `,__codexActionName=__codexString(__codexAction);if(__codexStateMigrationError)return{ok:!1,action:__codexActionName,message:__codexStateMigrationError};try{switch`;
+
+  if (!source.includes(commandNeedle) || !source.includes(permissionNeedle) || !source.includes(configNeedle) || !source.includes(actionNeedle)) {
+    throw new Error("could not add the agent workspace legacy state migration");
+  }
+  return source
+    .replace(commandNeedle, commandReplacement)
+    .replace(permissionNeedle, permissionReplacement)
+    .replace(configNeedle, migrationSource)
+    .replace(actionNeedle, actionReplacement);
+}
+
 function agentWorkspaceBridgeWithWorkspaceStartSource(args) {
-  return useUserWritableNpmPrefixForInstallRuntime(AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE)
-    .split("__CODEX_CHILD_PROCESS_VAR__").join(args.childProcessVar)
-    .split("__CODEX_FS_VAR__").join(args.fsVar)
-    .split("__CODEX_PATH_VAR__").join(args.pathVar);
+  return migrateLegacyAgentWorkspaceState(
+    useUserWritableNpmPrefixForInstallRuntime(AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE),
+  )
+    .split("__CHATGPT_CHILD_PROCESS_VAR__").join(args.childProcessVar)
+    .split("__CHATGPT_FS_VAR__").join(args.fsVar)
+    .split("__CHATGPT_PATH_VAR__").join(args.pathVar);
 }
 
 function agentWorkspaceActionBridgeSource(args) {
@@ -178,8 +227,6 @@ function buildAgentWorkspaceSettingsSource({
   chunkAsset,
   reactAsset,
   reactExportName = "t",
-  settingsPageAsset,
-  settingsPageExportName = "t",
   codexRequestAsset,
   codexRequestExportName = "n",
   vscodeApiAsset,
@@ -188,10 +235,20 @@ function buildAgentWorkspaceSettingsSource({
   return `import{s as __toESM}from"./${chunkAsset}";
 import{${reactExportName} as __reactFactory}from"./${reactAsset}";
 import{${codexRequestExportName} as __post}from"./${requestAsset}";
-import{${settingsPageExportName} as SettingsPage}from"./${settingsPageAsset}";
 
 var React=__toESM(__reactFactory(),1);
 var h=React.createElement;
+function SettingsPage({title,subtitle,children}){
+  return h("div",{className:"h-full min-h-0 w-full overflow-y-auto"},
+    h("div",{className:"mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6"},
+      h("div",{className:"flex flex-col gap-1"},
+        h("h2",{className:"text-xl font-semibold text-token-text-primary"},title),
+        subtitle?h("p",{className:"text-sm text-token-text-secondary"},subtitle):null
+      ),
+      children
+    )
+  );
+}
 var COMMAND_KEY=${JSON.stringify(SETTINGS_COMMAND_KEY)};
 var PERMISSIONS_KEY=${JSON.stringify(SETTINGS_PERMISSIONS_KEY)};
 var DEFAULT_COMMAND_LABEL="Auto-discovered agent-workspace-linux";
@@ -1771,32 +1828,104 @@ function webviewAssetsDir(extractedDir) {
   return path.join(extractedDir, "webview", "assets");
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function importBindings(source) {
+  const bindings = new Map();
+  const importPattern = /import\{([^}]+)\}from"\.\/([^"]+)"/g;
+  let match;
+  while ((match = importPattern.exec(source)) != null) {
+    const [, specifiers, assetName] = match;
+    for (const rawSpecifier of specifiers.split(",")) {
+      const specifier = rawSpecifier.trim();
+      if (specifier.length === 0) {
+        continue;
+      }
+      const aliased = specifier.match(/^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/);
+      if (aliased != null) {
+        bindings.set(aliased[2], { assetName, exportName: aliased[1] });
+      } else {
+        bindings.set(specifier, { assetName, exportName: specifier });
+      }
+    }
+  }
+  return bindings;
+}
+
+function inferRuntimeDependenciesFromSettingsSource(source) {
+  const jsxLocal = source.match(/\(0,([A-Za-z_$][\w$]*)\.jsx\)/)?.[1] ?? null;
+  const reactLocal = source.match(/\(0,([A-Za-z_$][\w$]*)\.useState\)/)?.[1] ?? null;
+  if (jsxLocal == null || reactLocal == null) {
+    return null;
+  }
+
+  const jsxFactoryLocal = source.match(
+    new RegExp(`${escapeRegExp(jsxLocal)}=([A-Za-z_$][\\w$]*)\\(\\)`),
+  )?.[1] ?? null;
+  const reactFactoryLocal = source.match(
+    new RegExp(`${escapeRegExp(reactLocal)}=[A-Za-z_$][\\w$]*\\(([A-Za-z_$][\\w$]*)\\(\\),1\\)`),
+  )?.[1] ?? null;
+  if (jsxFactoryLocal == null || reactFactoryLocal == null) {
+    return null;
+  }
+
+  const bindings = importBindings(source);
+  const reactBinding = bindings.get(reactFactoryLocal);
+  if (bindings.get(jsxFactoryLocal) == null || reactBinding == null) {
+    return null;
+  }
+
+  return {
+    reactAsset: reactBinding.assetName,
+    reactExportName: reactBinding.exportName,
+  };
+}
+
+function inferRuntimeDependenciesFromSettingsAssets(assetsDir) {
+  const candidates = fs
+    .readdirSync(assetsDir)
+    .filter((name) => /^settings-page-[^.]+\.js$/.test(name))
+    .sort();
+  for (const candidate of candidates) {
+    const dependencies = inferRuntimeDependenciesFromSettingsSource(
+      fs.readFileSync(path.join(assetsDir, candidate), "utf8"),
+    );
+    if (dependencies != null) {
+      return dependencies;
+    }
+  }
+  return null;
+}
+
 function resolveAgentWorkspaceSettingsAsset(extractedDir) {
   const assetsDir = webviewAssetsDir(extractedDir);
   if (!fs.existsSync(assetsDir)) {
     throw new Error(`missing webview assets directory ${assetsDir}`);
   }
 
-  const jsxRuntimeAsset = findRequiredWebviewAsset(
-    assetsDir,
-    /^jsx-runtime-.*\.js$/,
-    "react.transitional.element",
-    "JSX runtime asset",
-  );
-  const jsxRuntimeSource = fs.readFileSync(path.join(assetsDir, jsxRuntimeAsset), "utf8");
-  const jsxExportsReactFactory = /export\{[^}]*\bn\b/.test(jsxRuntimeSource);
-  const reactAsset = jsxExportsReactFactory
-    ? jsxRuntimeAsset
-    : findRequiredWebviewAsset(assetsDir, /^react-.*\.js$/, "react.transitional.element", "React asset");
-  const reactExportName = jsxExportsReactFactory ? "n" : "t";
+  const runtimeDependencies = inferRuntimeDependenciesFromSettingsAssets(assetsDir);
+  let reactAsset;
+  let reactExportName;
+  if (runtimeDependencies != null) {
+    ({ reactAsset, reactExportName } = runtimeDependencies);
+  } else {
+    const jsxRuntimeAsset = findRequiredWebviewAsset(
+      assetsDir,
+      /^jsx-runtime-.*\.js$/,
+      "react.transitional.element",
+      "JSX runtime asset",
+    );
+    const jsxRuntimeSource = fs.readFileSync(path.join(assetsDir, jsxRuntimeAsset), "utf8");
+    const jsxExportsReactFactory = /export\{[^}]*\bn\b/.test(jsxRuntimeSource);
+    reactAsset = jsxExportsReactFactory
+      ? jsxRuntimeAsset
+      : findRequiredWebviewAsset(assetsDir, /^react-.*\.js$/, "react.transitional.element", "React asset");
+    reactExportName = jsxExportsReactFactory ? "n" : "t";
+  }
   const chunkAsset = findImportedAsset(assetsDir, reactAsset, "React shared chunk asset");
   const codexRequestAsset = findCodexRequestWebviewAsset(assetsDir);
-  const settingsPageAsset = findRequiredWebviewAsset(
-    assetsDir,
-    /^settings-content-layout-.*\.js$/,
-    null,
-    "settings content layout asset",
-  );
 
   return {
     filePath: path.join(assetsDir, SETTINGS_ASSET),
@@ -1804,57 +1933,92 @@ function resolveAgentWorkspaceSettingsAsset(extractedDir) {
       chunkAsset,
       reactAsset,
       reactExportName,
-      settingsPageAsset,
-      settingsPageExportName: "t",
       codexRequestAsset: codexRequestAsset.assetName,
       codexRequestExportName: codexRequestAsset.exportName,
     }),
   };
 }
 
-function patchRequiredAssets(extractedDir, filenamePattern, patchFn, description) {
-  const assetsDir = webviewAssetsDir(extractedDir);
-  const candidates = fs
-    .readdirSync(assetsDir)
-    .filter((name) => filenamePattern.test(name))
-    .sort();
-  if (candidates.length === 0) {
-    throw new Error(`could not find ${description}`);
-  }
-
-  return candidates.map((candidate) => {
-    const filePath = path.join(assetsDir, candidate);
-    const currentSource = fs.readFileSync(filePath, "utf8");
-    return {
-      filePath,
-      currentSource,
-      patchedSource: patchFn(currentSource),
-    };
-  });
+function isAgentWorkspaceSettingsSharedMetadataBundleSource(currentSource) {
+  return (
+    currentSource.includes('"local-environments":{id:`settings.nav.local-environments`') &&
+    currentSource.includes("settings.section.worktrees")
+  );
 }
 
-function applyAgentWorkspaceSettingsSectionsPatch(currentSource) {
-  if (currentSource.includes(`slug:\`${SETTINGS_SLUG}\``)) {
+const CURRENT_SETTINGS_ROUTE_PATTERN =
+  /"general-settings":(?=([A-Za-z_$][\w$]*)\(async\(\)=>\(await ([A-Za-z_$][\w$]*)\(async\(\)=>\{let\{GeneralSettings:[A-Za-z_$][\w$]*\}=await import\()/;
+
+function isAgentWorkspaceSettingsRouteBundleSource(currentSource) {
+  return (
+    currentSource.includes(SETTINGS_ASSET) ||
+    CURRENT_SETTINGS_ROUTE_PATTERN.test(currentSource)
+  );
+}
+
+const CURRENT_SETTINGS_CATALOG_SLUGS = "local-environments.worktrees.environments";
+const PATCHED_SETTINGS_CATALOG_SLUGS = "local-environments.agent-workspaces.worktrees.environments";
+const CURRENT_SETTINGS_CATALOG_ITEMS = "{slug:`local-environments`},{slug:`worktrees`}";
+const PATCHED_SETTINGS_CATALOG_ITEMS = "{slug:`local-environments`},{slug:`agent-workspaces`},{slug:`worktrees`}";
+const CURRENT_SETTINGS_NAVIGATION_SLUGS = "local-environments.worktrees.browser-use";
+const PATCHED_SETTINGS_NAVIGATION_SLUGS = "local-environments.agent-workspaces.worktrees.browser-use";
+const CURRENT_SETTINGS_NAVIGATION_GROUP = "`local-environments`,`environments`,`worktrees`";
+const PATCHED_SETTINGS_NAVIGATION_GROUP =
+  "`local-environments`,`agent-workspaces`,`environments`,`worktrees`";
+const CURRENT_SETTINGS_VISIBILITY_CASES =
+  "case`worktrees`:case`local-environments`:case`environments`:return";
+const PATCHED_SETTINGS_VISIBILITY_CASES =
+  "case`worktrees`:case`local-environments`:case`agent-workspaces`:case`environments`:return";
+const CURRENT_SETTINGS_ICON_PATTERN =
+  /"local-environments":([A-Za-z_$][\w$]*),worktrees:([A-Za-z_$][\w$]*)/;
+const PATCHED_SETTINGS_ICON_PATTERN =
+  /"local-environments":([A-Za-z_$][\w$]*),"agent-workspaces":([A-Za-z_$][\w$]*),worktrees:([A-Za-z_$][\w$]*)/;
+
+function isAgentWorkspaceSettingsNavigationBundleSource(currentSource) {
+  return (
+    (currentSource.includes(CURRENT_SETTINGS_NAVIGATION_SLUGS) ||
+      currentSource.includes(PATCHED_SETTINGS_NAVIGATION_SLUGS)) &&
+    (currentSource.includes(CURRENT_SETTINGS_NAVIGATION_GROUP) ||
+      currentSource.includes(PATCHED_SETTINGS_NAVIGATION_GROUP))
+  );
+}
+
+function isAgentWorkspaceSettingsVisibilityBundleSource(currentSource) {
+  return (
+    (CURRENT_SETTINGS_ICON_PATTERN.test(currentSource) ||
+      PATCHED_SETTINGS_ICON_PATTERN.test(currentSource)) &&
+    (currentSource.includes(CURRENT_SETTINGS_VISIBILITY_CASES) ||
+      currentSource.includes(PATCHED_SETTINGS_VISIBILITY_CASES))
+  );
+}
+
+function isAgentWorkspaceSettingsCatalogBundleSource(currentSource) {
+  return (
+    (currentSource.includes(CURRENT_SETTINGS_CATALOG_SLUGS) ||
+      currentSource.includes(PATCHED_SETTINGS_CATALOG_SLUGS)) &&
+    (currentSource.includes(CURRENT_SETTINGS_CATALOG_ITEMS) ||
+      currentSource.includes(PATCHED_SETTINGS_CATALOG_ITEMS))
+  );
+}
+
+function applyAgentWorkspaceSettingsCatalogPatch(currentSource) {
+  const slugsPatched = currentSource.includes(PATCHED_SETTINGS_CATALOG_SLUGS);
+  const itemsPatched = currentSource.includes(PATCHED_SETTINGS_CATALOG_ITEMS);
+  if (slugsPatched && itemsPatched) {
     return currentSource;
   }
-
-  const preferredNeedle = "{slug:`local-environments`},{slug:`worktrees`}";
-  if (currentSource.includes(preferredNeedle)) {
-    return currentSource.replace(
-      preferredNeedle,
-      `{slug:\`local-environments\`},{slug:\`${SETTINGS_SLUG}\`},{slug:\`worktrees\`}`,
-    );
+  if (slugsPatched !== itemsPatched) {
+    throw new Error("agent workspace settings catalog is partially patched");
   }
-
-  const fallbackNeedle = "n=[{slug:`general-settings`},";
-  if (currentSource.includes(fallbackNeedle)) {
-    return currentSource.replace(
-      fallbackNeedle,
-      `n=[{slug:\`general-settings\`},{slug:\`${SETTINGS_SLUG}\`},`,
-    );
+  if (
+    currentSource.split(CURRENT_SETTINGS_CATALOG_SLUGS).length !== 2 ||
+    currentSource.split(CURRENT_SETTINGS_CATALOG_ITEMS).length !== 2
+  ) {
+    throw new Error("could not add agent workspace to current settings catalog");
   }
-
-  throw new Error("could not add agent workspace settings section");
+  return currentSource
+    .replace(CURRENT_SETTINGS_CATALOG_SLUGS, PATCHED_SETTINGS_CATALOG_SLUGS)
+    .replace(CURRENT_SETTINGS_CATALOG_ITEMS, PATCHED_SETTINGS_CATALOG_ITEMS);
 }
 
 function applyAgentWorkspaceSettingsSharedPatch(currentSource) {
@@ -1893,165 +2057,130 @@ function applyAgentWorkspaceSettingsIndexPatch(currentSource) {
   let patchedSource = currentSource;
 
   if (!patchedSource.includes(SETTINGS_ASSET)) {
-    const routePattern = /"general-settings":(?=\(0,([A-Za-z_$][\w$]*)\.lazy\)\(\(\)=>([A-Za-z_$][\w$]*)\()/;
-    if (!routePattern.test(patchedSource)) {
+    if (!CURRENT_SETTINGS_ROUTE_PATTERN.test(patchedSource)) {
       throw new Error("could not add agent workspace settings route");
     }
     patchedSource = patchedSource.replace(
-      routePattern,
+      CURRENT_SETTINGS_ROUTE_PATTERN,
       (_match, lazyAlias, preloadAlias) =>
-        `"${SETTINGS_SLUG}":(0,${lazyAlias}.lazy)(()=>${preloadAlias}(()=>import(\`./${SETTINGS_ASSET}\`),[],import.meta.url)),"general-settings":`,
+        `"${SETTINGS_SLUG}":${lazyAlias}(async()=>(await ${preloadAlias}(async()=>{let{default:e}=await import(\`./${SETTINGS_ASSET}\`);return{default:e}},[],import.meta.url)).default),"general-settings":`,
     );
-  }
-
-  const iconPattern = /([,{])"general-settings":([A-Za-z_$][\w$]*),/;
-  if (
-    !new RegExp(`[,{]"${SETTINGS_SLUG}":[A-Za-z_$][\\w$]*,"general-settings":`).test(patchedSource) &&
-    iconPattern.test(patchedSource)
-  ) {
-    patchedSource = patchedSource.replace(
-      iconPattern,
-      (_match, prefix, icon) => `${prefix}"${SETTINGS_SLUG}":${icon},"general-settings":${icon},`,
-    );
-  }
-
-  const hasLegacyVisibilityGate =
-    patchedSource.includes("case`appearance`:case`git-settings`:case`worktrees`:case`local-environments`:") ||
-    patchedSource.includes("case`local-environments`:case`worktrees`:case`environments`:");
-  patchedSource = patchedSource.replaceAll(
-    "`local-environments`,`worktrees`",
-    "`local-environments`,`agent-workspaces`,`worktrees`",
-  );
-  if (!patchedSource.includes("case`local-environments`:case`agent-workspaces`:case`data-controls`:case`environments`:return")) {
-    patchedSource = patchedSource.replace(
-      "case`appearance`:case`git-settings`:case`worktrees`:case`local-environments`:",
-      "case`appearance`:case`git-settings`:case`worktrees`:case`local-environments`:case`agent-workspaces`:",
-    );
-  }
-  if (!patchedSource.includes("case`local-environments`:case`agent-workspaces`:case`worktrees`:case`environments`:")) {
-    patchedSource = patchedSource.replace(
-      "case`local-environments`:case`worktrees`:case`environments`:",
-      "case`local-environments`:case`agent-workspaces`:case`worktrees`:case`environments`:",
-    );
-  }
-
-  if (hasLegacyVisibilityGate && !patchedSource.includes(`case\`${SETTINGS_SLUG}\``)) {
-    throw new Error("could not add agent workspace settings visibility");
   }
 
   return patchedSource;
 }
 
-function inferSettingsPageJsxAlias(source) {
-  return source.match(/\(0,([A-Za-z_$][\w$]*)\.jsxs\)\(\`svg\`,/)?.[1] ?? "Z";
-}
-
-function agentWorkspaceSettingsNavIconSource(jsxAlias = "Z") {
-  return `codexLinuxAgentWorkspaceSettingsIcon=e=>(0,${jsxAlias}.jsxs)(\`svg\`,{width:16,height:16,viewBox:\`0 0 16 16\`,fill:\`none\`,xmlns:\`http://www.w3.org/2000/svg\`,...e,children:[(0,${jsxAlias}.jsx)(\`rect\`,{x:2.25,y:2.25,width:11.5,height:11.5,rx:2.1,stroke:\`currentColor\`,strokeWidth:1.2,strokeDasharray:\`1.8 1.4\`}),(0,${jsxAlias}.jsx)(\`path\`,{d:\`M6.15 5.55 7.4 9.55M9.85 5.55 8.6 9.55M6.4 5h3.2\`,stroke:\`currentColor\`,strokeWidth:1.1,strokeLinecap:\`round\`,strokeLinejoin:\`round\`}),(0,${jsxAlias}.jsx)(\`circle\`,{cx:5.1,cy:5, r:1.15,stroke:\`currentColor\`,strokeWidth:1.1}),(0,${jsxAlias}.jsx)(\`circle\`,{cx:10.9,cy:5,r:1.15,stroke:\`currentColor\`,strokeWidth:1.1}),(0,${jsxAlias}.jsx)(\`circle\`,{cx:8,cy:11,r:1.15,stroke:\`currentColor\`,strokeWidth:1.1})]})`;
-}
-
-function applyAgentWorkspaceSettingsIconPatch(currentSource) {
-  if (currentSource.includes("codexLinuxAgentWorkspaceSettingsIcon=e=>")) {
-    return currentSource;
-  }
-
-  const iconMapMatch = currentSource.match(
-    /(?:var |let |const |,)[A-Za-z_$][\w$]*=\{[^;\n]*"local-environments":[^;\n]*worktrees:/,
-  );
-  if (iconMapMatch == null) {
-    return currentSource;
-  }
-
-  const iconSource = agentWorkspaceSettingsNavIconSource(inferSettingsPageJsxAlias(currentSource));
-  const index = iconMapMatch.index ?? 0;
-  if (iconMapMatch[0].startsWith(",")) {
-    return `${currentSource.slice(0, index)},${iconSource}${currentSource.slice(index)}`;
-  }
-
-  const keyword = iconMapMatch[0].match(/^(var |let |const )/)?.[1] ?? "var ";
-  return `${currentSource.slice(0, index)}${keyword}${iconSource};${currentSource.slice(index)}`;
-}
-
 function applyAgentWorkspaceSettingsPagePatch(currentSource) {
   let patchedSource = currentSource;
+  let matched = false;
 
-  patchedSource = applyAgentWorkspaceSettingsIconPatch(patchedSource);
-  const agentWorkspaceIcon = patchedSource.includes("codexLinuxAgentWorkspaceSettingsIcon=e=>")
-    ? "codexLinuxAgentWorkspaceSettingsIcon"
-    : patchedSource.match(/"local-environments":([A-Za-z_$][\w$]*)/)?.[1] ?? null;
-
-  if (agentWorkspaceIcon != null) {
-    patchedSource = patchedSource.replace(
-      new RegExp(`"${SETTINGS_SLUG}":[A-Za-z_$][\\w$]*`),
-      `"${SETTINGS_SLUG}":${agentWorkspaceIcon}`,
-    );
+  if (isAgentWorkspaceSettingsNavigationBundleSource(patchedSource)) {
+    matched = true;
+    const slugsPatched = patchedSource.includes(PATCHED_SETTINGS_NAVIGATION_SLUGS);
+    const groupPatched = patchedSource.includes(PATCHED_SETTINGS_NAVIGATION_GROUP);
+    if (slugsPatched !== groupPatched) {
+      throw new Error("agent workspace settings navigation is partially patched");
+    }
+    if (!slugsPatched) {
+      patchedSource = patchedSource
+        .replace(CURRENT_SETTINGS_NAVIGATION_SLUGS, PATCHED_SETTINGS_NAVIGATION_SLUGS)
+        .replace(CURRENT_SETTINGS_NAVIGATION_GROUP, PATCHED_SETTINGS_NAVIGATION_GROUP);
+    }
   }
 
-  if (
-    !new RegExp(`[,{]"${SETTINGS_SLUG}":[A-Za-z_$][\\w$]*,worktrees`).test(patchedSource) &&
-    /"local-environments":([A-Za-z_$][\w$]*),worktrees:/.test(patchedSource)
-  ) {
-    patchedSource = patchedSource.replace(
-      /"local-environments":([A-Za-z_$][\w$]*),worktrees:/,
-      `"local-environments":$1,"${SETTINGS_SLUG}":${agentWorkspaceIcon ?? "$1"},worktrees:`,
-    );
+  if (isAgentWorkspaceSettingsVisibilityBundleSource(patchedSource)) {
+    matched = true;
+    const iconMatch = patchedSource.match(PATCHED_SETTINGS_ICON_PATTERN);
+    if (iconMatch != null && iconMatch[1] !== iconMatch[2]) {
+      throw new Error("agent workspace settings visibility has an unexpected icon");
+    }
+    const iconPatched = iconMatch != null && iconMatch[1] === iconMatch[2];
+    const casesPatched = patchedSource.includes(PATCHED_SETTINGS_VISIBILITY_CASES);
+    if (iconPatched !== casesPatched) {
+      throw new Error("agent workspace settings visibility is partially patched");
+    }
+    if (!iconPatched) {
+      patchedSource = patchedSource
+        .replace(
+          CURRENT_SETTINGS_ICON_PATTERN,
+          (_match, localEnvironmentsIcon, worktreesIcon) =>
+            `"local-environments":${localEnvironmentsIcon},"${SETTINGS_SLUG}":${localEnvironmentsIcon},worktrees:${worktreesIcon}`,
+        )
+        .replace(CURRENT_SETTINGS_VISIBILITY_CASES, PATCHED_SETTINGS_VISIBILITY_CASES);
+    }
   }
 
-  patchedSource = patchedSource.replaceAll(
-    "`local-environments`,`worktrees`",
-    "`local-environments`,`agent-workspaces`,`worktrees`",
-  );
-
-  if (!patchedSource.includes("case`local-environments`:case`agent-workspaces`:case`environments`:return")) {
-    patchedSource = patchedSource.replace(
-      "case`appearance`:case`git-settings`:case`worktrees`:case`local-environments`:case`environments`:return",
-      "case`appearance`:case`git-settings`:case`worktrees`:case`local-environments`:case`agent-workspaces`:case`environments`:return",
-    );
-  }
-
-  if (!patchedSource.includes("case`local-environments`:case`agent-workspaces`:case`worktrees`:case`environments`:")) {
-    patchedSource = patchedSource.replace(
-      "case`local-environments`:case`worktrees`:case`environments`:",
-      "case`local-environments`:case`agent-workspaces`:case`worktrees`:case`environments`:",
-    );
-  }
-
-  if (!patchedSource.includes(`\`${SETTINGS_SLUG}\``)) {
+  if (!matched) {
     throw new Error("could not add agent workspace settings navigation");
   }
 
   return patchedSource;
 }
 
-function patchAgentWorkspaceRouteAssets(extractedDir) {
+function collectAgentWorkspaceRouteAndNavigationPatches(extractedDir) {
   const assetsDir = webviewAssetsDir(extractedDir);
+  if (!fs.existsSync(assetsDir)) {
+    throw new Error(`missing webview assets directory ${assetsDir}`);
+  }
+
   const candidates = fs
     .readdirSync(assetsDir)
-    .filter((name) => /^(app-main|index)-.*\.js$/.test(name))
+    .filter((name) =>
+      /^app-initial-[^.]+\.js$/.test(name) ||
+      /^settings-page-[^.]+\.js$/.test(name) ||
+      /^use-visible-settings-sections-[^.]+\.js$/.test(name)
+    )
     .sort();
-  let lastError = null;
+  let metadataMatched = false;
+  let routeMatched = false;
+  let navigationMatched = false;
+  let visibilityMatched = false;
+  let catalogMatched = false;
   const patches = [];
 
   for (const candidate of candidates) {
     const filePath = path.join(assetsDir, candidate);
     const currentSource = fs.readFileSync(filePath, "utf8");
-    if (!currentSource.includes(SETTINGS_ASSET) && !currentSource.includes('"general-settings":(0,')) {
-      continue;
+    let patchedSource = currentSource;
+    if (isAgentWorkspaceSettingsSharedMetadataBundleSource(currentSource)) {
+      metadataMatched = true;
+      patchedSource = applyAgentWorkspaceSettingsSharedPatch(patchedSource);
     }
-
-    try {
-      patches.push({
-        filePath,
-        currentSource,
-        patchedSource: applyAgentWorkspaceSettingsIndexPatch(currentSource),
-      });
-    } catch (error) {
-      lastError = error;
+    if (isAgentWorkspaceSettingsRouteBundleSource(currentSource)) {
+      routeMatched = true;
+      patchedSource = applyAgentWorkspaceSettingsIndexPatch(patchedSource);
+    }
+    if (isAgentWorkspaceSettingsNavigationBundleSource(currentSource)) {
+      navigationMatched = true;
+      patchedSource = applyAgentWorkspaceSettingsPagePatch(patchedSource);
+    }
+    if (isAgentWorkspaceSettingsVisibilityBundleSource(currentSource)) {
+      visibilityMatched = true;
+      patchedSource = applyAgentWorkspaceSettingsPagePatch(patchedSource);
+    }
+    if (isAgentWorkspaceSettingsCatalogBundleSource(currentSource)) {
+      catalogMatched = true;
+      patchedSource = applyAgentWorkspaceSettingsCatalogPatch(patchedSource);
+    }
+    if (patchedSource !== currentSource) {
+      patches.push({ filePath, currentSource, patchedSource });
     }
   }
 
-  if (patches.length === 0) {
-    throw lastError ?? new Error("could not find webview settings route bundle");
+  if (!metadataMatched) {
+    throw new Error("could not find webview settings metadata bundle");
+  }
+  if (!routeMatched) {
+    throw new Error("could not find webview settings route bundle");
+  }
+  if (!navigationMatched) {
+    throw new Error("could not find webview settings navigation bundle");
+  }
+  if (!visibilityMatched) {
+    throw new Error("could not find webview settings visibility bundle");
+  }
+  if (!catalogMatched) {
+    throw new Error("could not find current webview settings catalog bundle");
   }
 
   return patches;
@@ -2063,27 +2192,7 @@ function patchAgentWorkspaceSettingsAssets(extractedDir) {
     const previousSettingsSource = fs.existsSync(settingsAsset.filePath)
       ? fs.readFileSync(settingsAsset.filePath, "utf8")
       : null;
-    const patches = [
-      ...patchRequiredAssets(
-        extractedDir,
-        /^settings-sections-.*\.js$/,
-        applyAgentWorkspaceSettingsSectionsPatch,
-        "settings sections bundle",
-      ),
-      ...patchRequiredAssets(
-        extractedDir,
-        /^settings-shared-.*\.js$/,
-        applyAgentWorkspaceSettingsSharedPatch,
-        "settings shared bundle",
-      ),
-      ...patchRequiredAssets(
-        extractedDir,
-        /^settings-page-.*\.js$/,
-        applyAgentWorkspaceSettingsPagePatch,
-        "settings page bundle",
-      ),
-      ...patchAgentWorkspaceRouteAssets(extractedDir),
-    ];
+    const patches = collectAgentWorkspaceRouteAndNavigationPatches(extractedDir);
 
     fs.writeFileSync(settingsAsset.filePath, settingsAsset.source, "utf8");
     let changed = previousSettingsSource !== settingsAsset.source ? 1 : 0;
@@ -2102,7 +2211,7 @@ function patchAgentWorkspaceSettingsAssets(extractedDir) {
 }
 
 module.exports = {
-  patches: [
+  descriptors: [
     {
       id: "main-bridge",
       phase: "main-bundle",
@@ -2112,7 +2221,7 @@ module.exports = {
     },
     {
       id: "settings-page",
-      phase: "extracted-app",
+      phase: "extracted-app:post-webview",
       order: 20_810,
       ciPolicy: "optional",
       apply: (extractedDir) => patchAgentWorkspaceSettingsAssets(extractedDir),
@@ -2130,11 +2239,13 @@ module.exports = {
   SETTINGS_ASSET,
   SETTINGS_COMMAND_KEY,
   SETTINGS_PERMISSIONS_KEY,
+  LEGACY_SETTINGS_COMMAND_KEY,
+  LEGACY_SETTINGS_PERMISSIONS_KEY,
   SETTINGS_SLUG,
   applyAgentWorkspaceMainBridgePatch,
   applyAgentWorkspaceSettingsIndexPatch,
+  applyAgentWorkspaceSettingsCatalogPatch,
   applyAgentWorkspaceSettingsPagePatch,
-  applyAgentWorkspaceSettingsSectionsPatch,
   applyAgentWorkspaceSettingsSharedPatch,
   buildAgentWorkspaceSettingsSource,
   patchAgentWorkspaceSettingsAssets,

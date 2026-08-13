@@ -7,13 +7,13 @@ warn() {
 
 candidate_skill_sources=()
 
-app_dir="${CODEX_LINUX_APP_DIR:-${1:-}}"
+app_dir="${CHATGPT_LINUX_APP_DIR:-${1:-}}"
 if [ -n "$app_dir" ]; then
-    candidate_skill_sources+=("$app_dir/.codex-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md")
+    candidate_skill_sources+=("$app_dir/.chatgpt-linux/integrations/agent-workspace/skills/agent-workspace-linux/SKILL.md")
 fi
 
-if [ -n "${CODEX_PORT_INTEGRATIONS_DIR:-}" ]; then
-    candidate_skill_sources+=("$CODEX_PORT_INTEGRATIONS_DIR/agent-workspace/skills/agent-workspace-linux/SKILL.md")
+if [ -n "${CHATGPT_PORT_INTEGRATIONS_DIR:-}" ]; then
+    candidate_skill_sources+=("$CHATGPT_PORT_INTEGRATIONS_DIR/agent-workspace/skills/agent-workspace-linux/SKILL.md")
 fi
 
 skill_source=""

@@ -1,5 +1,13 @@
+#[cfg(target_os = "linux")]
+use mimalloc::MiMalloc;
+
+#[cfg(target_os = "linux")]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 mod abs_pointer;
 mod atspi_tree;
+mod authorization;
 mod cosmic_helper;
 mod diagnostics;
 mod gnome_extension;
@@ -10,6 +18,7 @@ mod server;
 mod terminal;
 mod windowing;
 mod windows;
+mod ydotool;
 
 use anyhow::{Context, Result};
 
@@ -158,6 +167,6 @@ async fn main() -> Result<()> {
 
 fn print_help() {
     println!(
-        "codex-computer-use-linux\n\nUsage:\n  codex-computer-use-linux mcp\n  codex-computer-use-linux doctor\n  codex-computer-use-linux setup\n  codex-computer-use-linux setup-window-targeting\n  codex-computer-use-linux apps\n  codex-computer-use-linux state [APP_NAME]\n  codex-computer-use-linux screenshot\n  codex-computer-use-linux windows"
+        "chatgpt-computer-use-linux\n\nUsage:\n  chatgpt-computer-use-linux mcp\n  chatgpt-computer-use-linux doctor\n  chatgpt-computer-use-linux setup\n  chatgpt-computer-use-linux setup-window-targeting\n  chatgpt-computer-use-linux apps\n  chatgpt-computer-use-linux state [APP_NAME]\n  chatgpt-computer-use-linux screenshot\n  chatgpt-computer-use-linux windows"
     );
 }

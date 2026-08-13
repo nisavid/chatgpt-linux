@@ -26,9 +26,9 @@ Do not commit generated or machine-local runtime state as documentation.
 
 Treat these as inspection evidence unless the task explicitly targets them:
 
-- `codex-app/`
+- `chatgpt/`
 - `dist/`
-- `Codex.dmg`
+- `ChatGPT.dmg`
 - XDG updater config, state, cache, and logs
 - launcher logs and PID files
 - temporary package build roots

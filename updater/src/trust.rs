@@ -146,7 +146,7 @@ mod tests {
   "schema_version": 1,
   "dmgs": [
     {
-      "url": "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+      "url": "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
       "version": "26.513.31313",
       "sha256": "6D440C7133771935C860A5546BCD603F8B9B65B37E9B82BDB0019D4FD0C85B6A",
       "approved_at": "2026-05-18T00:00:00Z",
@@ -159,7 +159,7 @@ mod tests {
 
         let verified = verify_downloaded_dmg_with_manifest(
             &manifest_path,
-            "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+            "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
         )?;
 
@@ -183,7 +183,7 @@ mod tests {
   "schema_version": 1,
   "dmgs": [
     {
-      "url": "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+      "url": "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
       "version": "26.513.31313",
       "sha256": "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a"
     }
@@ -194,7 +194,7 @@ mod tests {
 
         let error = verify_downloaded_dmg_with_manifest(
             &manifest_path,
-            "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+            "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         )
         .expect_err("digest mismatch should fail");
@@ -216,7 +216,7 @@ mod tests {
   "schema_version": 1,
   "dmgs": [
     {
-      "url": "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+      "url": "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
       "version": "26.513.31313",
       "sha256": "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a"
     }
@@ -227,7 +227,7 @@ mod tests {
 
         let error = verify_downloaded_dmg_with_manifest(
             &manifest_path,
-            "https://example.com/different/Codex.dmg",
+            "https://example.com/different/ChatGPT.dmg",
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
         )
         .expect_err("URL mismatch should fail");
@@ -249,7 +249,7 @@ mod tests {
   "schema_version": 1,
   "dmgs": [
     {
-      "url": " https://persistent.oaistatic.com/codex-app-prod/Codex.dmg ",
+      "url": " https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg ",
       "version": "26.513.31313",
       "sha256": "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a"
     }
@@ -260,7 +260,7 @@ mod tests {
 
         let error = verify_downloaded_dmg_with_manifest(
             &manifest_path,
-            "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+            "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
         )
         .expect_err("manifest URL whitespace should fail validation");
@@ -282,7 +282,7 @@ mod tests {
   "schema_version": 1,
   "dmgs": [
     {
-      "url": "http://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+      "url": "http://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
       "version": "26.513.31313",
       "sha256": "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a"
     }
@@ -293,7 +293,7 @@ mod tests {
 
         let error = verify_downloaded_dmg_with_manifest(
             &manifest_path,
-            "http://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+            "http://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
         )
         .expect_err("non-https manifest URL should fail validation");
@@ -310,7 +310,7 @@ mod tests {
 
         let error = verify_downloaded_dmg_with_manifest(
             &trusted_dmg_manifest_path(temp.path()),
-            "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg",
+            "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg",
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
         )
         .expect_err("missing manifest should fail");

@@ -1,15 +1,17 @@
-# Maintainer: Codex App Linux Maintainers
+# Maintainer: ChatGPT for Linux Maintainers
 pkgname=__PACKAGE_NAME__
 pkgver=__PKGVER__
 pkgrel=__PKGREL__
-pkgdesc="Codex App for Linux — community-built from the macOS DMG"
+pkgdesc="ChatGPT for Linux — community-built from the macOS DMG"
 arch=('__ARCH__')
-url="https://github.com/nisavid/codex-app-linux"
+url="https://github.com/nisavid/chatgpt-linux"
 license=('MIT')
-provides=('__PACKAGE_PROVIDES__')
-conflicts=('__PACKAGE_CONFLICTS__')
+provides=('codex-app' 'codex-desktop')
+conflicts=('codex-app' 'codex-desktop')
+replaces=('codex-app' 'codex-desktop')
 depends=(
     'python'
+    'xdg-utils'
 __PACMAN_UPDATER_DEPENDS__
     # Electron runtime libraries
     'alsa-lib'
@@ -33,6 +35,7 @@ __PACMAN_UPDATER_DEPENDS__
     'nspr'
     'nss'
     'pango'
+__PORT_INTEGRATION_DEPENDENCIES__
 )
 optdepends=(
     'nodejs>=22.22.0: optional override for the bundled managed Node.js runtime'

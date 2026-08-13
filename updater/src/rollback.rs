@@ -53,7 +53,7 @@ pub async fn run(
     paths: &RuntimePaths,
 ) -> Result<()> {
     if liveness::is_app_running(config)? {
-        println!("Codex App is running. Close it before rollback.");
+        println!("ChatGPT is running. Close it before rollback.");
         return Ok(());
     }
 
@@ -68,7 +68,7 @@ pub async fn run(
         state.artifact_paths.rollback_package_path = None;
         state.rollback_package_verification = None;
         state.error_message = Some(message.clone());
-        state.save(&paths.state_file)?;
+        state.save_updater(&paths.state_file)?;
         println!("{message}");
         return Ok(());
     }
@@ -81,7 +81,7 @@ pub async fn run(
         Ok(expected) => expected,
         Err(error) => {
             state.error_message = Some(error.to_string());
-            state.save(&paths.state_file)?;
+            state.save_updater(&paths.state_file)?;
             return Err(error);
         }
     };
@@ -96,19 +96,16 @@ async fn trigger_rollback(
     package_path: &Path,
     expected_package: &install::ExpectedPackage,
 ) -> Result<()> {
-    let blocked_candidate = state.candidate_version.clone().or_else(|| {
-        (state.installed_version != "unknown").then(|| state.installed_version.clone())
-    });
-    let blocked_dmg_sha256 = state.dmg_sha256.clone();
+    let (blocked_candidate, blocked_dmg_sha256) = rollback_block_identifiers(state);
     let previous_status = state.status.clone();
     let previous_error_message = state.error_message.clone();
 
     state.status = UpdateStatus::Installing;
     state.error_message = None;
-    state.save(&paths.state_file)?;
+    state.save_updater(&paths.state_file)?;
 
     let _ = notify::send(
-        "Rolling back Codex App",
+        "Rolling back ChatGPT",
         "Installing the last retained known-good package.",
     );
 
@@ -127,8 +124,9 @@ async fn trigger_rollback(
             blocked_candidate,
             blocked_dmg_sha256,
         );
-        state.save(&paths.state_file)?;
-        println!("Rolled back Codex App to {}.", state.installed_version);
+        state.save_updater(&paths.state_file)?;
+        let _ = cache_cleanup::prune_unreferenced_workspaces(&config.workspace_root, state);
+        println!("Rolled back ChatGPT to {}.", state.installed_version);
         return Ok(());
     }
 
@@ -150,18 +148,18 @@ async fn trigger_rollback(
     if pkexec_authentication_was_not_obtained(&status) {
         state.status = previous_status;
         state.error_message = previous_error_message;
-        state.save(&paths.state_file)?;
+        state.save_updater(&paths.state_file)?;
         let _ = notify::send(
-            "Codex rollback cancelled",
+            "ChatGPT rollback cancelled",
             "Authentication was not completed. No package was installed.",
         );
         return Err(anyhow::anyhow!(message));
     }
 
     state.mark_failed(message.clone());
-    state.save(&paths.state_file)?;
+    state.save_updater(&paths.state_file)?;
     let _ = notify::send(
-        "Codex rollback failed",
+        "ChatGPT rollback failed",
         "The previous package could not be installed. Check the updater log for details.",
     );
     Err(anyhow::anyhow!(message))
@@ -169,6 +167,15 @@ async fn trigger_rollback(
 
 fn pkexec_authentication_was_not_obtained(status: &std::process::ExitStatus) -> bool {
     matches!(status.code(), Some(126 | 127))
+}
+
+fn rollback_block_identifiers(state: &PersistedState) -> (Option<String>, Option<String>) {
+    let blocked_candidate = if state.installed_version == "unknown" {
+        state.candidate_version.clone()
+    } else {
+        Some(state.installed_version.clone())
+    };
+    (blocked_candidate, state.dmg_sha256.clone())
 }
 
 fn summarize_command_output(output: &[u8]) -> Option<String> {
@@ -217,7 +224,7 @@ mod tests {
     #[test]
     fn records_existing_current_package_as_known_good() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let package_path = temp.path().join("codex.deb");
+        let package_path = temp.path().join("chatgpt.deb");
         std::fs::write(&package_path, b"deb")?;
 
         let mut state = PersistedState::new(true);
@@ -246,7 +253,7 @@ mod tests {
     fn package_verification_is_retained_for_known_good_rollback() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let workspace = temp.path().join("workspaces/26.429.20946");
-        let package_path = workspace.join("dist/codex.deb");
+        let package_path = workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             package_path
                 .parent()
@@ -275,7 +282,7 @@ mod tests {
     fn mismatched_package_verification_clears_known_good_rollback_metadata() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let current_workspace = temp.path().join("workspaces/26.429.20946");
-        let current_package = current_workspace.join("dist/codex.deb");
+        let current_package = current_workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             current_package
                 .parent()
@@ -284,7 +291,7 @@ mod tests {
         std::fs::write(&current_package, b"current")?;
 
         let stale_workspace = temp.path().join("workspaces/26.428.10101");
-        let stale_package = stale_workspace.join("dist/codex.deb");
+        let stale_package = stale_workspace.join("dist/chatgpt.deb");
         std::fs::create_dir_all(
             stale_package
                 .parent()
@@ -314,7 +321,7 @@ mod tests {
     fn ignores_missing_current_package() {
         let mut state = PersistedState::new(true);
         state.installed_version = "2026.04.20.120000".to_string();
-        state.artifact_paths.package_path = Some(std::path::PathBuf::from("/missing/codex.deb"));
+        state.artifact_paths.package_path = Some(std::path::PathBuf::from("/missing/chatgpt.deb"));
 
         record_current_package_as_known_good(&mut state);
 
@@ -352,7 +359,7 @@ mod tests {
             config_dir: temp.path().join("config"),
         };
         let config = RuntimeConfig {
-            dmg_url: "https://example.invalid/Codex.dmg".to_string(),
+            dmg_url: "https://example.invalid/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 0,
             check_interval_hours: 24,
             auto_install_on_app_exit: false,
@@ -360,11 +367,12 @@ mod tests {
             developer_mode: false,
             workspace_root: temp.path().join("workspace"),
             builder_bundle_root: temp.path().join("builder"),
-            app_executable_path: temp.path().join("codex-app"),
+            app_executable_path: temp.path().join("chatgpt"),
             cli_path: None,
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: Default::default(),
         };
         let missing = temp.path().join("missing.deb");
         let mut state = PersistedState::new(true);
@@ -398,7 +406,7 @@ mod tests {
         paths.ensure_dirs()?;
         let rollback_path = temp
             .path()
-            .join("cache/workspaces/26.429.20946/dist/codex.deb");
+            .join("cache/workspaces/26.429.20946/dist/chatgpt.deb");
         std::fs::create_dir_all(
             rollback_path
                 .parent()
@@ -407,7 +415,7 @@ mod tests {
         std::fs::write(&rollback_path, b"deb")?;
 
         let config = RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
+            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 1,
             check_interval_hours: 6,
             auto_install_on_app_exit: false,
@@ -420,6 +428,7 @@ mod tests {
             enable_wrapper_updates: false,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: Default::default(),
         };
 
         let mut state = PersistedState::new(false);
@@ -496,21 +505,18 @@ mod tests {
     }
 
     #[test]
-    fn successful_rollback_blocks_pending_candidate_version() -> Result<()> {
+    fn successful_rollback_blocks_installed_version_and_hash() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let rollback_path = temp.path().join("known-good.deb");
         std::fs::write(&rollback_path, b"old")?;
 
         let mut state = PersistedState::new(true);
-        state.installed_version = "2026.05.02.120000".to_string();
-        state.candidate_version = Some("2026.05.04.131500+badcafe0".to_string());
+        state.installed_version = "2026.05.04.131500+badcafe0".to_string();
+        state.candidate_version = Some("2026.05.05.090000+feedface".to_string());
         state.dmg_sha256 = Some("badcafe0".repeat(8));
         state.artifact_paths.rollback_package_path = Some(rollback_path.clone());
 
-        let blocked_candidate = state.candidate_version.clone().or_else(|| {
-            (state.installed_version != "unknown").then(|| state.installed_version.clone())
-        });
-        let blocked_dmg_sha256 = state.dmg_sha256.clone();
+        let (blocked_candidate, blocked_dmg_sha256) = rollback_block_identifiers(&state);
         apply_successful_rollback_state(
             temp.path(),
             &mut state,
@@ -567,5 +573,21 @@ mod tests {
         assert!(!pkexec_authentication_was_not_obtained(
             &std::process::ExitStatus::from_raw(1 << 8)
         ));
+    }
+
+    #[test]
+    fn rollback_captures_current_dmg_hash_without_deriving_it_from_version() {
+        let mut state = PersistedState::new(true);
+        state.installed_version = "unknown".to_string();
+        state.candidate_version = Some("2026.05.04.131500+badcafe0".to_string());
+        state.dmg_sha256 = Some("full-recorded-dmg-sha256".to_string());
+
+        let (blocked_version, blocked_sha256) = rollback_block_identifiers(&state);
+
+        assert_eq!(
+            blocked_version.as_deref(),
+            Some("2026.05.04.131500+badcafe0")
+        );
+        assert_eq!(blocked_sha256.as_deref(), Some("full-recorded-dmg-sha256"));
     }
 }

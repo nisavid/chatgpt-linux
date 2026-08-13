@@ -1,6 +1,0 @@
-[Unit]
-Description=Update Codex app user-local install
-
-[Service]
-Type=oneshot
-ExecStart=%h/.local/bin/codex-app-update --quiet

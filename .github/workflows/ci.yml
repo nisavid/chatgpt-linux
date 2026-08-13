@@ -13,15 +13,19 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CI_PACKAGE_VERSION: 2026.04.28.000000+ci${{ github.run_number }}
 
 jobs:
   rust-and-smoke:
     name: Rust and Smoke Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - name: Install Rust components
         run: rustup component add rustfmt clippy
@@ -37,39 +41,41 @@ jobs:
           bash -n scripts/build-appimage.sh
           bash -n tests/fixtures/create-packaged-app-fixture.sh
           bash -n tests/scripts_smoke.sh
+          bash -n tests/package_identity.sh
+          bash -n tests/package_provenance.sh
+          bash -n tests/package_release_gate.sh
+          bash -n tests/release_gate_public_contract.sh
+          bash -n tests/parcel_watcher_trust.sh
+          bash -n tests/updater_reproducibility.sh
+          bash -n tests/generated_app_mutation_broker.sh
+          bash -n tests/state_migration.sh
+          bash -n tests/port_owned_env.sh
           bash -n launcher/start.sh.template
           bash -n scripts/lib/*.sh
-          bash -n packaging/linux/codex-app-updater-user-service.sh
-          bash -n packaging/linux/codex-app-updater.postinst
-          bash -n packaging/linux/codex-app-updater.prerm
-          bash -n packaging/linux/codex-app-updater.postrm
-          bash -n packaging/linux/codex-packaged-runtime.sh
+          bash -n packaging/linux/chatgpt-updater-user-service.sh
+          bash -n packaging/linux/chatgpt-updater.postinst
+          bash -n packaging/linux/chatgpt-updater.prerm
+          bash -n packaging/linux/chatgpt-updater.postrm
+          bash -n packaging/linux/chatgpt-packaged-runtime.sh
           bash -n contrib/user-local-install/install-user-local.sh
-          bash -n contrib/user-local-install/files/.local/bin/codex-app
-          bash -n contrib/user-local-install/files/.local/bin/codex-app-check-update
-          bash -n contrib/user-local-install/files/.local/bin/codex-app-update
-          bash -n contrib/user-local-install/files/.local/bin/codex-app-version
+          bash -n contrib/user-local-install/files/.local/bin/chatgpt
+          bash -n contrib/user-local-install/files/.local/bin/chatgpt-check-update
+          bash -n contrib/user-local-install/files/.local/bin/chatgpt-update
+          bash -n contrib/user-local-install/files/.local/bin/chatgpt-version
           bash -n contrib/user-local-install/files/share/common.sh
           bash -n scripts/ci/update-nix-hashes.sh
           bash -n scripts/ci/validate-nix-pins.sh
 
-      - name: Check Node patcher syntax
+      - name: Build generated-app mutation broker
+        run: cargo build --locked --release -p generated-app-mutation-broker
+
+      - name: Check Node syntax and tests
+        timeout-minutes: 10
+        env:
+          CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE: ${{ github.workspace }}/target/release/chatgpt-generated-app-mutation-broker
         run: |
           set -euo pipefail
-          node --check scripts/patch-linux-window-ui.js
-          node --check scripts/patch-linux-window-ui.test.js
-          for file in scripts/patches/*.js; do
-            node --check "$file"
-          done
-          for file in port-integrations/*/*.js; do
-            [ -f "$file" ] || continue
-            node --check "$file"
-          done
-          integration_tests=(port-integrations/*/test.js)
-          if [ -e "${integration_tests[0]}" ]; then
-            node --test --test-concurrency=1 "${integration_tests[@]}"
-          fi
-          node --check scripts/ci/validate-patch-report.js
+          bash scripts/ci/run-node-checks.sh
 
       - name: Check Rust formatting
         run: cargo fmt --check
@@ -87,45 +93,136 @@ jobs:
         run: |
           set -euo pipefail
           bash tests/scripts_smoke.sh
+          bash tests/package_identity.sh
+          bash tests/package_provenance.sh
+          bash tests/release_gate_public_contract.sh
+          bash tests/portable_release_elf_dependencies.sh
+          bash tests/parcel_watcher_trust.sh
+          bash tests/updater_reproducibility.sh
+          bash tests/generated_app_mutation_broker.sh
+          bash tests/state_migration.sh
+          bash tests/port_owned_env.sh
           {
             echo "## Rust and Smoke Tests"
             echo ""
             echo "- Shell syntax checks passed."
+            echo "- Node syntax and tests passed."
             echo "- Rust formatting, clippy, check, and tests passed."
-            echo "- Script smoke tests passed."
+            echo "- Script smoke, package identity/provenance, offline Parcel watcher, mutation-broker resolver, and state migration tests passed."
           } >> "$GITHUB_STEP_SUMMARY"
 
   package-deb:
     name: Build Debian Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Create minimal packaged app fixture
         run: |
           set -euo pipefail
-          rm -rf codex-app dist
-          tests/fixtures/create-packaged-app-fixture.sh codex-app
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
       - name: Build Debian package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
 
       - name: Inspect Debian package
         run: |
           set -euo pipefail
-          deb_file="$(find dist -maxdepth 1 -name 'codex-app_*.deb' -print -quit)"
+          deb_file="$(find dist -maxdepth 1 -name 'chatgpt_*.deb' -print -quit)"
           test -n "$deb_file"
           dpkg-deb -I "$deb_file"
           dpkg-deb -c "$deb_file" | tee /tmp/deb-contents.txt >/dev/null
-          grep -q './usr/bin/codex-app-updater' /tmp/deb-contents.txt
-          grep -q './usr/lib/systemd/user/codex-app-updater.service' /tmp/deb-contents.txt
-          grep -q './usr/lib/codex-app/update-builder/install.sh' /tmp/deb-contents.txt
-          grep -q './usr/lib/codex-app/packaged-runtime.sh' /tmp/deb-contents.txt
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-depends.txt >/dev/null
+          grep -q './usr/bin/chatgpt-updater' /tmp/deb-contents.txt
+          grep -q './usr/lib/systemd/user/chatgpt-updater.service' /tmp/deb-contents.txt
+          grep -q './usr/lib/chatgpt/update-builder/install.sh' /tmp/deb-contents.txt
+          grep -q './usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json' /tmp/deb-contents.txt
+          grep -q './usr/lib/chatgpt/packaged-runtime.sh' /tmp/deb-contents.txt
+          if grep -q './usr/share/codex-port-integration-framework/fixture.txt' /tmp/deb-contents.txt; then
+            exit 1
+          fi
+          if grep -q 'codex-port-integration-framework-runtime' /tmp/deb-depends.txt; then
+            exit 1
+          fi
           {
             echo "## Debian Package Validation"
             echo ""
             echo "- Built: \`$(basename "$deb_file")\`"
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Debian release provenance boundary
+        run: bash tests/package_release_gate.sh deb
+
+      - name: Create feature-enabled packaged app fixture
+        env:
+          CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+        run: |
+          set -euo pipefail
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+      - name: Build feature-enabled Debian package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
+
+      - name: Inspect feature-enabled Debian package
+        run: |
+          set -euo pipefail
+          deb_file="$(find dist -maxdepth 1 -name 'chatgpt_*.deb' -print -quit)"
+          test -n "$deb_file"
+          dpkg-deb -I "$deb_file"
+          dpkg-deb -c "$deb_file" | tee /tmp/deb-integration-contents.txt >/dev/null
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-integration-depends.txt >/dev/null
+          grep -q './usr/share/codex-port-integration-framework/fixture.txt' /tmp/deb-integration-contents.txt
+          grep -q 'codex-port-integration-framework-runtime' /tmp/deb-integration-depends.txt
+          fixture_mode="$(
+            awk '$NF == "./usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+              /tmp/deb-integration-contents.txt
+          )"
+          test "$fixture_mode" = '-rw-r-----'
+          {
+            echo "- Integration-enabled build: \`$(basename "$deb_file")\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Codex Micro packaged app fixture
+        env:
+          CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["codex-micro"]'
+        run: |
+          set -euo pipefail
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+      - name: Build Codex Micro Debian package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-deb.sh
+
+      - name: Inspect Codex Micro Debian package
+        run: |
+          set -euo pipefail
+          deb_file="$(find dist -maxdepth 1 -name 'chatgpt_*.deb' -print -quit)"
+          test -n "$deb_file"
+          dpkg-deb -c "$deb_file" | tee /tmp/deb-micro-contents.txt >/dev/null
+          dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-micro-depends.txt >/dev/null
+          grep -q './usr/lib/udev/rules.d/70-codex-micro.rules' /tmp/deb-micro-contents.txt
+          grep -q 'libudev1' /tmp/deb-micro-depends.txt
+          grep -q 'libusb-1.0-0' /tmp/deb-micro-depends.txt
+          rule_mode="$(
+            awk '$NF == "./usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+              /tmp/deb-micro-contents.txt
+          )"
+          test "$rule_mode" = '-rw-r--r--'
+          {
+            echo "- Codex Micro build: \`$(basename "$deb_file")\`"
+            echo "- Verified udev rule, 0644 mode, and libudev/libusb dependencies."
           } >> "$GITHUB_STEP_SUMMARY"
 
   nix:
@@ -138,17 +235,19 @@ jobs:
         max-jobs = 1
         fallback = true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
 
       - name: Configure Cachix for Nix build substitutions
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
+          # Retain the existing external cache until the post-merge repository
+          # and Cachix migration in issue #123 is complete.
           name: codex-desktop-linux
           skipPush: true
 
@@ -156,13 +255,16 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y p7zip-full
+          sudo apt-get install -y binutils file gnupg nodejs p7zip-full
+          sudo install -m 0755 "$(command -v nix)" /usr/bin/nix
 
       - name: Detect Nix pin file changes
         id: nix-pin-files
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           changed=false
@@ -172,14 +274,24 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
               --paginate \
               --jq '.[].filename' | tee "$changed_files"
-            if grep -Eq '^(flake\.nix|flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$' "$changed_files"; then
+            guarded_paths='^(flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$'
+            if grep -Eq "$guarded_paths" "$changed_files"; then
               changed=true
+            elif grep -qx 'flake.nix' "$changed_files"; then
+              git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
+              if git diff --unified=0 "$PR_BASE_SHA" "$PR_HEAD_SHA" -- flake.nix \
+                  | grep -Eq '^[+-][[:space:]]*(chatgptVersion|electronVersion|hash) = '; then
+                changed=true
+              fi
+            fi
+
+            if [ "$changed" = "true" ]; then
               {
                 echo "## Nix Pin File Changes"
                 echo ""
-                echo "- Rollout skip is disabled because this PR changes Nix pin source-of-truth files."
+                echo "- Rollout skip is disabled because this PR changes Nix pin source-of-truth content."
                 echo "- Changed guarded files:"
-                grep -E '^(flake\.nix|flake\.lock|nix/native-modules/package\.json|nix/native-modules/package-lock\.json|scripts/ci/update-nix-hashes\.sh|scripts/ci/validate-nix-pins\.sh)$' "$changed_files" | sed 's/^/  - `/' | sed 's/$/`/'
+                grep -E "$guarded_paths|^flake\.nix$" "$changed_files" | sed 's/^/  - `/' | sed 's/$/`/'
               } >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
@@ -200,11 +312,11 @@ jobs:
           if [ "$validation_status" -ne 0 ]; then
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ] \
                 && [ "$NIX_PIN_FILES_CHANGED" != "true" ] \
-                && grep -Eq "Codex app version pin mismatch|Electron version pin mismatch|native-modules .* pin mismatch" "$validation_log"; then
+                && grep -Eq "ChatGPT app version pin mismatch|Electron version pin mismatch|native-modules .* pin mismatch" "$validation_log"; then
               {
                 echo "## Nix Pin Validation"
                 echo ""
-                echo "- Skipped package-output builds because the official \`Codex.dmg\` metadata is ahead of the committed flake pins during rollout."
+                echo "- Skipped package-output builds because the official \`ChatGPT.dmg\` metadata is ahead of the committed flake pins during rollout."
                 echo "- This is PR-only; main-branch validation still fails so the scheduled hash-refresh workflow can open a full pin-refresh PR from the current official DMG."
               } >> "$GITHUB_STEP_SUMMARY"
               echo "skip_package_outputs=true" >> "$GITHUB_OUTPUT"
@@ -227,10 +339,13 @@ jobs:
           set -euo pipefail
           outputs=(
             .#installer
-            .#codex-app
-            .#codex-app-computer-use-ui
-            .#codex-app-remote-mobile-control
-            .#codex-app-computer-use-ui-remote-mobile-control
+            .#chatgpt
+            .#chatgpt-dmg
+            .#chatgpt-release-app
+            .#chatgpt-remote-mobile-control
+            .#release-helpers
+            .#checks.x86_64-linux.nix-gsettings-schema-wrapper
+            .#checks.x86_64-linux.watchdog-port-integrations
           )
           for output in "${outputs[@]}"; do
             build_log="$(mktemp)"
@@ -238,11 +353,11 @@ jobs:
               if [ "$GITHUB_EVENT_NAME" = "pull_request" ] \
                   && [ "$NIX_PIN_FILES_CHANGED" != "true" ] \
                   && grep -q "hash mismatch in fixed-output derivation" "$build_log" \
-                  && grep -q "Codex.dmg.drv" "$build_log"; then
+                  && grep -q "ChatGPT.dmg.drv" "$build_log"; then
                 {
                   echo "## Nix Package Builds"
                   echo ""
-                  echo "- Skipped package-output builds after \`$output\` because the official \`Codex.dmg\` is rolling between fixed-output hashes."
+                  echo "- Skipped package-output builds after \`$output\` because the official \`ChatGPT.dmg\` is rolling between fixed-output hashes."
                   echo "- This does not mask non-DMG Nix failures; main-branch builds still fail on this condition."
                   echo "- The scheduled hash-refresh workflow owns updating the committed DMG pin from the current official DMG."
                 } >> "$GITHUB_STEP_SUMMARY"
@@ -257,39 +372,145 @@ jobs:
             fi
           done
 
+      - name: Verify public release trust path
+        if: steps.nix-pin-validation.outputs.skip_package_outputs != 'true'
+        run: |
+          set -euo pipefail
+          release_app_store="$(nix build .#chatgpt-release-app --no-link --print-out-paths)"
+          release_helpers_store="$(nix build .#release-helpers --no-link --print-out-paths)"
+          reviewed_dmg="$(nix build .#chatgpt-dmg --no-link --print-out-paths)"
+          release_app="$release_app_store/opt/chatgpt"
+
+          test -x "$release_helpers_store/bin/chatgpt-updater"
+          test -x "$release_helpers_store/bin/chatgpt-generated-app-mutation-broker"
+          test -x "$release_app/resources/node-runtime/bin/node"
+          "$release_helpers_store/bin/chatgpt-updater" --help
+          "$release_app/resources/node-runtime/bin/node" --version
+
+          while IFS= read -r -d '' link; do
+            case "$(readlink "$link")" in
+              /nix/store/*)
+                echo "portable release app contains a Nix-store symlink: $link" >&2
+                exit 1
+                ;;
+            esac
+          done < <(find "$release_app" -type l -print0)
+          while IFS= read -r -d '' file; do
+            if file -b "$file" | grep -Fq ELF; then
+              if readelf -l "$file" 2>/dev/null | grep -Fq '/nix/store/'; then
+                exit 1
+              fi
+              if readelf -d "$file" 2>/dev/null | grep -Fq '/nix/store/'; then
+                exit 1
+              fi
+            elif grep -Iq . "$file"; then
+              if grep -Fq '/nix/store/' "$file"; then
+                exit 1
+              fi
+            fi
+          done < <(find "$release_app" -type f -print0)
+
+          source "$release_app/chatgpt-version.env"
+          source_epoch="$(git show -s --format=%ct HEAD)"
+          rm -rf dist
+          APP_DIR_OVERRIDE="$release_app" \
+          PACKAGE_VERSION="$CHATGPT_APP_PACKAGE_VERSION" \
+          UPDATER_BINARY_SOURCE="$release_helpers_store/bin/chatgpt-updater" \
+          CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$release_helpers_store/bin/chatgpt-generated-app-mutation-broker" \
+          SOURCE_DATE_EPOCH="$source_epoch" \
+            ./scripts/build-deb.sh
+
+          signing_home="$(mktemp -d)"
+          chmod 0700 "$signing_home"
+          GNUPGHOME="$signing_home" gpg --batch --passphrase '' \
+            --quick-gen-key 'ChatGPT CI release test <chatgpt-ci@example.invalid>' \
+            ed25519 sign 0
+          signing_fingerprint="$(
+            GNUPGHOME="$signing_home" gpg --batch --with-colons --list-secret-keys \
+              | awk -F: '$1 == "fpr" { print $10; exit }'
+          )"
+          test -n "$signing_fingerprint"
+          APP_DIR="$release_app" \
+          DMG="$reviewed_dmg" \
+          GNUPGHOME="$signing_home" \
+          REQUIRE_RELEASE_SIGNATURE=1 \
+          CHATGPT_RELEASE_GPG_KEY="$signing_fingerprint" \
+          CHATGPT_RELEASE_GPG_FINGERPRINT="$signing_fingerprint" \
+            ./scripts/release-gate.sh
+          gpg --batch --homedir "$signing_home" \
+            --verify dist/SHA256SUMS.asc dist/SHA256SUMS
+          gpg --batch --homedir "$signing_home" \
+            --verify dist/RELEASE-PROVENANCE.json.asc dist/RELEASE-PROVENANCE.json
+          python3 - dist/RELEASE-PROVENANCE.json "$signing_fingerprint" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          provenance = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert provenance["releaseMode"] == "public"
+          assert provenance["publicReleaseEligible"] is True
+          assert provenance["config"]["packageBuild"]["withUpdater"] is True
+          assert provenance["signing"]["primaryFingerprint"] == sys.argv[2].upper()
+          PY
+
+          docker run --rm \
+            -v "$PWD/dist:/dist:ro" \
+            -v "$PWD/scripts/ci/check-portable-elf-dependencies.sh:/check-portable-elf-dependencies.sh:ro" \
+            ubuntu:22.04 \
+            bash -euo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              deb_file="$(find /dist -maxdepth 1 -name "chatgpt_*.deb" -print -quit)"
+              test -n "$deb_file"
+              apt-get install -y binutils file "$deb_file"
+              /opt/chatgpt/resources/node-runtime/bin/node --version
+              bash /check-portable-elf-dependencies.sh /opt/chatgpt
+              bash /check-portable-elf-dependencies.sh /usr/lib/chatgpt
+            '
+
   package-rpm:
     name: Build RPM Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install RPM tooling
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y rpm
+          sudo apt-get install -y cpio rpm
           rpmbuild --version
 
       - name: Create minimal packaged app fixture
         run: |
           set -euo pipefail
-          rm -rf codex-app dist
-          tests/fixtures/create-packaged-app-fixture.sh codex-app
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
       - name: Build RPM package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
         run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
 
       - name: Inspect RPM package
         run: |
           set -euo pipefail
-          rpm_file="$(find dist -maxdepth 1 -name 'codex-app-*.rpm' -print -quit)"
+          rpm_file="$(find dist -maxdepth 1 -name 'chatgpt-*.rpm' -print -quit)"
           test -n "$rpm_file"
           rpm -qip "$rpm_file"
           rpm -qlp "$rpm_file" | tee /tmp/rpm-contents.txt >/dev/null
-          grep -q '/usr/bin/codex-app-updater' /tmp/rpm-contents.txt
-          grep -q '/usr/lib/systemd/user/codex-app-updater.service' /tmp/rpm-contents.txt
-          grep -q '/usr/lib/codex-app/update-builder/install.sh' /tmp/rpm-contents.txt
-          grep -q '/usr/lib/codex-app/packaged-runtime.sh' /tmp/rpm-contents.txt
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-requires.txt >/dev/null
+          grep -q '/usr/bin/chatgpt-updater' /tmp/rpm-contents.txt
+          grep -q '/usr/lib/systemd/user/chatgpt-updater.service' /tmp/rpm-contents.txt
+          grep -q '/usr/lib/chatgpt/update-builder/install.sh' /tmp/rpm-contents.txt
+          grep -q '/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json' /tmp/rpm-contents.txt
+          grep -q '/usr/lib/chatgpt/packaged-runtime.sh' /tmp/rpm-contents.txt
+          if grep -q '/usr/share/codex-port-integration-framework/fixture.txt' /tmp/rpm-contents.txt; then
+            exit 1
+          fi
+          if grep -q '^codex-port-integration-framework-runtime$' /tmp/rpm-requires.txt; then
+            exit 1
+          fi
           {
             echo "## RPM Package Validation"
             echo ""
@@ -297,11 +518,84 @@ jobs:
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Verify RPM release provenance boundary
+        run: bash tests/package_release_gate.sh rpm
+
+      - name: Create feature-enabled packaged app fixture
+        env:
+          CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["package-integration-fixture"]'
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+        run: |
+          set -euo pipefail
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+      - name: Build feature-enabled RPM package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_ROOT: ${{ github.workspace }}/tests/fixtures/port-integrations
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
+
+      - name: Inspect feature-enabled RPM package
+        run: |
+          set -euo pipefail
+          rpm_file="$(find dist -maxdepth 1 -name 'chatgpt-*.rpm' -print -quit)"
+          test -n "$rpm_file"
+          rpm -qip "$rpm_file"
+          rpm -qlp "$rpm_file" | tee /tmp/rpm-integration-contents.txt >/dev/null
+          rpm -qlvp "$rpm_file" | tee /tmp/rpm-integration-long-contents.txt >/dev/null
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-integration-requires.txt >/dev/null
+          grep -q '/usr/share/codex-port-integration-framework/fixture.txt' /tmp/rpm-integration-contents.txt
+          grep -q '^codex-port-integration-framework-runtime$' /tmp/rpm-integration-requires.txt
+          fixture_mode="$(
+            awk '$NF == "/usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+              /tmp/rpm-integration-long-contents.txt
+          )"
+          test "$fixture_mode" = '-rw-r-----'
+          {
+            echo "- Integration-enabled build: \`$(basename "$rpm_file")\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Codex Micro packaged app fixture
+        env:
+          CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON: '["codex-micro"]'
+        run: |
+          set -euo pipefail
+          rm -rf chatgpt dist
+          tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+      - name: Build Codex Micro RPM package
+        env:
+          CHATGPT_PORT_INTEGRATIONS_CONFIG: ${{ github.workspace }}/chatgpt.port-integrations.json
+        run: PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-rpm.sh
+
+      - name: Inspect Codex Micro RPM package
+        run: |
+          set -euo pipefail
+          rpm_file="$(find dist -maxdepth 1 -name 'chatgpt-*.rpm' -print -quit)"
+          test -n "$rpm_file"
+          rpm -qlp "$rpm_file" | tee /tmp/rpm-micro-contents.txt >/dev/null
+          rpm -qlvp "$rpm_file" | tee /tmp/rpm-micro-long-contents.txt >/dev/null
+          rpm -qp --requires "$rpm_file" | tee /tmp/rpm-micro-requires.txt >/dev/null
+          grep -q '/usr/lib/udev/rules.d/70-codex-micro.rules' /tmp/rpm-micro-contents.txt
+          grep -q '^libudev\.so\.1' /tmp/rpm-micro-requires.txt
+          grep -q '^libusb-1\.0\.so\.0' /tmp/rpm-micro-requires.txt
+          rule_mode="$(
+            awk '$NF == "/usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+              /tmp/rpm-micro-long-contents.txt
+          )"
+          test "$rule_mode" = '-rw-r--r--'
+          {
+            echo "- Codex Micro build: \`$(basename "$rpm_file")\`"
+            echo "- Verified udev rule, 0644 mode, and libudev/libusb dependencies."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   package-pacman:
     name: Build Pacman Package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build and inspect pacman package in Arch Linux
         run: |
@@ -313,38 +607,104 @@ jobs:
             archlinux:base-devel \
             bash -lc '
               set -euo pipefail
-              pacman -Syu --noconfirm --needed rust nodejs npm zstd sudo
+              pacman -Syu --noconfirm --needed git python rust nodejs npm zstd sudo
               useradd -m builder
               chown -R builder:builder /work
 
               runuser -u builder -- bash -lc '"'"'
                 set -euo pipefail
-                rm -rf codex-app dist
-                tests/fixtures/create-packaged-app-fixture.sh codex-app
+                rm -rf chatgpt dist
+                tests/fixtures/create-packaged-app-fixture.sh chatgpt
 
-                cargo build --release -p codex-app-updater
-                PACKAGE_VERSION="$CI_PACKAGE_VERSION" ./scripts/build-pacman.sh
+                cargo build --release -p chatgpt-updater
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
 
-                pkg_file="$(find dist -maxdepth 1 -name "codex-app-*.pkg.tar.*" -print -quit)"
+                pkg_file="$(find dist -maxdepth 1 -name "chatgpt-*.pkg.tar.*" -print -quit)"
                 test -n "$pkg_file"
                 pacman -Qip "$pkg_file"
                 pacman -Qlp "$pkg_file" | tee /tmp/pacman-contents.txt >/dev/null
-                grep -q "usr/bin/codex-app-updater" /tmp/pacman-contents.txt
-                grep -q "usr/lib/systemd/user/codex-app-updater.service" /tmp/pacman-contents.txt
-                grep -q "usr/lib/codex-app/update-builder/install.sh" /tmp/pacman-contents.txt
-                grep -q "usr/lib/codex-app/packaged-runtime.sh" /tmp/pacman-contents.txt
+                tar -xOf "$pkg_file" .PKGINFO | tee /tmp/pacman-pkginfo.txt >/dev/null
+                grep -q "usr/bin/chatgpt-updater" /tmp/pacman-contents.txt
+                grep -q "usr/lib/systemd/user/chatgpt-updater.service" /tmp/pacman-contents.txt
+                grep -q "usr/lib/chatgpt/update-builder/install.sh" /tmp/pacman-contents.txt
+                grep -q "usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json" /tmp/pacman-contents.txt
+                grep -q "usr/lib/chatgpt/packaged-runtime.sh" /tmp/pacman-contents.txt
+                if grep -q "usr/share/codex-port-integration-framework/fixture.txt" /tmp/pacman-contents.txt; then
+                  exit 1
+                fi
+                if grep -q "^depend = codex-port-integration-framework-runtime$" /tmp/pacman-pkginfo.txt; then
+                  exit 1
+                fi
                 printf "%s\n" "$(basename "$pkg_file")" > /tmp/pacman-package-name.txt
+
+                bash tests/package_release_gate.sh pacman
+
+                rm -rf chatgpt dist
+                CHATGPT_PORT_INTEGRATIONS_ROOT=/work/tests/fixtures/port-integrations \
+                CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="[\"package-integration-fixture\"]" \
+                  tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+                CHATGPT_PORT_INTEGRATIONS_ROOT=/work/tests/fixtures/port-integrations \
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
+
+                feature_pkg_file="$(find dist -maxdepth 1 -name "chatgpt-*.pkg.tar.*" -print -quit)"
+                test -n "$feature_pkg_file"
+                pacman -Qip "$feature_pkg_file"
+                pacman -Qlp "$feature_pkg_file" | tee /tmp/pacman-integration-contents.txt >/dev/null
+                tar -xOf "$feature_pkg_file" .PKGINFO | tee /tmp/pacman-integration-pkginfo.txt >/dev/null
+                tar -tvf "$feature_pkg_file" \
+                  usr/share/codex-port-integration-framework/fixture.txt \
+                  | tee /tmp/pacman-integration-long-contents.txt >/dev/null
+                grep -q "usr/share/codex-port-integration-framework/fixture.txt" /tmp/pacman-integration-contents.txt
+                grep -q "^depend = codex-port-integration-framework-runtime$" /tmp/pacman-integration-pkginfo.txt
+                fixture_mode="$(sed -n "1s/ .*//p" /tmp/pacman-integration-long-contents.txt)"
+                test "$fixture_mode" = "-rw-r-----"
+                printf "%s\n" "$(basename "$feature_pkg_file")" > /tmp/pacman-integration-package-name.txt
+
+                rm -rf chatgpt dist
+                CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="[\"codex-micro\"]" \
+                  tests/fixtures/create-packaged-app-fixture.sh chatgpt
+
+                CHATGPT_PORT_INTEGRATIONS_CONFIG=/work/chatgpt.port-integrations.json \
+                PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+                  ./scripts/build-pacman.sh
+
+                micro_pkg_file="$(find dist -maxdepth 1 -name "chatgpt-*.pkg.tar.*" -print -quit)"
+                test -n "$micro_pkg_file"
+                pacman -Qlp "$micro_pkg_file" | tee /tmp/pacman-micro-contents.txt >/dev/null
+                tar -xOf "$micro_pkg_file" .PKGINFO | tee /tmp/pacman-micro-pkginfo.txt >/dev/null
+                tar -tvf "$micro_pkg_file" \
+                  usr/lib/udev/rules.d/70-codex-micro.rules \
+                  | tee /tmp/pacman-micro-long-contents.txt >/dev/null
+                grep -q "usr/lib/udev/rules.d/70-codex-micro.rules" /tmp/pacman-micro-contents.txt
+                grep -q "^depend = libusb$" /tmp/pacman-micro-pkginfo.txt
+                grep -q "^depend = systemd-libs$" /tmp/pacman-micro-pkginfo.txt
+                micro_rule_mode="$(sed -n "1s/ .*//p" /tmp/pacman-micro-long-contents.txt)"
+                test "$micro_rule_mode" = "-rw-r--r--"
+                printf "%s\n" "$(basename "$micro_pkg_file")" > /tmp/pacman-micro-package-name.txt
               '"'"'
               cp /tmp/pacman-package-name.txt /work/.pacman-package-name.txt
+              cp /tmp/pacman-integration-package-name.txt /work/.pacman-integration-package-name.txt
+              cp /tmp/pacman-micro-package-name.txt /work/.pacman-micro-package-name.txt
             '
 
       - name: Write pacman validation summary
         run: |
           set -euo pipefail
           pkg_file="$(cat .pacman-package-name.txt)"
+          feature_pkg_file="$(cat .pacman-integration-package-name.txt)"
+          micro_pkg_file="$(cat .pacman-micro-package-name.txt)"
           {
             echo "## Pacman Package Validation"
             echo ""
             echo "- Built: \`$pkg_file\`"
             echo "- Verified updater binary, user service, update-builder bundle, and packaged runtime helper."
+            echo "- Integration-enabled build: \`$feature_pkg_file\`"
+            echo "- Verified generic port integration resource, 0640 mode, and runtime dependency."
+            echo "- Codex Micro build: \`$micro_pkg_file\`"
+            echo "- Verified udev rule, 0644 mode, and systemd-libs/libusb dependencies."
           } >> "$GITHUB_STEP_SUMMARY"

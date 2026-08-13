@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
+source "${INSTALL_ROOT}/lib/common.sh"
+
+ensure_layout
+load_install_config
+load_metadata
+
+if [ ! -f "$METADATA_FILE" ]; then
+    echo "No metadata recorded yet. Run: chatgpt-update --record-only"
+    exit 1
+fi
+
+echo "Install root:      $INSTALL_ROOT"
+echo "Source repo:       ${SOURCE_REPO_DIR-${REPO_DIR-unknown}}"
+echo "Build repo:        ${REPO_DIR-unknown}"
+echo "Build time:        ${BUILD_TIME-unknown}"
+echo "Build repo head:   ${REPO_HEAD-unknown}"
+echo "Source repo head:  ${SOURCE_REPO_HEAD-unavailable}"
+echo "Source overlay:    ${SOURCE_OVERLAY_SHA256-none}"
+echo "Repo origin:       ${REPO_ORIGIN-unknown}"
+echo "DMG sha256:        ${DMG_SHA256-unknown}"
+echo "DMG size:          ${DMG_SIZE-unknown}"
+echo "DMG etag:          ${DMG_ETAG-unknown}"
+echo "DMG modified:      ${DMG_LAST_MODIFIED-unknown}"
+echo "Electron version:  ${ELECTRON_VERSION-unknown}"
+echo "Launcher:          ${HOME}/.local/bin/chatgpt"
+echo "Helper bin:        ${INSTALL_ROOT}/bin"

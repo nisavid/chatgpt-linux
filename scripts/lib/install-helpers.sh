@@ -20,7 +20,7 @@ Run the helper to install them automatically:
 
 Or install manually:
   sudo apt install python3 p7zip-full curl unzip coreutils tar build-essential       # Debian/Ubuntu
-  sudo dnf5 install python3 p7zip p7zip-plugins curl unzip coreutils tar rpm-build gcc-c++ make @development-tools # Fedora 41+ (dnf5)
+  sudo dnf5 install python3 7zip curl unzip coreutils tar rpm-build gcc-c++ make @development-tools # Fedora 41+ (dnf5)
   sudo dnf install python3 p7zip p7zip-plugins curl unzip coreutils tar rpm-build    # Fedora <41 (dnf)
   sudo dnf groupinstall 'Development Tools'                                          # Fedora <41 (dnf)
   sudo pacman -S python p7zip curl unzip coreutils tar zstd base-devel              # Arch
@@ -31,13 +31,22 @@ Inspect mode also requires Node.js 20+ with node and npx on PATH.
 EOF
 }
 
+remove_tree_safely() {
+    local path="$1"
+    [ -e "$path" ] || [ -L "$path" ] || return 0
+    # Sources copied from immutable stores can preserve read-only directory
+    # modes. Make only the local copy writable before removing it.
+    chmod -R u+w "$path" 2>/dev/null || true
+    rm -rf -- "$path"
+}
+
 cleanup() {
-    rm -rf "$WORK_DIR"
+    remove_tree_safely "$WORK_DIR"
 }
 trap cleanup EXIT
 trap 'error "Failed at line $LINENO (exit code $?)"' ERR
 
-CACHED_DMG_PATH="$SCRIPT_DIR/Codex.dmg"
+CACHED_DMG_PATH="$SCRIPT_DIR/ChatGPT.dmg"
 CACHED_DMG_METADATA_PATH="$CACHED_DMG_PATH.metadata"
 FRESH_INSTALL=0
 REUSE_CACHED_DMG=1
@@ -47,35 +56,44 @@ REPORT_DIR=""
 
 usage() {
     cat <<'HELP'
-Usage: ./install.sh [OPTIONS] [path/to/Codex.dmg]
+Usage: ./install.sh [OPTIONS] [path/to/ChatGPT.dmg]
 
-Converts the official macOS Codex App app to run on Linux.
+Converts the official macOS ChatGPT app to run on Linux.
 
 Options:
   -h, --help     Show this help message and exit
   --fresh        Remove existing install directory and cached DMG before building
-  --reuse-dmg    Reuse cached Codex.dmg when upstream metadata still matches (default)
+  --reuse-dmg    Reuse cached ChatGPT.dmg when upstream metadata still matches (default)
   --inspect      Inspect the DMG and write patch/rebuild reports without installing
   --report-dir DIR
                  Directory for --inspect reports (default: ./dist-next/rebuild)
 
 Environment variables:
-  CODEX_INSTALL_DIR   Override the install directory (default: ./codex-app)
-  CODEX_INSTALL_ALLOW_RUNNING=1
+  CHATGPT_INSTALL_DIR   Override the install directory (default: ./chatgpt)
+  CHATGPT_INSTALL_ALLOW_RUNNING=1
                       Allow overwriting INSTALL_DIR while Codex is running
-  CODEX_APP_ID        Override Linux app id/bin identity (default: codex-app)
-  CODEX_APP_DISPLAY_NAME
-                      Override display name (default: Codex App)
-  CODEX_WEBVIEW_PORT  Override webview HTTP port (default: 5175, or 5176 for non-default app ids)
+  CHATGPT_APP_ID        Override Linux app id/bin identity (default: chatgpt)
+  CHATGPT_APP_DISPLAY_NAME
+                      Override display name (default: ChatGPT)
+  CHATGPT_WEBVIEW_PORT  Override webview HTTP port (default: 5175, or 5176 for non-default app ids)
+  CHATGPT_DMG_REFRESH_MODE=pinned
+                      Reuse an existing cached ChatGPT.dmg verbatim and refuse
+                      network refresh/download when no explicit DMG path is passed
   ELECTRON_HEADERS_URL
                       Override the Electron headers URL used by @electron/rebuild
                       (default: https://artifacts.electronjs.org/headers/dist)
   ELECTRON_MIRROR     Override the Electron runtime download mirror root
                       (example: https://npmmirror.com/mirrors/electron/)
   REBUILD_REPORT_DIR  Default report directory for --inspect and rebuild reports
+  CHATGPT_ACCEPTANCE_OVERRIDE=1
+                      Developer-only promotion override for a completely built
+                      candidate rejected by the shared acceptance profile
+  CHATGPT_KEEP_REJECTED_CANDIDATE=1
+                      Keep a rejected or safely unpromoted sibling candidate
+                      for diagnostics
 
 After install, launch with:
-  ./codex-app/start.sh
+  ./chatgpt/start.sh
 HELP
 }
 
@@ -114,42 +132,78 @@ parse_args() {
 }
 
 validate_app_identity() {
-    case "$CODEX_APP_ID" in
+    case "$CHATGPT_APP_ID" in
         ""|*[^A-Za-z0-9._-]*)
-            error "CODEX_APP_ID must contain only letters, numbers, dots, underscores, and hyphens"
+            error "CHATGPT_APP_ID must contain only letters, numbers, dots, underscores, and hyphens"
             ;;
     esac
 
-    [ -n "$CODEX_APP_DISPLAY_NAME" ] || error "CODEX_APP_DISPLAY_NAME must not be empty"
+    [ -n "$CHATGPT_APP_DISPLAY_NAME" ] || error "CHATGPT_APP_DISPLAY_NAME must not be empty"
 
-    case "$CODEX_WEBVIEW_PORT" in
+    case "$CHATGPT_WEBVIEW_PORT" in
         ""|*[!0-9]*)
-            error "CODEX_WEBVIEW_PORT must be a TCP port number"
+            error "CHATGPT_WEBVIEW_PORT must be a TCP port number"
             ;;
     esac
     local port_number
-    port_number="$CODEX_WEBVIEW_PORT"
+    port_number="$CHATGPT_WEBVIEW_PORT"
     while [ "${port_number#0}" != "$port_number" ]; do
         port_number="${port_number#0}"
     done
     [ -n "$port_number" ] || port_number=0
     if [ "${#port_number}" -gt 5 ] || [ "$port_number" -lt 1 ] || [ "$port_number" -gt 65535 ]; then
-        error "CODEX_WEBVIEW_PORT must be between 1 and 65535"
+        error "CHATGPT_WEBVIEW_PORT must be between 1 and 65535"
     fi
-    CODEX_WEBVIEW_PORT="$port_number"
+    CHATGPT_WEBVIEW_PORT="$port_number"
 }
 
 shell_quote() {
     printf '%q' "$1"
 }
 
+dmg_refresh_mode_is_pinned() {
+    case "${CHATGPT_DMG_REFRESH_MODE:-auto}" in
+        ""|auto)
+            return 1
+            ;;
+        pinned|pin|1|true|yes)
+            return 0
+            ;;
+        *)
+            error "CHATGPT_DMG_REFRESH_MODE must be 'auto' or 'pinned'"
+            ;;
+    esac
+}
+
+assert_private_transaction_candidate_root() {
+    local candidate_root="$1"
+    local owner_uid
+    local permissions
+    local requested
+    local resolved
+
+    [ -d "$candidate_root" ] && [ ! -L "$candidate_root" ] || \
+        error "Transaction candidate must be a non-symlink directory: $candidate_root"
+    requested="$(realpath -m -s -- "$candidate_root")" || return 1
+    resolved="$(realpath -e -- "$candidate_root")" || return 1
+    [ "$requested" = "$resolved" ] || \
+        error "Transaction candidate must not traverse symlinked components: $candidate_root"
+    owner_uid="$(stat -c '%u' -- "$candidate_root")" || return 1
+    permissions="$(stat -c '%a' -- "$candidate_root")" || return 1
+    [ "$owner_uid" = "$(id -u)" ] && [ "$permissions" = "700" ] || \
+        error "Transaction candidate must be owned by the current user with mode 0700: $candidate_root"
+}
+
 prepare_install() {
-    if [ "$FRESH_INSTALL" -eq 1 ] && [ -d "$INSTALL_DIR" ]; then
+    if [ "${CHATGPT_INSTALL_TRANSACTION_ACTIVE:-0}" = "1" ]; then
+        assert_private_transaction_candidate_root "$INSTALL_DIR"
+    elif [ "$FRESH_INSTALL" -eq 1 ] && [ -d "$INSTALL_DIR" ]; then
         info "Removing existing install directory: $INSTALL_DIR"
         rm -rf "$INSTALL_DIR"
     fi
 
     if [ "$FRESH_INSTALL" -eq 1 ] && [ "$REUSE_CACHED_DMG" -ne 1 ] \
+            && ! dmg_refresh_mode_is_pinned \
             && { [ -e "$CACHED_DMG_PATH" ] || [ -e "$CACHED_DMG_METADATA_PATH" ]; }; then
         info "Removing cached DMG and metadata: $CACHED_DMG_PATH"
         rm -f "$CACHED_DMG_PATH"
@@ -207,7 +261,7 @@ $(dependency_help)"
 
 check_deps() {
     local missing=()
-    for cmd in python3 curl realpath sha256sum unzip tar; do
+    for cmd in python3 curl flock realpath sha256sum unzip tar; do
         command -v "$cmd" &>/dev/null || missing+=("$cmd")
     done
     if ! command -v 7zz &>/dev/null && ! command -v 7z &>/dev/null; then

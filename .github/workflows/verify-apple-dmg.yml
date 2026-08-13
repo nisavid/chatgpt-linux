@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       dmg_url:
-        description: Official OpenAI Codex DMG URL
+        description: Official OpenAI ChatGPT DMG URL
         required: true
-        default: https://persistent.oaistatic.com/codex-app-prod/Codex.dmg
+        default: https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg
       dmg_sha256:
         description: Expected DMG SHA-256 hex digest; leave empty to use flake.nix
         required: false
@@ -36,16 +36,16 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Check out repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Download official DMG
-        run: curl -fL --retry 3 --output Codex.dmg "$DMG_URL"
+        run: curl -fL --retry 3 --output ChatGPT.dmg "$DMG_URL"
         env:
           DMG_URL: ${{ inputs.dmg_url }}
 
       - name: Verify Apple trust state
-        run: ./scripts/verify-apple-dmg.sh --dmg Codex.dmg
+        run: ./scripts/verify-apple-dmg.sh --dmg ChatGPT.dmg
         env:
-          CODEX_DMG_SHA256: ${{ inputs.dmg_sha256 }}
-          CODEX_REQUIRE_DMG_GATEKEEPER: ${{ inputs.require_dmg_gatekeeper && '1' || '0' }}
-          CODEX_REQUIRE_DMG_STAPLE: ${{ inputs.require_dmg_staple && '1' || '0' }}
+          CHATGPT_DMG_SHA256: ${{ inputs.dmg_sha256 }}
+          CHATGPT_REQUIRE_DMG_GATEKEEPER: ${{ inputs.require_dmg_gatekeeper && '1' || '0' }}
+          CHATGPT_REQUIRE_DMG_STAPLE: ${{ inputs.require_dmg_staple && '1' || '0' }}

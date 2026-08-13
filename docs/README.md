@@ -2,7 +2,7 @@
 
 Use this index to choose the smallest document that matches your goal.
 
-## Run Or Install Codex
+## Run Or Install ChatGPT
 
 - [Project README](../README.md) is the landing page for users and potential
   users.
@@ -19,7 +19,7 @@ Use this index to choose the smallest document that matches your goal.
 ## Understand The Design
 
 - [Port Architecture](port-architecture.md) explains how the official OpenAI
-  Codex DMG becomes a Linux Electron app and where replacement, patching, and
+  ChatGPT DMG becomes a Linux Electron app and where replacement, patching, and
   launcher orchestration fit.
 - [Port Integrations](../port-integrations/README.md) explains the configurable
   integration registry under `port-integrations/`.

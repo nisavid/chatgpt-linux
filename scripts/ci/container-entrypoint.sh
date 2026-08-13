@@ -174,8 +174,8 @@ run_as_ci_user() {
         "CI_PACKAGE_VERSION=$CI_PACKAGE_VERSION"
         "PACKAGE_VERSION=$CI_PACKAGE_VERSION"
         "CI_DMG_PATH=${CI_DMG_PATH:-}"
-        "OFFICIAL_DMG_URL=${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/Codex.dmg}}"
-        "OFFICIAL_DMG_PATH=${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/codex-official-dmg-ci/Codex.dmg}}"
+        "OFFICIAL_DMG_URL=${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg}}"
+        "OFFICIAL_DMG_PATH=${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/chatgpt-official-dmg-ci/ChatGPT.dmg}}"
         "OFFICIAL_DMG_CACHE_HIT=${OFFICIAL_DMG_CACHE_HIT:-${UPSTREAM_DMG_CACHE_HIT:-}}"
         "GITHUB_STEP_SUMMARY=${GITHUB_STEP_SUMMARY:-}"
         "CARGO_HOME=$CI_CARGO_HOME"
@@ -238,8 +238,8 @@ assert_not_contains_file() {
 }
 
 prepare_package_fixture() {
-    rm -rf codex-app dist
-    tests/fixtures/create-packaged-app-fixture.sh codex-app
+    rm -rf chatgpt dist
+    tests/fixtures/create-packaged-app-fixture.sh chatgpt
 }
 
 package_target_dir() {
@@ -262,26 +262,31 @@ run_core_job() {
     bash -n scripts/build-appimage.sh
     bash -n scripts/ci-local.sh
     bash -n scripts/ci/*.sh
+    bash -n tests/package_release_gate.sh
+    bash -n tests/release_gate_public_contract.sh
 
     cargo fmt --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo check --workspace --all-targets
     cargo test --workspace --all-targets
 
-    node --check scripts/patch-linux-window-ui.js
-    node --check scripts/patch-linux-window-ui.test.js
-    for file in scripts/patches/*.js; do
-        node --check "$file"
-    done
-    node --check scripts/ci/validate-patch-report.js
-    node --test scripts/patch-linux-window-ui.test.js
+    cargo build --locked --release -p generated-app-mutation-broker
+    CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$REPO_DIR/target/release/chatgpt-generated-app-mutation-broker" \
+        bash scripts/ci/run-node-checks.sh
 
     bash tests/scripts_smoke.sh
+    bash tests/package_identity.sh
+    bash tests/package_provenance.sh
+    bash tests/release_gate_public_contract.sh
+    bash tests/parcel_watcher_trust.sh
+    bash tests/updater_reproducibility.sh
+    bash tests/generated_app_mutation_broker.sh
+    bash tests/state_migration.sh
 
     append_summary "Rust and Smoke Tests" \
         "Shell syntax checks passed." \
         "Rust formatting, clippy, check, and tests passed." \
-        "Node patcher checks and script smoke tests passed."
+        "Node syntax checks, Node tests, script smoke, package identity/provenance, offline Parcel watcher, updater reproducibility, mutation-broker resolver, and state migration tests passed."
 }
 
 run_deb_job() {
@@ -292,19 +297,29 @@ run_deb_job() {
     local target_dir
     target_dir="$(package_target_dir)"
     CARGO_TARGET_DIR="$target_dir" \
-    UPDATER_BINARY_SOURCE="$target_dir/release/codex-app-updater" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-deb.sh
 
     local deb_file
-    deb_file="$(package_file_or_fail 'codex-app_*.deb')"
+    deb_file="$(package_file_or_fail 'chatgpt_*.deb')"
     dpkg-deb -I "$deb_file"
     dpkg-deb -c "$deb_file" | tee /tmp/deb-contents.txt >/dev/null
-    assert_contains_file /tmp/deb-contents.txt './usr/bin/codex-app-updater'
-    assert_contains_file /tmp/deb-contents.txt './usr/lib/systemd/user/codex-app-updater.service'
-    assert_contains_file /tmp/deb-contents.txt './usr/lib/codex-app/update-builder/install.sh'
-    assert_contains_file /tmp/deb-contents.txt './usr/lib/codex-app/update-builder/launcher/webview-server.py'
-    assert_contains_file /tmp/deb-contents.txt './usr/lib/codex-app/packaged-runtime.sh'
+    dpkg-deb -f "$deb_file" Depends | tee /tmp/deb-depends.txt >/dev/null
+    assert_contains_file /tmp/deb-contents.txt './usr/bin/chatgpt-updater'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/systemd/user/chatgpt-updater.service'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/launcher/webview-server.py'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-acceptance.js'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/lib/candidate-promotion.py'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/update-builder/scripts/validate-upstream-dmg.js'
+    assert_contains_file /tmp/deb-contents.txt './usr/lib/chatgpt/packaged-runtime.sh'
+    assert_not_contains_file /tmp/deb-contents.txt './usr/share/codex-port-integration-framework/fixture.txt'
+    assert_not_contains_file /tmp/deb-depends.txt 'codex-port-integration-framework-runtime'
+    bash tests/package_release_gate.sh deb
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \
@@ -313,30 +328,84 @@ run_deb_job() {
         ./scripts/build-deb.sh
 
     local deb_no_updater_file
-    deb_no_updater_file="$(package_file_or_fail 'codex-app_*.deb')"
+    deb_no_updater_file="$(package_file_or_fail 'chatgpt_*.deb')"
     dpkg-deb -c "$deb_no_updater_file" | tee /tmp/deb-no-updater-contents.txt >/dev/null
     rm -rf /tmp/deb-no-updater-control
     rm -rf /tmp/deb-no-updater-payload
     mkdir -p /tmp/deb-no-updater-control /tmp/deb-no-updater-payload
     dpkg-deb -e "$deb_no_updater_file" /tmp/deb-no-updater-control
     dpkg-deb -x "$deb_no_updater_file" /tmp/deb-no-updater-payload
-    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/bin/codex-app-updater'
-    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/systemd/user/codex-app-updater.service'
-    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy'
-    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/codex-app/update-builder/'
-    assert_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/codex-app/packaged-runtime.sh'
-    assert_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/codex-app/no-updater-transition-cleanup.sh'
-    assert_contains_file /tmp/deb-no-updater-payload/usr/lib/codex-app/no-updater-transition-cleanup.sh 'codex_no_updater_cleanup_user_enablement_links'
-    assert_contains_file /tmp/deb-no-updater-payload/usr/lib/codex-app/no-updater-transition-cleanup.sh 'default.target.wants'
-    assert_contains_file /tmp/deb-no-updater-control/postinst 'codex_no_updater_cleanup_update_manager_service'
-    assert_contains_file /tmp/deb-no-updater-control/prerm 'codex_no_updater_cleanup_update_manager_service'
+    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/bin/chatgpt-updater'
+    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/systemd/user/chatgpt-updater.service'
+    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy'
+    assert_not_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/chatgpt/update-builder/'
+    assert_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/chatgpt/packaged-runtime.sh'
+    assert_contains_file /tmp/deb-no-updater-contents.txt './usr/lib/chatgpt/no-updater-transition-cleanup.sh'
+    assert_contains_file /tmp/deb-no-updater-payload/usr/lib/chatgpt/no-updater-transition-cleanup.sh 'chatgpt_no_updater_cleanup_user_enablement_links'
+    assert_contains_file /tmp/deb-no-updater-payload/usr/lib/chatgpt/no-updater-transition-cleanup.sh 'default.target.wants'
+    assert_contains_file /tmp/deb-no-updater-control/postinst 'chatgpt_no_updater_cleanup_update_manager_service'
+    assert_contains_file /tmp/deb-no-updater-control/prerm 'chatgpt_no_updater_cleanup_update_manager_service'
     assert_not_contains_file /tmp/deb-no-updater-control/postinst 'update-builder'
     assert_not_contains_file /tmp/deb-no-updater-control/prerm 'update-builder'
+
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-deb.sh
+
+    local deb_integration_file
+    local deb_integration_mode
+    deb_integration_file="$(package_file_or_fail 'chatgpt_*.deb')"
+    dpkg-deb -I "$deb_integration_file"
+    dpkg-deb -c "$deb_integration_file" | tee /tmp/deb-integration-contents.txt >/dev/null
+    dpkg-deb -f "$deb_integration_file" Depends | tee /tmp/deb-integration-depends.txt >/dev/null
+    assert_contains_file /tmp/deb-integration-contents.txt './usr/share/codex-port-integration-framework/fixture.txt'
+    assert_contains_file /tmp/deb-integration-depends.txt 'codex-port-integration-framework-runtime'
+    deb_integration_mode="$(
+        awk '$NF == "./usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+            /tmp/deb-integration-contents.txt
+    )"
+    [ "$deb_integration_mode" = '-rw-r-----' ] \
+        || error "Expected Debian fixture mode 0640, got: ${deb_integration_mode:-missing}"
+
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-deb.sh
+
+    local deb_micro_file
+    local deb_micro_mode
+    deb_micro_file="$(package_file_or_fail 'chatgpt_*.deb')"
+    dpkg-deb -c "$deb_micro_file" | tee /tmp/deb-micro-contents.txt >/dev/null
+    dpkg-deb -f "$deb_micro_file" Depends | tee /tmp/deb-micro-depends.txt >/dev/null
+    assert_contains_file /tmp/deb-micro-contents.txt './usr/lib/udev/rules.d/70-codex-micro.rules'
+    assert_contains_file /tmp/deb-micro-depends.txt 'libudev1'
+    assert_contains_file /tmp/deb-micro-depends.txt 'libusb-1.0-0'
+    deb_micro_mode="$(
+        awk '$NF == "./usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+            /tmp/deb-micro-contents.txt
+    )"
+    [ "$deb_micro_mode" = '-rw-r--r--' ] \
+        || error "Expected Debian Codex Micro rule mode 0644, got: ${deb_micro_mode:-missing}"
 
     append_summary "Debian Package Validation" \
         "Built: \`$(basename "$deb_file")\`" \
         "Verified updater binary, user service, update-builder bundle, and packaged runtime helper." \
-        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts."
+        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts." \
+        "Integration-enabled build: \`$(basename "$deb_integration_file")\`." \
+        "Verified generic port integration resource, 0640 mode, and runtime dependency." \
+        "Codex Micro build: \`$(basename "$deb_micro_file")\`." \
+        "Verified udev rule, 0644 mode, and libudev/libusb dependencies."
 }
 
 run_rpm_job() {
@@ -347,19 +416,29 @@ run_rpm_job() {
     local target_dir
     target_dir="$(package_target_dir)"
     CARGO_TARGET_DIR="$target_dir" \
-    UPDATER_BINARY_SOURCE="$target_dir/release/codex-app-updater" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-rpm.sh
 
     local rpm_file
-    rpm_file="$(package_file_or_fail 'codex-app-*.rpm')"
+    rpm_file="$(package_file_or_fail 'chatgpt-*.rpm')"
     rpm -qip "$rpm_file"
     rpm -qlp "$rpm_file" | tee /tmp/rpm-contents.txt >/dev/null
-    assert_contains_file /tmp/rpm-contents.txt '/usr/bin/codex-app-updater'
-    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/systemd/user/codex-app-updater.service'
-    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/codex-app/update-builder/install.sh'
-    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/codex-app/update-builder/launcher/webview-server.py'
-    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/codex-app/packaged-runtime.sh'
+    rpm -qp --requires "$rpm_file" | tee /tmp/rpm-requires.txt >/dev/null
+    assert_contains_file /tmp/rpm-contents.txt '/usr/bin/chatgpt-updater'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/systemd/user/chatgpt-updater.service'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/launcher/webview-server.py'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-acceptance.js'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/lib/candidate-promotion.py'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/update-builder/scripts/validate-upstream-dmg.js'
+    assert_contains_file /tmp/rpm-contents.txt '/usr/lib/chatgpt/packaged-runtime.sh'
+    assert_not_contains_file /tmp/rpm-contents.txt '/usr/share/codex-port-integration-framework/fixture.txt'
+    assert_not_contains_file /tmp/rpm-requires.txt 'codex-port-integration-framework-runtime'
+    bash tests/package_release_gate.sh rpm
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \
@@ -368,23 +447,79 @@ run_rpm_job() {
         ./scripts/build-rpm.sh
 
     local rpm_no_updater_file
-    rpm_no_updater_file="$(package_file_or_fail 'codex-app-*.rpm')"
+    rpm_no_updater_file="$(package_file_or_fail 'chatgpt-*.rpm')"
     rpm -qlp "$rpm_no_updater_file" | tee /tmp/rpm-no-updater-contents.txt >/dev/null
     rpm -qp --scripts "$rpm_no_updater_file" | tee /tmp/rpm-no-updater-scripts.txt >/dev/null
-    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/bin/codex-app-updater'
-    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/systemd/user/codex-app-updater.service'
-    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy'
-    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/codex-app/update-builder/'
-    assert_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/codex-app/packaged-runtime.sh'
-    assert_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/codex-app/no-updater-transition-cleanup.sh'
-    assert_contains_file /tmp/rpm-no-updater-scripts.txt 'codex_no_updater_cleanup_update_manager_service'
+    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/bin/chatgpt-updater'
+    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/systemd/user/chatgpt-updater.service'
+    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy'
+    assert_not_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/chatgpt/update-builder/'
+    assert_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/chatgpt/packaged-runtime.sh'
+    assert_contains_file /tmp/rpm-no-updater-contents.txt '/usr/lib/chatgpt/no-updater-transition-cleanup.sh'
+    assert_contains_file /tmp/rpm-no-updater-scripts.txt 'chatgpt_no_updater_cleanup_update_manager_service'
     assert_not_contains_file /tmp/rpm-no-updater-scripts.txt 'update-builder'
-    assert_not_contains_file /tmp/rpm-no-updater-scripts.txt 'codex_ensure_user_service_running'
+    assert_not_contains_file /tmp/rpm-no-updater-scripts.txt 'chatgpt_ensure_user_service_running'
+
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-rpm.sh
+
+    local rpm_integration_file
+    local rpm_integration_mode
+    rpm_integration_file="$(package_file_or_fail 'chatgpt-*.rpm')"
+    rpm -qip "$rpm_integration_file"
+    rpm -qlp "$rpm_integration_file" | tee /tmp/rpm-integration-contents.txt >/dev/null
+    rpm -qlvp "$rpm_integration_file" | tee /tmp/rpm-integration-long-contents.txt >/dev/null
+    rpm -qp --requires "$rpm_integration_file" | tee /tmp/rpm-integration-requires.txt >/dev/null
+    assert_contains_file /tmp/rpm-integration-contents.txt '/usr/share/codex-port-integration-framework/fixture.txt'
+    assert_contains_file /tmp/rpm-integration-requires.txt '^codex-port-integration-framework-runtime$'
+    rpm_integration_mode="$(
+        awk '$NF == "/usr/share/codex-port-integration-framework/fixture.txt" { print $1 }' \
+            /tmp/rpm-integration-long-contents.txt
+    )"
+    [ "$rpm_integration_mode" = '-rw-r-----' ] \
+        || error "Expected RPM fixture mode 0640, got: ${rpm_integration_mode:-missing}"
+
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-rpm.sh
+
+    local rpm_micro_file
+    local rpm_micro_mode
+    rpm_micro_file="$(package_file_or_fail 'chatgpt-*.rpm')"
+    rpm -qlp "$rpm_micro_file" | tee /tmp/rpm-micro-contents.txt >/dev/null
+    rpm -qlvp "$rpm_micro_file" | tee /tmp/rpm-micro-long-contents.txt >/dev/null
+    rpm -qp --requires "$rpm_micro_file" | tee /tmp/rpm-micro-requires.txt >/dev/null
+    assert_contains_file /tmp/rpm-micro-contents.txt '/usr/lib/udev/rules.d/70-codex-micro.rules'
+    assert_contains_file /tmp/rpm-micro-requires.txt '^libudev\.so\.1'
+    assert_contains_file /tmp/rpm-micro-requires.txt '^libusb-1\.0\.so\.0'
+    rpm_micro_mode="$(
+        awk '$NF == "/usr/lib/udev/rules.d/70-codex-micro.rules" { print $1 }' \
+            /tmp/rpm-micro-long-contents.txt
+    )"
+    [ "$rpm_micro_mode" = '-rw-r--r--' ] \
+        || error "Expected RPM Codex Micro rule mode 0644, got: ${rpm_micro_mode:-missing}"
 
     append_summary "RPM Package Validation" \
         "Built: \`$(basename "$rpm_file")\`" \
         "Verified updater binary, user service, update-builder bundle, and packaged runtime helper." \
-        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts."
+        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts." \
+        "Integration-enabled build: \`$(basename "$rpm_integration_file")\`." \
+        "Verified generic port integration resource, 0640 mode, and runtime dependency." \
+        "Codex Micro build: \`$(basename "$rpm_micro_file")\`." \
+        "Verified udev rule, 0644 mode, and libudev/libusb dependencies."
 }
 
 run_pacman_job() {
@@ -394,21 +529,31 @@ run_pacman_job() {
 
     local target_dir
     target_dir="$(package_target_dir)"
-    CARGO_TARGET_DIR="$target_dir" cargo build --release -p codex-app-updater
+    CARGO_TARGET_DIR="$target_dir" cargo build --release -p chatgpt-updater
     CARGO_TARGET_DIR="$target_dir" \
-    UPDATER_BINARY_SOURCE="$target_dir/release/codex-app-updater" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
     PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
         ./scripts/build-pacman.sh
 
     local pkg_file
-    pkg_file="$(package_file_or_fail 'codex-app-*.pkg.tar.*')"
+    pkg_file="$(package_file_or_fail 'chatgpt-*.pkg.tar.*')"
     pacman -Qip "$pkg_file"
     pacman -Qlp "$pkg_file" | tee /tmp/pacman-contents.txt >/dev/null
-    assert_contains_file /tmp/pacman-contents.txt 'usr/bin/codex-app-updater'
-    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/systemd/user/codex-app-updater.service'
-    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/codex-app/update-builder/install.sh'
-    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/codex-app/update-builder/launcher/webview-server.py'
-    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/codex-app/packaged-runtime.sh'
+    tar -xOf "$pkg_file" .PKGINFO | tee /tmp/pacman-pkginfo.txt >/dev/null
+    assert_contains_file /tmp/pacman-contents.txt 'usr/bin/chatgpt-updater'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/systemd/user/chatgpt-updater.service'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/install.sh'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/parcel-watcher/approved.json'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/launcher/webview-server.py'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-intel.js'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/patch-browser-client-iab-socket-scope.js'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/upstream-dmg-acceptance.js'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/lib/candidate-promotion.py'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/update-builder/scripts/validate-upstream-dmg.js'
+    assert_contains_file /tmp/pacman-contents.txt 'usr/lib/chatgpt/packaged-runtime.sh'
+    assert_not_contains_file /tmp/pacman-contents.txt 'usr/share/codex-port-integration-framework/fixture.txt'
+    assert_not_contains_file /tmp/pacman-pkginfo.txt '^depend = codex-port-integration-framework-runtime$'
+    bash tests/package_release_gate.sh pacman
 
     rm -rf dist
     CARGO_TARGET_DIR="$target_dir" \
@@ -417,27 +562,81 @@ run_pacman_job() {
         ./scripts/build-pacman.sh
 
     local pkg_no_updater_file
-    pkg_no_updater_file="$(package_file_or_fail 'codex-app-*.pkg.tar.*')"
+    pkg_no_updater_file="$(package_file_or_fail 'chatgpt-*.pkg.tar.*')"
     pacman -Qlp "$pkg_no_updater_file" | tee /tmp/pacman-no-updater-contents.txt >/dev/null
     tar -xOf "$pkg_no_updater_file" .INSTALL | tee /tmp/pacman-no-updater-install.txt >/dev/null
-    tar -xOf "$pkg_no_updater_file" usr/lib/codex-app/no-updater-transition-cleanup.sh | tee /tmp/pacman-no-updater-cleanup.txt >/dev/null
-    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/bin/codex-app-updater'
-    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/systemd/user/codex-app-updater.service'
-    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/share/polkit-1/actions/com.github.nisavid.codex-app.update.policy'
-    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/codex-app/update-builder/'
-    assert_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/codex-app/packaged-runtime.sh'
-    assert_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/codex-app/no-updater-transition-cleanup.sh'
-    assert_contains_file /tmp/pacman-no-updater-cleanup.txt 'codex_no_updater_cleanup_user_enablement_links'
+    tar -xOf "$pkg_no_updater_file" usr/lib/chatgpt/no-updater-transition-cleanup.sh | tee /tmp/pacman-no-updater-cleanup.txt >/dev/null
+    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/bin/chatgpt-updater'
+    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/systemd/user/chatgpt-updater.service'
+    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/share/polkit-1/actions/com.github.nisavid.chatgpt.update.policy'
+    assert_not_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/chatgpt/update-builder/'
+    assert_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/chatgpt/packaged-runtime.sh'
+    assert_contains_file /tmp/pacman-no-updater-contents.txt 'usr/lib/chatgpt/no-updater-transition-cleanup.sh'
+    assert_contains_file /tmp/pacman-no-updater-cleanup.txt 'chatgpt_no_updater_cleanup_user_enablement_links'
     assert_contains_file /tmp/pacman-no-updater-cleanup.txt 'default.target.wants'
-    assert_contains_file /tmp/pacman-no-updater-install.txt 'codex_no_updater_cleanup_update_manager_service'
+    assert_contains_file /tmp/pacman-no-updater-install.txt 'chatgpt_no_updater_cleanup_update_manager_service'
     assert_contains_file /tmp/pacman-no-updater-install.txt 'post_upgrade'
     assert_contains_file /tmp/pacman-no-updater-install.txt 'pre_remove'
     assert_not_contains_file /tmp/pacman-no-updater-install.txt 'update-builder'
 
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["package-integration-fixture"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$REPO_DIR/tests/fixtures/port-integrations" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/tests/fixtures/port-integrations/integrations-enabled.json" \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-pacman.sh
+
+    local pkg_integration_file
+    local pkg_integration_mode
+    pkg_integration_file="$(package_file_or_fail 'chatgpt-*.pkg.tar.*')"
+    pacman -Qip "$pkg_integration_file"
+    pacman -Qlp "$pkg_integration_file" | tee /tmp/pacman-integration-contents.txt >/dev/null
+    tar -xOf "$pkg_integration_file" .PKGINFO | tee /tmp/pacman-integration-pkginfo.txt >/dev/null
+    tar -tvf "$pkg_integration_file" \
+        usr/share/codex-port-integration-framework/fixture.txt \
+        | tee /tmp/pacman-integration-long-contents.txt >/dev/null
+    assert_contains_file /tmp/pacman-integration-contents.txt 'usr/share/codex-port-integration-framework/fixture.txt'
+    assert_contains_file /tmp/pacman-integration-pkginfo.txt '^depend = codex-port-integration-framework-runtime$'
+    pkg_integration_mode="$(awk 'NR == 1 { print $1 }' /tmp/pacman-integration-long-contents.txt)"
+    [ "$pkg_integration_mode" = '-rw-r-----' ] \
+        || error "Expected pacman fixture mode 0640, got: ${pkg_integration_mode:-missing}"
+
+    rm -rf chatgpt dist
+    CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON='["codex-micro"]' \
+        tests/fixtures/create-packaged-app-fixture.sh chatgpt
+    printf '%s\n' '{"enabled":["codex-micro"]}' > /tmp/codex-micro-integrations.json
+    CARGO_TARGET_DIR="$target_dir" \
+    UPDATER_BINARY_SOURCE="$target_dir/release/chatgpt-updater" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG=/tmp/codex-micro-integrations.json \
+    PACKAGE_VERSION="$CI_PACKAGE_VERSION" \
+        ./scripts/build-pacman.sh
+
+    local pkg_micro_file
+    local pkg_micro_mode
+    pkg_micro_file="$(package_file_or_fail 'chatgpt-*.pkg.tar.*')"
+    pacman -Qlp "$pkg_micro_file" | tee /tmp/pacman-micro-contents.txt >/dev/null
+    tar -xOf "$pkg_micro_file" .PKGINFO | tee /tmp/pacman-micro-pkginfo.txt >/dev/null
+    tar -tvf "$pkg_micro_file" \
+        usr/lib/udev/rules.d/70-codex-micro.rules \
+        | tee /tmp/pacman-micro-long-contents.txt >/dev/null
+    assert_contains_file /tmp/pacman-micro-contents.txt 'usr/lib/udev/rules.d/70-codex-micro.rules'
+    assert_contains_file /tmp/pacman-micro-pkginfo.txt '^depend = libusb$'
+    assert_contains_file /tmp/pacman-micro-pkginfo.txt '^depend = systemd-libs$'
+    pkg_micro_mode="$(awk 'NR == 1 { print $1 }' /tmp/pacman-micro-long-contents.txt)"
+    [ "$pkg_micro_mode" = '-rw-r--r--' ] \
+        || error "Expected pacman Codex Micro rule mode 0644, got: ${pkg_micro_mode:-missing}"
+
     append_summary "Pacman Package Validation" \
         "Built: \`$(basename "$pkg_file")\`" \
         "Verified updater binary, user service, update-builder bundle, and packaged runtime helper." \
-        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts."
+        "Verified PACKAGE_WITH_UPDATER=0 omits updater artifacts." \
+        "Integration-enabled build: \`$(basename "$pkg_integration_file")\`." \
+        "Verified generic port integration resource, 0640 mode, and runtime dependency." \
+        "Codex Micro build: \`$(basename "$pkg_micro_file")\`." \
+        "Verified udev rule, 0644 mode, and systemd-libs/libusb dependencies."
 }
 
 run_install_deps_job_as_root() {
@@ -541,7 +740,7 @@ run_official_dmg_job() {
     enter_workspace
     ensure_rust_toolchain
 
-    local dmg_path="${CI_DMG_PATH:-${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/codex-official-dmg-ci/Codex.dmg}}}"
+    local dmg_path="${CI_DMG_PATH:-${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/chatgpt-official-dmg-ci/ChatGPT.dmg}}}"
     mkdir -p "$(dirname "$dmg_path")"
 
     if [ ! -s "$dmg_path" ]; then
@@ -560,12 +759,12 @@ run_nix_job_as_root() {
     export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
 
     nix flake check --no-write-lock-file --option sandbox false
-    nix build .#codex-app --no-link --print-build-logs --option sandbox false
+    nix build .#chatgpt --no-link --print-build-logs --option sandbox false
     nix build .#installer --no-link --print-build-logs --option sandbox false
 
     append_summary "Nix Validation" \
         "Flake check passed." \
-        "Built .#codex-app and .#installer without result links."
+        "Built the Nix checks, .#chatgpt, and .#installer without result links."
 }
 
 run_job_as_current_user() {

@@ -37,6 +37,20 @@ function splitTokens(value) {
     .filter(Boolean);
 }
 
+function booleanOverride(value) {
+  const normalized = normalizeToken(value);
+  if (!normalized) {
+    return null;
+  }
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return null;
+}
+
 function flattenValues(values) {
   const flattened = [];
   for (const value of values) {
@@ -137,7 +151,7 @@ function tokenMatches(tokens, expected) {
 }
 
 function detectPackageFormat(tokens, env) {
-  const override = normalizeToken(env.CODEX_LINUX_TARGET_PACKAGE_FORMAT);
+  const override = normalizeToken(env.CHATGPT_LINUX_TARGET_PACKAGE_FORMAT);
   if (override) {
     return override;
   }
@@ -168,8 +182,8 @@ function detectPackageFormat(tokens, env) {
   return "unknown";
 }
 
-function detectPackageManager(tokens, env, versionMajorValue) {
-  const override = normalizeToken(env.CODEX_LINUX_TARGET_PACKAGE_MANAGER);
+function detectPackageManager(tokens, env, versionMajorValue, atomic) {
+  const override = normalizeToken(env.CHATGPT_LINUX_TARGET_PACKAGE_MANAGER);
   if (override) {
     return override;
   }
@@ -183,6 +197,9 @@ function detectPackageManager(tokens, env, versionMajorValue) {
     return "zypper";
   }
   if (tokenMatches(tokens, ["fedora", "rhel", "centos", "rocky", "almalinux", "ol"])) {
+    if (atomic && executableExists("rpm-ostree", env)) {
+      return "rpm-ostree";
+    }
     if (tokens[0] === "fedora" && versionMajorValue != null && versionMajorValue < 41) {
       return executableExists("dnf", env) ? "dnf" : "unknown";
     }
@@ -203,11 +220,23 @@ function detectPackageManager(tokens, env, versionMajorValue) {
 }
 
 function buildDesktopTokens(env) {
-  const desktop = env.CODEX_LINUX_TARGET_DESKTOP ||
+  const desktop = env.CHATGPT_LINUX_TARGET_DESKTOP ||
     env.XDG_CURRENT_DESKTOP ||
     env.DESKTOP_SESSION ||
     "";
   return splitTokens(desktop.replace(/[:;]/gu, " "));
+}
+
+function detectAtomicDesktop(env, options = {}) {
+  if (typeof options.atomic === "boolean") {
+    return options.atomic;
+  }
+  const override = booleanOverride(env.CHATGPT_LINUX_TARGET_ATOMIC);
+  if (override != null) {
+    return override;
+  }
+  const ostreeBootedPath = options.ostreeBootedPath ?? env.OSTREE_BOOTED_FILE ?? "/run/ostree-booted";
+  return Boolean(ostreeBootedPath) && fs.existsSync(ostreeBootedPath);
 }
 
 function createHelpers(target) {
@@ -237,33 +266,35 @@ function detectLinuxTargetContext(options = {}) {
   const osRelease = options.osReleaseFields == null
     ? readFirstOsRelease(osReleasePaths)
     : { path: options.osReleasePath ?? null, fields: options.osReleaseFields };
-  const id = normalizeToken(env.CODEX_LINUX_TARGET_ID || osRelease.fields.ID || "");
-  const idLike = splitTokens(env.CODEX_LINUX_TARGET_ID_LIKE || osRelease.fields.ID_LIKE || "");
-  const versionId = env.CODEX_LINUX_TARGET_VERSION_ID || osRelease.fields.VERSION_ID || "";
+  const id = normalizeToken(env.CHATGPT_LINUX_TARGET_ID || osRelease.fields.ID || "");
+  const idLike = splitTokens(env.CHATGPT_LINUX_TARGET_ID_LIKE || osRelease.fields.ID_LIKE || "");
+  const versionId = env.CHATGPT_LINUX_TARGET_VERSION_ID || osRelease.fields.VERSION_ID || "";
   const versionMajorValue = versionMajor(versionId);
   const distroTokens = [id, ...idLike].filter(Boolean);
-  const sessionType = normalizeToken(env.CODEX_LINUX_TARGET_SESSION_TYPE || env.XDG_SESSION_TYPE || "");
+  const sessionType = normalizeToken(env.CHATGPT_LINUX_TARGET_SESSION_TYPE || env.XDG_SESSION_TYPE || "");
   const desktopTokens = buildDesktopTokens(env);
+  const atomic = detectAtomicDesktop(env, options);
   const target = {
     osReleasePath: osRelease.path,
-    arch: normalizeArch(env.CODEX_LINUX_TARGET_ARCH || process.arch),
-    kernelRelease: env.CODEX_LINUX_TARGET_KERNEL_RELEASE || os.release(),
+    arch: normalizeArch(env.CHATGPT_LINUX_TARGET_ARCH || process.arch),
+    kernelRelease: env.CHATGPT_LINUX_TARGET_KERNEL_RELEASE || os.release(),
     distro: {
       id,
       idLike,
       versionId,
       versionMajor: versionMajorValue,
-      prettyName: env.CODEX_LINUX_TARGET_PRETTY_NAME || osRelease.fields.PRETTY_NAME || "",
+      prettyName: env.CHATGPT_LINUX_TARGET_PRETTY_NAME || osRelease.fields.PRETTY_NAME || "",
     },
     packageFormat: detectPackageFormat(distroTokens, env),
-    packageManager: detectPackageManager(distroTokens, env, versionMajorValue),
+    packageManager: detectPackageManager(distroTokens, env, versionMajorValue, atomic),
     desktop: {
-      raw: env.CODEX_LINUX_TARGET_DESKTOP || env.XDG_CURRENT_DESKTOP || env.DESKTOP_SESSION || "",
+      raw: env.CHATGPT_LINUX_TARGET_DESKTOP || env.XDG_CURRENT_DESKTOP || env.DESKTOP_SESSION || "",
       tokens: desktopTokens,
     },
     sessionType,
     wayland: sessionType === "wayland" || Boolean(env.WAYLAND_DISPLAY),
     x11: sessionType === "x11" || Boolean(env.DISPLAY),
+    atomic,
   };
   target.helpers = createHelpers(target);
   Object.assign(target, target.helpers);
@@ -283,6 +314,7 @@ module.exports = {
   PACMAN_IDS,
   RPM_IDS,
   detectLinuxTargetContext,
+  detectAtomicDesktop,
   executableExists,
   flattenValues,
   linuxTargetSummary,

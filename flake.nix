@@ -1,12 +1,13 @@
 {
-  description = "Codex App for Linux installer";
+  description = "ChatGPT for Linux installer";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgsBaseline.url = "github:NixOS/nixpkgs/ea4c80b39be4c09702b0cb3b42eab59e2ba4f24b";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgsBaseline, flake-utils }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let
         rewriteCratesIoDownloadUrl = url:
@@ -52,8 +53,43 @@
             })
           ];
         };
-        flakeSourceCommit = self.rev or (self.dirtyRev or "");
-        flakeSourceDateEpoch = toString (self.lastModified or 1);
+        baselinePkgs = import nixpkgsBaseline {
+          inherit system;
+        };
+        portableRustPlatform = baselinePkgs.makeRustPlatform {
+          inherit (pkgs) cargo rustc;
+        };
+        stagedSourceInfoPath = ./. + "/.chatgpt-linux/source-info.json";
+        stagedSourceInfo =
+          if builtins.pathExists stagedSourceInfoPath then
+            builtins.fromJSON (builtins.readFile stagedSourceInfoPath)
+          else
+            { };
+        flakeSourceCommit = self.rev or (self.dirtyRev or (stagedSourceInfo.commit or ""));
+        flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";
+        flakeSourceDateEpoch = toString (stagedSourceInfo.sourceDateEpoch or (self.lastModified or 1));
+        flakeSourceDirty =
+          if self ? rev then false
+          else if self ? dirtyRev then true
+          else (stagedSourceInfo.dirty or null);
+        releaseSourceInfo = builtins.toJSON {
+          commit = flakeSourceCommit;
+          shortCommit = builtins.substring 0 12 flakeSourceCommit;
+          branch = null;
+          remote = flakeSourceRemote;
+          describe = flakeSourceCommit;
+          dirty = flakeSourceDirty;
+          provenance = "reviewed-nix-release";
+          sourceDateEpoch = builtins.fromJSON flakeSourceDateEpoch;
+        };
+        releaseSandboxCanaryPathFile = ./. + "/.chatgpt-linux/release-sandbox-canary-path";
+        releaseSandboxCanaryPath =
+          if builtins.pathExists releaseSandboxCanaryPathFile then
+            pkgs.lib.removeSuffix "\n" (builtins.readFile releaseSandboxCanaryPathFile)
+          else
+            "";
+        releaseSandboxCanaryPathIsValid =
+          builtins.match "/var/tmp/chatgpt-release-nix-sandbox-canary-[A-Za-z0-9-]+" releaseSandboxCanaryPath != null;
         sourceRoot = pkgs.lib.cleanSourceWith {
           src = ./.;
           filter = path: type:
@@ -61,9 +97,11 @@
             && (let
               pathStr = toString path;
             in
-              !(pkgs.lib.hasSuffix "/.codex" pathStr || pkgs.lib.hasInfix "/.codex/" pathStr));
+              !(pkgs.lib.hasSuffix "/.codex" pathStr || pkgs.lib.hasInfix "/.codex/" pathStr)
+              && !(pkgs.lib.hasSuffix "/.chatgpt-linux/release-sandbox-canary-path" pathStr));
         };
-        computerUseBuildSource = pkgs.runCommandLocal "codex-computer-use-linux-source" { } ''
+        nixPortIntegrations = import ./nix/port-integrations.nix { lib = pkgs.lib; };
+        computerUseBuildSource = pkgs.runCommandLocal "chatgpt-computer-use-linux-source" { } ''
           mkdir -p "$out"
           cp ${./Cargo.lock} "$out/Cargo.lock"
           cat > "$out/Cargo.toml" <<'EOF'
@@ -74,52 +112,131 @@
           cp -R ${./computer-use-linux} "$out/computer-use-linux"
           chmod -R u+w "$out"
         '';
+        releaseHelpersBuildSource = pkgs.runCommandLocal "chatgpt-release-helpers-source" { } ''
+          mkdir -p "$out"
+          cp ${./Cargo.lock} "$out/Cargo.lock"
+          cat > "$out/Cargo.toml" <<'EOF'
+          [workspace]
+          members = ["generated-app-mutation-broker", "updater"]
+          resolver = "2"
+          EOF
+          cp -R ${./generated-app-mutation-broker} "$out/generated-app-mutation-broker"
+          cp -R ${./updater} "$out/updater"
+          chmod -R u+w "$out"
+        '';
         nativeModulesBuildSupport = pkgs.runCommandLocal "codex-native-modules-build-support" { } ''
           mkdir -p "$out/scripts/lib"
           cp ${./scripts/lib/native-modules.sh} "$out/scripts/lib/native-modules.sh"
         '';
 
-        codexDmg = pkgs.fetchurl {
-          url = "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg";
-          hash = "sha256-MdjiZmoIlagw3wgy3ECDroKm6b0mYDFBwCk6zqZhghE=";
+        chatgptDmg = pkgs.fetchurl {
+          url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg";
+          hash = "sha256-kfxLgJwnMLOeV9mtvGswxmnvB0yQDKKMY6HgtvpBJow=";
         };
 
-        codexVersion = "26.611.62324";
-        electronVersion = "42.1.0";
+        chatgptVersion = "26.803.81509";
+        electronVersion = "42.3.0";
         electronPlatform =
           {
             x86_64-linux = {
               arch = "x64";
-              hash = "sha256-iCBHNDqeIDxs/F05sWbqngJd0laUPg03EfhnJa0OO9k=";
+              hash = "sha256-SHpmfKanNLlYwWz/HfdNnUTSwYpszNtN1R9jAaNWxCA=";
             };
             aarch64-linux = {
               arch = "arm64";
-              hash = "sha256-HnAPfz2u95TMRSNeUcEXJmSu1JpOdze4iW3cOYv/TX0=";
+              hash = "sha256-Kjdf+XP7e93FOKT2eyFBlH6dclE6G6or6r7Cp/Zc0PA=";
             };
-          }.${system} or (throw "codex-app-linux Nix package is not supported on ${system}");
+          }.${system} or (throw "chatgpt-linux Nix package is not supported on ${system}");
 
         electronZip = pkgs.fetchurl {
           url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-${electronPlatform.arch}.zip";
           hash = electronPlatform.hash;
         };
 
+        nixElectronZip = pkgs.runCommand
+          "electron-v${electronVersion}-linux-${electronPlatform.arch}-nix.zip"
+          {
+            nativeBuildInputs = [
+              pkgs.patchelf
+              pkgs.unzip
+              pkgs.zip
+            ];
+          }
+          ''
+            electron_root="$TMPDIR/electron"
+            mkdir -p "$electron_root"
+            unzip -q ${electronZip} -d "$electron_root"
+            test -x "$electron_root/electron"
+            chmod u+w "$electron_root/electron"
+            patchelf \
+              --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+              --set-rpath '$ORIGIN:${electronLibPath}' \
+              "$electron_root/electron"
+            (
+              cd "$electron_root"
+              zip -q -X -r -y "$out" .
+            )
+            test -f "$out"
+          '';
+
         runtimeNodePlatform =
           {
             x86_64-linux = {
+              managedNodeArch = "x64";
+              managedNodeSha256 = "88fd1ce767091fd8d4a99fdb2356e98c819f93f3b1f8663853a2dee9b438068a";
               sharp = "linux-x64";
               sharpLibvips = "linux-x64";
               canvas = "linux-x64-gnu";
             };
             aarch64-linux = {
+              managedNodeArch = "arm64";
+              managedNodeSha256 = "e9e1930fd321a470e29bb68f30318bf58e3ecb4acb4f1533fb19c58328a091fe";
               sharp = "linux-arm64";
               sharpLibvips = "linux-arm64";
               canvas = "linux-arm64-gnu";
             };
-          }.${system} or (throw "codex-app-linux runtime library paths are not supported on ${system}");
+          }.${system} or (throw "chatgpt-linux runtime library paths are not supported on ${system}");
+
+        managedNodeVersion = "v22.22.2";
+        managedNodeArchive = pkgs.fetchurl {
+          url = "https://nodejs.org/dist/${managedNodeVersion}/node-${managedNodeVersion}-linux-${runtimeNodePlatform.managedNodeArch}.tar.xz";
+          sha256 = runtimeNodePlatform.managedNodeSha256;
+        };
+        managedPortableNode = pkgs.runCommandLocal "chatgpt-managed-node-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
+          nativeBuildInputs = [ pkgs.gnutar pkgs.xz ];
+          dontPatchShebangs = true;
+        } ''
+          mkdir -p "$out"
+          tar -xJf ${managedNodeArchive} --strip-components=1 -C "$out"
+          test -x "$out/bin/node"
+          test -x "$out/bin/npm"
+          test -x "$out/bin/npx"
+        '';
+        managedNixNode = pkgs.runCommandLocal "chatgpt-managed-node-nix-${managedNodeVersion}-${runtimeNodePlatform.managedNodeArch}" {
+          nativeBuildInputs = [ pkgs.patchelf ];
+          dontPatchShebangs = true;
+        } ''
+          cp -a ${managedPortableNode} "$out"
+          chmod -R u+w "$out"
+          patchelf \
+            --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+            --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
+            "$out/bin/node"
+          test -x "$out/bin/node"
+          test -x "$out/bin/npm"
+          test -x "$out/bin/npx"
+          test -f "$out/lib/node_modules/npm/bin/npm-cli.js"
+        '';
 
         electronHeaders = pkgs.fetchurl {
           url = "https://artifacts.electronjs.org/headers/dist/v${electronVersion}/node-v${electronVersion}-headers.tar.gz";
-          hash = "sha256-DPwdIPJS1sKb3RSx88qjDtxkd9uT5aZiBnRCSzjc3f0=";
+          hash = "sha256-ghAJ+cGDAFDYlK755hkGywpTeyAAstm77ZmF//HV4NA=";
+        };
+
+        codexMicroNodeHidArchive = pkgs.fetchurl {
+          name = "node-hid-3.3.0.tgz";
+          url = "https://registry.npmjs.org/node-hid/-/node-hid-3.3.0.tgz";
+          hash = "sha512-j+dFgJLRAE0nufQKXk3IfS6T6YuHhCgMvz4TrG0sgtb6DSCdYpfJ1etcdmeCmPQjUgO+yo32ktVrRliNs/+fmg==";
         };
 
         browserUseNodeReplRuntime = pkgs.fetchurl {
@@ -144,24 +261,24 @@
           '';
         } else null;
 
-        codexComputerUseBinaries = pkgs.rustPlatform.buildRustPackage {
-          pname = "codex-computer-use-linux-binaries";
+        chatgptComputerUseBinaries = portableRustPlatform.buildRustPackage {
+          pname = "chatgpt-computer-use-linux-binaries";
           version = "0.1.2-linux-alpha2";
           src = computerUseBuildSource;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cosmic-protocols-0.2.0" = "sha256-ymn+BUTTzyHquPn4hvuoA3y1owFj8LVrmsPu2cdkFQ8=";
-            };
           };
 
           buildAndTestSubdir = "computer-use-linux";
           cargoBuildFlags = [
             "-p"
-            "codex-computer-use-linux"
+            "chatgpt-computer-use-linux"
             "--bins"
           ];
+          preBuild = ''
+            cargo generate-lockfile --offline
+          '';
           doCheck = false;
 
           installPhase = ''
@@ -170,30 +287,103 @@
             if [ ! -d "$release_dir" ]; then
               release_dir="target/release"
             fi
-            install -Dm0755 "$release_dir/codex-computer-use-linux" "$out/bin/codex-computer-use-linux"
-            install -Dm0755 "$release_dir/codex-computer-use-cosmic" "$out/bin/codex-computer-use-cosmic"
-            install -Dm0755 "$release_dir/codex-chrome-extension-host" "$out/bin/codex-chrome-extension-host"
+            install -Dm0755 "$release_dir/chatgpt-computer-use-linux" "$out/bin/chatgpt-computer-use-linux"
+            install -Dm0755 "$release_dir/chatgpt-computer-use-cosmic" "$out/bin/chatgpt-computer-use-cosmic"
+            install -Dm0755 "$release_dir/chatgpt-chrome-extension-host" "$out/bin/chatgpt-chrome-extension-host"
             runHook postInstall
           '';
         };
 
-        codexReadAloudMcpBinary = pkgs.rustPlatform.buildRustPackage {
-          pname = "codex-read-aloud-linux-binary";
+        updaterManifest = builtins.fromTOML (builtins.readFile ./updater/Cargo.toml);
+        releaseHelperMachine =
+          if pkgs.stdenv.hostPlatform.isx86_64 then "Advanced Micro Devices X86-64"
+          else if pkgs.stdenv.hostPlatform.isAarch64 then "AArch64"
+          else throw "chatgpt release helpers are not supported on ${system}";
+        portableElfInterpreter =
+          if pkgs.stdenv.hostPlatform.isx86_64 then "/lib64/ld-linux-x86-64.so.2"
+          else if pkgs.stdenv.hostPlatform.isAarch64 then "/lib/ld-linux-aarch64.so.1"
+          else throw "chatgpt release app is not supported on ${system}";
+        chatgptReleaseHelpers = pkgs.pkgsStatic.rustPlatform.buildRustPackage {
+          pname = "chatgpt-release-helpers";
+          version = updaterManifest.package.version;
+          src = releaseHelpersBuildSource;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          cargoBuildFlags = [
+            "-p"
+            "generated-app-mutation-broker"
+            "-p"
+            "chatgpt-updater"
+            "--bins"
+          ];
+          preBuild = ''
+            cargo generate-lockfile --offline
+          '';
+          doCheck = false;
+          NIX_DONT_SET_RPATH = 1;
+          allowedReferences = [ pkgs.asar ];
+          nativeBuildInputs = [
+            pkgs.binutils
+            pkgs.patchelf
+            pkgs.removeReferencesTo
+          ];
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.pkgsStatic.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 \
+              "$release_dir/chatgpt-updater" \
+              "$out/bin/chatgpt-updater"
+            install -Dm0755 \
+              "$release_dir/chatgpt-generated-app-mutation-broker" \
+              "$out/bin/chatgpt-generated-app-mutation-broker"
+            ln -s ${pkgs.asar}/bin/asar "$out/bin/asar"
+            for binary in \
+              "$out/bin/chatgpt-updater" \
+              "$out/bin/chatgpt-generated-app-mutation-broker"; do
+              test -f "$binary"
+              test ! -L "$binary"
+              test -x "$binary"
+              ${pkgs.patchelf}/bin/patchelf --remove-rpath "$binary"
+              remove-references-to -t "$out" "$binary"
+              ${pkgs.binutils}/bin/readelf -h "$binary" \
+                | grep -F "Machine:                           ${releaseHelperMachine}" >/dev/null
+              if ${pkgs.binutils}/bin/readelf -l "$binary" | grep -F 'INTERP' >/dev/null; then
+                echo "release helper has a dynamic ELF interpreter: $binary" >&2
+                exit 1
+              fi
+              if ${pkgs.binutils}/bin/readelf -d "$binary" 2>/dev/null \
+                  | grep -E '(NEEDED|RPATH|RUNPATH)' >/dev/null; then
+                echo "release helper has dynamic library dependencies: $binary" >&2
+                exit 1
+              fi
+            done
+            runHook postInstall
+          '';
+        };
+        chatgptGeneratedAppMutationBroker = chatgptReleaseHelpers;
+
+        chatgptReadAloudMcpBinary = portableRustPlatform.buildRustPackage {
+          pname = "chatgpt-read-aloud-linux-binary";
           version = "0.1.0-linux-alpha1";
           src = sourceRoot;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cosmic-protocols-0.2.0" = "sha256-ymn+BUTTzyHquPn4hvuoA3y1owFj8LVrmsPu2cdkFQ8=";
-            };
           };
 
           buildAndTestSubdir = "read-aloud-linux";
           cargoBuildFlags = [
             "-p"
-            "codex-read-aloud-linux"
+            "chatgpt-read-aloud-linux"
           ];
+
           doCheck = false;
 
           installPhase = ''
@@ -202,7 +392,70 @@
             if [ ! -d "$release_dir" ]; then
               release_dir="target/release"
             fi
-            install -Dm0755 "$release_dir/codex-read-aloud-linux" "$out/bin/codex-read-aloud-linux"
+            install -Dm0755 "$release_dir/chatgpt-read-aloud-linux" "$out/bin/chatgpt-read-aloud-linux"
+            runHook postInstall
+          '';
+        };
+
+        chatgptNotificationActionsBinary = portableRustPlatform.buildRustPackage {
+          pname = "chatgpt-notification-actions-linux";
+          version = "0.1.0";
+          src = sourceRoot;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          cargoBuildFlags = [
+            "-p"
+            "chatgpt-notification-actions-linux"
+          ];
+          cargoTestFlags = [
+            "-p"
+            "chatgpt-notification-actions-linux"
+          ];
+
+          doCheck = true;
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 "$release_dir/chatgpt-notification-actions-linux" "$out/bin/chatgpt-notification-actions-linux"
+            runHook postInstall
+          '';
+        };
+
+        chatgptMcpHelperReaper = portableRustPlatform.buildRustPackage {
+          pname = "chatgpt-mcp-helper-reaper";
+          version = "0.1.0";
+          src = ./port-integrations/mcp-helper-reaper/reaper;
+
+          cargoLock = {
+            lockFile = ./port-integrations/mcp-helper-reaper/reaper/Cargo.lock;
+          };
+        };
+
+        chatgptGlobalDictationBinary = portableRustPlatform.buildRustPackage {
+          pname = "chatgpt-global-dictation-linux";
+          version = "0.1.0";
+          src = ./global-dictation-linux;
+
+          cargoLock = {
+            lockFile = ./global-dictation-linux/Cargo.lock;
+          };
+
+          doCheck = false;
+
+          installPhase = ''
+            runHook preInstall
+            release_dir="target/''${CARGO_BUILD_TARGET:-${pkgs.stdenv.hostPlatform.rust.rustcTarget}}/release"
+            if [ ! -d "$release_dir" ]; then
+              release_dir="target/release"
+            fi
+            install -Dm0755 "$release_dir/chatgpt-global-dictation-linux" "$out/bin/chatgpt-global-dictation-linux"
             runHook postInstall
           '';
         };
@@ -212,18 +465,20 @@
           inherit (pkgs) nodejs;
           derivationArgs = {
             npmRebuildFlags = [ "--ignore-scripts" ];
+            dontPatchShebangs = true;
           };
         };
 
-        codexNativeModules = pkgs.stdenv.mkDerivation {
-          pname = "codex-app-electron-native-modules";
+        chatgptNativeModules = baselinePkgs.stdenv.mkDerivation {
+          pname = "chatgpt-electron-native-modules";
           version = electronVersion;
           dontUnpack = true;
+          dontPatchShebangs = true;
 
           nativeBuildInputs = [
             pkgs.bash
-            pkgs.gcc
-            pkgs.gnumake
+            baselinePkgs.gcc
+            baselinePkgs.gnumake
             pkgs.nodejs
             pkgs.python3
           ];
@@ -281,6 +536,9 @@ EOF
             find "$out/node-pty/build" -type f ! -name "*.node" -delete 2>/dev/null || true
             find "$out" -type d -empty -delete 2>/dev/null || true
             find "$out" -type f -name "*.target.mk" -delete 2>/dev/null || true
+            ${pkgs.python3}/bin/python3 \
+              ${./scripts/lib/normalize-portable-shebangs.py} \
+              "$out"
             runHook postInstall
           '';
         };
@@ -315,6 +573,7 @@ EOF
           libxi
           libxtst
           libxscrnsaver
+          libnotify
           libglvnd
           systemd
           wayland
@@ -326,6 +585,21 @@ EOF
           stdenv.cc.cc.lib
           zlib
         ]);
+        codexMicroRuntimeLibPath = pkgs.lib.makeLibraryPath (with pkgs; [
+          systemd
+          libusb1
+          stdenv.cc.cc.lib
+          glibc
+        ]);
+        gsettingsSchemaPackages = with pkgs; [
+          gsettings-desktop-schemas
+          gtk3
+        ];
+        gsettingsSchemaRoot = pkg:
+          pkgs.lib.removeSuffix "/glib-2.0/schemas" (pkgs.glib.getSchemaPath pkg);
+        gsettingsSchemaDataDirs =
+          pkgs.lib.concatMapStringsSep ":" gsettingsSchemaRoot gsettingsSchemaPackages;
+        xdgDefaultDataDirs = "/usr/local/share:/usr/share";
         launcherPath = pkgs.lib.makeBinPath (with pkgs; [
           bash
           coreutils
@@ -340,6 +614,11 @@ EOF
           systemd
           xdg-utils
         ]);
+        globalDictationRuntimePath = pkgs.lib.makeBinPath (with pkgs; [
+          xdotool
+          xinput
+          xmodmap
+        ]);
 
         patchNixInstalledApp = installDir: ''
           # Patch generated scripts for NixOS systems without /bin/bash.
@@ -347,15 +626,18 @@ EOF
             ${pkgs.gnused}/bin/sed -i '1s|^#!/bin/bash$|#!${pkgs.bash}/bin/bash|' "${installDir}/start.sh"
             if ! grep -q "NixOS Electron library path" "${installDir}/start.sh"; then
               # shellcheck disable=SC2016
-              ${pkgs.gnused}/bin/sed -i '2i# NixOS Electron library path for dlopen()ed GL/EGL libraries.\nexport LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}:''${LD_LIBRARY_PATH:-}"' "${installDir}/start.sh"
+              ${pkgs.gnused}/bin/sed -i '/^chatgpt_capture_original_ld_library_path$/a\
+# NixOS Electron library path for dlopen()ed GL/EGL libraries.\
+export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\
+chatgpt_nixos_add_runtime_library_dirs' "${installDir}/start.sh"
             fi
-            if ! grep -q "codex_nixos_add_runtime_library_dirs" "${installDir}/start.sh"; then
+            if ! grep -q "chatgpt_nixos_add_runtime_library_dirs()" "${installDir}/start.sh"; then
               # shellcheck disable=SC2016
               ${pkgs.gnused}/bin/sed -i '/^set -euo pipefail$/a\
 \
-codex_nixos_add_runtime_library_dirs() {\
+chatgpt_nixos_add_runtime_library_dirs() {\
     local cache_home="''${XDG_CACHE_HOME:-''${HOME:-}/.cache}"\
-    local runtime_root="''${CODEX_PRIMARY_RUNTIME_ROOT:-''${CODEX_RUNTIME_ROOT:-$cache_home/codex-runtimes/codex-primary-runtime}}"\
+    local runtime_root="''${CHATGPT_PRIMARY_RUNTIME_ROOT:-''${CHATGPT_RUNTIME_ROOT:-$cache_home/codex-runtimes/codex-primary-runtime}}"\
     local dir\
 \
     for dir in \\\
@@ -371,9 +653,7 @@ codex_nixos_add_runtime_library_dirs() {\
     done\
 \
     export LD_LIBRARY_PATH\
-}\
-\
-codex_nixos_add_runtime_library_dirs' "${installDir}/start.sh"
+}' "${installDir}/start.sh"
             fi
             if ! grep -q "Browser Use bundled marketplace metadata" "${installDir}/start.sh"; then
               ${pkgs.python3}/bin/python3 - "${installDir}/start.sh" <<'PY'
@@ -439,13 +719,41 @@ PY
           fi
         '';
 
-        portIntegrationsConfig = portIntegrationIds:
-          pkgs.writeText "codex-port-integrations.json" (builtins.toJSON {
-            enabled = portIntegrationIds;
-          });
+        portIntegrationsConfigFile = config:
+          pkgs.writeText "codex-port-integrations.json" (builtins.toJSON config);
 
-        enabledIntegrationIds = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
-          pkgs.lib.optionals enableComputerUseUi [ "computer-use-ui" ] ++ portIntegrationIds;
+        portIntegrationsConfig = portIntegrationIds:
+          portIntegrationsConfigFile {
+            enabled = portIntegrationIds;
+          };
+
+        normalizePortIntegrationsConfig = config:
+          let
+            enabled = nixPortIntegrations.normalize (config.enabled or [ ]);
+          in
+          config // {
+            inherit enabled;
+          };
+
+        portIntegrationEnabled = config: integrationId:
+          let
+            manifestPath = ./. + "/port-integrations/${integrationId}/integration.json";
+            manifest =
+              if builtins.pathExists manifestPath then
+                builtins.fromJSON (builtins.readFile manifestPath)
+              else
+                throw "Missing port integration manifest: ${integrationId}";
+            explicitlyEnabled = builtins.elem integrationId (config.enabled or [ ]);
+            explicitlyDisabled = builtins.elem integrationId (config.disabled or [ ]);
+          in
+          !explicitlyDisabled && (explicitlyEnabled || (manifest.defaultEnabled or false));
+
+        watchdogPortIntegrationsConfig = normalizePortIntegrationsConfig (
+          builtins.fromJSON (builtins.readFile ./scripts/ci/watchdog-port-integrations.json)
+        );
+
+        enabledIntegrationIds = { portIntegrationIds ? [ ] }:
+          nixPortIntegrations.normalize portIntegrationIds;
 
         packageSuffix = args:
           let
@@ -453,13 +761,305 @@ PY
           in
           if integrationIds == [ ] then "" else "-${pkgs.lib.concatStringsSep "-" integrationIds}";
 
-        mkCodexAppPayload = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
+        mkChatGPTReleaseApp = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
-          integrationIds = enabledIntegrationIds { inherit enableComputerUseUi portIntegrationIds; };
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          effectivePortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
+          mcpHelperReaperEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "mcp-helper-reaper";
         in
         pkgs.stdenv.mkDerivation {
-          pname = "codex-app${packageSuffix { inherit enableComputerUseUi portIntegrationIds; }}-payload";
-          version = codexVersion;
+          pname = "chatgpt-release-app";
+          version = chatgptVersion;
+          src = sourceRoot;
+          __structuredAttrs = true;
+
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.binutils
+            pkgs.cargo
+            pkgs.curl
+            pkgs.file
+            pkgs.gcc
+            pkgs.gnumake
+            pkgs.gnused
+            pkgs.nodejs
+            pkgs.asar
+            pkgs._7zz
+            pkgs.patchelf
+            pkgs.python3
+            pkgs.removeReferencesTo
+            pkgs.unzip
+            pkgs.util-linux
+          ];
+
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true;
+          dontPatchShebangs = true;
+          allowedReferences = [ ];
+
+          installPhase = ''
+            runHook preInstall
+
+            export HOME="$TMPDIR/home"
+            export npm_config_cache="$TMPDIR/npm-cache"
+            export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            export NIX_SSL_CERT_FILE="$SSL_CERT_FILE"
+            export npm_config_cafile="$SSL_CERT_FILE"
+            export CARGO_HOME="$TMPDIR/cargo-home"
+            export CARGO_BUILD_JOBS=1
+            export SOURCE_DATE_EPOCH="${flakeSourceDateEpoch}"
+            export CHATGPT_LINUX_TARGET_ID="generic-linux"
+            export CHATGPT_LINUX_TARGET_ID_LIKE=""
+            export CHATGPT_LINUX_TARGET_VERSION_ID=""
+            export CHATGPT_LINUX_TARGET_PRETTY_NAME="Generic Linux"
+            export CHATGPT_LINUX_TARGET_PACKAGE_FORMAT="unknown"
+            export CHATGPT_LINUX_TARGET_PACKAGE_MANAGER="unknown"
+            export CHATGPT_LINUX_TARGET_ARCH="${runtimeNodePlatform.managedNodeArch}"
+            export CHATGPT_LINUX_TARGET_KERNEL_RELEASE="linux"
+            export CHATGPT_LINUX_TARGET_DESKTOP=""
+            export CHATGPT_LINUX_TARGET_SESSION_TYPE=""
+            export CHATGPT_LINUX_TARGET_ATOMIC=0
+            ${pkgs.lib.optionalString (flakeSourceCommit != "") ''
+            export CHATGPT_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
+            export CHATGPT_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"
+            ''}
+            export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
+            export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
+            export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
+            export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
+            export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
+            export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
+            export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
+            ''}
+            ${pkgs.lib.optionalString (browserUseNodeRepl != null) ''
+            export CHATGPT_LINUX_NODE_REPL_SOURCE="${browserUseNodeRepl}/bin/node_repl"
+            ''}
+            export CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-linux"
+            export CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-cosmic"
+            export CHATGPT_CHROME_EXTENSION_HOST_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-chrome-extension-host"
+            mutation_broker_build="$TMPDIR/chatgpt-generated-app-mutation-broker"
+            cp "${chatgptReleaseHelpers}/bin/chatgpt-generated-app-mutation-broker" "$mutation_broker_build"
+            chmod 0500 "$mutation_broker_build"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$mutation_broker_build"
+            export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
+            export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
+            ${pkgs.lib.optionalString mcpHelperReaperEnabled ''
+            export CHATGPT_MCP_HELPER_REAPER_SOURCE="${chatgptMcpHelperReaper}/bin/chatgpt-mcp-helper-reaper"
+            ''}
+            ${pkgs.lib.optionalString globalDictationEnabled ''
+            export CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="${chatgptGlobalDictationBinary}/bin/chatgpt-global-dictation-linux"
+            ''}
+            mkdir -p "$HOME" "$npm_config_cache" "$CARGO_HOME"
+
+            source_dir="$TMPDIR/chatgpt-release-source"
+            mkdir -p "$source_dir"
+            cp -R ./. "$source_dir/"
+            chmod -R u+w "$source_dir"
+            rm -f -- "$source_dir/.chatgpt-linux/source-info.json"
+            mkdir -p "$source_dir/.chatgpt-linux"
+            cat > "$source_dir/.chatgpt-linux/source-info.json" <<'JSON'
+            ${releaseSourceInfo}
+            JSON
+            chmod 0644 "$source_dir/.chatgpt-linux/source-info.json"
+            cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
+
+            substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \
+              --replace-fail "npx --yes asar" "asar"
+            substituteInPlace "$source_dir/scripts/lib/dmg.sh" \
+              --replace-fail "npx --yes asar" "asar"
+
+            export CHATGPT_INSTALL_TRANSACTION_ACTIVE=1
+            export CHATGPT_INSTALL_DIR="$out/opt/chatgpt"
+            ${pkgs.coreutils}/bin/install -d -m 0700 "$CHATGPT_INSTALL_DIR"
+            export CHATGPT_PATCH_REPORT_JSON="$TMPDIR/release-patch-report.json"
+            export CHATGPT_REBUILD_REPORT_JSON="$TMPDIR/release-rebuild-report.json"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
+
+            runHook postInstall
+
+            generation_receipt_root="$out/opt/.chatgpt-generation-receipts"
+            rm -rf -- "$generation_receipt_root"
+            test ! -e "$generation_receipt_root"
+
+            test -f "$CHATGPT_INSTALL_DIR/resources/app.asar"
+            test ! -e "$CHATGPT_INSTALL_DIR/resources/app-extracted"
+
+            while IFS= read -r -d $'\0' link; do
+              target="$(readlink "$link")"
+              case "$target" in
+                /nix/store/*)
+                  echo "release app contains a Nix-store symlink: $link -> $target" >&2
+                  exit 1
+                  ;;
+              esac
+            done < <(find "$CHATGPT_INSTALL_DIR" -type l -print0)
+
+            while IFS= read -r -d $'\0' file; do
+              if ${pkgs.file}/bin/file -b "$file" | grep -Fq ELF; then
+                chmod u+w "$file"
+                store_roots=()
+                interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
+                case "$interpreter" in
+                  /nix/store/*)
+                    store_remainder="''${interpreter#/nix/store/}"
+                    store_roots+=("/nix/store/''${store_remainder%%/*}")
+                    ${pkgs.patchelf}/bin/patchelf --set-interpreter "${portableElfInterpreter}" "$file"
+                    ;;
+                esac
+                rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
+                IFS=: read -r -a rpath_entries <<<"$rpath"
+                for rpath_entry in "''${rpath_entries[@]}"; do
+                  case "$rpath_entry" in
+                    /nix/store/*)
+                      store_remainder="''${rpath_entry#/nix/store/}"
+                      store_roots+=("/nix/store/''${store_remainder%%/*}")
+                      ;;
+                  esac
+                done
+                if [[ "$rpath" == *'/nix/store/'* ]]; then
+                  portable_rpath="$(printf '%s' "$rpath" | awk -v RS=: '
+                    index($0, "/nix/store/") != 1 {
+                      if (count++ > 0) printf ":"
+                      printf "%s", $0
+                    }
+                  ')"
+                  if [ -n "$portable_rpath" ]; then
+                    ${pkgs.patchelf}/bin/patchelf --set-rpath "$portable_rpath" "$file"
+                  else
+                    ${pkgs.patchelf}/bin/patchelf --remove-rpath "$file"
+                  fi
+                fi
+                interpreter="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$file" 2>/dev/null || true)"
+                rpath="$(${pkgs.patchelf}/bin/patchelf --print-rpath "$file" 2>/dev/null || true)"
+                [[ "$interpreter" != *'/nix/store/'* ]]
+                [[ "$rpath" != *'/nix/store/'* ]]
+                chmod u+w "$(dirname "$file")"
+                for store_root in "''${store_roots[@]}"; do
+                  remove-references-to -t "$store_root" "$file"
+                done
+              elif grep -Iq . "$file" && grep -Fq '/nix/store/' "$file"; then
+                echo "release app text file contains a Nix-store path: $file" >&2
+                exit 1
+              fi
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+
+            scrubbed_store_hash="$(printf 'e%.0s' {1..32})"
+            raw_store_references=0
+            while IFS= read -r -d $'\0' file; do
+              while IFS= read -r store_path; do
+                case "$store_path" in
+                  /nix/store/$scrubbed_store_hash-*) continue ;;
+                esac
+                echo "release app file contains a Nix-store reference: $file -> $store_path" >&2
+                raw_store_references=1
+              done < <(grep -aoE '/nix/store/[0-9a-z]{32}-[^/[:space:][:cntrl:]]+' "$file" | sort -u || true)
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+            test "$raw_store_references" -eq 0
+
+            ${pkgs.bash}/bin/bash \
+              "$source_dir/scripts/ci/check-portable-elf-dependencies.sh" \
+              --versions-only \
+              "$CHATGPT_INSTALL_DIR"
+
+            find "$CHATGPT_INSTALL_DIR" -type d -exec chmod 0555 {} +
+            while IFS= read -r -d $'\0' file; do
+              if [ -x "$file" ]; then
+                chmod 0555 "$file"
+              else
+                chmod 0444 "$file"
+              fi
+            done < <(find "$CHATGPT_INSTALL_DIR" -type f -print0)
+
+            rm -rf -- "$generation_receipt_root"
+            test ! -e "$generation_receipt_root"
+            broker_digest="$(sed -n \
+              's/^\([0-9a-f]\{64\}\)  chatgpt-generated-app-mutation-broker$/\1/p' \
+              "$CHATGPT_INSTALL_DIR/.chatgpt-linux/generated-app-mutation-broker.sha256")"
+            test -n "$broker_digest"
+            ${pkgs.python3}/bin/python3 \
+              "$source_dir/scripts/lib/package-provenance.py" \
+              write-generation-receipt \
+              --app "$CHATGPT_INSTALL_DIR" \
+              --broker-sha256 "$broker_digest" >/dev/null
+            ${pkgs.python3}/bin/python3 \
+              "$source_dir/scripts/lib/package-provenance.py" \
+              validate-generation-receipt \
+              --app "$CHATGPT_INSTALL_DIR" >/dev/null
+          '';
+        };
+
+        chatgptReleaseApp = mkChatGPTReleaseApp { };
+        chatgptReleaseAppReceiptValidation = pkgs.runCommand
+          "chatgpt-release-app-generation-receipt-check"
+          { nativeBuildInputs = [ pkgs.python3 ]; }
+          ''
+            ${pkgs.python3}/bin/python3 \
+              ${sourceRoot}/scripts/lib/package-provenance.py \
+              validate-generation-receipt \
+              --app ${chatgptReleaseApp}/opt/chatgpt >/dev/null
+            touch "$out"
+          '';
+        portableOwnedElfBaseline = pkgs.runCommand
+          "chatgpt-portable-owned-elf-baseline-check"
+          {
+            nativeBuildInputs = [
+              pkgs.bash
+              pkgs.binutils
+              pkgs.file
+            ];
+          }
+          ''
+            for portable_output in \
+              ${chatgptComputerUseBinaries} \
+              ${chatgptReadAloudMcpBinary} \
+              ${chatgptNotificationActionsBinary} \
+              ${chatgptMcpHelperReaper} \
+              ${chatgptGlobalDictationBinary} \
+              ${chatgptNativeModules}; do
+              ${pkgs.bash}/bin/bash \
+                ${sourceRoot}/scripts/ci/check-portable-elf-dependencies.sh \
+                --versions-only \
+                "$portable_output"
+            done
+            touch "$out"
+          '';
+        releaseSandboxCanary = pkgs.runCommandLocal "chatgpt-release-sandbox-canary" { } ''
+          if [ "${if releaseSandboxCanaryPathIsValid then "1" else "0"}" != 1 ]; then
+            echo "release sandbox canary path is missing or invalid" >&2
+            exit 1
+          fi
+          if [ -e ${pkgs.lib.escapeShellArg releaseSandboxCanaryPath} ]; then
+            echo "release sandbox canary escaped the Nix build sandbox" >&2
+            exit 1
+          fi
+          mkdir "$out"
+        '';
+
+        mkChatGPTPayload = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
+        let
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          effectivePortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
+          mcpHelperReaperEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "mcp-helper-reaper";
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "chatgpt${packageSuffix { portIntegrationIds = effectivePortIntegrationIds; }}-payload";
+          version = chatgptVersion;
           src = sourceRoot;
           __structuredAttrs = true;
 
@@ -477,6 +1077,7 @@ PY
             pkgs.patchelf
             pkgs.python3
             pkgs.unzip
+            pkgs.util-linux
           ];
 
           dontConfigure = true;
@@ -494,61 +1095,88 @@ PY
             export CARGO_BUILD_JOBS=1
             export SOURCE_DATE_EPOCH="${flakeSourceDateEpoch}"
             ${pkgs.lib.optionalString (flakeSourceCommit != "") ''
-            export CODEX_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
-            ''}
-            ${pkgs.lib.optionalString enableComputerUseUi ''
-            export CODEX_LINUX_ENABLE_COMPUTER_USE_UI=1
+            export CHATGPT_LINUX_SOURCE_COMMIT="${flakeSourceCommit}"
+            export CHATGPT_LINUX_SOURCE_REMOTE="${flakeSourceRemote}"
             ''}
             export CFLAGS="''${CFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export CXXFLAGS="''${CXXFLAGS:-} -ffile-prefix-map=$TMPDIR=/build -fdebug-prefix-map=$TMPDIR=/build -fmacro-prefix-map=$TMPDIR=/build"
             export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix=$TMPDIR=/build -C link-arg=-Wl,--build-id=none"
-            export CODEX_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
-            export CODEX_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfig integrationIds}"
-            export CODEX_ELECTRON_ZIP_SOURCE="${electronZip}"
-            export CODEX_NATIVE_MODULES_SOURCE="${codexNativeModules}"
-            ${pkgs.lib.optionalString (browserUseNodeRepl != null) ''
-            export CODEX_LINUX_NODE_REPL_SOURCE="${browserUseNodeRepl}/bin/node_repl"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
+            export CHATGPT_PORT_INTEGRATIONS_CONFIG="${portIntegrationsConfigFile effectivePortIntegrationsConfig}"
+            export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"
+            export LD_LIBRARY_PATH="${electronLibPath}:${runtimeLibPath}"
+            export CHATGPT_NATIVE_MODULES_SOURCE="${chatgptNativeModules}"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            export CHATGPT_MICRO_NODE_HID_ARCHIVE="${codexMicroNodeHidArchive}"
             ''}
-            export CODEX_LINUX_COMPUTER_USE_BACKEND_SOURCE="${codexComputerUseBinaries}/bin/codex-computer-use-linux"
-            export CODEX_LINUX_COMPUTER_USE_COSMIC_SOURCE="${codexComputerUseBinaries}/bin/codex-computer-use-cosmic"
-            export CODEX_CHROME_EXTENSION_HOST_SOURCE="${codexComputerUseBinaries}/bin/codex-chrome-extension-host"
-            export CODEX_LINUX_READ_ALOUD_MCP_SOURCE="${codexReadAloudMcpBinary}/bin/codex-read-aloud-linux"
+            ${pkgs.lib.optionalString (browserUseNodeRepl != null) ''
+            export CHATGPT_LINUX_NODE_REPL_SOURCE="${browserUseNodeRepl}/bin/node_repl"
+            ''}
+            export CHATGPT_LINUX_COMPUTER_USE_BACKEND_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-linux"
+            export CHATGPT_LINUX_COMPUTER_USE_COSMIC_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-computer-use-cosmic"
+            export CHATGPT_CHROME_EXTENSION_HOST_SOURCE="${chatgptComputerUseBinaries}/bin/chatgpt-chrome-extension-host"
+            mutation_broker_build="$TMPDIR/chatgpt-generated-app-mutation-broker"
+            cp "${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker" "$mutation_broker_build"
+            chmod 0500 "$mutation_broker_build"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="$mutation_broker_build"
+            export CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="${chatgptReadAloudMcpBinary}/bin/chatgpt-read-aloud-linux"
+            export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
+            ${pkgs.lib.optionalString mcpHelperReaperEnabled ''
+            export CHATGPT_MCP_HELPER_REAPER_SOURCE="${chatgptMcpHelperReaper}/bin/chatgpt-mcp-helper-reaper"
+            ''}
+            ${pkgs.lib.optionalString globalDictationEnabled ''
+            export CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="${chatgptGlobalDictationBinary}/bin/chatgpt-global-dictation-linux"
+            ''}
             mkdir -p "$HOME" "$npm_config_cache" "$CARGO_HOME"
 
-            source_dir="$TMPDIR/codex-source"
+            source_dir="$TMPDIR/chatgpt-source"
             mkdir -p "$source_dir"
             cp -R ./. "$source_dir/"
             chmod -R u+w "$source_dir"
-            cp ${codexDmg} "$source_dir/Codex.dmg"
+            cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
 
             substituteInPlace "$source_dir/scripts/lib/asar-patch.sh" \
               --replace-fail "npx --yes asar" "asar"
             substituteInPlace "$source_dir/scripts/lib/dmg.sh" \
               --replace-fail "npx --yes asar" "asar"
 
-            export CODEX_INSTALL_DIR="$out/opt/codex-app"
-            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/Codex.dmg"
+            export CHATGPT_INSTALL_DIR="$out/opt/chatgpt"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg"
 
-            asar extract "$CODEX_INSTALL_DIR/resources/app.asar" "$CODEX_INSTALL_DIR/resources/app-extracted"
-            rm -f "$CODEX_INSTALL_DIR/resources/app.asar"
-            rm -rf "$CODEX_INSTALL_DIR/resources/app.asar.unpacked"
+            asar extract "$CHATGPT_INSTALL_DIR/resources/app.asar" "$CHATGPT_INSTALL_DIR/resources/app-extracted"
+            rm -f "$CHATGPT_INSTALL_DIR/resources/app.asar"
+            rm -rf "$CHATGPT_INSTALL_DIR/resources/app.asar.unpacked"
 
-            ${patchNixGeneratedScripts "$out/opt/codex-app"}
+            ${patchNixGeneratedScripts "$out/opt/chatgpt"}
 
             runHook postInstall
           '';
         };
 
-        mkCodexApp = { enableComputerUseUi ? false, portIntegrationIds ? [ ] }:
+        buildChatGPT = { portIntegrationIds ? [ ], portIntegrationsConfigOverride ? null }:
         let
-          integrationArgs = { inherit enableComputerUseUi portIntegrationIds; };
-          payload = mkCodexAppPayload {
-            inherit enableComputerUseUi portIntegrationIds;
+          effectivePortIntegrationsConfig =
+            if portIntegrationsConfigOverride == null then
+              normalizePortIntegrationsConfig { enabled = portIntegrationIds; }
+            else
+              normalizePortIntegrationsConfig portIntegrationsConfigOverride;
+          normalizedPortIntegrationIds = effectivePortIntegrationsConfig.enabled;
+          codexMicroEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "codex-micro";
+          globalDictationEnabled = portIntegrationEnabled effectivePortIntegrationsConfig "global-dictation";
+          integrationArgs = {
+            portIntegrationIds = normalizedPortIntegrationIds;
           };
+          payload = mkChatGPTPayload {
+            portIntegrationIds = normalizedPortIntegrationIds;
+            portIntegrationsConfigOverride = effectivePortIntegrationsConfig;
+          };
+          payloadLauncherPath = launcherPath + pkgs.lib.optionalString
+            globalDictationEnabled
+            ":${globalDictationRuntimePath}";
         in
         pkgs.stdenv.mkDerivation {
-          pname = "codex-app${packageSuffix integrationArgs}";
-          version = codexVersion;
+          pname = "chatgpt${packageSuffix integrationArgs}";
+          version = chatgptVersion;
           src = payload;
 
           nativeBuildInputs = [
@@ -564,45 +1192,102 @@ PY
             runHook preInstall
 
             mkdir -p "$out/opt"
-            cp -aT "$src/opt/codex-app" "$out/opt/codex-app"
-            chmod -R u+w "$out/opt/codex-app"
-            rm -rf "$out/opt/codex-app/resources/node-runtime"
-            ln -s ${pkgs.nodejs} "$out/opt/codex-app/resources/node-runtime"
-            if [ -e "$out/opt/codex-app/update-builder/node-runtime" ]; then
-              rm -rf "$out/opt/codex-app/update-builder/node-runtime"
-              ln -s ${pkgs.nodejs} "$out/opt/codex-app/update-builder/node-runtime"
+            cp -aT "$src/opt/chatgpt" "$out/opt/chatgpt"
+            chmod -R u+w "$out/opt/chatgpt"
+            rm -rf "$out/opt/chatgpt/resources/node-runtime"
+            ln -s ${pkgs.nodejs} "$out/opt/chatgpt/resources/node-runtime"
+            if [ -e "$out/opt/chatgpt/update-builder/node-runtime" ]; then
+              rm -rf "$out/opt/chatgpt/update-builder/node-runtime"
+              ln -s ${pkgs.nodejs} "$out/opt/chatgpt/update-builder/node-runtime"
             fi
 
-            resources_dir="$out/opt/codex-app/resources"
+            resources_dir="$out/opt/chatgpt/resources"
             (cd "$resources_dir/app-extracted" && find . -type f | LC_ALL=C sort | sed 's#^\./##') > "$TMPDIR/app.asar.ordering"
             asar pack "$resources_dir/app-extracted" "$resources_dir/app.asar" \
               --ordering "$TMPDIR/app.asar.ordering" \
               --unpack "{*.node,*.so,*.dylib}"
             rm -rf "$resources_dir/app-extracted"
 
-            if [ -f "$resources_dir/node_repl" ]; then
-              patchelf --set-interpreter "$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)" \
-                --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
-                "$resources_dir/node_repl"
+            ${pkgs.lib.optionalString codexMicroEnabled ''
+            codex_micro_node_count=0
+            while IFS= read -r codex_micro_node; do
+              codex_micro_node_count=$((codex_micro_node_count + 1))
+              patchelf --set-rpath "${codexMicroRuntimeLibPath}" "$codex_micro_node"
+              actual_rpath="$(patchelf --print-rpath "$codex_micro_node")"
+              if [ "$actual_rpath" != "${codexMicroRuntimeLibPath}" ]; then
+                echo "codex-micro node-hid RPATH verification failed: $actual_rpath" >&2
+                exit 1
+              fi
+            done < <(
+              find "$resources_dir/app.asar.unpacked" -type f \
+                -path '*/node-hid/prebuilds/HID_hidraw-linux-*/node-napi-v4.node' \
+                -print
+            )
+            if [ "$codex_micro_node_count" -ne 1 ]; then
+              echo "expected exactly one codex-micro node-hid Linux binding, found $codex_micro_node_count" >&2
+              exit 1
             fi
 
-            ${patchNixInstalledApp "$out/opt/codex-app"}
+            install -Dm0644 \
+              "$out/opt/chatgpt/.chatgpt-linux/integrations/codex-micro/70-codex-micro.rules" \
+              "$out/lib/udev/rules.d/70-codex-micro.rules"
+            ''}
 
-            install -Dm0644 "$out/opt/codex-app/.codex-linux/codex-app.png" \
-              "$out/share/icons/hicolor/256x256/apps/codex-app.png"
+            for node_repl_binary in \
+              "$resources_dir/node_repl" \
+              "$resources_dir/node_repl.chatgpt-linux-original"; do
+              if [ -f "$node_repl_binary" ] \
+                  && [ "$(dd if="$node_repl_binary" bs=1 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
+                patchelf --set-interpreter "$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)" \
+                  --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
+                  "$node_repl_binary"
+              fi
+            done
 
-            install -Dm0644 ${sourceRoot}/packaging/linux/codex-app.desktop \
-              "$out/share/applications/codex-app.desktop"
-            substituteInPlace "$out/share/applications/codex-app.desktop" \
-              --replace-fail "/usr/bin/codex-app" "$out/bin/codex-app" \
-              --replace-fail "/usr/share/applications/codex-app.desktop" "$out/share/applications/codex-app.desktop"
+            if [ -f "$resources_dir/node_repl.chatgpt-linux-original" ]; then
+              node_repl_interpreter="$(patchelf --print-interpreter \
+                "$resources_dir/node_repl.chatgpt-linux-original")"
+              node_repl_rpath="$(patchelf --print-rpath \
+                "$resources_dir/node_repl.chatgpt-linux-original")"
+              case "$node_repl_interpreter" in
+                /nix/store/*) ;;
+                *) echo "node_repl backup has non-Nix interpreter: $node_repl_interpreter" >&2; exit 1 ;;
+              esac
+              case "$node_repl_rpath" in
+                *"/nix/store/"*) ;;
+                *) echo "node_repl backup has non-Nix RPATH: $node_repl_rpath" >&2; exit 1 ;;
+              esac
+            fi
 
-            makeWrapper "$out/opt/codex-app/start.sh" "$out/bin/codex-app" \
-              --prefix PATH : "${launcherPath}" \
+            ${patchNixInstalledApp "$out/opt/chatgpt"}
+
+            install -Dm0644 "$out/opt/chatgpt/.chatgpt-linux/chatgpt.png" \
+              "$out/share/icons/hicolor/256x256/apps/chatgpt.png"
+
+            install -Dm0644 ${sourceRoot}/packaging/linux/chatgpt.desktop \
+              "$out/share/applications/chatgpt.desktop"
+            substituteInPlace "$out/share/applications/chatgpt.desktop" \
+              --replace-fail "/usr/bin/chatgpt" "$out/bin/chatgpt" \
+              --replace-fail "/usr/share/applications/chatgpt.desktop" "$out/share/applications/chatgpt.desktop"
+
+            makeWrapper "$out/opt/chatgpt/start.sh" "$out/bin/chatgpt" \
+              --prefix PATH : "${payloadLauncherPath}" \
+              --run 'export XDG_DATA_DIRS="''${XDG_DATA_DIRS:-${xdgDefaultDataDirs}}"' \
+              --prefix XDG_DATA_DIRS : "${gsettingsSchemaDataDirs}" \
               --prefix LD_LIBRARY_PATH : "${electronLibPath}" \
               --prefix LD_LIBRARY_PATH : "${runtimeLibPath}" \
               --prefix PATH : "/run/current-system/sw/bin" \
               --prefix PATH : "/etc/profiles/per-user/\$USER/bin"
+
+            leaked_mutation_broker="$(find \
+              "$out/opt/chatgpt" \
+              "$out/bin" \
+              "$out/share" \
+              -type f -name chatgpt-generated-app-mutation-broker -print -quit)"
+            if [ -n "$leaked_mutation_broker" ]; then
+              echo "build-only generated-app mutation broker leaked into runtime payload: $leaked_mutation_broker" >&2
+              exit 1
+            fi
 
             runHook postInstall
           '';
@@ -613,33 +1298,28 @@ PY
                 integrationIds = enabledIntegrationIds integrationArgs;
               in
               if integrationIds == [ ] then
-                "Codex App for Linux"
+                "ChatGPT for Linux"
               else
-                "Codex App for Linux with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled";
-            homepage = "https://github.com/nisavid/codex-app-linux";
+                "ChatGPT for Linux with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled";
+            homepage = "https://github.com/nisavid/chatgpt-linux";
             license = pkgs.lib.licenses.mit;
             platforms = pkgs.lib.platforms.linux;
-            mainProgram = "codex-app";
+            mainProgram = "chatgpt";
           };
         };
 
-        codexApp = mkCodexApp { };
+        chatgpt = pkgs.lib.makeOverridable buildChatGPT { };
 
-        codexAppComputerUseUi = mkCodexApp {
-          enableComputerUseUi = true;
-        };
-
-        codexAppRemoteMobileControl = mkCodexApp {
+        chatgptRemoteMobileControl = chatgpt.override {
           portIntegrationIds = [ "remote-mobile-control" ];
         };
 
-        codexAppComputerUseUiRemoteMobileControl = mkCodexApp {
-          enableComputerUseUi = true;
-          portIntegrationIds = [ "remote-mobile-control" ];
+        chatgptWatchdogIntegrationCheck = chatgpt.override {
+          portIntegrationsConfigOverride = watchdogPortIntegrationsConfig;
         };
 
         installer = pkgs.writeShellApplication {
-          name = "codex-app-installer";
+          name = "chatgpt-installer";
           runtimeInputs = [
             pkgs.bash
             pkgs.nodejs
@@ -665,15 +1345,17 @@ PY
             mkdir -p "$source_dir"
             cp -R ${sourceRoot}/. "$source_dir"
             chmod -R u+w "$source_dir"
-            cp ${codexDmg} "$source_dir/Codex.dmg"
+            cp ${chatgptDmg} "$source_dir/ChatGPT.dmg"
             chmod +x "$source_dir/install.sh"
 
             cd "$source_dir"
-            export CODEX_INSTALL_DIR="''${CODEX_INSTALL_DIR:-$root_dir/codex-app}"
-            export CODEX_MANAGED_NODE_SOURCE="${pkgs.nodejs}"
-            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/Codex.dmg" "$@"
+            export CHATGPT_INSTALL_DIR="''${CHATGPT_INSTALL_DIR:-$root_dir/chatgpt}"
+            export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"
+            export CHATGPT_NOTIFICATION_ACTIONS_SOURCE="${chatgptNotificationActionsBinary}/bin/chatgpt-notification-actions-linux"
+            export CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE="${chatgptGeneratedAppMutationBroker}/bin/chatgpt-generated-app-mutation-broker"
+            ${pkgs.bash}/bin/bash "$source_dir/install.sh" "$source_dir/ChatGPT.dmg" "$@"
 
-            install_dir="''${CODEX_INSTALL_DIR:-$root_dir/codex-app}"
+            install_dir="''${CHATGPT_INSTALL_DIR:-$root_dir/chatgpt}"
 
             ${patchNixInstalledApp "$install_dir"}
           '';
@@ -681,37 +1363,96 @@ PY
       in
       {
         packages = {
-          default = codexApp;
-          codex-app = codexApp;
-          codex-app-computer-use-ui = codexAppComputerUseUi;
-          codex-app-remote-mobile-control = codexAppRemoteMobileControl;
-          codex-app-computer-use-ui-remote-mobile-control = codexAppComputerUseUiRemoteMobileControl;
+          default = chatgpt;
+          chatgpt = chatgpt;
+          chatgpt-dmg = chatgptDmg;
+          chatgpt-remote-mobile-control = chatgptRemoteMobileControl;
+          chatgpt-release-app = chatgptReleaseApp;
+          release-helpers = chatgptReleaseHelpers;
+          release-sandbox-canary = releaseSandboxCanary;
           installer = installer;
+        };
+
+        checks = {
+          generated-app-mutation-broker = chatgptGeneratedAppMutationBroker;
+          portable-owned-elf-baseline = portableOwnedElfBaseline;
+          release-app-generation-receipt = chatgptReleaseAppReceiptValidation;
+          release-helpers = chatgptReleaseHelpers;
+          generated-app-mutation-broker-installer = pkgs.runCommand "chatgpt-generated-app-mutation-broker-installer-check" { } ''
+            grep -F 'CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null
+            touch "$out"
+          '';
+          generated-app-mutation-broker-build-only = pkgs.runCommand "chatgpt-generated-app-mutation-broker-build-only-check" { } ''
+            leaked_mutation_broker="$(find \
+              ${chatgpt}/opt/chatgpt \
+              ${chatgpt}/bin \
+              ${chatgpt}/share \
+              -type f -name chatgpt-generated-app-mutation-broker -print -quit)"
+            test -z "$leaked_mutation_broker"
+            touch "$out"
+          '';
+          notification-actions-linux = chatgptNotificationActionsBinary;
+          notification-actions-installer = pkgs.runCommand "chatgpt-notification-actions-installer-check" { } ''
+            grep -F 'CHATGPT_NOTIFICATION_ACTIONS_SOURCE=' ${installer}/bin/chatgpt-installer >/dev/null
+            touch "$out"
+          '';
+          nix-gsettings-schema-wrapper = pkgs.runCommand "chatgpt-nix-gsettings-schema-wrapper-check" { } ''
+            schema_data_dirs=${pkgs.lib.escapeShellArg gsettingsSchemaDataDirs}
+            default_data_dirs=${pkgs.lib.escapeShellArg xdgDefaultDataDirs}
+            explicit_data_dirs=/custom/share:/other/share
+
+            run_wrapper() {
+              case "$1" in
+                unset) unset XDG_DATA_DIRS ;;
+                empty) export XDG_DATA_DIRS= ;;
+                populated) export XDG_DATA_DIRS="$explicit_data_dirs" ;;
+                *) echo "unknown test case: $1" >&2; return 1 ;;
+              esac
+
+              exec() {
+                printf '%s\n' "$XDG_DATA_DIRS"
+              }
+
+              source ${chatgpt}/bin/chatgpt
+            }
+
+            assert_data_dirs() {
+              test_case="$1"
+              expected="$2"
+              actual="$(run_wrapper "$test_case")"
+              if [ "$actual" != "$expected" ]; then
+                printf '%s: expected <%s>, got <%s>\n' \
+                  "$test_case" "$expected" "$actual" >&2
+                return 1
+              fi
+            }
+
+            expected_defaults="$schema_data_dirs:$default_data_dirs"
+            assert_data_dirs unset "$expected_defaults"
+            assert_data_dirs empty "$expected_defaults"
+            assert_data_dirs populated "$schema_data_dirs:$explicit_data_dirs"
+            touch "$out"
+          '';
+          nix-port-integrations-evaluation = import ./nix/port-integrations-test.nix {
+            inherit pkgs self system;
+          };
+          watchdog-port-integrations = chatgptWatchdogIntegrationCheck;
+          nix-port-integrations-multi-integration = chatgptWatchdogIntegrationCheck;
         };
 
         apps.default = {
           type = "app";
-          program = "${codexApp}/bin/codex-app";
+          program = "${chatgpt}/bin/chatgpt";
         };
 
         apps.remote-mobile-control = {
           type = "app";
-          program = "${codexAppRemoteMobileControl}/bin/codex-app";
-        };
-
-        apps.computer-use-ui-remote-mobile-control = {
-          type = "app";
-          program = "${codexAppComputerUseUiRemoteMobileControl}/bin/codex-app";
+          program = "${chatgptRemoteMobileControl}/bin/chatgpt";
         };
 
         apps.installer = {
           type = "app";
-          program = "${installer}/bin/codex-app-installer";
-        };
-
-        apps.codex-app-computer-use-ui = {
-          type = "app";
-          program = "${codexAppComputerUseUi}/bin/codex-app";
+          program = "${installer}/bin/chatgpt-installer";
         };
 
         devShells.default = pkgs.mkShell {
@@ -729,14 +1470,12 @@ PY
     ) // {
       homeManagerModules = rec {
         default = import ./nix/home-manager-module.nix { inherit self; };
-        codex-app-linux = default;
-        codex-desktop-linux = default;
+        chatgpt-linux = default;
       };
 
       nixosModules = rec {
         default = import ./nix/nixos-module.nix { inherit self; };
-        codex-app-linux = default;
-        codex-desktop-linux = default;
+        chatgpt-linux = default;
       };
     };
 }

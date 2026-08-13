@@ -31,7 +31,14 @@ function patchFile(filePath, patches) {
   }
 
   let changed = false;
-  for (const { label, oldText, newText, alreadyText = newText } of patches) {
+  for (const {
+    label,
+    oldText,
+    newText,
+    alreadyText = newText,
+    skipIf = null,
+    skipDescription = "target no longer exists in this upstream bundle",
+  } of patches) {
     if (source.includes(newText) || sourceIncludesAny(source, alreadyText)) {
       console.log(`${path.basename(filePath)} already patched: ${label}`);
       continue;
@@ -39,6 +46,10 @@ function patchFile(filePath, patches) {
 
     const matchIndex = source.indexOf(oldText);
     if (matchIndex === -1) {
+      if (shouldSkipPatch(source, skipIf)) {
+        console.log(`${path.basename(filePath)} skipped: ${label} (${skipDescription})`);
+        continue;
+      }
       warn(`${path.basename(filePath)} missing patch target for ${label}`);
       continue;
     }
@@ -109,19 +120,130 @@ if (!pluginDir) {
 
 const scriptsDir = path.resolve(pluginDir, "scripts");
 
-function browserClientHasMovedChromeProfileMetadata(source) {
+function currentBrowserDiagnosticsContract() {
+  const diagnosticsPath = path.join(scriptsDir, "extension-ids.json");
+  const helperPath = path.join(scriptsDir, "chromium-browser-diagnostics.mjs");
+  let config;
+  let helper;
+  try {
+    config = JSON.parse(fs.readFileSync(diagnosticsPath, "utf8"));
+    helper = fs.readFileSync(helperPath, "utf8");
+  } catch {
+    return false;
+  }
+
   return (
-    source.includes("setupBrowserRuntime") &&
-    !source.includes("Local Extension Settings") &&
-    !source.includes("Local State") &&
-    !source.includes("extensionInstanceId")
+    Array.isArray(config.browserDiagnostics) &&
+    config.browserDiagnostics.some((browser) => browser.browserFamily === "chrome") &&
+    config.browserDiagnostics.some((browser) => browser.browserFamily === "edge") &&
+    helper.includes("export function getBrowserDiagnostics(config, browserFamily)") &&
+    helper.includes("export function resolveBrowserUserDataDirectory({") &&
+    helper.includes("export function resolveLinuxNativeMessagingManifestPath({")
   );
 }
 
-const legacyBrowserClientChromeProfileSkip = {
-  skipIf: browserClientHasMovedChromeProfileMetadata,
-  skipDescription: "Chrome profile metadata now lives outside browser-client.mjs",
-};
+function linuxBrowserDiagnostics(chrome, browserFamily) {
+  const common = {
+    ...JSON.parse(JSON.stringify(chrome)),
+    browserFamily,
+  };
+  if (browserFamily === "brave") {
+    return {
+      ...common,
+      displayName: "Brave Browser",
+      shortDisplayName: "Brave",
+      extensionManagementUrl: "brave://extensions",
+      linux: {
+        commands: ["brave-browser", "brave"],
+        configHomeEnvironmentVariables: ["XDG_CONFIG_HOME"],
+        nativeMessagingManifestDirectories: [
+          ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+        ],
+        processNames: ["brave", "brave-browser"],
+        userDataDirectorySegments: [
+          ".config",
+          "BraveSoftware",
+          "Brave-Browser",
+        ],
+      },
+    };
+  }
+  return {
+    ...common,
+    displayName: "Chromium",
+    shortDisplayName: "Chromium",
+    extensionManagementUrl: "chrome://extensions",
+    linux: {
+      commands: ["chromium", "chromium-browser"],
+      configHomeEnvironmentVariables: ["XDG_CONFIG_HOME"],
+      nativeMessagingManifestDirectories: [
+        ".config/chromium/NativeMessagingHosts",
+      ],
+      processNames: ["chromium", "chromium-browser"],
+      userDataDirectorySegments: [".config", "chromium"],
+    },
+  };
+}
+
+function patchCurrentBrowserDiagnostics() {
+  if (!currentBrowserDiagnosticsContract()) return false;
+
+  const diagnosticsPath = path.join(scriptsDir, "extension-ids.json");
+  const config = JSON.parse(fs.readFileSync(diagnosticsPath, "utf8"));
+  const chrome = config.browserDiagnostics.find(
+    (browser) => browser.browserFamily === "chrome",
+  );
+  let changed = false;
+  for (const browserFamily of ["brave", "chromium"]) {
+    if (
+      config.browserDiagnostics.some(
+        (browser) => browser.browserFamily === browserFamily,
+      )
+    ) {
+      continue;
+    }
+    const edgeIndex = config.browserDiagnostics.findIndex(
+      (browser) => browser.browserFamily === "edge",
+    );
+    const insertionIndex = edgeIndex === -1 ? config.browserDiagnostics.length : edgeIndex;
+    config.browserDiagnostics.splice(
+      insertionIndex,
+      0,
+      linuxBrowserDiagnostics(chrome, browserFamily),
+    );
+    changed = true;
+  }
+  if (changed) {
+    fs.writeFileSync(diagnosticsPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    console.log("Patched extension-ids.json: Linux Brave and Chromium diagnostics");
+  } else {
+    console.log("extension-ids.json already patched: Linux Brave and Chromium diagnostics");
+  }
+
+  const installManifestPath = path.join(scriptsDir, "installManifest.mjs");
+  let installManifest = fs.readFileSync(installManifestPath, "utf8");
+  const chromiumManifest = '".config/chromium/NativeMessagingHosts"';
+  const braveManifest =
+    '".config/BraveSoftware/Brave-Browser/NativeMessagingHosts"';
+  if (installManifest.includes(braveManifest)) {
+    console.log("installManifest.mjs already patched: Linux Brave native host manifest");
+  } else if (installManifest.includes(chromiumManifest)) {
+    installManifest = installManifest.replace(
+      chromiumManifest,
+      `${chromiumManifest},${braveManifest}`,
+    );
+    fs.writeFileSync(installManifestPath, installManifest, "utf8");
+    console.log("Patched installManifest.mjs: Linux Brave native host manifest");
+  } else {
+    warn(
+      "installManifest.mjs current browser diagnostics contract lacks the Chromium native host manifest anchor",
+    );
+  }
+
+  return true;
+}
+
+const usesCurrentBrowserDiagnostics = patchCurrentBrowserDiagnostics();
 
 const linuxExtensionAwareUserDataFallback = `  const linuxChromeUserDataDirectory = path.join(os.homedir(), ".config", "google-chrome");
   const linuxChromeBetaUserDataDirectory = path.join(os.homedir(), ".config", "google-chrome-beta");
@@ -357,6 +479,8 @@ patchFileFirstMatch(path.join(scriptsDir, "installManifest.mjs"), {
   ],
   newText:
     'linux:[".config/google-chrome/NativeMessagingHosts",".config/google-chrome-beta/NativeMessagingHosts",".config/google-chrome-unstable/NativeMessagingHosts",".config/BraveSoftware/Brave-Browser/NativeMessagingHosts",".config/chromium/NativeMessagingHosts"]',
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current declarative browser diagnostics contract is active",
 });
 
 patchFile(path.join(scriptsDir, "check-native-host-manifest.js"), [
@@ -395,6 +519,8 @@ ${linuxNativeHostManifestFallback}
     \`Unsupported platform for native host manifest check: \${process.platform}. This script supports macOS, Linux, and Windows.\`,
   );`,
     alreadyText: '"google-chrome-beta",\n        "NativeMessagingHosts"',
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser diagnostics contract is active",
   },
   {
     label: "Linux browser native host manifest fallback",
@@ -414,267 +540,12 @@ ${linuxNativeHostManifestFallback}
   }`,
     newText: linuxNativeHostManifestFallback,
     alreadyText: '"google-chrome-beta",\n        "NativeMessagingHosts"',
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser diagnostics contract is active",
   },
 ]);
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux Chrome profile roots",
-  ...legacyBrowserClientChromeProfileSkip,
-  oldTexts: [
-    {
-      oldText: String.raw`var Cd=S7(v7(),E7()==="win32"?"AppData\\Local\\Google\\Chrome\\User Data":"Library/Application Support/Google/Chrome");`,
-      newText: String.raw`var Cd=S7(v7(),E7()==="win32"?"AppData\\Local\\Google\\Chrome\\User Data":"Library/Application Support/Google/Chrome"),codexLinuxChromeUserDataDirectories=()=>E7()==="linux"?[S7(v7(),".config","BraveSoftware","Brave-Browser"),S7(v7(),".config","google-chrome"),S7(v7(),".config","google-chrome-beta"),S7(v7(),".config","google-chrome-unstable"),S7(v7(),".config","chromium")]:[Cd];`,
-    },
-  ],
-  alreadyText: "codexLinuxChromeUserDataDirectories",
-});
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux Chrome profile metadata lookup",
-  ...legacyBrowserClientChromeProfileSkip,
-  oldTexts: [
-    {
-      oldText: String.raw`var VI=async(e,t)=>{let r=bg(Cd,e,"Local Extension Settings",t);if(!k7(r))return null;let n=await I7(bg(R7(),"codex"));await A7(r,n,{recursive:!0}),await HI(bg(n,"LOCK"));let o=new C7(n,{createIfMissing:!1,keyEncoding:"utf8",valueEncoding:"utf8"});try{await o.open();let i=await o.get("extensionInstanceId");if(!i)return null;let s=JSON.parse(i);return typeof s!="string"?null:s}finally{await o.close(),await HI(n,{force:!0,recursive:!0})}}`,
-      newText: String.raw`var VI=async(e,t,r=Cd)=>{let n=bg(r,e,"Local Extension Settings",t);if(!k7(n))return null;let o=await I7(bg(R7(),"codex"));await A7(n,o,{recursive:!0}),await HI(bg(o,"LOCK"));let i=new C7(o,{createIfMissing:!1,keyEncoding:"utf8",valueEncoding:"utf8"});try{await i.open();let s=await i.get("extensionInstanceId");if(!s)return null;let a=JSON.parse(s);return typeof a!="string"?null:a}finally{await i.close(),await HI(o,{force:!0,recursive:!0})}}`,
-    },
-  ],
-  alreadyText: "async(t,e,r=Tc)",
-});
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux Chrome profile instance matching",
-  ...legacyBrowserClientChromeProfileSkip,
-  oldTexts: [
-    {
-      oldText: String.raw`N7=async(e,t)=>(await O7(e)).find(o=>o.instanceId===t)||null,O7=async e=>{let t=await M7();return await Promise.all(t.map(async r=>({...r,instanceId:await VI(r.id,e).catch(n=>(le(n),null))})))},M7=async()=>{let e=D7(Cd,"Local State"),t=JSON.parse(await P7(e,"utf8"));return t.profile.profiles_order.map((r,n)=>{let o=t.profile.info_cache[r];return o?{id:r,name:o.name,isLastUsed:t.profile.last_used===r,orderingIndex:n,avatarUrl:o.avatar_icon}:null}).filter(r=>!!r)}`,
-      newText: String.raw`N7=async(e,t)=>{let r=(await O7(e)).filter(n=>n.instanceId===t);return r.length===1?r[0]:null},O7=async e=>{let t=[];for(let r of codexLinuxChromeUserDataDirectories())try{let n=await M7(r);t.push(...await Promise.all(n.map(async o=>({...o,userDataDir:r,instanceId:await VI(o.id,e,r).catch(i=>(le(i),null))}))))}catch(n){le(n)}return t},M7=async r=>{let n=D7(r,"Local State"),o=JSON.parse(await P7(n,"utf8"));return o.profile.profiles_order.map((i,s)=>{let a=o.profile.info_cache[i];return a?{id:i,name:a.name,isLastUsed:o.profile.last_used===i,orderingIndex:s,avatarUrl:a.avatar_icon}:null}).filter(i=>!!i)}`,
-    },
-  ],
-  alreadyText: "r.length===1?r[0]:null",
-});
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux Chrome active profile backend ordering",
-  ...legacyBrowserClientChromeProfileSkip,
-  oldTexts: [
-    {
-      oldText: String.raw`j7=async(e,{codexSessionId:t})=>{let r=tl(p_),n=e.filter(i=>i.info.type==="iab"),o=q7(n,t,r);return await Promise.all(n.filter(i=>!o.includes(i)).map(async({api:i})=>i.close())),[...e.filter(i=>i.info.type!=="iab"),...o]},q7=(e,t,r)=>t==null?[]:e.filter(n=>n.info.metadata?.codexSessionId===t&&(r==null||n.info.metadata.codexAppBuildFlavor===r)),ek=async`,
-      newText: String.raw`j7=async(e,{codexSessionId:t})=>{let r=tl(p_),n=e.filter(i=>i.info.type==="iab"),o=q7(n,t,r);await Promise.all(n.filter(i=>!o.includes(i)).map(async({api:i})=>i.close()));let s=[...e.filter(i=>i.info.type!=="iab"),...o];return await codexLinuxRankBrowserBackends(s)},q7=(e,t,r)=>t==null?[]:e.filter(n=>n.info.metadata?.codexSessionId===t&&(r==null||n.info.metadata.codexAppBuildFlavor===r));async function codexLinuxRankBrowserBackends(e){if(XI()!=="linux")return e;let t=await Promise.all(e.map(async(r,n)=>({browser:r,index:n,userTabCount:await codexLinuxExtensionUserTabCount(r)})));return t.sort(codexLinuxBackendCompare).map(({browser:r})=>r)}function codexLinuxBackendCompare(e,t){let r=e.browser.info.type==="extension",n=t.browser.info.type==="extension";return!r||!n?e.index-t.index:codexLinuxExtensionBackendScore(t)-codexLinuxExtensionBackendScore(e)||e.index-t.index}async function codexLinuxExtensionUserTabCount(e){if(e.info.type!=="extension")return-1;try{let t=await Promise.race([e.api.getUserTabs(),new Promise((r,n)=>setTimeout(()=>n(new Error("Chrome profile tab probe timed out")),750))]);return Array.isArray(t)?t.length:0}catch(t){return le(t),0}}function codexLinuxExtensionBackendScore(e){let t=e.userTabCount>0?1e4+e.userTabCount:0,r=e.browser.info.metadata??{};r.profileIsLastUsed==="true"&&(t+=100);let n=Number(r.profileOrdering);return Number.isFinite(n)?t-n:t}var ek=async`,
-    },
-  ],
-  alreadyText: "codexLinuxRankBrowserBackends",
-});
-
-patchFile(path.join(scriptsDir, "browser-client.mjs"), [
-  {
-    label: "Linux idle Chrome profile filtering",
-    oldText: String.raw`let t=await Promise.all(e.map(async(r,n)=>({browser:r,index:n,userTabCount:await codexLinuxExtensionUserTabCount(r)})));return t.sort(codexLinuxBackendCompare).map(({browser:r})=>r)}function codexLinuxBackendCompare`,
-    newText: String.raw`let t=await Promise.all(e.map(async(r,n)=>({browser:r,index:n,userTabCount:await codexLinuxExtensionUserTabCount(r)})));return (await codexLinuxFilterBrowserBackends(t)).sort(codexLinuxBackendCompare).map(({browser:r})=>r)}async function codexLinuxFilterBrowserBackends(e){let t=e.some(r=>r.browser.info.type==="extension"&&r.userTabCount>0);if(!t)return e;let r=e.filter(n=>n.browser.info.type!=="extension"||n.userTabCount>0),n=e.filter(o=>o.browser.info.type==="extension"&&o.userTabCount===0);return await codexLinuxCloseDiscardedBrowserBackends(n),r}async function codexLinuxCloseDiscardedBrowserBackends(e){await Promise.all(e.map(async({browser:t})=>{try{await t.api.close()}catch{}}))}function codexLinuxBackendCompare`,
-    alreadyText: "codexLinuxCloseDiscardedBrowserBackends",
-  },
-]);
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux ambiguous active Chrome extension alias guard",
-  oldTexts: [
-    {
-      oldText: String.raw`function tI({browserId:e,clientInfo:t,requestedBrowserId:r}){return ig(r)?og(t.type)===r:e===r}function ld`,
-      newText: String.raw`function tI({browserId:e,clientInfo:t,requestedBrowserId:r}){return ig(r)?og(t.type)===r:e===r}function codexLinuxRejectAmbiguousBrowserAlias(e,t){if(XI()!=="linux"||e!=="extension")return;let r=t.filter(n=>n.info?.type==="extension");if(r.length<=1)return;let n=r.map(o=>{let i=o.info.metadata??{},s=i.profileName??i.profileDirectory??i.extensionInstanceId??"unknown-profile";return o.id+" ("+s+")"}).join(", ");throw new Error('Multiple Chrome extension instances are connected. Use a specific browser id instead of "extension": '+n)}function ld`,
-    },
-  ],
-  alreadyText: "codexLinuxRejectAmbiguousBrowserAlias",
-});
-
-patchFileFirstMatch(path.join(scriptsDir, "browser-client.mjs"), {
-  label: "Linux ambiguous active Chrome extension alias check",
-  oldTexts: [
-    {
-      oldText: String.raw`if(ig(l.browser_id)){let _=li(l.browser_id);KI(_)}let p=await r.get(l.browser_id),`,
-      newText: String.raw`if(ig(l.browser_id)){let _=li(l.browser_id);KI(_),codexLinuxRejectAmbiguousBrowserAlias(l.browser_id,await r.getBrowsers())}let p=await r.get(l.browser_id),`,
-    },
-  ],
-  alreadyText: [
-    "codexLinuxRejectAmbiguousBrowserAlias(p.browser_id,i)",
-    "codexLinuxRejectAmbiguousBrowserAlias(l.browser_id,await r.getBrowsers())",
-  ],
-});
 
 patchFile(path.join(pluginDir, "skills", "control-chrome", "SKILL.md"), [
-  {
-    label: "safe multi-profile Chrome bootstrap",
-    oldText: `const { setupBrowserRuntime } = await import("<plugin root>/scripts/browser-client.mjs");
-await setupBrowserRuntime({ globals: globalThis });
-globalThis.browser = await agent.browsers.get("extension");
-nodeRepl.write(await browser.documentation());`,
-    newText: `const { setupBrowserRuntime } = await import("<plugin root>/scripts/browser-client.mjs");
-await setupBrowserRuntime({ globals: globalThis });
-const browserInfos = await agent.browsers.list();
-const extensionInfos = browserInfos.filter((info) => info.type === "extension");
-if (extensionInfos.length === 0) {
-  throw new Error("No Chrome extension browser is connected.");
-}
-if (extensionInfos.length === 1) {
-  globalThis.browser = await agent.browsers.get(extensionInfos[0].id);
-} else {
-  const summaries = [];
-  for (const info of extensionInfos) {
-    const candidate = await agent.browsers.get(info.id);
-    let tabs = [];
-    let error;
-    try {
-      tabs = await Promise.race([
-        candidate.user.openTabs(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Chrome profile tab probe timed out")),
-            750,
-          ),
-        ),
-      ]);
-    } catch (caught) {
-      error = String(caught);
-    }
-    summaries.push({
-      id: info.id,
-      metadata: info.metadata,
-      tabs: Array.isArray(tabs) ? tabs : [],
-      ...(error ? { error } : {}),
-    });
-  }
-  const activeSummaries = summaries.filter(
-    ({ tabs }) => Array.isArray(tabs) && tabs.length > 0,
-  );
-  if (activeSummaries.length === 1) {
-    globalThis.browser = await agent.browsers.get(activeSummaries[0].id);
-  } else {
-    nodeRepl.write(JSON.stringify(summaries, null, 2));
-    throw new Error(
-      activeSummaries.length > 1
-        ? "Multiple active Chrome extension instances are connected. Pick the id that matches the existing user tab/profile, then run globalThis.browser = await agent.browsers.get('<id>')."
-        : "No active Chrome user tabs were found. Pick the profile id to use before creating a new tab.",
-    );
-  }
-}
-nodeRepl.write(await browser.documentation());`,
-    alreadyText: "Multiple Chrome extension instances are connected",
-  },
-  {
-    label: "prefer active Chrome profile bootstrap",
-    oldText: `const { setupBrowserRuntime } = await import("<plugin root>/scripts/browser-client.mjs");
-await setupBrowserRuntime({ globals: globalThis });
-const browserInfos = await agent.browsers.list();
-const extensionInfos = browserInfos.filter((info) => info.type === "extension");
-if (extensionInfos.length === 0) {
-  throw new Error("No Chrome extension browser is connected.");
-}
-if (extensionInfos.length === 1) {
-  globalThis.browser = await agent.browsers.get(extensionInfos[0].id);
-} else {
-  const summaries = [];
-  for (const info of extensionInfos) {
-    const candidate = await agent.browsers.get(info.id);
-    const tabs = await candidate.user.openTabs().catch((error) => [
-      { error: String(error) },
-    ]);
-    summaries.push({ id: info.id, metadata: info.metadata, tabs });
-  }
-  nodeRepl.write(JSON.stringify(summaries, null, 2));
-  throw new Error(
-    "Multiple Chrome extension instances are connected. Pick the id that matches the existing user tab/profile, then run globalThis.browser = await agent.browsers.get('<id>').",
-  );
-}
-nodeRepl.write(await browser.documentation());`,
-    newText: `const { setupBrowserRuntime } = await import("<plugin root>/scripts/browser-client.mjs");
-await setupBrowserRuntime({ globals: globalThis });
-const browserInfos = await agent.browsers.list();
-const extensionInfos = browserInfos.filter((info) => info.type === "extension");
-if (extensionInfos.length === 0) {
-  throw new Error("No Chrome extension browser is connected.");
-}
-if (extensionInfos.length === 1) {
-  globalThis.browser = await agent.browsers.get(extensionInfos[0].id);
-} else {
-  const summaries = [];
-  for (const info of extensionInfos) {
-    const candidate = await agent.browsers.get(info.id);
-    let tabs = [];
-    let error;
-    try {
-      tabs = await Promise.race([
-        candidate.user.openTabs(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Chrome profile tab probe timed out")),
-            750,
-          ),
-        ),
-      ]);
-    } catch (caught) {
-      error = String(caught);
-    }
-    summaries.push({
-      id: info.id,
-      metadata: info.metadata,
-      tabs: Array.isArray(tabs) ? tabs : [],
-      ...(error ? { error } : {}),
-    });
-  }
-  const activeSummaries = summaries.filter(
-    ({ tabs }) => Array.isArray(tabs) && tabs.length > 0,
-  );
-  if (activeSummaries.length === 1) {
-    globalThis.browser = await agent.browsers.get(activeSummaries[0].id);
-  } else {
-    nodeRepl.write(JSON.stringify(summaries, null, 2));
-    throw new Error(
-      activeSummaries.length > 1
-        ? "Multiple active Chrome extension instances are connected. Pick the id that matches the existing user tab/profile, then run globalThis.browser = await agent.browsers.get('<id>')."
-        : "No active Chrome user tabs were found. Pick the profile id to use before creating a new tab.",
-    );
-  }
-}
-nodeRepl.write(await browser.documentation());`,
-    alreadyText: "activeSummaries",
-  },
-  {
-    label: "Chrome active profile bootstrap ignores tab probe errors",
-    oldText: `    const tabs = await candidate.user.openTabs().catch((error) => [
-      { error: String(error) },
-    ]);
-    summaries.push({ id: info.id, metadata: info.metadata, tabs });`,
-    newText: `    let tabs = [];
-    let error;
-    try {
-      tabs = await candidate.user.openTabs();
-    } catch (caught) {
-      error = String(caught);
-    }
-    summaries.push({
-      id: info.id,
-      metadata: info.metadata,
-      tabs: Array.isArray(tabs) ? tabs : [],
-      ...(error ? { error } : {}),
-    });`,
-    alreadyText: "tabs: Array.isArray(tabs) ? tabs : []",
-  },
-  {
-    label: "Chrome active profile bootstrap bounds tab probes",
-    oldText: `    try {
-      tabs = await candidate.user.openTabs();
-    } catch (caught) {`,
-    newText: `    try {
-      tabs = await Promise.race([
-        candidate.user.openTabs(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Chrome profile tab probe timed out")),
-            750,
-          ),
-        ),
-      ]);
-    } catch (caught) {`,
-    alreadyText: "Chrome profile tab probe timed out",
-  },
   {
     label: "Chrome profile launch guard",
     oldText: `Use the browser bound to \`browser\` for tasks in this skill.`,
@@ -684,6 +555,10 @@ When more than one Chrome extension instance is connected, enumerate \`agent.bro
 
 Do not call \`browser.tabs.new()\` until the intended browser/profile has been selected. On Linux, creating a tab on the wrong extension backend can start a different Chrome or Brave profile instead of using the already-open user profile.`,
     alreadyText: "creating a tab on the wrong extension backend",
+    skipIf: (source) =>
+      source.includes("App-provided in-app-browser context is ambient UI state") &&
+      source.includes('agent.browsers.get("extension")'),
+    skipDescription: "current explicit browser-selection policy supersedes this guard",
   },
 ]);
 
@@ -736,6 +611,8 @@ patchFile(path.join(scriptsDir, "installed-browsers.js"), [
     windowsExecutable: "chrome.exe",
   },
 ];`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative browser inventory is active",
   },
 ]);
 
@@ -751,6 +628,8 @@ patchFile(path.join(scriptsDir, "chrome-is-running.js"), [
   linux: new Set(["chrome", "google-chrome", "google-chrome-beta", "google-chrome-unstable", "brave", "brave-browser", "chromium", "chromium-browser"]),
   win32: new Set(["chrome.exe"]),
 };`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current declarative process inventory is active",
   },
 ]);
 
@@ -772,7 +651,12 @@ patchFileFirstMatch(path.join(scriptsDir, "check-extension-installed.js"), {
   return linuxChromeUserDataDirectory;`,
   ],
   newText: linuxExtensionAwareUserDataFallback,
-  alreadyText: "linuxChromiumUserDataDirectory",
+  alreadyText: [
+    "linuxChromiumUserDataDirectory",
+    "resolveBrowserUserDataDirectory({",
+  ],
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current browser-family profile diagnostics are active",
 });
 
 patchFileFirstMatch(path.join(scriptsDir, "check-extension-installed.js"), {
@@ -822,7 +706,12 @@ patchFileFirstMatch(path.join(scriptsDir, "open-chrome-window.js"), {
   return linuxChromeUserDataDirectory;`,
   ],
   newText: linuxDefaultBrowserUserDataFallback,
-  alreadyText: "linuxChromiumUserDataDirectory",
+  alreadyText: [
+    "linuxChromiumUserDataDirectory",
+    "resolveBrowserUserDataDirectory({",
+  ],
+  skipIf: () => usesCurrentBrowserDiagnostics,
+  skipDescription: "current browser-family profile diagnostics are active",
 });
 
 patchFileFirstMatch(path.join(scriptsDir, "open-chrome-window.js"), {
@@ -881,5 +770,7 @@ patchFile(path.join(scriptsDir, "open-chrome-window.js"), [
     command: linuxCommand,
     args: chromeArgs,
   };`,
+    skipIf: () => usesCurrentBrowserDiagnostics,
+    skipDescription: "current browser-family launch command is active",
   },
 ]);

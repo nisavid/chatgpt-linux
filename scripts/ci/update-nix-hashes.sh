@@ -3,19 +3,39 @@ set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 FLAKE_FILE="${FLAKE_FILE:-$REPO_DIR/flake.nix}"
-OFFICIAL_DMG_URL="${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/Codex.dmg}}"
-OFFICIAL_DMG_PATH="${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/Codex.dmg}}"
-VERIFY_LOG="${VERIFY_LOG:-/tmp/codex-nix-build-verify.log}"
+OFFICIAL_DMG_URL="${OFFICIAL_DMG_URL:-${UPSTREAM_DMG_URL:-https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg}}"
+OFFICIAL_DMG_PATH="${OFFICIAL_DMG_PATH:-${UPSTREAM_DMG_PATH:-/tmp/ChatGPT.dmg}}"
+VERIFY_LOG="${VERIFY_LOG:-/tmp/chatgpt-nix-build-verify.log}"
 # Official Codex Sparkle appcast (x64 runners). Used to gate the pin refresh on
 # the advertised latest release so we never pin a transient mid-rollout DMG.
 APPCAST_URL="${APPCAST_URL:-https://persistent.oaistatic.com/codex-app-prod/appcast-x64.xml}"
 
 PACKAGE_OUTPUTS=(
-    ".#codex-app"
-    ".#codex-app-computer-use-ui"
-    ".#codex-app-remote-mobile-control"
-    ".#codex-app-computer-use-ui-remote-mobile-control"
+    ".#chatgpt"
+    ".#chatgpt-remote-mobile-control"
     ".#installer"
+)
+
+if [ -n "${NIX_VERIFY_OUTPUTS:-}" ]; then
+    PACKAGE_OUTPUTS=()
+    while IFS= read -r output; do
+        [ -n "$output" ] || continue
+        if [[ ! "$output" =~ ^\.#[A-Za-z0-9._+-]+$ ]]; then
+            echo "Invalid Nix verification output: $output" >&2
+            exit 2
+        fi
+        PACKAGE_OUTPUTS+=("$output")
+    done <<< "$NIX_VERIFY_OUTPUTS"
+    if [ "${#PACKAGE_OUTPUTS[@]}" -eq 0 ]; then
+        echo "NIX_VERIFY_OUTPUTS did not contain any outputs." >&2
+        exit 2
+    fi
+fi
+
+NIX_PIN_DIFF_PATHS=(
+    "flake.nix"
+    "nix/native-modules/package.json"
+    "nix/native-modules/package-lock.json"
 )
 
 validate_sri_hash() {
@@ -143,6 +163,10 @@ run_nix_build() {
     return "$status"
 }
 
+nix_pin_files_changed() {
+    ! git -C "$REPO_DIR" diff --quiet -- "${NIX_PIN_DIFF_PATHS[@]}"
+}
+
 main() {
     mkdir -p "$(dirname "$OFFICIAL_DMG_PATH")"
     curl -fL --retry 3 -o "$OFFICIAL_DMG_PATH" "$OFFICIAL_DMG_URL"
@@ -153,19 +177,19 @@ main() {
         exit 1
     fi
 
-    # Refresh the version pins (codexVersion/electronVersion + native-modules)
+    # Refresh the version pins (chatgptVersion/electronVersion + native-modules)
     # from the DMG, gated on the official Sparkle appcast: only proceed when the
-    # moving Codex.dmg has caught up to the appcast's advertised latest version,
+    # moving ChatGPT.dmg has caught up to the appcast's advertised latest version,
     # so we never pin a transient mid-rollout build. Exit 75 means "rollout in
     # progress" and is treated as a no-op skip.
     local old_electron_version
     old_electron_version="$(read_flake_string electronVersion)"
 
     local validate_status=0
-    WRITE_PINS=1 APPCAST_URL="$APPCAST_URL" CODEX_DMG_SRI="$new_dmg_hash" \
+    WRITE_PINS=1 APPCAST_URL="$APPCAST_URL" CHATGPT_DMG_SRI="$new_dmg_hash" \
         "$REPO_DIR/scripts/ci/validate-nix-pins.sh" "$OFFICIAL_DMG_PATH" || validate_status="$?"
     if [ "$validate_status" -eq 75 ]; then
-        echo "Official Codex rollout in progress; leaving pins unchanged until Codex.dmg matches the appcast."
+        echo "Official Codex rollout in progress; leaving pins unchanged until ChatGPT.dmg matches the appcast."
         exit 0
     fi
     if [ "$validate_status" -ne 0 ]; then
@@ -176,14 +200,14 @@ main() {
     # build does not fail on the new download URLs.
     local new_electron_version
     new_electron_version="$(read_flake_string electronVersion)"
-    local new_codex_version
-    new_codex_version="$(read_flake_string codexVersion)"
+    local new_chatgpt_version
+    new_chatgpt_version="$(read_flake_string chatgptVersion)"
     local appcast_latest_version=""
     if [ -n "$APPCAST_URL" ]; then
         appcast_latest_version="$(fetch_appcast_latest_version "$APPCAST_URL")"
     fi
-    if [ -n "${appcast_latest_version:-}" ] && [ "$new_codex_version" != "$appcast_latest_version" ]; then
-        echo "WARN: Appcast latest version ($appcast_latest_version) differs from Codex.dmg version ($new_codex_version); proceeding with verified DMG pins." >&2
+    if [ -n "${appcast_latest_version:-}" ] && [ "$new_chatgpt_version" != "$appcast_latest_version" ]; then
+        echo "WARN: Appcast latest version ($appcast_latest_version) differs from ChatGPT.dmg version ($new_chatgpt_version); proceeding with verified DMG pins." >&2
     fi
     if [ "$old_electron_version" != "$new_electron_version" ]; then
         echo "Electron pin: $old_electron_version -> $new_electron_version; refreshing electron hashes."
@@ -197,17 +221,31 @@ main() {
         ( cd "$REPO_DIR/nix/native-modules" && npm install --package-lock-only --ignore-scripts >/dev/null )
     fi
 
-    current_dmg_hash="$(read_flake_hash "codexDmg = pkgs.fetchurl {" "hash = ")"
-    echo "Current Codex.dmg hash:  $current_dmg_hash"
-    echo "Official Codex.dmg hash: $new_dmg_hash"
-    replace_flake_hash "codexDmg = pkgs.fetchurl {" "hash = " "$new_dmg_hash"
+    current_dmg_hash="$(read_flake_hash "chatgptDmg = pkgs.fetchurl {" "hash = ")"
+    echo "Current ChatGPT.dmg hash:  $current_dmg_hash"
+    echo "Official ChatGPT.dmg hash: $new_dmg_hash"
+    replace_flake_hash "chatgptDmg = pkgs.fetchurl {" "hash = " "$new_dmg_hash"
+
+    if ! nix_pin_files_changed; then
+        echo "Nix pins unchanged; skipping package-output verification."
+        return 0
+    fi
+
+    if [ -n "${NIX_COMPARE_REF:-}" ]; then
+        if ! git -C "$REPO_DIR" rev-parse --verify --quiet "$NIX_COMPARE_REF^{commit}" >/dev/null; then
+            echo "Nix comparison ref is unavailable; continuing with verification: $NIX_COMPARE_REF"
+        elif git -C "$REPO_DIR" diff --quiet "$NIX_COMPARE_REF" -- "${NIX_PIN_DIFF_PATHS[@]}"; then
+            echo "Nix pins already match $NIX_COMPARE_REF; skipping duplicate package-output verification."
+            return 0
+        fi
+    fi
 
     # Seed the Nix store so the verification build can reuse the DMG that was
     # already downloaded for hashing instead of fetching the same artifact again.
     nix-store --add-fixed sha256 "$OFFICIAL_DMG_PATH" >/dev/null
 
     run_nix_build "$VERIFY_LOG" "${PACKAGE_OUTPUTS[@]}"
-    echo "Nix builds succeeded after refreshing the official DMG pins and Codex.dmg hash."
+    echo "Nix builds succeeded after refreshing the official DMG pins and ChatGPT.dmg hash."
 }
 
 case "${1:-}" in

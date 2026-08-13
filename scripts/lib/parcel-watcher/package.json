@@ -1,0 +1,28 @@
+{
+  "name": "chatgpt-parcel-watcher-offline",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@parcel/watcher": "file:archives/parcel-watcher-2.5.6.tgz",
+    "detect-libc": "file:archives/detect-libc-2.1.2.tgz",
+    "is-extglob": "file:archives/is-extglob-2.1.1.tgz",
+    "is-glob": "file:archives/is-glob-4.0.3.tgz",
+    "node-addon-api": "file:archives/node-addon-api-7.1.1.tgz",
+    "picomatch": "file:archives/picomatch-4.0.5.tgz"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-android-arm64": "file:archives/parcel-watcher-android-arm64-2.5.6.tgz",
+    "@parcel/watcher-darwin-arm64": "file:archives/parcel-watcher-darwin-arm64-2.5.6.tgz",
+    "@parcel/watcher-darwin-x64": "file:archives/parcel-watcher-darwin-x64-2.5.6.tgz",
+    "@parcel/watcher-freebsd-x64": "file:archives/parcel-watcher-freebsd-x64-2.5.6.tgz",
+    "@parcel/watcher-linux-arm-glibc": "file:archives/parcel-watcher-linux-arm-glibc-2.5.6.tgz",
+    "@parcel/watcher-linux-arm-musl": "file:archives/parcel-watcher-linux-arm-musl-2.5.6.tgz",
+    "@parcel/watcher-linux-arm64-glibc": "file:archives/parcel-watcher-linux-arm64-glibc-2.5.6.tgz",
+    "@parcel/watcher-linux-arm64-musl": "file:archives/parcel-watcher-linux-arm64-musl-2.5.6.tgz",
+    "@parcel/watcher-linux-x64-glibc": "file:archives/parcel-watcher-linux-x64-glibc-2.5.6.tgz",
+    "@parcel/watcher-linux-x64-musl": "file:archives/parcel-watcher-linux-x64-musl-2.5.6.tgz",
+    "@parcel/watcher-win32-arm64": "file:archives/parcel-watcher-win32-arm64-2.5.6.tgz",
+    "@parcel/watcher-win32-ia32": "file:archives/parcel-watcher-win32-ia32-2.5.6.tgz",
+    "@parcel/watcher-win32-x64": "file:archives/parcel-watcher-win32-x64-2.5.6.tgz"
+  }
+}

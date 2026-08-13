@@ -1,10 +1,10 @@
 //! Applies a pending wrapper (repo) update for the current install type.
 //!
-//! Invoked by the optional `codex-wrapper-updater` port integration when it sees a
+//! Invoked by the optional `chatgpt-wrapper-updater` port integration when it sees a
 //! pending apply marker. Detection (see [`crate::wrapper`]) only records that a
 //! newer wrapper build exists; this module performs the actual rebuild + install:
 //!
-//! - **User-local** installs reuse `~/.local/bin/codex-app-update`, which
+//! - **User-local** installs reuse `~/.local/bin/chatgpt-update`, which
 //!   pulls the managed checkout and re-runs `install.sh` in place as the user
 //!   (no privilege escalation).
 //! - **Packaged** installs fetch the wrapper source into a managed clone, build
@@ -18,6 +18,7 @@ use serde_json::Value;
 use std::{
     collections::HashSet,
     fs,
+    io::{BufReader, Read},
     os::unix::{
         fs::{self as unix_fs, PermissionsExt},
         process::CommandExt,
@@ -52,7 +53,7 @@ unsafe extern "C" {
 /// applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InstallType {
-    /// Native package under `/opt/codex-app` with a system package record.
+    /// Native package under `/opt/chatgpt` with a system package record.
     Packaged,
     /// `install.sh` install under the user's home (`~/.local/...`).
     UserLocal,
@@ -63,7 +64,7 @@ fn detect_install_type(config: &RuntimeConfig) -> InstallType {
     // directory. Prefer that authoritative hint: an app dir under /opt is the
     // packaged install; anything else (e.g. ~/.local/opt) is user-local. This
     // disambiguates machines that have both a .deb and a user-local install.
-    if let Some(app_dir) = std::env::var_os("CODEX_LINUX_APP_DIR") {
+    if let Some(app_dir) = std::env::var_os("CHATGPT_LINUX_APP_DIR") {
         let app_dir = PathBuf::from(app_dir);
         if app_dir.starts_with("/opt/") {
             return InstallType::Packaged;
@@ -73,7 +74,7 @@ fn detect_install_type(config: &RuntimeConfig) -> InstallType {
 
     // Fallback when no launcher hint is present: a packaged builder bundle plus
     // an installed system package indicates the packaged install.
-    let packaged_bundle = Path::new("/usr/lib/codex-app/update-builder");
+    let packaged_bundle = Path::new("/usr/lib/chatgpt/update-builder");
     if config.builder_bundle_root == packaged_bundle && install::is_primary_package_installed() {
         InstallType::Packaged
     } else {
@@ -113,7 +114,7 @@ pub async fn run_apply_wrapper_update(
         }
     };
 
-    match result {
+    let outcome = match result {
         Ok(()) => {
             state.installed_version = install::installed_package_version();
             state.candidate_version = None;
@@ -124,9 +125,9 @@ pub async fn run_apply_wrapper_update(
             state.artifact_paths.package_path = None;
             refresh_installed_wrapper_state(config, state);
             state.clear_wrapper_update_candidate();
-            state.save(&paths.state_file)?;
+            state.save_updater(&paths.state_file)?;
             let _ = notify::send(
-                "Codex App updated",
+                "ChatGPT updated",
                 "The newer Linux wrapper build has been installed.",
             );
             Ok(())
@@ -135,7 +136,14 @@ pub async fn run_apply_wrapper_update(
             warn!(?error, "wrapper update apply failed");
             Err(error)
         }
+    };
+    if let Err(error) = crate::cache_cleanup::prune_dmg_cache(&config.workspace_root, state) {
+        warn!(
+            ?error,
+            "failed to prune updater DMG cache after wrapper apply"
+        );
     }
+    outcome
 }
 
 fn refresh_installed_wrapper_state(config: &RuntimeConfig, state: &mut PersistedState) {
@@ -148,10 +156,18 @@ fn refresh_installed_wrapper_state(config: &RuntimeConfig, state: &mut Persisted
     }
 }
 
-/// User-local apply. Prefers the contrib `codex-app-update` helper (managed
+/// Force safety policy for every automated user-local installer command.
+fn configure_user_local_install_command(command: &mut Command) -> &mut Command {
+    // Automated updates must never inherit developer-only safety overrides.
+    command
+        .env("CHATGPT_ACCEPTANCE_OVERRIDE", "0")
+        .env("CHATGPT_INSTALL_ALLOW_RUNNING", "0")
+}
+
+/// User-local apply. Prefers the contrib `chatgpt-update` helper (managed
 /// checkout pull + in-place `install.sh`) when present; otherwise falls back to
 /// fetching the wrapper source and running its `install.sh` directly against the
-/// running app dir. Runs as the user, no privilege escalation.
+/// installed app dir. Runs as the user, no privilege escalation.
 async fn apply_user_local(
     config: &RuntimeConfig,
     paths: &RuntimePaths,
@@ -162,16 +178,16 @@ async fn apply_user_local(
         info!(helper = %helper.display(), "applying wrapper update via user-local helper");
         let mut cmd = Command::new(&helper);
         cmd.arg("--quiet");
+        configure_user_local_install_command(&mut cmd);
         if let Some(app_dir) = user_local_app_dir() {
             if let Some(install_root) = app_dir.parent() {
-                cmd.env("CODEX_USER_INSTALL_ROOT", install_root);
+                cmd.env("CHATGPT_USER_INSTALL_ROOT", install_root);
             }
         }
-        // The contrib helper honors a caller-set CODEX_PORT_INTEGRATIONS_CONFIG over
+        // The contrib helper honors a caller-set CHATGPT_PORT_INTEGRATIONS_CONFIG over
         // its repo-local default, so the in-app picker's selection wins.
         if let Some(config_path) = &integration_config {
-            cmd.env("CODEX_PORT_INTEGRATIONS_CONFIG", config_path);
-            cmd.env("CODEX_LINUX_FEATURES_CONFIG", config_path);
+            cmd.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", config_path);
         }
         let status = cmd
             .status()
@@ -184,7 +200,7 @@ async fn apply_user_local(
 
     // Fallback: rebuild in place from a freshly fetched wrapper source.
     let app_dir = user_local_app_dir()
-        .context("could not resolve user-local app dir (CODEX_LINUX_APP_DIR)")?;
+        .context("could not resolve user-local app dir (CHATGPT_LINUX_APP_DIR)")?;
     let install_root = app_dir
         .parent()
         .map(Path::to_path_buf)
@@ -201,12 +217,11 @@ async fn apply_user_local(
     info!(app_dir = %app_dir.display(), "rebuilding user-local app in place via install.sh");
     let mut cmd = Command::new(&install_sh);
     cmd.current_dir(&wrapper_src)
-        .env("CODEX_INSTALL_ALLOW_RUNNING", "1")
-        .env("CODEX_INSTALL_ROOT", &install_root)
-        .env("CODEX_INSTALL_DIR", &app_dir);
+        .env("CHATGPT_INSTALL_ROOT", &install_root)
+        .env("CHATGPT_INSTALL_DIR", &app_dir);
+    configure_user_local_install_command(&mut cmd);
     if let Some(config_path) = &integration_config {
-        cmd.env("CODEX_PORT_INTEGRATIONS_CONFIG", config_path);
-        cmd.env("CODEX_LINUX_FEATURES_CONFIG", config_path);
+        cmd.env("CHATGPT_PORT_INTEGRATIONS_CONFIG", config_path);
     }
     let status = cmd
         .status()
@@ -351,7 +366,7 @@ fn stage_enabled_local_integrations(
         }
 
         // If the fetched wrapper gained a real top-level integration with this
-        // id, prefer the upstream integration and avoid creating a duplicate.
+        // id, prefer the fetched integration and avoid creating a duplicate.
         if target_integrations_root
             .join(&id)
             .join("integration.json")
@@ -372,7 +387,7 @@ fn stage_enabled_local_integrations(
 
 fn user_local_update_helper() -> Option<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    let candidate = home.join(".local/bin/codex-app-update");
+    let candidate = home.join(".local/bin/chatgpt-update");
     if candidate.is_file()
         && candidate
             .metadata()
@@ -384,9 +399,9 @@ fn user_local_update_helper() -> Option<PathBuf> {
     }
 }
 
-/// The running user-local app directory, from the launcher's `CODEX_LINUX_APP_DIR`.
+/// The running user-local app directory, from the launcher's `CHATGPT_LINUX_APP_DIR`.
 fn user_local_app_dir() -> Option<PathBuf> {
-    std::env::var_os("CODEX_LINUX_APP_DIR")
+    std::env::var_os("CHATGPT_LINUX_APP_DIR")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
 }
@@ -401,9 +416,9 @@ async fn apply_packaged(
 ) -> Result<()> {
     if let Some(missing) = missing_build_dependency() {
         let body = format!(
-            "A newer Codex App build is available, but '{missing}' is needed to rebuild it. Install the build tools or update the package manually."
+            "A newer ChatGPT build is available, but '{missing}' is needed to rebuild it. Install the build tools or update the package manually."
         );
-        let _ = notify::send("Codex App update available", &body);
+        let _ = notify::send("ChatGPT update available", &body);
         println!("{body}");
         anyhow::bail!("missing build dependency for wrapper update: {missing}");
     }
@@ -412,11 +427,12 @@ async fn apply_packaged(
     seed_packaged_builder_payload(config, &wrapper_src)?;
     let integration_config = effective_integration_config(config);
     stage_enabled_local_integrations(config, &wrapper_src, integration_config.as_deref())?;
-    let dmg_path = cached_or_downloaded_dmg(config, state, paths).await?;
+    let cached_dmg = cached_or_downloaded_dmg(config, state, paths).await?;
+    let dmg_path = &cached_dmg.path;
 
     // Keep wrapper rebuild workspaces unique even when the official app version
     // is unchanged; the produced package still uses the official app version.
-    let workspace_version = derive_workspace_version(&dmg_path)?;
+    let workspace_version = derive_workspace_version(dmg_path)?;
 
     let artifacts = builder::build_update_from(
         &wrapper_src,
@@ -424,7 +440,7 @@ async fn apply_packaged(
         state,
         paths,
         &workspace_version,
-        &dmg_path,
+        dmg_path,
     )
     .await
     .context("wrapper package rebuild failed")?;
@@ -454,7 +470,7 @@ async fn apply_packaged(
     }
 
     state.installed_version = install::installed_package_version();
-    let _ = state.save(&paths.state_file);
+    let _ = state.save_updater(&paths.state_file);
     Ok(())
 }
 
@@ -629,19 +645,32 @@ fn run_git(args: &[&str]) -> Result<()> {
 }
 
 /// Returns the cached DMG path, downloading it if no usable cache exists.
+struct CachedDmg {
+    path: PathBuf,
+    _lease: crate::cache_cleanup::DmgCacheLease,
+}
+
 async fn cached_or_downloaded_dmg(
     config: &RuntimeConfig,
     state: &mut PersistedState,
     paths: &RuntimePaths,
-) -> Result<PathBuf> {
+) -> Result<CachedDmg> {
     if let Some(dmg) = state.artifact_paths.dmg_path.clone() {
         if dmg.exists() {
-            trust_dmg_for_wrapper_rebuild(config, state, paths, &dmg, None)?;
-            return Ok(dmg);
+            let downloads_dir = config.workspace_root.join("downloads");
+            let lease = crate::cache_cleanup::acquire_dmg_cache_lease(&downloads_dir).await?;
+            if dmg.exists() {
+                trust_dmg_for_wrapper_rebuild(config, state, paths, &dmg, None)?;
+                return Ok(CachedDmg {
+                    path: dmg,
+                    _lease: lease,
+                });
+            }
+            drop(lease);
         }
     }
 
-    let client = reqwest::Client::builder().build()?;
+    let client = dmg_source::http_client()?;
     let downloads_dir = config.workspace_root.join("downloads");
     let downloaded =
         dmg_source::download_dmg(&client, &config.dmg_url, &downloads_dir, chrono::Utc::now())
@@ -655,8 +684,11 @@ async fn cached_or_downloaded_dmg(
         Some(downloaded.sha256.as_str()),
     )?;
     state.artifact_paths.dmg_path = Some(downloaded.path.clone());
-    let _ = state.save(&paths.state_file);
-    Ok(downloaded.path)
+    state.save_updater(&paths.state_file)?;
+    Ok(CachedDmg {
+        path: downloaded.path,
+        _lease: downloaded.lease,
+    })
 }
 
 fn trust_dmg_for_wrapper_rebuild(
@@ -683,7 +715,7 @@ fn trust_dmg_for_wrapper_rebuild(
                 message: Some("Wrapper rebuild DMG matched repo-trusted metadata".to_string()),
             });
             state.artifact_paths.dmg_path = Some(dmg_path.to_path_buf());
-            state.save(&paths.state_file)?;
+            state.save_updater(&paths.state_file)?;
             Ok(())
         }
         Err(error) => {
@@ -696,7 +728,7 @@ fn trust_dmg_for_wrapper_rebuild(
                 message: Some(error.to_string()),
             });
             state.artifact_paths.dmg_path = Some(dmg_path.to_path_buf());
-            let _ = state.save(&paths.state_file);
+            let _ = state.save_updater(&paths.state_file);
             Err(error)
         }
     }
@@ -706,10 +738,20 @@ fn trust_dmg_for_wrapper_rebuild(
 /// contents, matching the DMG update path's workspace naming scheme.
 fn derive_workspace_version(dmg_path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
-    let bytes = std::fs::read(dmg_path)
-        .with_context(|| format!("Failed to read {}", dmg_path.display()))?;
+    let file = fs::File::open(dmg_path)
+        .with_context(|| format!("Failed to open {}", dmg_path.display()))?;
+    let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
-    hasher.update(&bytes);
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let bytes_read = reader
+            .read(&mut buffer)
+            .with_context(|| format!("Failed to read {}", dmg_path.display()))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
     let sha = hasher
         .finalize()
         .iter()
@@ -770,7 +812,7 @@ mod tests {
 
     fn test_config(root: &Path) -> RuntimeConfig {
         RuntimeConfig {
-            dmg_url: "https://example.com/Codex.dmg".to_string(),
+            dmg_url: "https://example.com/ChatGPT.dmg".to_string(),
             initial_check_delay_seconds: 1,
             check_interval_hours: 6,
             auto_install_on_app_exit: true,
@@ -783,7 +825,45 @@ mod tests {
             enable_wrapper_updates: true,
             wrapper_remote: String::new(),
             wrapper_branch: "main".to_string(),
+            generated_artifact_cleanup: Default::default(),
         }
+    }
+
+    #[test]
+    fn automated_user_local_commands_force_safety_overrides_off() {
+        for program in ["chatgpt-update", "install.sh"] {
+            let mut command = Command::new(program);
+            configure_user_local_install_command(&mut command);
+            let envs = command
+                .get_envs()
+                .map(|(key, value)| (key.to_owned(), value.map(ToOwned::to_owned)))
+                .collect::<std::collections::HashMap<_, _>>();
+
+            assert_eq!(
+                envs.get(std::ffi::OsStr::new("CHATGPT_INSTALL_ALLOW_RUNNING"))
+                    .and_then(Option::as_deref),
+                Some(std::ffi::OsStr::new("0")),
+                "{program} must not bypass the running-app gate"
+            );
+            assert_eq!(
+                envs.get(std::ffi::OsStr::new("CHATGPT_ACCEPTANCE_OVERRIDE"))
+                    .and_then(Option::as_deref),
+                Some(std::ffi::OsStr::new("0")),
+                "{program} must not bypass acceptance"
+            );
+        }
+    }
+
+    #[test]
+    fn derives_workspace_version_with_streamed_dmg_hash() -> Result<()> {
+        let root = tempdir()?;
+        let dmg = root.path().join("ChatGPT.dmg");
+        std::fs::write(&dmg, b"codex-dmg-test-payload")?;
+
+        let version = derive_workspace_version(&dmg)?;
+
+        assert!(version.ends_with("+678cd508"));
+        Ok(())
     }
 
     fn write_local_integration(root: &Path, id: &str) {
@@ -950,6 +1030,15 @@ mod tests {
         let source_node = config.builder_bundle_root.join("node-runtime/bin/node");
         std::fs::create_dir_all(source_node.parent().unwrap())?;
         std::fs::write(&source_node, b"managed node")?;
+        let source_broker = config
+            .builder_bundle_root
+            .join("prebuilt-helpers/chatgpt-generated-app-mutation-broker");
+        std::fs::create_dir_all(source_broker.parent().unwrap())?;
+        std::fs::write(&source_broker, b"generation-bound broker")?;
+        std::fs::write(
+            source_broker.with_extension("sha256"),
+            b"fixture digest manifest\n",
+        )?;
 
         let wrapper_src = root.path().join("wrapper-src");
         std::fs::create_dir_all(&wrapper_src)?;
@@ -960,6 +1049,18 @@ mod tests {
             std::fs::read(wrapper_src.join("node-runtime/bin/node"))?,
             b"managed node"
         );
+        assert_eq!(
+            std::fs::read(
+                wrapper_src.join("prebuilt-helpers/chatgpt-generated-app-mutation-broker")
+            )?,
+            b"generation-bound broker"
+        );
+        assert_eq!(
+            std::fs::read(
+                wrapper_src.join("prebuilt-helpers/chatgpt-generated-app-mutation-broker.sha256")
+            )?,
+            b"fixture digest manifest\n"
+        );
         Ok(())
     }
 
@@ -969,7 +1070,7 @@ mod tests {
         let root = tempdir()?;
         let paths = test_paths(root.path());
         let mut config = test_config(root.path());
-        config.wrapper_remote = "https://example.com/codex-app-linux.git".to_string();
+        config.wrapper_remote = "https://example.com/chatgpt-linux.git".to_string();
         let bin_dir = root.path().join("bin");
         std::fs::create_dir_all(&bin_dir)?;
         let fake_git = bin_dir.join("git");
@@ -977,7 +1078,7 @@ mod tests {
         std::fs::write(
             &fake_git,
             r#"#!/bin/sh
-printf '%s\n' "$*" >> "$CODEX_TEST_GIT_ARGS_LOG"
+printf '%s\n' "$*" >> "$CHATGPT_TEST_GIT_ARGS_LOG"
 if [ "$1" = "clone" ]; then
   dest=""
   for arg in "$@"; do dest="$arg"; done
@@ -991,13 +1092,13 @@ exit 0
         std::fs::set_permissions(&fake_git, permissions)?;
 
         let old_path = std::env::var_os("PATH");
-        let old_log = std::env::var_os("CODEX_TEST_GIT_ARGS_LOG");
+        let old_log = std::env::var_os("CHATGPT_TEST_GIT_ARGS_LOG");
         let mut path_entries = vec![bin_dir];
         if let Some(path) = old_path.as_ref() {
             path_entries.extend(std::env::split_paths(path));
         }
         std::env::set_var("PATH", std::env::join_paths(path_entries)?);
-        std::env::set_var("CODEX_TEST_GIT_ARGS_LOG", &log_path);
+        std::env::set_var("CHATGPT_TEST_GIT_ARGS_LOG", &log_path);
 
         let result = ensure_wrapper_source(&config, &paths, Some("abc123def456"));
 
@@ -1007,15 +1108,15 @@ exit 0
             std::env::remove_var("PATH");
         }
         if let Some(value) = old_log {
-            std::env::set_var("CODEX_TEST_GIT_ARGS_LOG", value);
+            std::env::set_var("CHATGPT_TEST_GIT_ARGS_LOG", value);
         } else {
-            std::env::remove_var("CODEX_TEST_GIT_ARGS_LOG");
+            std::env::remove_var("CHATGPT_TEST_GIT_ARGS_LOG");
         }
 
         result?;
         let log = std::fs::read_to_string(log_path)?;
         assert!(log.contains(
-            "fetch --depth 1 --quiet https://example.com/codex-app-linux.git abc123def456"
+            "fetch --depth 1 --quiet https://example.com/chatgpt-linux.git abc123def456"
         ));
         assert!(log.contains("reset --hard --quiet abc123def456"));
         Ok(())
@@ -1027,7 +1128,7 @@ exit 0
         let config = test_config(root.path());
         let paths = test_paths(root.path());
         let mut state = PersistedState::new(true);
-        let dmg_path = root.path().join("Codex.dmg");
+        let dmg_path = root.path().join("ChatGPT.dmg");
         std::fs::write(&dmg_path, b"trusted wrapper rebuild dmg")?;
         let dmg_sha256 = package_verification::file_sha256(&dmg_path)?;
         let manifest_path = trust::trusted_dmg_manifest_path(&config.builder_bundle_root);
@@ -1063,7 +1164,7 @@ exit 0
         let candidate_version = "2026.05.31.225946+abcdef12";
         let dmg_sha256 = "a".repeat(64);
         let workspace_dir = config.workspace_root.join("workspaces/test");
-        let package_path = workspace_dir.join("dist/codex-app_26.527.31326_amd64.deb");
+        let package_path = workspace_dir.join("dist/chatgpt_26.527.31326_amd64.deb");
         std::fs::create_dir_all(package_path.parent().unwrap())?;
         std::fs::write(&package_path, b"wrapper package")?;
         let package_sha256 = package_verification::file_sha256(&package_path)?;
@@ -1072,7 +1173,7 @@ exit 0
             package_kind: "deb".to_string(),
             package_path: std::fs::canonicalize(&package_path)?,
             workspace_dir: std::fs::canonicalize(&workspace_dir)?,
-            package_name: "codex-app".to_string(),
+            package_name: "chatgpt".to_string(),
             package_version: "26.527.31326".to_string(),
             sha256: package_sha256.clone(),
             candidate_version: candidate_version.to_string(),
@@ -1088,7 +1189,7 @@ exit 0
         )?;
 
         assert_eq!(expected.sha256(), package_sha256);
-        assert_eq!(expected.package_name(), "codex-app");
+        assert_eq!(expected.package_name(), "chatgpt");
         assert_eq!(expected.package_version(), "26.527.31326");
         Ok(())
     }
@@ -1110,7 +1211,7 @@ exit 0
   printf 'SSH_ASKPASS=%s\n' "$SSH_ASKPASS"
   printf 'GCM_INTERACTIVE=%s\n' "$GCM_INTERACTIVE"
   printf 'GIT_SSH_COMMAND=%s\n' "$GIT_SSH_COMMAND"
-} > "$CODEX_TEST_GIT_ENV_RECORD"
+} > "$CHATGPT_TEST_GIT_ENV_RECORD"
 exit 0
 "#,
         )?;
@@ -1119,13 +1220,13 @@ exit 0
         std::fs::set_permissions(&fake_git, permissions)?;
 
         let old_path = std::env::var_os("PATH");
-        let old_record = std::env::var_os("CODEX_TEST_GIT_ENV_RECORD");
+        let old_record = std::env::var_os("CHATGPT_TEST_GIT_ENV_RECORD");
         let mut path_entries = vec![bin_dir];
         if let Some(path) = old_path.as_ref() {
             path_entries.extend(std::env::split_paths(path));
         }
         std::env::set_var("PATH", std::env::join_paths(path_entries)?);
-        std::env::set_var("CODEX_TEST_GIT_ENV_RECORD", &record);
+        std::env::set_var("CHATGPT_TEST_GIT_ENV_RECORD", &record);
 
         let result = run_git(&["status"]);
 
@@ -1135,9 +1236,9 @@ exit 0
             std::env::remove_var("PATH");
         }
         if let Some(value) = old_record {
-            std::env::set_var("CODEX_TEST_GIT_ENV_RECORD", value);
+            std::env::set_var("CHATGPT_TEST_GIT_ENV_RECORD", value);
         } else {
-            std::env::remove_var("CODEX_TEST_GIT_ENV_RECORD");
+            std::env::remove_var("CHATGPT_TEST_GIT_ENV_RECORD");
         }
 
         result?;

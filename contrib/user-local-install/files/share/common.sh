@@ -4,20 +4,20 @@ set -euo pipefail
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
 
-INSTALL_ROOT="${CODEX_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/codex-app}"
+INSTALL_ROOT="${CHATGPT_USER_INSTALL_ROOT:-${XDG_DATA_HOME}/chatgpt}"
 DATA_DIR="$INSTALL_ROOT"
 APP_DIR="${INSTALL_ROOT}/app"
-DMG_FILE="${INSTALL_ROOT}/Codex.dmg"
-DMG_URL="https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+DMG_FILE="${INSTALL_ROOT}/ChatGPT.dmg"
+DMG_URL="https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
 
-STATE_DIR="${XDG_STATE_HOME}/codex-app"
+STATE_DIR="${XDG_STATE_HOME}/chatgpt"
 LOG_DIR="${STATE_DIR}/logs"
 METADATA_FILE="${STATE_DIR}/metadata.env"
 INSTALL_CONFIG_FILE="${STATE_DIR}/install.env"
-ICON_PATH="${XDG_DATA_HOME}/icons/hicolor/512x512/apps/codex-app.png"
-DESKTOP_FILE="${XDG_DATA_HOME}/applications/codex-app.desktop"
+ICON_PATH="${XDG_DATA_HOME}/icons/hicolor/512x512/apps/chatgpt.png"
+DESKTOP_FILE="${XDG_DATA_HOME}/applications/chatgpt.desktop"
 
-REPO_DIR_DEFAULT="${HOME}/workspace/codex-app-linux"
+REPO_DIR_DEFAULT="${HOME}/workspace/chatgpt-linux"
 SOURCE_REPO_DIR="$REPO_DIR_DEFAULT"
 MANAGED_REPO_DIR="${DATA_DIR}/managed-repo"
 BUILD_REPO_DIR=""
@@ -88,7 +88,7 @@ effective_repo_dir() {
 # install.sh caches the upstream DMG next to itself in the build repo
 # checkout, never under $OPT_ROOT.
 cached_dmg_file() {
-    printf '%s/Codex.dmg\n' "$(effective_repo_dir)"
+    printf '%s/ChatGPT.dmg\n' "$(effective_repo_dir)"
 }
 
 current_repo_head() {
@@ -451,7 +451,7 @@ apply_source_overlay() {
 copy_enabled_local_integrations() {
     local config_path source_local_root target_local_root integration_id source_dir target_dir
 
-    config_path="${CODEX_PORT_INTEGRATIONS_CONFIG:-}"
+    config_path="${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}"
     if [ -z "$config_path" ] && [ -f "$SOURCE_REPO_DIR/port-integrations.json" ]; then
         config_path="$SOURCE_REPO_DIR/port-integrations.json"
     fi
@@ -547,7 +547,13 @@ header_value() {
 extract_icon() {
     ensure_layout
     local dmg_file source_icon tmp_dir
-    source_icon="${SOURCE_REPO_DIR:-$REPO_DIR_DEFAULT}/assets/codex.png"
+    source_icon="$APP_DIR/.chatgpt-linux/chatgpt.png"
+    if [ -f "$source_icon" ]; then
+        cp "$source_icon" "$ICON_PATH"
+        return 0
+    fi
+
+    source_icon="${SOURCE_REPO_DIR:-$REPO_DIR_DEFAULT}/assets/chatgpt-linux.png"
     if [ -f "$source_icon" ]; then
         cp "$source_icon" "$ICON_PATH"
         return 0
@@ -557,7 +563,7 @@ extract_icon() {
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "$tmp_dir"' RETURN
 
-    7z e -y "$dmg_file" "Codex Installer/Codex.app/Contents/Resources/electron.icns" "-o${tmp_dir}" >/dev/null
+    7z e -y "$dmg_file" "ChatGPT Installer/ChatGPT.app/Contents/Resources/electron.icns" "-o${tmp_dir}" >/dev/null
     python3 - "$tmp_dir/electron.icns" "$ICON_PATH" <<'PY'
 from PIL import Image
 import sys
@@ -585,7 +591,7 @@ record_metadata() {
         repo_origin="unavailable"
     fi
     dmg_file="$(cached_dmg_file)"
-    if [ "${CODEX_USER_LOCAL_RECORD_DMG_FINGERPRINT:-0}" = "1" ] && [ -f "$dmg_file" ]; then
+    if [ "${CHATGPT_USER_LOCAL_RECORD_DMG_FINGERPRINT:-0}" = "1" ] && [ -f "$dmg_file" ]; then
         dmg_sha256="$(sha256sum "$dmg_file" | awk '{ print $1 }')"
         dmg_size="$(stat -c '%s' "$dmg_file")"
     else

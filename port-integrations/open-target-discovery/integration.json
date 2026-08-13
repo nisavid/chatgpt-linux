@@ -4,6 +4,6 @@
   "description": "Adds Linux terminal/editor target discovery and richer file-manager launching to Open menus.",
   "defaultEnabled": true,
   "entrypoints": {
-    "mainBundlePatch": "./patch.js"
+    "patchDescriptors": "./patch.js"
   }
 }

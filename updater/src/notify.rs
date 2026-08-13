@@ -4,10 +4,10 @@ use anyhow::Result;
 use notify_rust::{Hint, Timeout};
 use std::path::{Path, PathBuf};
 
-const APP_NAME: &str = "Codex App";
-const DESKTOP_ENTRY: &str = "codex-app";
-const PACKAGED_BUNDLE_ICON_PATH: &str = "/opt/codex-app/.codex-linux/codex-app.png";
-const SYSTEM_ICON_PATH: &str = "/usr/share/icons/hicolor/256x256/apps/codex-app.png";
+const APP_NAME: &str = "ChatGPT";
+const DESKTOP_ENTRY: &str = "chatgpt";
+const PACKAGED_BUNDLE_ICON_PATH: &str = "/opt/chatgpt/.chatgpt-linux/chatgpt.png";
+const SYSTEM_ICON_PATH: &str = "/usr/share/icons/hicolor/256x256/apps/chatgpt.png";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionResponse {
@@ -103,7 +103,7 @@ where
 
 fn repo_icon_from_exe(current_exe: &Path) -> Option<PathBuf> {
     let target_dir = current_exe.parent()?.parent()?;
-    Some(target_dir.parent()?.join("assets/codex.png"))
+    Some(target_dir.parent()?.join("assets/chatgpt.png"))
 }
 
 fn path_to_file_uri(path: &Path) -> String {
@@ -166,10 +166,12 @@ mod tests {
 
     #[test]
     fn file_uri_escapes_spaces_and_non_ascii_bytes() {
-        let path = Path::new(std::ffi::OsStr::from_bytes(b"/tmp/codex icon-\xC3\xB1.png"));
+        let path = Path::new(std::ffi::OsStr::from_bytes(
+            b"/tmp/chatgpt icon-\xC3\xB1.png",
+        ));
 
         let uri = path_to_file_uri(path);
 
-        assert_eq!(uri, "file:///tmp/codex%20icon-%C3%B1.png");
+        assert_eq!(uri, "file:///tmp/chatgpt%20icon-%C3%B1.png");
     }
 }

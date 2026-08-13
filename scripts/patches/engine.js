@@ -3,7 +3,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  PATCH_STATUS_APPLIED,
+  PATCH_STATUS_FAILED_REQUIRED,
+  PATCH_STATUS_SKIPPED_DISABLED,
+  PATCH_STATUS_SKIPPED_OPTIONAL,
+  PATCH_STATUS_SKIPPED_TARGET,
   captureWarnings,
+  captureWarningsAsync,
   isCriticalPolicy,
   patchStatusFromChange,
   recordPatch,
@@ -12,18 +18,29 @@ const {
   linuxTargetSummary,
 } = require("../lib/linux-target-context.js");
 const {
-  patchAssetFiles,
-} = require("./shared.js");
+  patchAssetFilesWithCapability,
+  patchUniqueAssetFileWithCapability,
+} = require("./lib/assets.js");
+const {
+  GeneratedAppIntegrityError,
+  isGeneratedAppIntegrityError,
+} = require("./lib/generated-app-mutation-client.js");
+const {
+  CI_POLICIES,
+  PHASE_EXTRACTED_APP_POST_WEBVIEW,
+  PHASE_EXTRACTED_APP_PRE_WEBVIEW,
+  PHASE_MAIN_BUNDLE,
+  PHASE_WEBVIEW_ASSET,
+  PATCH_PHASES,
+  normalizeCiPolicy,
+} = require("./descriptor.js");
 const {
   drainStrategies,
 } = require("./strategy-telemetry.js");
 
-const FAILED_REQUIRED = "failed-required";
-const LEGACY_REQUIRED_UPSTREAM = "required-upstream";
-const REQUIRED_UPSTREAM = "required-official-dmg";
-const SKIPPED_DISABLED = "skipped-disabled";
-const SKIPPED_OPTIONAL = "skipped-optional";
-const SKIPPED_TARGET = "skipped-target";
+const REQUIRED_OFFICIAL_DMG = "required-official-dmg";
+const OPTIONAL = "optional";
+const OPT_IN = "opt-in";
 
 function descriptorId(descriptor) {
   return descriptor.id ?? descriptor.name;
@@ -40,22 +57,36 @@ function normalizeDescriptor(descriptor, sourcePath = null, index = 0) {
   if (typeof descriptor.apply !== "function") {
     throw new Error(`Patch descriptor '${id}' must export an apply function`);
   }
-  return {
+  if (descriptor.assetMatch != null && typeof descriptor.assetMatch !== "function") {
+    throw new Error(`Patch descriptor '${id}' assetMatch must be a function`);
+  }
+  const ciPolicy = normalizeCiPolicy(descriptor.ciPolicy ?? OPTIONAL);
+  if (!CI_POLICIES.has(ciPolicy)) {
+    throw new Error(
+      `Patch descriptor '${id}' has unsupported ciPolicy '${ciPolicy}' in ${sourcePath ?? "inline descriptor"}`,
+    );
+  }
+  const normalized = {
     ...descriptor,
+    ciPolicy,
     id,
     name: descriptor.name ?? id,
-    phase: descriptor.phase ?? "main-bundle",
-    sourceKind: descriptor.sourceKind ?? (descriptor.featureId != null ? "feature" : "core"),
-    ciPolicy: descriptor.ciPolicy === LEGACY_REQUIRED_UPSTREAM ? REQUIRED_UPSTREAM : descriptor.ciPolicy,
+    phase: descriptor.phase ?? PHASE_MAIN_BUNDLE,
+    sourceKind: descriptor.sourceKind ??
+      (descriptor.integrationId != null ? "integration" : descriptor.featureId != null ? "feature" : "core"),
     order: descriptor.order ?? 10_000 + index,
     sourcePath,
   };
+  if (!PATCH_PHASES.has(normalized.phase)) {
+    throw new Error(
+      `Patch descriptor '${id}' has unsupported phase '${normalized.phase}' in ${sourcePath ?? "inline descriptor"}`,
+    );
+  }
+  return normalized;
 }
 
 function descriptorListFromExports(moduleExports, sourcePath) {
   const exported = moduleExports?.descriptors ??
-    moduleExports?.patches ??
-    moduleExports?.default ??
     moduleExports;
   const descriptors = Array.isArray(exported) ? exported : [exported];
   return descriptors.map((descriptor, index) => normalizeDescriptor(descriptor, sourcePath, index));
@@ -135,7 +166,7 @@ function patchTargetSummary(descriptor, context) {
 }
 
 function descriptorFailureStatus(descriptor) {
-  return isCriticalPolicy(descriptor.ciPolicy) ? FAILED_REQUIRED : SKIPPED_OPTIONAL;
+  return isCriticalPolicy(descriptor.ciPolicy) ? PATCH_STATUS_FAILED_REQUIRED : PATCH_STATUS_SKIPPED_OPTIONAL;
 }
 
 function describePatchError(descriptor, error) {
@@ -153,9 +184,39 @@ function runDescriptorApply(descriptor, fn, fallbackValue) {
     try {
       return { ok: true, value: fn() };
     } catch (error) {
+      if (isGeneratedAppIntegrityError(error)) {
+        throw error;
+      }
       return { ok: false, error, value: fallbackValue };
     }
   });
+  const outcome = captured.value;
+  return {
+    value: outcome.value,
+    warnings: captured.warnings,
+    error: outcome.ok ? null : outcome.error,
+    strategies: drainStrategies(),
+  };
+}
+
+async function runDescriptorApplyAsync(descriptor, fn, fallbackValue) {
+  drainStrategies();
+  let captured;
+  try {
+    captured = await captureWarningsAsync(async () => {
+      try {
+        return { ok: true, value: await fn() };
+      } catch (error) {
+        if (isGeneratedAppIntegrityError(error)) {
+          throw error;
+        }
+        return { ok: false, error, value: fallbackValue };
+      }
+    });
+  } catch (error) {
+    drainStrategies();
+    throw error;
+  }
   const outcome = captured.value;
   return {
     value: outcome.value,
@@ -170,8 +231,8 @@ function patchStatusFromDescriptorChange(descriptor, changed, warnings) {
 }
 
 function normalizeDescriptorStatus(descriptor, status) {
-  if (isCriticalPolicy(descriptor.ciPolicy) && status === SKIPPED_OPTIONAL) {
-    return FAILED_REQUIRED;
+  if (isCriticalPolicy(descriptor.ciPolicy) && status === PATCH_STATUS_SKIPPED_OPTIONAL) {
+    return PATCH_STATUS_FAILED_REQUIRED;
   }
   return status;
 }
@@ -226,13 +287,13 @@ function applyMainBundlePatchDescriptors(source, descriptors, context, report) {
   const warnings = [];
   const coreWarnings = [];
   const requiredCoreWarnings = [];
-  for (const descriptor of descriptors.filter((patch) => patch.phase === "main-bundle")) {
+  for (const descriptor of descriptors.filter((patch) => patch.phase === PHASE_MAIN_BUNDLE)) {
     if (!descriptorAppliesTo(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_TARGET, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_TARGET, null, context);
       continue;
     }
     if (!descriptorEnabled(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_DISABLED, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_DISABLED, null, context);
       continue;
     }
 
@@ -245,7 +306,7 @@ function applyMainBundlePatchDescriptors(source, descriptors, context, report) {
     warnings.push(...result.warnings);
     if ((descriptor.sourceKind ?? "core") === "core") {
       coreWarnings.push(...result.warnings);
-      if (descriptor.ciPolicy === REQUIRED_UPSTREAM) {
+      if (descriptor.ciPolicy === REQUIRED_OFFICIAL_DMG) {
         requiredCoreWarnings.push(...result.warnings);
       }
     }
@@ -270,7 +331,20 @@ function applyMainBundlePatchDescriptors(source, descriptors, context, report) {
 function defaultWebviewMissingWarning(extractedDir, descriptor) {
   const missingDescription = descriptor.missingDescription ?? "webview asset bundle";
   const skipDescription = descriptor.skipDescription ?? descriptor.id;
-  return `WARN: Could not find ${missingDescription} in ${path.join(extractedDir, "webview", "assets")} — skipping ${skipDescription}`;
+  return `WARN: Could not find ${missingDescription} in webview/assets — skipping ${skipDescription}`;
+}
+
+function defaultWebviewAmbiguousWarning(extractedDir, descriptor) {
+  const missingDescription = descriptor.missingDescription ?? "webview asset bundle";
+  const skipDescription = descriptor.skipDescription ?? descriptor.id;
+  return `WARN: Found multiple ${missingDescription} contracts in webview/assets — skipping ${skipDescription}`;
+}
+
+function assetPatchMetadata(patchResult, strategies) {
+  return {
+    ...(patchResult.assetName == null ? {} : { assetName: patchResult.assetName }),
+    ...(strategyMetadata(strategies) ?? {}),
+  };
 }
 
 function recordAssetDescriptorPatch(report, descriptor, patchResult, warnings, context, strategies = null) {
@@ -281,7 +355,7 @@ function recordAssetDescriptorPatch(report, descriptor, patchResult, warnings, c
       descriptorFailureStatus(descriptor),
       warnings[0] ?? "no matching bundle found",
       context,
-      strategyMetadata(strategies),
+      assetPatchMetadata(patchResult, strategies),
     );
     return;
   }
@@ -291,18 +365,25 @@ function recordAssetDescriptorPatch(report, descriptor, patchResult, warnings, c
     patchStatusFromDescriptorChange(descriptor, patchResult.changed > 0, warnings),
     warnings[0] ?? null,
     context,
-    strategyMetadata(strategies),
+    assetPatchMetadata(patchResult, strategies),
   );
 }
 
-function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, report) {
-  for (const descriptor of descriptors.filter((patch) => patch.phase === "webview-asset")) {
+async function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, report) {
+  const capability = context?.generatedAppMutation;
+  if (capability == null) {
+    throw new GeneratedAppIntegrityError("generated-app mutation capability is unavailable", {
+      code: "capability-unavailable",
+      operation: "webview",
+    });
+  }
+  for (const descriptor of descriptors.filter((patch) => patch.phase === PHASE_WEBVIEW_ASSET)) {
     if (!descriptorAppliesTo(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_TARGET, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_TARGET, null, context);
       continue;
     }
     if (!descriptorEnabled(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_DISABLED, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_DISABLED, null, context);
       continue;
     }
 
@@ -312,10 +393,26 @@ function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, r
     }
     const missingWarning = descriptor.missingWarning ??
       defaultWebviewMissingWarning(extractedDir, descriptor);
-    const { value: result, warnings, error, strategies } = runDescriptorApply(
+    const ambiguousWarning = descriptor.ambiguousWarning ??
+      defaultWebviewAmbiguousWarning(extractedDir, descriptor);
+    const { value: result, warnings, error, strategies } = await runDescriptorApplyAsync(
       descriptor,
-      () => patchAssetFiles(extractedDir, pattern, (source) => descriptor.apply(source, context), missingWarning),
-      { matched: 0, changed: 0 },
+      () => descriptor.assetMatch == null
+        ? patchAssetFilesWithCapability(
+          capability,
+          pattern,
+          (source) => descriptor.apply(source, context),
+          missingWarning,
+        )
+        : patchUniqueAssetFileWithCapability(
+          capability,
+          pattern,
+          (source, assetName) => descriptor.assetMatch(source, assetName, context),
+          (source) => descriptor.apply(source, context),
+          missingWarning,
+          ambiguousWarning,
+        ),
+      { matched: 0, changed: 0, assetName: null },
     );
     context.reportWarnings = warnings;
     if (error != null) {
@@ -328,14 +425,17 @@ function applyWebviewAssetPatchDescriptors(extractedDir, descriptors, context, r
   }
 }
 
-function applyExtractedAppPatchDescriptors(extractedDir, descriptors, context, report) {
-  for (const descriptor of descriptors.filter((patch) => patch.phase === "extracted-app")) {
+function applyExtractedAppPatchDescriptors(extractedDir, descriptors, context, report, phase) {
+  if (phase !== PHASE_EXTRACTED_APP_PRE_WEBVIEW && phase !== PHASE_EXTRACTED_APP_POST_WEBVIEW) {
+    throw new Error(`Unsupported extracted-app patch phase '${phase}'`);
+  }
+  for (const descriptor of descriptors.filter((patch) => patch.phase === phase)) {
     if (!descriptorAppliesTo(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_TARGET, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_TARGET, null, context);
       continue;
     }
     if (!descriptorEnabled(descriptor, context)) {
-      recordDescriptorPatch(report, descriptor, SKIPPED_DISABLED, null, context);
+      recordDescriptorPatch(report, descriptor, PATCH_STATUS_SKIPPED_DISABLED, null, context);
       continue;
     }
 
@@ -355,7 +455,7 @@ function applyExtractedAppPatchDescriptors(extractedDir, descriptors, context, r
       ? descriptor.status(result, warnings, context)
       : result?.changed != null
         ? patchStatusFromChange(Boolean(result.changed), warnings, descriptor.ciPolicy)
-        : "applied";
+        : PATCH_STATUS_APPLIED;
     const status = typeof statusResult === "object" && statusResult != null
       ? statusResult.status
       : statusResult;
@@ -368,8 +468,8 @@ function applyExtractedAppPatchDescriptors(extractedDir, descriptors, context, r
 }
 
 module.exports = {
-  SKIPPED_DISABLED,
-  SKIPPED_TARGET,
+  SKIPPED_DISABLED: PATCH_STATUS_SKIPPED_DISABLED,
+  SKIPPED_TARGET: PATCH_STATUS_SKIPPED_TARGET,
   applyExtractedAppPatchDescriptors,
   applyMainBundlePatchDescriptors,
   applyWebviewAssetPatchDescriptors,

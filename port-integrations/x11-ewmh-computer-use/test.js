@@ -14,8 +14,8 @@ const integrationId = "x11-ewmh-computer-use";
 
 function upstreamRepoRoot() {
   const candidates = [
-    process.env.CODEX_APP_LINUX_REPO,
-    process.env.CODEX_APP_LINUX_FULL_PATH,
+    process.env.CHATGPT_APP_LINUX_REPO,
+    process.env.CHATGPT_APP_LINUX_FULL_PATH,
     path.resolve(integrationDir, "..", ".."),
   ].filter(Boolean);
   for (const candidate of candidates) {
@@ -23,7 +23,7 @@ function upstreamRepoRoot() {
       return candidate;
     }
   }
-  throw new Error("Could not locate codex-app-linux scripts/lib/port-integrations.js; set CODEX_APP_LINUX_REPO");
+  throw new Error("Could not locate chatgpt-linux scripts/lib/port-integrations.js; set CHATGPT_APP_LINUX_REPO");
 }
 
 function portIntegrationsLib() {
@@ -45,7 +45,7 @@ function tempDir(prefix) {
 }
 
 function makeFakeExecutable(file) {
-  fs.writeFileSync(file, "#!/bin/sh\nif [ \"$1\" = doctor ]; then echo '{\"project\":\"codex-computer-use-x11\",\"version\":\"test\",\"backend\":\"x11-ewmh\",\"readiness\":{\"ok\":true}}'; fi\nexit 0\n");
+  fs.writeFileSync(file, "#!/bin/sh\nif [ \"$1\" = doctor ]; then echo '{\"project\":\"chatgpt-computer-use-x11\",\"version\":\"test\",\"backend\":\"x11-ewmh\",\"readiness\":{\"ok\":true}}'; fi\nexit 0\n");
   fs.chmodSync(file, 0o755);
 }
 
@@ -98,10 +98,10 @@ function writeTarGz(file, entries) {
 
 function safePluginTarball(file) {
   writeTarGz(file, [
-    { name: "codex-computer-use-x11/", type: "5" },
-    { name: "codex-computer-use-x11/bin/", type: "5" },
-    { name: "codex-computer-use-x11/.mcp.json", type: "0", content: '{"mcpServers":{"codex-computer-use-x11":{"command":"./bin/codex-computer-use-x11"}}}\n' },
-    { name: "codex-computer-use-x11/bin/codex-computer-use-x11", type: "0", mode: 0o755, content: "#!/bin/sh\nexit 0\n" },
+    { name: "chatgpt-computer-use-x11/", type: "5" },
+    { name: "chatgpt-computer-use-x11/bin/", type: "5" },
+    { name: "chatgpt-computer-use-x11/.mcp.json", type: "0", content: '{"mcpServers":{"chatgpt-computer-use-x11":{"command":"./bin/chatgpt-computer-use-x11"}}}\n' },
+    { name: "chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11", type: "0", mode: 0o755, content: "#!/bin/sh\nexit 0\n" },
   ]);
 }
 
@@ -114,7 +114,7 @@ function runStage(workspace, extraEnv = {}) {
       INSTALL_DIR: path.join(workspace, "install"),
       WORK_DIR: path.join(workspace, "work"),
       ARCH: "x86_64",
-      CODEX_OFFICIAL_APP_DIR: path.join(workspace, "Codex.app"),
+      CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "ChatGPT.app"),
       ...extraEnv,
     },
     stdio: "pipe",
@@ -131,7 +131,7 @@ function applyPatchTwice(patchFn, source) {
 test("x11-ewmh-computer-use documents and pins v0.1.3 release artifact", () => {
   const stage = fs.readFileSync(path.join(integrationDir, "stage.sh"), "utf8");
   const readme = fs.readFileSync(path.join(integrationDir, "README.md"), "utf8");
-  const url = "https://github.com/AlekseiSeleznev/codex-computer-use-x11/releases/download/v0.1.3/codex-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz";
+  const url = "https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11/releases/download/v0.1.3/chatgpt-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz";
   const sha = "067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b";
   assert.equal(stage.includes(url), true);
   assert.equal(stage.includes(sha), true);
@@ -165,12 +165,12 @@ test("x11-ewmh-computer-use validates tarball entries before extraction", () => 
     },
     {
       name: "symlink",
-      entry: { name: "codex-computer-use-x11/bin/link", type: "2", linkname: "/tmp/evil" },
+      entry: { name: "chatgpt-computer-use-x11/bin/link", type: "2", linkname: "/tmp/evil" },
       message: /unsupported symlink entry/,
     },
     {
       name: "hardlink",
-      entry: { name: "codex-computer-use-x11/bin/link", type: "1", linkname: "codex-computer-use-x11/bin/codex-computer-use-x11" },
+      entry: { name: "chatgpt-computer-use-x11/bin/link", type: "1", linkname: "chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11" },
       message: /unsupported hardlink entry/,
     },
   ];
@@ -181,8 +181,8 @@ test("x11-ewmh-computer-use validates tarball entries before extraction", () => 
     writeTarGz(tarball, [item.entry]);
     assert.throws(
       () => runStage(workspace, {
-        CODEX_X11_COMPUTER_USE_RELEASE_TARBALL: tarball,
-        CODEX_X11_COMPUTER_USE_RELEASE_SHA256: sha256(tarball),
+        CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL: tarball,
+        CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256: sha256(tarball),
       }),
       (error) => {
         assert.match(String(error.stderr), item.message);
@@ -197,12 +197,12 @@ test("x11-ewmh-computer-use stages a validated safe release tarball", () => {
   const tarball = path.join(workspace, "safe.tar.gz");
   safePluginTarball(tarball);
   runStage(workspace, {
-    CODEX_X11_COMPUTER_USE_RELEASE_TARBALL: tarball,
-    CODEX_X11_COMPUTER_USE_RELEASE_SHA256: sha256(tarball),
+    CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL: tarball,
+    CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256: sha256(tarball),
   });
-  const pluginDir = path.join(workspace, "install/resources/plugins/openai-bundled/plugins/codex-computer-use-x11");
+  const pluginDir = path.join(workspace, "install/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11");
   assert.equal(fs.existsSync(path.join(pluginDir, ".mcp.json")), true);
-  assert.equal(fs.existsSync(path.join(pluginDir, "bin/codex-computer-use-x11")), true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "bin/chatgpt-computer-use-x11")), true);
 });
 
 test("x11-ewmh-computer-use source staging respects CARGO_TARGET_DIR", () => {
@@ -212,22 +212,22 @@ test("x11-ewmh-computer-use source staging respects CARGO_TARGET_DIR", () => {
   const cargoTargetDir = path.join(workspace, "cargo-target");
   fs.mkdirSync(sourceDir, { recursive: true });
   fs.mkdirSync(binDir, { recursive: true });
-  fs.writeFileSync(path.join(sourceDir, "Cargo.toml"), "[package]\nname='codex-computer-use-x11'\nversion='0.0.0'\nedition='2021'\n");
+  fs.writeFileSync(path.join(sourceDir, "Cargo.toml"), "[package]\nname='chatgpt-computer-use-x11'\nversion='0.0.0'\nedition='2021'\n");
   fs.writeFileSync(
     path.join(binDir, "cargo"),
-    `#!/usr/bin/env bash\nmkdir -p "$CARGO_TARGET_DIR/release"\nprintf '#!/bin/sh\\nexit 0\\n' > "$CARGO_TARGET_DIR/release/codex-computer-use-x11"\nchmod 0755 "$CARGO_TARGET_DIR/release/codex-computer-use-x11"\n`,
+    `#!/usr/bin/env bash\nmkdir -p "$CARGO_TARGET_DIR/release"\nprintf '#!/bin/sh\\nexit 0\\n' > "$CARGO_TARGET_DIR/release/chatgpt-computer-use-x11"\nchmod 0755 "$CARGO_TARGET_DIR/release/chatgpt-computer-use-x11"\n`,
   );
   fs.chmodSync(path.join(binDir, "cargo"), 0o755);
 
   runStage(workspace, {
-    CODEX_X11_COMPUTER_USE_SOURCE: sourceDir,
+    CHATGPT_X11_COMPUTER_USE_SOURCE: sourceDir,
     CARGO_TARGET_DIR: cargoTargetDir,
     PATH: `${binDir}:${process.env.PATH}`,
   });
 
   const pluginBinary = path.join(
     workspace,
-    "install/resources/plugins/openai-bundled/plugins/codex-computer-use-x11/bin/codex-computer-use-x11",
+    "install/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11",
   );
   assert.equal(fs.existsSync(pluginBinary), true);
 });
@@ -255,7 +255,7 @@ test("x11-ewmh-computer-use plugin gate is idempotent and narrow", () => {
     "var Kr=[{forceReload:!0,installWhenMissing:!0,name:lt,isAvailable:({integrations:e})=>e.inAppBrowserUseAllowed},{name:ft,isAvailable:({integrations:e,platform:t})=>t===`darwin`&&e.computerUse,migrate:vr},{name:pt,isAvailable:()=>!0}];",
   ].join("");
   const patched = applyPatchTwice(applyX11ComputerUsePluginGatePatch, source);
-  assert.match(patched, /name:`codex-computer-use-x11`,isAvailable:\(\{platform:e\}\)=>e===`linux`/);
+  assert.match(patched, /name:`chatgpt-computer-use-x11`,isAvailable:\(\{platform:e\}\)=>e===`linux`/);
   assert.match(patched, /name:ft,isAvailable:\(\{integrations:e,platform:t\}\)=>t===`darwin`&&e\.computerUse/);
 });
 
@@ -277,13 +277,13 @@ test("x11-ewmh-computer-use stage hook records marketplace entry and preserves c
   const workspace = tempDir("x11-ewmh-stage");
   const installDir = path.join(workspace, "install");
   const workDir = path.join(workspace, "work");
-  const fakeBinary = path.join(workspace, "codex-computer-use-x11");
+  const fakeBinary = path.join(workspace, "chatgpt-computer-use-x11");
   const computerUseDir = path.join(installDir, "resources/plugins/openai-bundled/plugins/computer-use");
   const computerUseMarker = path.join(computerUseDir, ".mcp.json");
   const marketplace = path.join(installDir, "resources/plugins/openai-bundled/.agents/plugins/marketplace.json");
   fs.mkdirSync(computerUseDir, { recursive: true });
   fs.mkdirSync(path.dirname(marketplace), { recursive: true });
-  fs.writeFileSync(computerUseMarker, '{"mcpServers":{"computer-use":{"command":"./bin/codex-computer-use-linux"}}}\n');
+  fs.writeFileSync(computerUseMarker, '{"mcpServers":{"computer-use":{"command":"./bin/chatgpt-computer-use-linux"}}}\n');
   fs.writeFileSync(marketplace, JSON.stringify({ plugins: [{ name: "computer-use", source: { path: "./plugins/computer-use" } }] }));
   const beforeComputerUse = fs.readFileSync(computerUseMarker, "utf8");
   makeFakeExecutable(fakeBinary);
@@ -296,19 +296,19 @@ test("x11-ewmh-computer-use stage hook records marketplace entry and preserves c
       INSTALL_DIR: installDir,
       WORK_DIR: workDir,
       ARCH: process.arch === "arm64" ? "aarch64" : "x86_64",
-      CODEX_OFFICIAL_APP_DIR: path.join(workspace, "Codex.app"),
-      CODEX_X11_COMPUTER_USE_BINARY: fakeBinary,
+      CHATGPT_OFFICIAL_APP_DIR: path.join(workspace, "ChatGPT.app"),
+      CHATGPT_X11_COMPUTER_USE_BINARY: fakeBinary,
     },
     stdio: "pipe",
   });
 
-  const pluginDir = path.join(installDir, "resources/plugins/openai-bundled/plugins/codex-computer-use-x11");
+  const pluginDir = path.join(installDir, "resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11");
   assert.equal(fs.existsSync(path.join(pluginDir, ".mcp.json")), true);
-  assert.equal(fs.existsSync(path.join(pluginDir, "bin/codex-computer-use-x11")), true);
-  assert.equal(fs.statSync(path.join(pluginDir, "bin/codex-computer-use-x11")).mode & 0o111 ? true : false, true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "bin/chatgpt-computer-use-x11")), true);
+  assert.equal(fs.statSync(path.join(pluginDir, "bin/chatgpt-computer-use-x11")).mode & 0o111 ? true : false, true);
   assert.equal(fs.readFileSync(computerUseMarker, "utf8"), beforeComputerUse);
 
   const parsedMarketplace = JSON.parse(fs.readFileSync(marketplace, "utf8"));
-  assert.equal(parsedMarketplace.plugins.some((plugin) => plugin.name === "codex-computer-use-x11" && plugin.source?.path === "./plugins/codex-computer-use-x11" && plugin.policy?.authentication === "ON_INSTALL"), true);
+  assert.equal(parsedMarketplace.plugins.some((plugin) => plugin.name === "chatgpt-computer-use-x11" && plugin.source?.path === "./plugins/chatgpt-computer-use-x11" && plugin.policy?.authentication === "ON_INSTALL"), true);
   assert.equal(parsedMarketplace.plugins.some((plugin) => plugin.name === "computer-use"), true);
 });

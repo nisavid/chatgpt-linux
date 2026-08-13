@@ -1,8 +1,10 @@
 # Security Policy
 
-This repository is an unofficial community fork that ports the official macOS
-Codex app to Linux application and package formats. Security reports for this
-fork should focus on the Linux conversion, package builders, generated
+This repository is an unofficial community fork that layers hardening, packaging,
+and runtime polish over the Linux-port upstream's conversion of the official
+OpenAI ChatGPT app bundle. It is not affiliated with, endorsed by, or supported
+by OpenAI. Security reports for this fork should focus on the Linux conversion,
+package builders, generated
 launcher, native packages, updater, bundled runtime helpers, local desktop
 integration, and repository release workflows.
 

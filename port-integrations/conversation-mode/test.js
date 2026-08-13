@@ -6,15 +6,24 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 const {
   enabledPortIntegrationIds,
-  loadPortIntegrationMainBundlePatches,
   loadPortIntegrationPatchDescriptors,
 } = require("../../scripts/lib/port-integrations.js");
 const {
   createPatchReport,
-  patchExtractedApp,
-} = require("../../scripts/patch-linux-window-ui.js");
+} = require("../../scripts/lib/patch-report.js");
+const {
+  applyWebviewAssetPatchDescriptors,
+  normalizePatchDescriptors,
+} = require("../../scripts/patches/engine.js");
+const {
+  patchExtractedApp: patchExtractedAppProduction,
+} = require("../../scripts/patches/runner.js");
+const {
+  openGeneratedAppMutationRoot,
+} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
 const {
   applyAssistantRenderPatch,
   applyComposerControlPatch,
@@ -22,21 +31,9 @@ const {
   applyComposerRuntimePatch,
   applyDictationEndpointPatch,
   applyReadAloudMainBundlePatch,
-  patches: integrationPatches,
+  descriptors: integrationPatches,
 } = require("./patch.js");
 
-const DEFAULT_INTEGRATION_IDS = [
-  "agent-workspace",
-  "appshots",
-  "codex-wrapper-updater",
-  "conversation-mode",
-  "copilot-reasoning-effort",
-  "open-target-discovery",
-  "read-aloud",
-  "read-aloud-mcp",
-  "remote-control-ui",
-  "remote-mobile-control",
-];
 
 function twice(fn, source) {
   const patched = fn(source);
@@ -45,33 +42,33 @@ function twice(fn, source) {
 }
 
 function withTempIntegrationConfig(enabled, fn) {
-  const originalConfig = process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
   const root = path.resolve(__dirname, "..");
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-integration-"));
-  process.env.CODEX_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-integration-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
   try {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ enabled }, null, 2));
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ enabled }, null, 2));
     return fn(root);
   } finally {
     if (originalConfig == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_CONFIG;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_CONFIG = originalConfig;
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 function withPortIntegrationRootEnv(root, fn) {
-  const originalRoot = process.env.CODEX_PORT_INTEGRATIONS_ROOT;
-  process.env.CODEX_PORT_INTEGRATIONS_ROOT = root;
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
   try {
     return fn();
   } finally {
     if (originalRoot == null) {
-      delete process.env.CODEX_PORT_INTEGRATIONS_ROOT;
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
     } else {
-      process.env.CODEX_PORT_INTEGRATIONS_ROOT = originalRoot;
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
     }
   }
 }
@@ -89,41 +86,152 @@ function captureWarns(fn) {
   }
 }
 
+async function captureWarnsAsync(fn) {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  try {
+    return { value: await fn(), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+async function withTempIntegrationConfigAsync(enabled, fn) {
+  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+  const root = path.resolve(__dirname, "..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-integration-"));
+  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
+  try {
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ enabled }, null, 2));
+    return await fn(root);
+  } finally {
+    if (originalConfig == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function withPortIntegrationRootEnvAsync(root, fn) {
+  const originalRoot = process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+  process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = root;
+  try {
+    return await fn();
+  } finally {
+    if (originalRoot == null) {
+      delete process.env.CHATGPT_PORT_INTEGRATIONS_ROOT;
+    } else {
+      process.env.CHATGPT_PORT_INTEGRATIONS_ROOT = originalRoot;
+    }
+  }
+}
+
+async function patchExtractedApp(extractedDir, options = {}) {
+  fs.chmodSync(extractedDir, 0o700);
+  return patchExtractedAppProduction(extractedDir, {
+    ...options,
+    mutationBrokerPath:
+      process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+}
+
+async function applyWebviewAssetPatchDescriptorsWithMutation(
+  root,
+  descriptors,
+  context,
+  report,
+) {
+  fs.chmodSync(root, 0o700);
+  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
+    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
+    verifiedPrivateRoot: true,
+  });
+  try {
+    return await applyWebviewAssetPatchDescriptors(
+      root,
+      descriptors,
+      { ...context, generatedAppMutation },
+      report,
+    );
+  } finally {
+    await generatedAppMutation.close();
+  }
+}
+
 const mainBundleSource =
-  "function codexLinuxReadAloudHandle(e={}){return e.action===`config`?codexLinuxReadAloudConfig():e.action===`setup`?codexLinuxReadAloudSetup(e):e.action===`stop`?codexLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?codexLinuxReadAloudSpeak(e.text):codexLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
+  "function chatgptLinuxReadAloudHandle(e={}){return e.action===`config`?chatgptLinuxReadAloudConfig():e.action===`setup`?chatgptLinuxReadAloudSetup(e):e.action===`stop`?chatgptLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?chatgptLinuxReadAloudSpeak(e.text):chatgptLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>chatgptLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
 
 const explicitButtonMainBundleSource =
-  "function codexLinuxReadAloudHandle(e={}){return e.action===`config`?codexLinuxReadAloudConfig():e.action===`setup`?codexLinuxReadAloudSetup(e):e.action===`stop`?codexLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?codexLinuxReadAloudSpeak(e.text,{requireEnabled:!1}):codexLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
+  "function chatgptLinuxReadAloudHandle(e={}){return e.action===`config`?chatgptLinuxReadAloudConfig():e.action===`setup`?chatgptLinuxReadAloudSetup(e):e.action===`stop`?chatgptLinuxReadAloudStop():e.action===`speak`&&e.source===`button`?chatgptLinuxReadAloudSpeak(e.text,{requireEnabled:!1}):chatgptLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>chatgptLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
+
+const currentAppInitialAsset = "app-initial-current.js";
+const currentComposerAsset = currentAppInitialAsset;
+const currentDictationAsset = currentAppInitialAsset;
+const currentAssistantAsset = "local-conversation-turn-current.js";
 
 const dictationSource =
-  "function Ht(){let {recordingDurationMs:T,waveformCanvasRef:E,startWaveformCapture:Wc,stopWaveformCapture:D,resetWaveformDisplay:k}=Ve(),m={current:null},_={current:null},g={current:[]},y={current:null},C={current:null};let j=async({action:e,handlers:n})=>{let i=`hello`;i.length>0&&(j.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:i}),e===`send`?n.onTranscriptSend(i):n.onTranscriptInsert(i))};let A=async()=>{let e=y.current??`insert`;y.current=null;let r=m.current,i=g.current;g.current=[],r&&(r.ondataavailable=null,r.onstop=null),m.current=null,D();};let a=z(e=>{y.current=e;let t=m.current;if(!t){A();return}if(t.state===`inactive`){A();return}t.stop()});return{startDictation:z(async()=>{let e=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1}});let t=new MediaRecorder(e);m.current=t,g.current=[],t.ondataavailable=e=>{e.data.size>0&&g.current.push(e.data)},t.onstop=()=>{A()},t.start(),l(!0)}),stopDictation:a}}function Kt(){let p={current:null};let x=e=>{!d||p.current!==e.sessionId||(p.current=null,o(`insert`))}}";
-
-const composerControlSource =
-  "function mz(e){let {voiceControls:z}=e;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||J),He=si(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};let e=G.formatMessage({id:`composer.realtime.start.aria`,defaultMessage:`Start realtime voice`,description:`Aria label for the button that starts realtime voice mode in the composer`});let n=G.formatMessage({id:`composer.realtime.start.tooltip`,defaultMessage:`Start realtime voice`,description:`Tooltip for the button that starts realtime voice mode in the composer`});}";
+  "function Sit({onTranscriptInsert:i,onTranscriptSend:a}){let _={current:null},A={current:null},x={current:[]},S={current:null};let H=async({action:t,analytics:n,handlers:r,recordingPersistence:a})=>{let l=`hello`;l.length>0&&(a==null?df.getInstance().dispatchMessage(`global-dictation-record-history-item`,{text:l}):a.setTranscript(l),n.performance.mark(`transcript_dispatched`),t===`send`?r.onTranscriptSend(l):r.onTranscriptInsert(l))},U=async()=>{let e=S.current??`insert`;let i=_.current,a=A.current;A.current=null;let o=x.current;if(x.current=[],i&&(i.ondataavailable=null,i.onstop=null),_.current=null,I(),B(),a?.finalize(e===`abort`||o.length===0,100),e===`abort`||o.length===0)return;await H({action:e,analytics:{performance:{mark(){}}},audio:o,handlers:{onTranscriptInsert:i,onTranscriptSend:a},recordingPersistence:a})};return{startDictation:async()=>{let r=aft(),e=await r.stream,n={performance:{mark(){}}};let i=new MediaRecorder(e);_.current=i;let a=oit({createdAtMs:1});if(A.current=a,x.current=[],i.ondataavailable=e=>{e.data.size>0&&(x.current.push(e.data),a?.appendChunk(e.data,i.mimeType||e.data.type||`audio/webm`))},i.onstop=()=>{U()},a==null?i.start():i.start(sit),n.performance.mark(`recording_started`),f(!0),S.current!=null){i.stop();return}}}}function aft(){let e=!1,t=null,n=()=>{e=!0,t?.getTracks().forEach(e=>{e.stop()}),t=null};return{dispose:n,stream:Out({channelCount:1}).then(r=>(t=r,e&&n(),r))}}";
 
 const currentComposerControlSource =
-  "function hz(e){let{conversationId:v,isResponseInProgress:A,onStop:P,submitBlockReason:F,voiceControls:z}=e,{canRetryDictation:K,dictationShortcutLabel:q,isDictating:J,isDictationSupported:ee,isNewRealtimeConversationAvailable:te,isRealtimeSubmitStarting:ne,isTranscribing:re,startDictation:se,startNewRealtimeConversation:ce,stopDictation:le,threadRealtime:ue}=z;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||te),He=oi(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};}";
-
-const halfPatchedCurrentComposerControlSource =
-  "function hz(e){let{conversationId:v,isResponseInProgress:A,onStop:P,submitBlockReason:F,voiceControls:z}=e,{canRetryDictation:K,dictationShortcutLabel:q,isDictating:J,isDictationSupported:ee,isNewRealtimeConversationAvailable:te,isRealtimeSubmitStarting:ne,isTranscribing:re,startDictation:se,startNewRealtimeConversation:ce,stopDictation:le,threadRealtime:ue}=z;let Be=ze,Ve=F===`empty-message`&&!A&&(ue.isAvailable&&ue.phase!==`active`||te),He=oi(fc,`composer.startVoiceMode`),Ue;Ue=()=>{if(globalThis.codexLinuxConversationToggle?.({conversationId:v,startDictation:se,stopDictation:le,onStop:P,isDictating:te,isTranscribing:re,isResponseInProgress:A,isDictationSupported:q}))return;if(ue.phase===`starting`||ue.phase===`active`){ue.stopRealtime();return}if(ue.isAvailable){ue.phase===`inactive`&&ue.startRealtime(`composer_button_existing_thread`);return}ce()};}";
+  "function Vka(e){let{isResponseInProgress:x,onStop:T,submitBlockReason:E,voiceControls:A}=e,j=Nn(Bk),M=RZ(),N=Rk(j),P=LEa(j.value,t),{canRetryDictation:B,dictationShortcutLabel:V,isDictating:U,isDictationButtonVisible:W,isDictationSupported:G,isTranscribing:ee,isVoiceFooterVisible:te,recordingDurationMs:ne,retryDictation:K,startDictation:re,stopDictation:ie,realtimeSession:ae,waveformCanvasRef:oe}=A;let je=(0,x7.jsx)(_ka,{conversationId:N,hostId:g,cwdOverride:_}),ke=(0,x7.jsx)(Twe,{isTranscribing:ee,recordingDurationMs:ne,waveformCanvasRef:oe,stopDictation:ie});let Ae=(0,x7.jsx)(Ewe,{idleIcon:U,isVisible:W,disabled:!G,isTranscribing:ee,canRetryDictation:B,shortcutLabel:V,retryDictation:K,startDictation:re,stopDictation:ie});return Ae}";
 
 const assistantRenderSource =
-  "return (0,$.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,after:g,conversationId:o,cwd:u,renderCodeBlocksAsWritingBlocks:V})";
+  "return (0,t8.jsx)(K6c,{item:n,historyEntityKey:o,isHeartbeatAutomationRequest:qe.some(e=>e.heartbeatTrigger!=null),isHeartbeatAutomationTurn:p?.automationKind===`heartbeat`,conversationId:d,getVisualizeTurnTriggerType:f,hostId:_,conversationDetailLevel:I,isTurnInProgress:c,cwd:g,resolvedApps:k,renderMcpApps:L,reportEntityType:v,toolActivityTurnKey:F,turnId:x??void 0,projectlessOutputDirectory:P?null:E,assistantCopyText:b??void 0,assistantAfter:T,autoReviewStats:A,hookStats:j,completedThreadGoal:M,hasArtifacts:fe,alwaysShowAssistantMessageActions:re,showAssistantMessageActionRow:ie,allowAddSelectedTextToChat:!w,onAssistantFileLinkOpen:k,onForkTurn:B})";
 
 const conversationGlobals = [
-  "codexLinuxConversationAvailable",
-  "codexLinuxConversationAssistant",
-  "codexLinuxConversationEndpoint",
-  "codexLinuxConversationIsActive",
-  "codexLinuxConversationIsSpeaking",
-  "codexLinuxConversationStop",
-  "codexLinuxConversationShouldSendTranscript",
-  "codexLinuxConversationStopSpeaking",
-  "codexLinuxConversationSync",
-  "codexLinuxConversationToggle",
-  "codexLinuxConversationToggleMute",
-  "codexLinuxConversationVersion",
+  "chatgptLinuxConversationAvailable",
+  "chatgptLinuxConversationAssistant",
+  "chatgptLinuxConversationEndpoint",
+  "chatgptLinuxConversationIsActive",
+  "chatgptLinuxConversationIsSpeaking",
+  "chatgptLinuxConversationStop",
+  "chatgptLinuxConversationShouldSendTranscript",
+  "chatgptLinuxConversationStopSpeaking",
+  "chatgptLinuxConversationSync",
+  "chatgptLinuxConversationToggle",
+  "chatgptLinuxConversationToggleMute",
+  "chatgptLinuxConversationVersion",
 ];
+
+test("dictation endpoint descriptor targets the current dictation bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test(currentDictationAsset), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~onboarding-page-BUwCKIcU.js"), false);
+  assert.equal(descriptor.pattern.test("use-dictation-BUwCKIcU.js"), false);
+  assert.equal(descriptor.pattern.test("use-dictation-hotkey-BUwCKIcU.js"), false);
+});
+
+test("composer descriptor targets the current app-initial bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "composer-control");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test(currentComposerAsset), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~page-hSvsQcNf.js"), false);
+  assert.equal(descriptor.pattern.test("composer-old.js"), false);
+});
+
+test("current DMG splits assistant ownership from dictation and composer", () => {
+  const dictation = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+  const composer = integrationPatches.find((patch) => patch.id === "composer-control");
+  const assistant = integrationPatches.find((patch) => patch.id === "assistant-observer");
+  const appInitial = "app-initial-Biw83Aiz.js";
+  const assistantTurn = "local-conversation-turn-DF8fx5gl.js";
+
+  assert.equal(dictation.pattern.test(appInitial), true);
+  assert.equal(composer.pattern.test(appInitial), true);
+  assert.equal(assistant.pattern.test(appInitial), false);
+  assert.equal(assistant.pattern.test(assistantTurn), true);
+  assert.equal(dictation.pattern.test("onboarding-page-Bv4pLarm.js"), false);
+  assert.equal(composer.pattern.test("new-thread-panel-page-Xl0DC1bk.js"), false);
+});
 
 function fetchBodies(events) {
   return events.map((event) => JSON.parse(event.body));
@@ -147,6 +255,7 @@ function withConversationRuntime(fn, options = {}) {
   const timers = [];
   const fakeWindow = {
     AudioContext: options.AudioContext,
+    MutationObserver: options.MutationObserver,
     innerHeight: options.innerHeight ?? 900,
     innerWidth: options.innerWidth ?? 1600,
     webkitAudioContext: options.webkitAudioContext,
@@ -160,7 +269,7 @@ function withConversationRuntime(fn, options = {}) {
     },
   };
   const fakeNavigator = options.navigator ?? {
-    userAgent: "Codex Desktop Linux",
+    userAgent: "ChatGPT for Linux",
     mediaDevices: {},
   };
   const fakeLocalStorage = {
@@ -360,12 +469,50 @@ function createFakeDocument() {
   };
 }
 
+function createAudioStream() {
+  return {
+    getTracks() {
+      return [];
+    },
+  };
+}
+
+function createCountingAudioContext({ level = () => 0 } = {}) {
+  const stats = {
+    fftSizes: [],
+    sampleCalls: 0,
+  };
+  class FakeAudioContext {
+    createMediaStreamSource() {
+      return {
+        connect() {},
+        disconnect() {},
+      };
+    }
+    createAnalyser() {
+      return {
+        _fftSize: 0,
+        set fftSize(value) {
+          stats.fftSizes.push(value);
+          this._fftSize = value;
+        },
+        get fftSize() {
+          return this._fftSize;
+        },
+        getFloatTimeDomainData(data) {
+          stats.sampleCalls++;
+          data.fill(level());
+        },
+      };
+    }
+    close() {}
+  }
+  return { AudioContext: FakeAudioContext, stats };
+}
+
 test("conversation mode is enabled by default", () => {
   withTempIntegrationConfig([], (root) => {
-    assert.deepEqual(enabledPortIntegrationIds({ integrationsRoot: root }), DEFAULT_INTEGRATION_IDS);
-
-    const mainBundlePatchNames = loadPortIntegrationMainBundlePatches({ integrationsRoot: root }).map((patch) => patch.name);
-    assert.ok(mainBundlePatchNames.includes("integration:conversation-mode:read-aloud-conversation-source"));
+    assert.equal(enabledPortIntegrationIds({ integrationsRoot: root }).includes("conversation-mode"), true);
 
     const conversationPatches = loadPortIntegrationPatchDescriptors({ integrationsRoot: root })
       .filter((patch) => patch.name.startsWith("integration:conversation-mode:"));
@@ -383,39 +530,43 @@ test("conversation mode is enabled by default", () => {
 
 test("conversation mode can be disabled in integrations.json", () => {
   withTempIntegrationConfig([], (root) => {
-    fs.writeFileSync(process.env.CODEX_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ disabled: ["conversation-mode"] }, null, 2));
+    const defaultIntegrationIds = enabledPortIntegrationIds({ integrationsRoot: root });
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ disabled: ["conversation-mode"] }, null, 2));
 
     const patches = loadPortIntegrationPatchDescriptors({ integrationsRoot: root });
     assert.deepEqual(
       enabledPortIntegrationIds({ integrationsRoot: root }),
-      DEFAULT_INTEGRATION_IDS.filter((id) => id !== "conversation-mode"),
+      defaultIntegrationIds.filter((id) => id !== "conversation-mode"),
     );
     assert.equal(patches.some((patch) => patch.name.startsWith("integration:conversation-mode:")), false);
+  });
+});
+
+test("conversation mode requires Read Aloud to remain enabled", () => {
+  withTempIntegrationConfig([], (root) => {
+    fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, JSON.stringify({ disabled: ["read-aloud"] }, null, 2));
+    assert.throws(
+      () => loadPortIntegrationPatchDescriptors({ integrationsRoot: root }),
+      /requires 'read-aloud' to be enabled/,
+    );
   });
 });
 
 test("main bundle patch allows conversation mode to use Read Aloud", () => {
   const patched = twice(applyReadAloudMainBundlePatch, mainBundleSource);
   assert.match(patched, /e\.source===`button`\|\|e\.source===`conversation`/);
-  assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
+  assert.match(patched, /chatgptLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
 });
 
 test("main bundle patch preserves explicit button speech while adding conversation mode", () => {
   const patched = twice(applyReadAloudMainBundlePatch, explicitButtonMainBundleSource);
   assert.match(patched, /e\.source===`button`\|\|e\.source===`conversation`/);
-  assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
-});
-
-test("main bundle patch upgrades older conversation speech gates", () => {
-  const alreadyAllowed =
-    "function codexLinuxReadAloudHandle(e={}){return e.action===`config`?codexLinuxReadAloudConfig():e.action===`setup`?codexLinuxReadAloudSetup(e):e.action===`stop`?codexLinuxReadAloudStop():e.action===`speak`&&(e.source===`button`||e.source===`conversation`)?codexLinuxReadAloudSpeak(e.text):codexLinuxReadAloudReport({spoken:!1,reason:`not-explicit`})}var h={handlers:{\"linux-read-aloud\":async(e)=>codexLinuxReadAloudHandle(e),\"native-desktop-apps\":async()=>({apps:[]})}};";
-  const patched = twice(applyReadAloudMainBundlePatch, alreadyAllowed);
-  assert.match(patched, /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
+  assert.match(patched, /chatgptLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/);
 });
 
 test("composer runtime appends one browser-side conversation controller", () => {
   const patched = twice(applyComposerRuntimePatch, "console.log(`composer`);");
-  assert.match(patched, /conversation-mode-v19/);
+  assert.match(patched, /conversation-mode-v26/);
   assert.match(patched, /activeConversationId/);
   assert.match(patched, /seenAssistantKeys/);
   assert.match(patched, /assistantKey/);
@@ -433,37 +584,38 @@ test("composer runtime appends one browser-side conversation controller", () => 
   assert.match(patched, /interruptSerial/);
   assert.match(patched, /cancelInterruptMonitor/);
   assert.match(patched, /clearTimeout\(n\.timer\)/);
-  assert.match(patched, /codexLinuxConversationToggle/);
-  assert.match(patched, /codexLinuxConversationToggleMute/);
-  assert.match(patched, /codexLinuxConversationSync/);
-  assert.match(patched, /codexLinuxConversationIsActive/);
-  assert.match(patched, /codexLinuxConversationStop/);
-  assert.match(patched, /codexLinuxConversationIsSpeaking/);
-  assert.match(patched, /codexLinuxConversationStopSpeaking/);
-  assert.match(patched, /codex-linux-conversation-active/);
-  assert.match(patched, /codex-linux-conversation-composer-aura/);
-  assert.match(patched, /codex-linux-conversation-composer-aura::after/);
-  assert.match(patched, /codex-linux-conversation-aura/);
-  assert.match(patched, /codex-linux-conversation-stop/);
-  assert.match(patched, /codex-linux-conversation-mute/);
-  assert.match(patched, /codex-linux-conversation-muted/);
+  assert.match(patched, /chatgptLinuxConversationToggle/);
+  assert.match(patched, /chatgptLinuxConversationToggleMute/);
+  assert.match(patched, /chatgptLinuxConversationSync/);
+  assert.match(patched, /chatgptLinuxConversationIsActive/);
+  assert.match(patched, /chatgptLinuxConversationStop/);
+  assert.match(patched, /chatgptLinuxConversationIsSpeaking/);
+  assert.match(patched, /chatgptLinuxConversationStopSpeaking/);
+  assert.match(patched, /chatgpt-linux-conversation-active/);
+  assert.match(patched, /chatgpt-linux-conversation-composer-aura/);
+  assert.match(patched, /chatgpt-linux-conversation-composer-aura::after/);
+  assert.match(patched, /chatgpt-linux-conversation-aura/);
+  assert.match(patched, /chatgpt-linux-conversation-stop/);
+  assert.match(patched, /chatgpt-linux-conversation-mute/);
+  assert.match(patched, /chatgpt-linux-conversation-muted/);
   assert.match(patched, /Stop conversation mode/);
   assert.match(patched, /Mute microphone/);
   assert.match(patched, /Unmute microphone/);
-  assert.match(patched, /codexLinuxConversationEndpoint/);
-  assert.match(patched, /codexLinuxConversationAssistant/);
-  assert.match(patched, /codexLinuxConversationShouldSendTranscript/);
+  assert.match(patched, /chatgptLinuxConversationEndpoint/);
+  assert.match(patched, /chatgptLinuxConversationAssistant/);
+  assert.match(patched, /chatgptLinuxConversationShouldSendTranscript/);
   assert.match(patched, /source:"conversation"/);
   assert.match(patched, /slice\(0,8e3\)/);
   assert.match(patched, /Math\.min\(600000,words\*430\)/);
-  assert.match(patched, /codex-linux-conversation-silence-ms/);
+  assert.match(patched, /chatgpt-linux-conversation-silence-ms/);
   assert.match(patched, /\|\|1800/);
   assert.match(patched, /Math\.min\(2000,Math\.max\(900,quiet\)\)/);
   assert.match(patched, /possibleThreshold/);
   assert.match(patched, /threshold\*\.45/);
-  assert.match(patched, /codex-linux-conversation-interrupt-threshold/);
+  assert.match(patched, /chatgpt-linux-conversation-interrupt-threshold/);
   assert.match(patched, /interruptMs:420/);
   assert.match(patched, /interruptGraceMs:180/);
+  assert.match(patched, /audioPollMs:32/);
   assert.match(patched, /echoCancellation:!0/);
   assert.match(patched, /resetTranscriptState/);
   assert.match(patched, /stopTracks/);
@@ -478,7 +630,7 @@ test("composer runtime appends one browser-side conversation controller", () => 
 
 test("conversation runtime is scoped to the active conversation id", () => {
   withConversationRuntime(({ events }) => {
-    assert.equal(globalThis.codexLinuxConversationToggle({ conversationId: null }), false);
+    assert.equal(globalThis.chatgptLinuxConversationToggle({ conversationId: null }), false);
 
     const controls = {
       conversationId: "thread-a",
@@ -487,17 +639,17 @@ test("conversation runtime is scoped to the active conversation id", () => {
       stopDictation() {},
       onStop() {},
     };
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Please answer the current request.", "send"), true);
-    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Please answer the current request.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
 
     const assistantText =
       "This is a long enough assistant sentence to stream through the active conversation voice path.";
-    globalThis.codexLinuxConversationAssistant({}, assistantText, "thread-a", "current-turn", true);
+    globalThis.chatgptLinuxConversationAssistant({}, assistantText, "thread-a", "current-turn", true);
     let bodies = fetchBodies(events);
     assert.equal(bodies.filter((body) => body.action === "speak").length, 0);
 
-    globalThis.codexLinuxConversationAssistant({}, assistantText, "thread-a", "current-turn", false);
+    globalThis.chatgptLinuxConversationAssistant({}, assistantText, "thread-a", "current-turn", false);
     bodies = fetchBodies(events);
     assert.ok(
       bodies.some((body) => body.action === "speak" && body.source === "conversation"),
@@ -505,8 +657,8 @@ test("conversation runtime is scoped to the active conversation id", () => {
     );
 
     const speakCountBeforeSwitch = bodies.filter((body) => body.action === "speak").length;
-    assert.equal(globalThis.codexLinuxConversationSync("thread-b"), false);
-    globalThis.codexLinuxConversationAssistant(
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-b"), false);
+    globalThis.chatgptLinuxConversationAssistant(
       {},
       "This second assistant sentence belongs to another chat and must not be spoken.",
       "thread-b",
@@ -517,6 +669,35 @@ test("conversation runtime is scoped to the active conversation id", () => {
     assert.equal(bodies.filter((body) => body.action === "speak").length, speakCountBeforeSwitch);
     assert.ok(bodies.filter((body) => body.action === "stop").length >= 2);
   });
+});
+
+test("conversation runtime completes task switch cleanup when the dictation callback rejects render-time calls", () => {
+  const fakeDocument = createFakeDocument();
+  withConversationRuntime(() => {
+    let stopCalls = 0;
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {
+        stopCalls++;
+        throw new Error("A function wrapped in useStableCallback can't be called during rendering.");
+      },
+      onStop() {},
+    };
+
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-active"), true);
+
+    assert.doesNotThrow(() => globalThis.chatgptLinuxConversationSync("thread-b", controls));
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), false);
+    assert.equal(globalThis.chatgptLinuxConversationStop(), false);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-active"), false);
+    assert.equal(fakeDocument.composerClassList.contains("chatgpt-linux-conversation-composer-aura"), false);
+    assert.equal(fakeDocument.getElementById("chatgpt-linux-conversation-stop").hidden, true);
+    assert.equal(fakeDocument.getElementById("chatgpt-linux-conversation-mute").hidden, true);
+    assert.equal(stopCalls, 1);
+  }, { document: fakeDocument });
 });
 
 test("conversation runtime can be explicitly exited from the active voice control", () => {
@@ -532,15 +713,68 @@ test("conversation runtime can be explicitly exited from the active voice contro
       onStop() {},
     };
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), true);
-    assert.equal(globalThis.codexLinuxConversationIsActive("thread-b"), false);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-b"), false);
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), false);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), false);
     assert.ok(fetchBodies(events).some((body) => body.action === "stop"));
     assert.deepEqual(stopActions, ["discard"]);
   });
+});
+
+test("conversation runtime exits when the unified shell opens ChatGPT in a non-English locale", () => {
+  let chatOpen = false;
+  let mutationCallback = null;
+  let mutationOptions = null;
+  const stopActions = [];
+  const queriedSelectors = [];
+  const document = createFakeDocument();
+  const closeButton = { getAttribute: (name) => name === "aria-label" ? "Fechar chat" : null };
+  const chatSurface = { querySelector: () => closeButton };
+  document.querySelector = (selector) => {
+    queriedSelectors.push(selector);
+    return selector === 'section[role="dialog"][data-pip-obstacle="quick-chat"][data-state="open"]' && chatOpen
+      ? chatSurface
+      : null;
+  };
+  class FakeMutationObserver {
+    constructor(callback) {
+      mutationCallback = callback;
+    }
+    observe(_target, options) {
+      mutationOptions = options;
+    }
+  }
+
+  withConversationRuntime(() => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation(action) {
+        stopActions.push(action);
+      },
+      onStop() {},
+    };
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), true);
+
+    chatOpen = true;
+    mutationCallback();
+
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), false);
+    assert.deepEqual(stopActions, ["discard"]);
+    assert.equal(closeButton.getAttribute("aria-label"), "Fechar chat");
+    assert.equal(queriedSelectors.some((selector) => selector.includes("aria-label")), false);
+    assert.deepEqual(mutationOptions, {
+      attributes: true,
+      attributeFilter: ["data-state"],
+      childList: true,
+      subtree: true,
+    });
+  }, { document, MutationObserver: FakeMutationObserver });
 });
 
 test("conversation runtime resets duplicate transcript guards for a fresh session", () => {
@@ -557,13 +791,13 @@ test("conversation runtime resets duplicate transcript guards for a fresh sessio
       };
       const repeated = "Repeat this exact first request in a new conversation session.";
 
-      assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript(repeated, "send"), true);
+      assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript(repeated, "send"), true);
 
       Date.now = () => 1_001_000;
-      assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-      assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript(repeated, "send"), true);
+      assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+      assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript(repeated, "send"), true);
     });
   } finally {
     Date.now = originalNow;
@@ -584,11 +818,11 @@ test("conversation runtime shows an active aura and explicit stop control", () =
       onStop() {},
     };
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-active"), true);
-    assert.equal(fakeDocument.composerClassList.contains("codex-linux-conversation-composer-aura"), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-active"), true);
+    assert.equal(fakeDocument.composerClassList.contains("chatgpt-linux-conversation-composer-aura"), true);
 
-    const stopButton = fakeDocument.getElementById("codex-linux-conversation-stop");
+    const stopButton = fakeDocument.getElementById("chatgpt-linux-conversation-stop");
     assert.ok(stopButton);
     assert.equal(stopButton.hidden, false);
     assert.equal(stopButton.title, "Stop conversation mode");
@@ -598,10 +832,10 @@ test("conversation runtime shows an active aura and explicit stop control", () =
       stopPropagation() {},
     });
 
-    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), false);
-    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-active"), false);
-    assert.equal(fakeDocument.composerClassList.contains("codex-linux-conversation-composer-aura"), false);
-    assert.equal(fakeDocument.rootStyle.getPropertyValue("--codex-linux-conversation-control-right"), "");
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), false);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-active"), false);
+    assert.equal(fakeDocument.composerClassList.contains("chatgpt-linux-conversation-composer-aura"), false);
+    assert.equal(fakeDocument.rootStyle.getPropertyValue("--chatgpt-linux-conversation-control-right"), "");
     assert.equal(stopButton.hidden, true);
     assert.ok(fetchBodies(events).some((body) => body.action === "stop"));
     assert.deepEqual(stopActions, ["discard"]);
@@ -612,7 +846,7 @@ test("conversation runtime anchors controls near the composer on wide screens", 
   const fakeDocument = createFakeDocument();
   withConversationRuntime(() => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -622,9 +856,9 @@ test("conversation runtime anchors controls near the composer on wide screens", 
       true,
     );
 
-    assert.equal(fakeDocument.rootStyle.getPropertyValue("--codex-linux-conversation-control-right"), "352px");
-    assert.equal(fakeDocument.rootStyle.getPropertyValue("--codex-linux-conversation-stop-bottom"), "148px");
-    assert.equal(fakeDocument.rootStyle.getPropertyValue("--codex-linux-conversation-mute-bottom"), "194px");
+    assert.equal(fakeDocument.rootStyle.getPropertyValue("--chatgpt-linux-conversation-control-right"), "352px");
+    assert.equal(fakeDocument.rootStyle.getPropertyValue("--chatgpt-linux-conversation-stop-bottom"), "148px");
+    assert.equal(fakeDocument.rootStyle.getPropertyValue("--chatgpt-linux-conversation-mute-bottom"), "194px");
   }, { document: fakeDocument, innerHeight: 900, innerWidth: 1600 });
 });
 
@@ -645,11 +879,11 @@ test("conversation runtime can mute the user microphone without exiting", () => 
       onStop() {},
     };
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
     runTimer(timers, (timer) => timer.delay === 0, "initial listening restart");
     assert.equal(startCount, 1);
 
-    const muteButton = fakeDocument.getElementById("codex-linux-conversation-mute");
+    const muteButton = fakeDocument.getElementById("chatgpt-linux-conversation-mute");
     assert.ok(muteButton);
     assert.equal(muteButton.hidden, false);
     assert.equal(muteButton.title, "Mute microphone");
@@ -660,19 +894,19 @@ test("conversation runtime can mute the user microphone without exiting", () => 
       stopPropagation() {},
     });
 
-    assert.equal(globalThis.codexLinuxConversationIsActive("thread-a"), true);
-    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-active"), true);
-    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-muted"), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsActive("thread-a"), true);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-active"), true);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-muted"), true);
     assert.equal(muteButton.title, "Unmute microphone");
     assert.equal(muteButton["aria-pressed"], "true");
     assert.deepEqual(stopActions, ["discard"]);
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("This muted audio should be ignored.", "send"), false);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("This muted audio should be ignored.", "send"), false);
 
-    globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: false });
+    globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: false });
     assert.equal(startCount, 1);
 
-    assert.equal(globalThis.codexLinuxConversationToggleMute(), true);
-    assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-muted"), false);
+    assert.equal(globalThis.chatgptLinuxConversationToggleMute(), true);
+    assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-muted"), false);
     assert.equal(muteButton.title, "Mute microphone");
     assert.equal(muteButton["aria-pressed"], "false");
     runTimer(timers, (timer) => timer.delay === 0, "unmuted listening restart");
@@ -697,13 +931,13 @@ test("conversation runtime unmutes into immediate listening after speech cooldow
         onStop() {},
       };
 
-      assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+      assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
       runTimer(timers, (timer) => timer.delay === 0, "initial listening restart");
       assert.equal(startCount, 1);
 
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Please answer once.", "send"), true);
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Please answer once.", "send"), true);
       const spoken = "Short answer creates cooldown.";
-      globalThis.codexLinuxConversationAssistant({ completed: true }, spoken, "thread-a", "turn-one", false);
+      globalThis.chatgptLinuxConversationAssistant({ completed: true }, spoken, "thread-a", "turn-one", false);
       assert.deepEqual(
         fetchBodies(events)
           .filter((body) => body.action === "speak")
@@ -712,9 +946,9 @@ test("conversation runtime unmutes into immediate listening after speech cooldow
       );
       runTimer(timers, (timer) => timer.delay > 2200 && timer.delay < 4000, "speech completion");
 
-      assert.equal(globalThis.codexLinuxConversationToggleMute(true), true);
-      assert.equal(globalThis.codexLinuxConversationToggleMute(false), true);
-      assert.equal(fakeDocument.bodyClassList.contains("codex-linux-conversation-muted"), false);
+      assert.equal(globalThis.chatgptLinuxConversationToggleMute(true), true);
+      assert.equal(globalThis.chatgptLinuxConversationToggleMute(false), true);
+      assert.equal(fakeDocument.bodyClassList.contains("chatgpt-linux-conversation-muted"), false);
 
       runTimer(timers, (timer) => timer.delay === 0, "unmuted listening restart");
       assert.equal(startCount, 2);
@@ -727,7 +961,7 @@ test("conversation runtime unmutes into immediate listening after speech cooldow
 test("conversation runtime ignores completed assistant messages seen before the active stream", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -737,7 +971,7 @@ test("conversation runtime ignores completed assistant messages seen before the 
       true,
     );
 
-    globalThis.codexLinuxConversationAssistant(
+    globalThis.chatgptLinuxConversationAssistant(
       { completed: true },
       "This older completed assistant message should not be replayed aloud.",
       "thread-a",
@@ -746,9 +980,9 @@ test("conversation runtime ignores completed assistant messages seen before the 
     );
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 0);
 
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Please answer the live request.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Please answer the live request.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -758,10 +992,10 @@ test("conversation runtime ignores completed assistant messages seen before the 
     );
 
     const assistantText = "This is the current streaming assistant sentence and it should be spoken after final.";
-    globalThis.codexLinuxConversationAssistant({ completed: false }, assistantText, "thread-a", "new-turn", true);
+    globalThis.chatgptLinuxConversationAssistant({ completed: false }, assistantText, "thread-a", "new-turn", true);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 0);
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, assistantText, "thread-a", "new-turn", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, assistantText, "thread-a", "new-turn", false);
     const bodies = fetchBodies(events);
     assert.ok(bodies.some((body) => body.action === "speak" && body.source === "conversation"));
   });
@@ -770,7 +1004,7 @@ test("conversation runtime ignores completed assistant messages seen before the 
 test("conversation runtime ignores stale assistant deltas after the next user turn starts", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -779,9 +1013,9 @@ test("conversation runtime ignores stale assistant deltas after the next user tu
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the first answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the first answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -791,13 +1025,13 @@ test("conversation runtime ignores stale assistant deltas after the next user tu
     );
 
     const firstAssistantText = "This is the current live assistant sentence and it should speak once.";
-    globalThis.codexLinuxConversationAssistant({ completed: false }, firstAssistantText, "thread-a", "turn-one", true);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, firstAssistantText, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: false }, firstAssistantText, "thread-a", "turn-one", true);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, firstAssistantText, "thread-a", "turn-one", false);
     const speakCountBeforeUserTurn = fetchBodies(events).filter((body) => body.action === "speak").length;
     assert.equal(speakCountBeforeUserTurn, 1);
 
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Please answer the next thing.", "send"), true);
-    globalThis.codexLinuxConversationAssistant(
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Please answer the next thing.", "send"), true);
+    globalThis.chatgptLinuxConversationAssistant(
       { completed: false },
       "This is the current live assistant sentence and it should speak once. This old turn must not restart aloud.",
       "thread-a",
@@ -806,7 +1040,7 @@ test("conversation runtime ignores stale assistant deltas after the next user tu
     );
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, speakCountBeforeUserTurn);
 
-    globalThis.codexLinuxConversationAssistant(
+    globalThis.chatgptLinuxConversationAssistant(
       { completed: false },
       "This is the next live assistant sentence and it should be allowed to speak.",
       "thread-a",
@@ -814,7 +1048,7 @@ test("conversation runtime ignores stale assistant deltas after the next user tu
       true,
     );
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, speakCountBeforeUserTurn);
-    globalThis.codexLinuxConversationAssistant(
+    globalThis.chatgptLinuxConversationAssistant(
       { completed: true },
       "This is the next live assistant sentence and it should be allowed to speak.",
       "thread-a",
@@ -831,7 +1065,7 @@ test("conversation runtime ignores unseen assistant messages before the speech c
     Date.now = () => 1_000_000;
     withConversationRuntime(({ events }) => {
       assert.equal(
-        globalThis.codexLinuxConversationToggle({
+        globalThis.chatgptLinuxConversationToggle({
           conversationId: "thread-a",
           isResponseInProgress: false,
           startDictation() {},
@@ -841,9 +1075,9 @@ test("conversation runtime ignores unseen assistant messages before the speech c
         true,
       );
 
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start from the new cursor.", "send"), true);
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start from the new cursor.", "send"), true);
       assert.equal(
-        globalThis.codexLinuxConversationSync("thread-a", {
+        globalThis.chatgptLinuxConversationSync("thread-a", {
           isResponseInProgress: true,
           startDictation() {},
           stopDictation() {},
@@ -852,7 +1086,7 @@ test("conversation runtime ignores unseen assistant messages before the speech c
         true,
       );
 
-      globalThis.codexLinuxConversationAssistant(
+      globalThis.chatgptLinuxConversationAssistant(
         { completed: true, sentAtMs: 900_000 },
         "This older assistant item was never seen before the cursor but must stay silent.",
         "thread-a",
@@ -862,7 +1096,7 @@ test("conversation runtime ignores unseen assistant messages before the speech c
       assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 0);
 
       const current = "This assistant item is after the cursor and should be spoken.";
-      globalThis.codexLinuxConversationAssistant(
+      globalThis.chatgptLinuxConversationAssistant(
         { completed: true, sentAtMs: 1_001_000 },
         current,
         "thread-a",
@@ -886,7 +1120,7 @@ test("conversation runtime advances the cursor after an interrupt and never comp
   try {
     withConversationRuntime(({ events }) => {
       assert.equal(
-        globalThis.codexLinuxConversationToggle({
+        globalThis.chatgptLinuxConversationToggle({
           conversationId: "thread-a",
           isResponseInProgress: false,
           startDictation() {},
@@ -897,9 +1131,9 @@ test("conversation runtime advances the cursor after an interrupt and never comp
       );
 
       Date.now = () => 1_000_000;
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the first answer.", "send"), true);
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the first answer.", "send"), true);
       assert.equal(
-        globalThis.codexLinuxConversationSync("thread-a", {
+        globalThis.chatgptLinuxConversationSync("thread-a", {
           isResponseInProgress: true,
           startDictation() {},
           stopDictation() {},
@@ -910,7 +1144,7 @@ test("conversation runtime advances the cursor after an interrupt and never comp
 
       const first = "This first assistant turn was spoken before the user interrupted.";
       const oldSilent = "This old follow-up arrived before the new user message and must be dropped.";
-      globalThis.codexLinuxConversationAssistant({ completed: true, sentAtMs: 1_001_000 }, first, "thread-a", "turn-one", false);
+      globalThis.chatgptLinuxConversationAssistant({ completed: true, sentAtMs: 1_001_000 }, first, "thread-a", "turn-one", false);
       assert.deepEqual(
         fetchBodies(events)
           .filter((body) => body.action === "speak")
@@ -919,8 +1153,8 @@ test("conversation runtime advances the cursor after an interrupt and never comp
       );
 
       Date.now = () => 1_100_000;
-      assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Steer to the next answer.", "send"), true);
-      globalThis.codexLinuxConversationAssistant(
+      assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Steer to the next answer.", "send"), true);
+      globalThis.chatgptLinuxConversationAssistant(
         { completed: true, sentAtMs: 1_050_000 },
         oldSilent,
         "thread-a",
@@ -935,7 +1169,7 @@ test("conversation runtime advances the cursor after an interrupt and never comp
       );
 
       const next = "This is the assistant turn after the new user message.";
-      globalThis.codexLinuxConversationAssistant({ completed: true, sentAtMs: 1_101_000 }, next, "thread-a", "turn-two", false);
+      globalThis.chatgptLinuxConversationAssistant({ completed: true, sentAtMs: 1_101_000 }, next, "thread-a", "turn-two", false);
       assert.deepEqual(
         fetchBodies(events)
           .filter((body) => body.action === "speak")
@@ -951,7 +1185,7 @@ test("conversation runtime advances the cursor after an interrupt and never comp
 test("conversation runtime keeps a stable fallback key while the live turn has no exposed final id", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -960,9 +1194,9 @@ test("conversation runtime keeps a stable fallback key while the live turn has n
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the fallback-key answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the fallback-key answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -974,10 +1208,10 @@ test("conversation runtime keeps a stable fallback key while the live turn has n
     const first = "This is the first assistant clause long enough to buffer now";
     const second = `${first} and this second clause should be treated as delta.`;
 
-    globalThis.codexLinuxConversationAssistant({}, first, "thread-a", null, true);
-    globalThis.codexLinuxConversationAssistant({}, second, "thread-a", null, true);
+    globalThis.chatgptLinuxConversationAssistant({}, first, "thread-a", null, true);
+    globalThis.chatgptLinuxConversationAssistant({}, second, "thread-a", null, true);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 0);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, second, "thread-a", "final-turn", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, second, "thread-a", "final-turn", false);
 
     const spoken = fetchBodies(events)
       .filter((body) => body.action === "speak")
@@ -994,7 +1228,7 @@ test("conversation runtime keeps a stable fallback key while the live turn has n
 test("conversation runtime buffers assistant speech until the turn completes", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1003,9 +1237,9 @@ test("conversation runtime buffers assistant speech until the turn completes", (
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the buffered answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the buffered answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1016,17 +1250,17 @@ test("conversation runtime buffers assistant speech until the turn completes", (
 
     const partial = "This assistant response is still streaming and should stay silent for now";
     const final = `${partial} and the completed answer should speak once after the turn finishes. A second sentence should stay in the same voice request.`;
-    globalThis.codexLinuxConversationAssistant({}, partial, "thread-a", null, true);
-    globalThis.codexLinuxConversationAssistant({}, final, "thread-a", null, true);
+    globalThis.chatgptLinuxConversationAssistant({}, partial, "thread-a", null, true);
+    globalThis.chatgptLinuxConversationAssistant({}, final, "thread-a", null, true);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 0);
 
-    globalThis.codexLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
     const spoken = fetchBodies(events)
       .filter((body) => body.action === "speak")
       .map((body) => body.text);
     assert.deepEqual(spoken, [final]);
 
-    globalThis.codexLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
     assert.deepEqual(
       fetchBodies(events)
         .filter((body) => body.action === "speak")
@@ -1039,7 +1273,7 @@ test("conversation runtime buffers assistant speech until the turn completes", (
 test("conversation runtime reads each completed assistant turn in a multi-turn response", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1048,9 +1282,9 @@ test("conversation runtime reads each completed assistant turn in a multi-turn r
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run a multi-turn answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run a multi-turn answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1061,7 +1295,7 @@ test("conversation runtime reads each completed assistant turn in a multi-turn r
 
     const first = "First completed assistant turn.";
     const second = "Second completed assistant turn.";
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
     assert.deepEqual(
       fetchBodies(events)
         .filter((body) => body.action === "speak")
@@ -1069,7 +1303,7 @@ test("conversation runtime reads each completed assistant turn in a multi-turn r
       [first],
     );
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, second, "thread-a", "turn-two", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, second, "thread-a", "turn-two", false);
     assert.deepEqual(
       fetchBodies(events)
         .filter((body) => body.action === "speak")
@@ -1090,7 +1324,7 @@ test("conversation runtime reads each completed assistant turn in a multi-turn r
 test("conversation runtime does not jump back to an older completed message while a newer live turn is pending", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1099,9 +1333,9 @@ test("conversation runtime does not jump back to an older completed message whil
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run an answer with a tool gap.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run an answer with a tool gap.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1115,10 +1349,10 @@ test("conversation runtime does not jump back to an older completed message whil
     const secondFinal = `${secondPartial} and it should be the next spoken text.`;
     const old = "Older previous assistant message should never jump back into speech.";
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: false }, secondPartial, "thread-a", "turn-two", true);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, old, "thread-a", "old-turn", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, secondFinal, "thread-a", "turn-two", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: false }, secondPartial, "thread-a", "turn-two", true);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, old, "thread-a", "old-turn", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, secondFinal, "thread-a", "turn-two", false);
 
     assert.deepEqual(
       fetchBodies(events)
@@ -1140,7 +1374,7 @@ test("conversation runtime does not jump back to an older completed message whil
 test("conversation runtime replaces a deferred old completed message when the next live turn appears", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1149,9 +1383,9 @@ test("conversation runtime replaces a deferred old completed message when the ne
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run an answer across a tool gap.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run an answer across a tool gap.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1165,10 +1399,10 @@ test("conversation runtime replaces a deferred old completed message when the ne
     const nextPartial = "Next assistant section starts streaming after the tool gap";
     const nextFinal = `${nextPartial} and should replace the deferred old message.`;
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, old, "thread-a", "old-turn", false);
-    globalThis.codexLinuxConversationAssistant({ completed: false }, nextPartial, "thread-a", "turn-two", true);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, nextFinal, "thread-a", "turn-two", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, old, "thread-a", "old-turn", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: false }, nextPartial, "thread-a", "turn-two", true);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, nextFinal, "thread-a", "turn-two", false);
 
     runTimer(timers, (timer) => timer.delay === 2900, "first speech timer");
     assert.deepEqual(
@@ -1183,7 +1417,7 @@ test("conversation runtime replaces a deferred old completed message when the ne
 test("conversation runtime speaks only the new suffix when the same assistant turn grows", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1192,9 +1426,9 @@ test("conversation runtime speaks only the new suffix when the same assistant tu
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run a growing answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run a growing answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1205,8 +1439,8 @@ test("conversation runtime speaks only the new suffix when the same assistant tu
 
     const first = "First completed assistant turn.";
     const grown = `${first} Extra words arrive later.`;
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
 
     assert.deepEqual(
       fetchBodies(events)
@@ -1228,7 +1462,7 @@ test("conversation runtime speaks only the new suffix when the same assistant tu
 test("conversation runtime does not duplicate a queued suffix on same-text rerender", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1237,9 +1471,9 @@ test("conversation runtime does not duplicate a queued suffix on same-text reren
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run a duplicate-rerender answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run a duplicate-rerender answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1250,9 +1484,9 @@ test("conversation runtime does not duplicate a queued suffix on same-text reren
 
     const first = "First completed assistant turn.";
     const grown = `${first} Extra words arrive later.`;
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
 
     runTimer(timers, (timer) => timer.delay === 2900, "first speech timer");
     assert.deepEqual(
@@ -1267,7 +1501,7 @@ test("conversation runtime does not duplicate a queued suffix on same-text reren
 test("conversation runtime does not reread the same completed message after speech finishes", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1276,9 +1510,9 @@ test("conversation runtime does not reread the same completed message after spee
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run one final answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run one final answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1288,11 +1522,11 @@ test("conversation runtime does not reread the same completed message after spee
     );
 
     const final = "This completed assistant message should be read exactly once.";
-    globalThis.codexLinuxConversationAssistant({ completed: true }, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, final, "thread-a", "turn-one", false);
     runTimer(timers, (timer) => timer.delay > 3000, "completed answer speech timer");
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, final, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, final, "thread-a", "rerendered-turn-key", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, final, "thread-a", "rerendered-turn-key", false);
 
     assert.deepEqual(
       fetchBodies(events)
@@ -1306,7 +1540,7 @@ test("conversation runtime does not reread the same completed message after spee
 test("conversation runtime speaks same-turn suffix immediately after prior speech ends", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1315,9 +1549,9 @@ test("conversation runtime speaks same-turn suffix immediately after prior speec
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run a late-growth answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run a late-growth answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1328,10 +1562,10 @@ test("conversation runtime speaks same-turn suffix immediately after prior speec
 
     const first = "First completed assistant turn.";
     const grown = `${first} Extra words arrive later.`;
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
     runTimer(timers, (timer) => timer.delay === 2900, "first speech timer");
 
-    globalThis.codexLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
     assert.deepEqual(
       fetchBodies(events)
         .filter((body) => body.action === "speak")
@@ -1344,7 +1578,7 @@ test("conversation runtime speaks same-turn suffix immediately after prior speec
 test("conversation runtime flushes queued old suffix when the user starts a new turn", () => {
   withConversationRuntime(({ events, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1353,9 +1587,9 @@ test("conversation runtime flushes queued old suffix when the user starts a new 
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Run a flushable answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Run a flushable answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1366,10 +1600,10 @@ test("conversation runtime flushes queued old suffix when the user starts a new 
 
     const first = "First completed assistant turn.";
     const grown = `${first} Extra words arrive later.`;
-    globalThis.codexLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, first, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, grown, "thread-a", "turn-one", false);
 
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Steer to a new request.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Steer to a new request.", "send"), true);
     assert.equal(
       timers.some((timer) => !timer.cleared && timer.delay === 2900),
       false,
@@ -1387,7 +1621,7 @@ test("conversation runtime flushes queued old suffix when the user starts a new 
 test("conversation runtime lets read aloud controls stop current speech without replaying it", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1396,9 +1630,9 @@ test("conversation runtime lets read aloud controls stop current speech without 
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the stoppable answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the stoppable answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1409,16 +1643,16 @@ test("conversation runtime lets read aloud controls stop current speech without 
 
     const partial = "This assistant response is still streaming before the stop check";
     const final = `${partial} and is long enough to be spoken once and then stopped.`;
-    globalThis.codexLinuxConversationAssistant({}, partial, "thread-a", "turn-one", true);
-    globalThis.codexLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({}, partial, "thread-a", "turn-one", true);
+    globalThis.chatgptLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 1);
-    assert.equal(globalThis.codexLinuxConversationIsSpeaking(), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsSpeaking(), true);
 
-    assert.equal(globalThis.codexLinuxConversationStopSpeaking(), true);
-    assert.equal(globalThis.codexLinuxConversationIsSpeaking(), false);
+    assert.equal(globalThis.chatgptLinuxConversationStopSpeaking(), true);
+    assert.equal(globalThis.chatgptLinuxConversationIsSpeaking(), false);
     assert.ok(fetchBodies(events).some((body) => body.action === "stop"));
 
-    globalThis.codexLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({}, final, "thread-a", "turn-one", false);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 1);
   });
 });
@@ -1426,7 +1660,7 @@ test("conversation runtime lets read aloud controls stop current speech without 
 test("conversation runtime rejects transcripts that look like recent spoken output", () => {
   withConversationRuntime(({ events }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1435,9 +1669,9 @@ test("conversation runtime rejects transcripts that look like recent spoken outp
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the echo rejection answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the echo rejection answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1447,13 +1681,13 @@ test("conversation runtime rejects transcripts that look like recent spoken outp
     );
 
     const spokenText = "This assistant sentence is long enough to be spoken and later rejected as microphone echo.";
-    globalThis.codexLinuxConversationAssistant({ completed: false }, spokenText, "thread-a", "turn-one", true);
-    globalThis.codexLinuxConversationAssistant({ completed: true }, spokenText, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: false }, spokenText, "thread-a", "turn-one", true);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, spokenText, "thread-a", "turn-one", false);
     assert.equal(fetchBodies(events).filter((body) => body.action === "speak").length, 1);
 
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript(spokenText, "send"), false);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript(spokenText, "send"), false);
     assert.equal(
-      globalThis.codexLinuxConversationShouldSendTranscript("Here is a genuinely new user request.", "send"),
+      globalThis.chatgptLinuxConversationShouldSendTranscript("Here is a genuinely new user request.", "send"),
       true,
     );
   });
@@ -1462,7 +1696,7 @@ test("conversation runtime rejects transcripts that look like recent spoken outp
 test("conversation runtime clears read-aloud bridge timeouts after responses", () => {
   withConversationRuntime(({ events, messageListeners, timers }) => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1471,9 +1705,9 @@ test("conversation runtime clears read-aloud bridge timeouts after responses", (
       }),
       true,
     );
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start the bridge timeout answer.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start the bridge timeout answer.", "send"), true);
     assert.equal(
-      globalThis.codexLinuxConversationSync("thread-a", {
+      globalThis.chatgptLinuxConversationSync("thread-a", {
         isResponseInProgress: true,
         startDictation() {},
         stopDictation() {},
@@ -1483,7 +1717,7 @@ test("conversation runtime clears read-aloud bridge timeouts after responses", (
     );
 
     const spokenText = "This assistant sentence is spoken through the bridge and then acknowledged.";
-    globalThis.codexLinuxConversationAssistant({ completed: true }, spokenText, "thread-a", "turn-one", false);
+    globalThis.chatgptLinuxConversationAssistant({ completed: true }, spokenText, "thread-a", "turn-one", false);
 
     const speakEvent = events.find((event) => JSON.parse(event.body).action === "speak");
     assert.ok(speakEvent);
@@ -1521,7 +1755,7 @@ test("conversation runtime opens one pending interrupt monitor stream", () => {
     },
   };
   const navigator = {
-    userAgent: "Codex Desktop Linux",
+    userAgent: "ChatGPT for Linux",
     mediaDevices: {
       getUserMedia() {
         getUserMediaCalls++;
@@ -1563,18 +1797,18 @@ test("conversation runtime opens one pending interrupt monitor stream", () => {
       onStop() {},
     };
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
-    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
-    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
     assert.equal(getUserMediaCalls, 1);
 
     resolvePendingStream(stream);
-    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
     assert.equal(getUserMediaCalls, 1);
     assert.equal(stoppedTracks, 0);
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
     assert.equal(stoppedTracks, 1);
   }, { AudioContext: FakeAudioContext, navigator });
 });
@@ -1595,7 +1829,7 @@ test("conversation runtime invalidates pending interrupt monitors across mute to
     },
   };
   const navigator = {
-    userAgent: "Codex Desktop Linux",
+    userAgent: "ChatGPT for Linux",
     mediaDevices: {
       getUserMedia() {
         getUserMediaCalls++;
@@ -1637,13 +1871,13 @@ test("conversation runtime invalidates pending interrupt monitors across mute to
       onStop() {},
     };
 
-    assert.equal(globalThis.codexLinuxConversationToggle(controls), true);
-    assert.equal(globalThis.codexLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
-    assert.equal(globalThis.codexLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
     assert.equal(getUserMediaCalls, 1);
 
-    assert.equal(globalThis.codexLinuxConversationToggleMute(true), true);
-    assert.equal(globalThis.codexLinuxConversationToggleMute(false), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggleMute(true), true);
+    assert.equal(globalThis.chatgptLinuxConversationToggleMute(false), true);
     assert.equal(getUserMediaCalls, 2);
 
     pendingResolvers[0](stream);
@@ -1674,7 +1908,7 @@ test("conversation endpoint fails closed when the audio graph cannot start", () 
 
   withConversationRuntime(() => {
     assert.equal(
-      globalThis.codexLinuxConversationToggle({
+      globalThis.chatgptLinuxConversationToggle({
         conversationId: "thread-a",
         isResponseInProgress: false,
         startDictation() {},
@@ -1684,7 +1918,7 @@ test("conversation endpoint fails closed when the audio graph cannot start", () 
       true,
     );
 
-    const cleanup = globalThis.codexLinuxConversationEndpoint({
+    const cleanup = globalThis.chatgptLinuxConversationEndpoint({
       stream,
       stop() {
         throw new Error("stop should not be called when graph setup fails");
@@ -1701,74 +1935,337 @@ test("conversation endpoint fails closed when the audio graph cannot start", () 
   }, { AudioContext: BrokenAudioContext });
 });
 
+test("conversation endpoint paces microphone analysis below display frame rate", () => {
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.05 });
+
+  withConversationRuntime(({ animationFrames, timers }) => {
+    assert.equal(
+      globalThis.chatgptLinuxConversationToggle({
+        conversationId: "thread-a",
+        isResponseInProgress: false,
+        startDictation() {},
+        stopDictation() {},
+        onStop() {},
+      }),
+      true,
+    );
+
+    const cleanup = globalThis.chatgptLinuxConversationEndpoint({
+      stream,
+      stop() {
+        throw new Error("stop should not be called before the silence window");
+      },
+      isActive() {
+        return true;
+      },
+    });
+
+    assert.equal(stats.fftSizes.at(-1), 512);
+    assert.equal(animationFrames.length, 0);
+    runTimer(timers, (timer) => timer.delay === 32, "first endpoint audio poll");
+    assert.equal(stats.sampleCalls, 1);
+    runTimer(timers, (timer) => timer.delay === 32, "second endpoint audio poll");
+    assert.equal(stats.sampleCalls, 2);
+
+    cleanup();
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, performance: { now: () => 320 } });
+});
+
+test("conversation interrupt monitor paces microphone analysis below display frame rate", () => {
+  let now = 0;
+  let getUserMediaCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.05 });
+  const navigator = {
+    userAgent: "ChatGPT for Linux",
+    mediaDevices: {
+      getUserMedia() {
+        getUserMediaCalls++;
+        return {
+          then(resolve) {
+            resolve(stream);
+            return {
+              catch() {},
+            };
+          },
+        };
+      },
+    },
+  };
+
+  withConversationRuntime(({ animationFrames, timers }) => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {},
+      onStop() {},
+    };
+
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+    assert.equal(getUserMediaCalls, 1);
+    assert.equal(stats.fftSizes.at(-1), 512);
+    assert.equal(animationFrames.length, 0);
+
+    runTimer(timers, (timer) => timer.delay === 32, "first monitor audio poll");
+    assert.equal(stats.sampleCalls, 1);
+  }, { AudioContext, navigator, performance: { now: () => (now += 320) } });
+});
+
+test("conversation endpoint still stops dictation after paced silence", () => {
+  let now = 0;
+  let level = 0.05;
+  let stopCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext } = createCountingAudioContext({ level: () => level });
+
+  withConversationRuntime(({ timers }) => {
+    assert.equal(
+      globalThis.chatgptLinuxConversationToggle({
+        conversationId: "thread-a",
+        isResponseInProgress: false,
+        startDictation() {},
+        stopDictation() {},
+        onStop() {},
+      }),
+      true,
+    );
+
+    globalThis.chatgptLinuxConversationEndpoint({
+      stream,
+      stop() {
+        stopCalls++;
+      },
+      isActive() {
+        return true;
+      },
+    });
+
+    now = 32;
+    runTimer(timers, (timer) => timer.delay === 32, "initial voiced endpoint poll");
+    now = 288;
+    runTimer(timers, (timer) => timer.delay === 32, "speech confirmation endpoint poll");
+    assert.equal(stopCalls, 0);
+
+    level = 0;
+    now = 2100;
+    runTimer(timers, (timer) => timer.delay === 32, "silence endpoint poll");
+    assert.equal(stopCalls, 1);
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, performance: { now: () => now } });
+});
+
+test("conversation interrupt monitor still triggers after sustained paced speech", () => {
+  let now = 0;
+  let onStopCalls = 0;
+  const stream = createAudioStream();
+  const { AudioContext, stats } = createCountingAudioContext({ level: () => 0.06 });
+  const navigator = {
+    userAgent: "ChatGPT for Linux",
+    mediaDevices: {
+      getUserMedia() {
+        return {
+          then(resolve) {
+            resolve(stream);
+            return {
+              catch() {},
+            };
+          },
+        };
+      },
+    },
+  };
+
+  withConversationRuntime(({ timers }) => {
+    const controls = {
+      conversationId: "thread-a",
+      isResponseInProgress: false,
+      startDictation() {},
+      stopDictation() {},
+      onStop() {
+        onStopCalls++;
+      },
+    };
+
+    assert.equal(globalThis.chatgptLinuxConversationToggle(controls), true);
+    assert.equal(globalThis.chatgptLinuxConversationShouldSendTranscript("Start a monitor-protected response.", "send"), true);
+    assert.equal(globalThis.chatgptLinuxConversationSync("thread-a", { ...controls, isResponseInProgress: true }), true);
+
+    now = 200;
+    runTimer(timers, (timer) => timer.delay === 32, "initial monitor speech poll");
+    now = 650;
+    runTimer(timers, (timer) => timer.delay === 32, "sustained monitor speech poll");
+
+    assert.equal(stats.sampleCalls, 2);
+    assert.equal(onStopCalls, 1);
+    assert.equal(timers.filter((timer) => timer.delay === 32 && !timer.cleared).length, 0);
+  }, { AudioContext, navigator, performance: { now: () => now } });
+});
+
 test("dictation endpoint patch adds VAD stop-on-silence and send action", () => {
   const patched = twice(applyDictationEndpointPatch, dictationSource);
   assert.match(patched, /echoCancellation:!0/);
   assert.match(patched, /noiseSuppression:!0/);
-  assert.match(patched, /codexLinuxConversationCleanup/);
-  assert.match(patched, /codexLinuxConversationEndpoint/);
-  assert.match(patched, /codexLinuxConversationShouldSendTranscript/);
-  assert.match(patched, /e!==`discard`/);
-  assert.match(patched, /e===`send`\?n\.onTranscriptSend\(i\):n\.onTranscriptInsert\(i\)/);
-  assert.match(patched, /stop:\(\)=>a\(`send`\)/);
-  assert.match(patched, /o\(e\.action===`discard`\?`discard`:e\.action===`send`\?`send`:`insert`\)/);
+  assert.match(patched, /chatgptLinuxConversationCleanup/);
+  assert.match(patched, /chatgptLinuxConversationEndpoint/);
+  assert.match(patched, /chatgptLinuxConversationShouldSendTranscript/);
+  assert.match(patched, /n\.performance\.mark\(`recording_started`\)/);
+  assert.match(patched, /n\.performance\.mark\(`transcript_dispatched`\)/);
+  assert.match(patched, /t!==`discard`/);
+  assert.match(patched, /t===`send`\?r\.onTranscriptSend\(l\):r\.onTranscriptInsert\(l\)/);
+  assert.match(patched, /stop:\(\)=>\{S\.current=`send`;i\.state!==`inactive`&&i\.stop\(\)\}/);
 });
 
-test("composer control patch repurposes the voice button for conversation mode first", () => {
-  const patched = twice(applyComposerControlPatch, composerControlSource);
-  assert.match(patched, /codexLinuxConversationAvailable/);
-  assert.match(patched, /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A/);
-  assert.match(patched, /isDictating:J/);
-  assert.match(patched, /codexLinuxConversationActive=globalThis\.codexLinuxConversationIsActive/);
-  assert.match(patched, /Ve=codexLinuxConversationActive\|\|F===`empty-message`/);
-  assert.match(patched, /codexLinuxConversationToggle/);
-  assert.match(patched, /\(v&&globalThis\.codexLinuxConversationAvailable\?\.\(\)\)/);
-  assert.match(patched, /startDictation:se/);
-  assert.match(patched, /stopDictation:le/);
-  assert.match(patched, /onStop:P/);
-  assert.equal(
-    patched.match(/defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g)?.length,
-    2,
-  );
-  assert.doesNotMatch(patched, /defaultMessage:`Start conversation mode`/);
-  assert.match(patched, /ue\.startRealtime/);
+test("dictation endpoint patch fails soft and atomically when the current recorder contract drifts", () => {
+  const drifted = dictationSource.replace("new MediaRecorder", "new AudioRecorder");
+  const { value: patched, warnings } = captureWarns(() => applyDictationEndpointPatch(drifted));
+
+  assert.equal(patched, drifted);
+  assert.match(warnings.join("\n"), /Could not resolve the current dictation contract/);
+  assert.doesNotMatch(patched, /echoCancellation/);
+  assert.doesNotMatch(patched, /chatgptLinuxConversation/);
 });
 
-test("composer control patch repairs stale static conversation button hints", () => {
-  const once = applyComposerControlPatch(composerControlSource);
-  const stale = once.replace(
-    /defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g,
-    "defaultMessage:`Start conversation mode`",
-  );
-  const patched = twice(applyComposerControlPatch, stale);
-  assert.equal(
-    patched.match(/defaultMessage:codexLinuxConversationActive\?`Stop conversation mode`:`Start conversation mode`/g)?.length,
-    2,
-  );
+test("current dictation drift is reported as skipped instead of already applied", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentDictationAsset);
+    const drifted = dictationSource.replace("new MediaRecorder", "new AudioRecorder");
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "dictation-endpoint");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not resolve the current dictation contract/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test("composer control patch follows the current composer voiceControls shape", () => {
+test("composer control patch wires the current dictation control into conversation mode", () => {
   const patched = twice(applyComposerControlPatch, currentComposerControlSource);
   assert.match(
     patched,
-    /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A,isDictating:J,isTranscribing:re,startDictation:se,stopDictation:le,onStop:P\}\)/,
+    /chatgptLinuxConversationSync\?\.\(N,\{isResponseInProgress:x,isDictating:U,isTranscribing:ee,startDictation:re,stopDictation:ie,onStop:T\}\)/,
   );
   assert.match(
     patched,
-    /codexLinuxConversationToggle\?\.\(\{conversationId:v,startDictation:se,stopDictation:le,onStop:P,isDictating:J,isTranscribing:re,isResponseInProgress:A,isDictationSupported:ee\}\)/,
+    /chatgptLinuxConversationToggle\?\.\(\{conversationId:N,startDictation:re,stopDictation:ie,onStop:T,isDictating:U,isTranscribing:ee,isResponseInProgress:x,isDictationSupported:G\}\)/,
   );
-  assert.match(patched, /He=oi\(fc,`composer\.startVoiceMode`\)/);
-  assert.match(patched, /\|\|ue\.isAvailable&&ue\.phase!==`active`\|\|te/);
-  assert.doesNotMatch(patched, /isDictating:te/);
-  assert.doesNotMatch(patched, /isDictationSupported:q/);
+  assert.match(patched, /isVisible:W\|\|N&&globalThis\.chatgptLinuxConversationAvailable\?\.\(\)/);
+  assert.match(patched, /className:N\?`chatgpt-linux-conversation-trigger`:void 0/);
+  assert.match(patched, /idleIcon:U/);
+  assert.match(patched, /startDictation:\(\)=>globalThis\.chatgptLinuxConversationToggle/);
 });
 
-test("composer control patch repairs bundles where only the click handler was patched", () => {
-  const patched = twice(applyComposerControlPatch, halfPatchedCurrentComposerControlSource);
-  assert.match(patched, /codexLinuxConversationSync\?\.\(v,\{isResponseInProgress:A,isDictating:J/);
-  assert.match(patched, /isDictationSupported:ee/);
-  assert.doesNotMatch(patched, /isDictating:te/);
-  assert.doesNotMatch(patched, /isDictationSupported:q/);
+test("composer control preserves the current async startDictation contract", async () => {
+  const patched = applyComposerControlPatch(currentComposerControlSource);
+  const originalResult = Promise.resolve("started");
+  let originalStarts = 0;
+  const context = {
+    Bk: {},
+    Ewe: "dictation-control",
+    LEa: () => ({}),
+    Nn: () => ({}),
+    RZ: () => ({}),
+    Rk: () => "thread-a",
+    Twe: "waveform",
+    _ka: "composer-anchor",
+    _: null,
+    g: "host-a",
+    t: null,
+    x7: {
+      jsx(component, props) {
+        return component === "dictation-control" ? props : {};
+      },
+    },
+  };
+  context.globalThis = context;
+  vm.runInNewContext(`${patched};globalThis.renderCurrentComposer=Vka`, context);
+  context.chatgptLinuxConversationAvailable = () => true;
+  context.chatgptLinuxConversationSync = () => {};
+  const voiceControls = {
+    canRetryDictation: false,
+    dictationShortcutLabel: "D",
+    isDictating: false,
+    isDictationButtonVisible: true,
+    isDictationSupported: true,
+    isTranscribing: false,
+    isVoiceFooterVisible: true,
+    recordingDurationMs: 0,
+    retryDictation() {},
+    startDictation() {
+      originalStarts++;
+      return originalResult;
+    },
+    stopDictation() {},
+    realtimeSession: {},
+    waveformCanvasRef: {},
+  };
+  const render = () => context.renderCurrentComposer({
+    isResponseInProgress: false,
+    onStop() {},
+    submitBlockReason: null,
+    voiceControls,
+  });
+
+  context.chatgptLinuxConversationToggle = () => false;
+  assert.equal(render().startDictation(), originalResult);
+  assert.equal(originalStarts, 1);
+
+  context.chatgptLinuxConversationToggle = () => true;
+  const handledResult = render().startDictation();
+  assert.equal(typeof handledResult?.finally, "function");
+  await handledResult;
+  assert.equal(originalStarts, 1);
+});
+
+test("composer control patch fails soft when the current conversation binding drifts", () => {
+  const drifted = currentComposerControlSource.replace("conversationId:N,hostId:g", "conversationKey:N,hostId:g");
+  const { value: patched, warnings } = captureWarns(() => twice(applyComposerPatch, drifted));
+
+  assert.equal(patched, drifted);
+  assert.match(warnings.join("\n"), /Could not resolve composer prop aliases/);
+  assert.doesNotMatch(patched, /chatgptLinuxConversationSync/);
+  assert.doesNotMatch(patched, /chatgptLinuxConversationToggle/);
+});
+
+test("current composer marker drift is reported as skipped instead of already applied", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-composer-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentComposerAsset);
+    const drifted = "console.log(`current composer contract drifted`);";
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "composer-control");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not find current composer controls/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("composer patch ignores adjacent composer chunks", () => {
@@ -1777,23 +2274,57 @@ test("composer patch ignores adjacent composer chunks", () => {
 
 test("assistant render patch observes assistant text for automatic speech", () => {
   const patched = twice(applyAssistantRenderPatch, assistantRenderSource);
-  assert.match(patched, /codexLinuxConversationAssistant\?\.\(n,p,o,m,typeof c!="undefined"\?c:null\)/);
-  assert.match(patched, /\$\.Fragment/);
+  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,b\?\?void 0,d,x\?\?void 0,c\)/);
+  assert.match(patched, /t8\.Fragment/);
 });
 
 test("assistant render patch preserves the current JSX runtime alias", () => {
-  const source =
-    "return (0,Q.jsx)(Ov,{item:n,alwaysShowActions:M,assistantCopyText:p,turnId:m,after:g,conversationId:o,cwd:u,renderCodeBlocksAsWritingBlocks:V})";
+  const source = assistantRenderSource.replaceAll("t8", "Q");
   const patched = twice(applyAssistantRenderPatch, source);
 
-  assert.match(patched, /codexLinuxConversationAssistant\?\.\(n,p,o,m,typeof c!="undefined"\?c:null\)/);
+  assert.match(patched, /chatgptLinuxConversationAssistant\?\.\(n,b\?\?void 0,d,x\?\?void 0,c\)/);
   assert.match(patched, /Q\.Fragment/);
 });
 
-test("conversation mode patches matching app assets and records report entries", () => {
-  withTempIntegrationConfig(["conversation-mode"], (root) => {
-    withPortIntegrationRootEnv(root, () => {
-      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-conversation-mode-app-"));
+test("assistant observer targets only the current local conversation turn bundle", () => {
+  const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
+  assert.ok(descriptor);
+  assert.equal(descriptor.pattern.test("local-conversation-turn-DF8fx5gl.js"), true);
+  assert.equal(descriptor.pattern.test("app-initial-BHB6SClA.js"), false);
+  assert.equal(descriptor.pattern.test("app-initial~app-main~onboarding-page-D4eTO0KG.js"), false);
+  assert.equal(descriptor.pattern.test("local-conversation-thread-old.js"), false);
+  assert.equal(descriptor.pattern.test("index-old.js"), false);
+});
+
+test("current assistant observer drift is reported as skipped instead of already applied", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-assistant-drift-"));
+  try {
+    const assetsDir = path.join(root, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const assetPath = path.join(assetsDir, currentAssistantAsset);
+    const drifted = "console.log(`current assistant renderer drifted`);";
+    fs.writeFileSync(assetPath, drifted);
+    const descriptor = integrationPatches.find((patch) => patch.id === "assistant-observer");
+    const descriptors = normalizePatchDescriptors([
+      { ...descriptor, integrationId: "conversation-mode", sourceKind: "integration" },
+    ]);
+    const report = createPatchReport();
+
+    await applyWebviewAssetPatchDescriptorsWithMutation(root, descriptors, {}, report);
+
+    assert.equal(fs.readFileSync(assetPath, "utf8"), drifted);
+    assert.equal(report.patches.length, 1);
+    assert.equal(report.patches[0].status, "skipped-optional");
+    assert.match(report.patches[0].reason, /Could not find assistant message render call/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("conversation mode patches matching app assets and records report entries", async () => {
+  await withTempIntegrationConfigAsync([], async (root) => {
+    await withPortIntegrationRootEnvAsync(root, async () => {
+      const tempApp = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-conversation-mode-app-"));
       try {
         const buildDir = path.join(tempApp, ".vite", "build");
         const assetsDir = path.join(tempApp, "webview", "assets");
@@ -1801,31 +2332,33 @@ test("conversation mode patches matching app assets and records report entries",
         fs.mkdirSync(assetsDir, { recursive: true });
         fs.writeFileSync(path.join(buildDir, "main.js"), mainBundleSource);
         fs.writeFileSync(path.join(tempApp, "package.json"), JSON.stringify({ name: "codex" }));
-        fs.writeFileSync(path.join(assetsDir, "browser-sidebar-comment-light-dismiss-test.js"), dictationSource);
-        fs.writeFileSync(path.join(assetsDir, "composer-test.js"), composerControlSource);
-        fs.writeFileSync(path.join(assetsDir, "local-conversation-thread-test.js"), assistantRenderSource);
+        fs.writeFileSync(
+          path.join(assetsDir, currentDictationAsset),
+          `${dictationSource};${currentComposerControlSource}`,
+        );
+        fs.writeFileSync(path.join(assetsDir, currentAssistantAsset), assistantRenderSource);
 
         const report = createPatchReport();
-        const { warnings } = captureWarns(() => patchExtractedApp(tempApp, { report }));
+        const { warnings } = await captureWarnsAsync(() => patchExtractedApp(tempApp, { report }));
         assert.ok(
           warnings.every((warning) => !warning.includes("conversation mode")),
           warnings.join("\n"),
         );
         assert.match(
           fs.readFileSync(path.join(buildDir, "main.js"), "utf8"),
-          /codexLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/,
+          /chatgptLinuxReadAloudSpeak\(e\.text,\{requireEnabled:!1\}\)/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "browser-sidebar-comment-light-dismiss-test.js"), "utf8"),
-          /codexLinuxConversationEndpoint/,
+          fs.readFileSync(path.join(assetsDir, currentDictationAsset), "utf8"),
+          /chatgptLinuxConversationEndpoint/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "composer-test.js"), "utf8"),
-          /codexLinuxConversationToggle/,
+          fs.readFileSync(path.join(assetsDir, currentAppInitialAsset), "utf8"),
+          /chatgptLinuxConversationToggle/,
         );
         assert.match(
-          fs.readFileSync(path.join(assetsDir, "local-conversation-thread-test.js"), "utf8"),
-          /codexLinuxConversationAssistant/,
+          fs.readFileSync(path.join(assetsDir, currentAssistantAsset), "utf8"),
+          /chatgptLinuxConversationAssistant/,
         );
         for (const name of [
           "integration:conversation-mode:read-aloud-conversation-source",

@@ -11,8 +11,8 @@ use std::{
     process::Command,
 };
 
-const PACKAGE_NAME: &str = "codex-app";
-const INSTALLED_UPDATER_BINARY: &str = "/usr/bin/codex-app-updater";
+const PACKAGE_NAME: &str = "chatgpt";
+const INSTALLED_UPDATER_BINARY: &str = "/usr/bin/chatgpt-updater";
 const APT_CANDIDATES: &[&str] = &["/usr/bin/apt", "/bin/apt"];
 const DNF_CANDIDATES: &[&str] = &["/usr/bin/dnf", "/bin/dnf", "/usr/bin/dnf5", "/bin/dnf5"];
 const DPKG_CANDIDATES: &[&str] = &["/usr/bin/dpkg", "/bin/dpkg"];
@@ -392,14 +392,14 @@ mod tests {
 
     #[test]
     fn builds_local_apt_rollback_command() -> Result<()> {
-        let command = apt_command(Path::new("/tmp/build/codex.deb"))?;
+        let command = apt_command(Path::new("/tmp/build/chatgpt.deb"))?;
         assert!(command.get_program().to_string_lossy().ends_with("apt"));
         assert_eq!(
             command
                 .get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["install", "-y", "--allow-downgrades", "./codex.deb"]
+            vec!["install", "-y", "--allow-downgrades", "./chatgpt.deb"]
         );
         Ok(())
     }
@@ -408,7 +408,7 @@ mod tests {
     fn builds_local_dnf_rollback_command() -> Result<()> {
         let command = dnf_command(
             Path::new("/usr/bin/dnf5"),
-            Path::new("/tmp/build/codex.rpm"),
+            Path::new("/tmp/build/chatgpt.rpm"),
         )?;
         let program = command.get_program().to_string_lossy();
         assert!(program.ends_with("dnf") || program.ends_with("dnf5"));
@@ -417,14 +417,14 @@ mod tests {
                 .get_args()
                 .map(|value| value.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            vec!["downgrade", "-y", "./codex.rpm"]
+            vec!["downgrade", "-y", "./chatgpt.rpm"]
         );
         Ok(())
     }
 
     #[test]
     fn builds_local_zypper_rollback_command() -> Result<()> {
-        let command = zypper_command(Path::new("/tmp/build/codex.rpm"))?;
+        let command = zypper_command(Path::new("/tmp/build/chatgpt.rpm"))?;
         assert!(command.get_program().to_string_lossy().ends_with("zypper"));
         assert_eq!(
             command
@@ -437,7 +437,7 @@ mod tests {
                 "--allow-unsigned-rpm",
                 "--oldpackage",
                 "-y",
-                "./codex.rpm"
+                "./chatgpt.rpm"
             ]
         );
         Ok(())
@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn builds_pkexec_command_for_privileged_rollback() {
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.rpm"),
             None,
         );
@@ -481,7 +481,7 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-rollback-rpm",
                 "--path",
                 "/tmp/update.rpm"
@@ -493,11 +493,11 @@ mod tests {
     fn package_verification_args_are_passed_to_privileged_rollback_command() -> Result<()> {
         let expected = ExpectedPackage::new(
             "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
-            "codex-app",
+            "chatgpt",
             "26.429.20946-1",
         )?;
         let command = pkexec_command_with_updater_binary(
-            Path::new("/usr/bin/codex-app-updater"),
+            Path::new("/usr/bin/chatgpt-updater"),
             Path::new("/tmp/update.rpm"),
             Some(&expected),
         );
@@ -509,14 +509,14 @@ mod tests {
             args,
             vec![
                 "--disable-internal-agent",
-                "/usr/bin/codex-app-updater",
+                "/usr/bin/chatgpt-updater",
                 "install-rollback-rpm",
                 "--path",
                 "/tmp/update.rpm",
                 "--expected-sha256",
                 "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a",
                 "--expected-package-name",
-                "codex-app",
+                "chatgpt",
                 "--expected-package-version",
                 "26.429.20946-1"
             ]
@@ -526,10 +526,10 @@ mod tests {
 
     #[test]
     fn parses_pacman_package_name() {
-        let metadata = b"Name            : codex-app\nVersion         : 1-1\n";
+        let metadata = b"Name            : chatgpt\nVersion         : 1-1\n";
         assert_eq!(
             parse_pacman_package_name(metadata).as_deref(),
-            Some("codex-app")
+            Some("chatgpt")
         );
     }
 }

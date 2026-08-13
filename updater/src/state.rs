@@ -8,10 +8,13 @@ use std::{
     collections::BTreeSet,
     fs::{self, OpenOptions},
     io::Write,
+    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+const STATE_LOCK_FILE_NAME: &str = "state.lock";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -47,6 +50,15 @@ pub enum CliStatus {
     UpdateRequired,
     Updating,
     Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Installation channel inferred for a user-installed Codex CLI.
+pub enum CliInstallChannel {
+    Standalone,
+    Homebrew,
+    Npm,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -127,9 +139,13 @@ pub struct PersistedState {
     #[serde(default)]
     pub cli_path: Option<PathBuf>,
     #[serde(default)]
-    pub cli_installed_version: Option<String>,
+    pub cli_install_channel: Option<CliInstallChannel>,
     #[serde(default)]
-    pub cli_latest_version: Option<String>,
+    pub cli_installed_version: Option<String>,
+    #[serde(default, alias = "cli_latest_version")]
+    pub cli_official_latest_version: Option<String>,
+    #[serde(default)]
+    pub cli_package_manager_latest_version: Option<String>,
     #[serde(default)]
     pub cli_status: CliStatus,
     #[serde(default)]
@@ -185,8 +201,10 @@ impl PersistedState {
             rollback_blocked_candidate_version: None,
             rollback_blocked_dmg_sha256: None,
             cli_path: None,
+            cli_install_channel: None,
             cli_installed_version: None,
-            cli_latest_version: None,
+            cli_official_latest_version: None,
+            cli_package_manager_latest_version: None,
             cli_status: CliStatus::Unknown,
             cli_last_check_at: None,
             cli_last_verified_at: None,
@@ -215,9 +233,60 @@ impl PersistedState {
     }
 
     /// Persists the updater state to JSON on disk.
+    #[cfg(test)]
     pub fn save(&self, path: &Path) -> Result<()> {
-        let content = serde_json::to_string_pretty(&self.redacted_for_persistence())?;
-        atomic_write(path, content.as_bytes())?;
+        let _lock = StateLock::acquire(path)?;
+        self.save_unlocked(path)
+    }
+
+    pub fn save_updater(&self, path: &Path) -> Result<()> {
+        let _lock = StateLock::acquire(path)?;
+        let mut merged = self.clone();
+        if let Some(latest) = Self::load_if_present(path)? {
+            merged.copy_cli_state_from(&latest);
+        }
+        merged.save_unlocked(path)
+    }
+
+    pub fn save_cli(&mut self, path: &Path) -> Result<()> {
+        let _lock = StateLock::acquire(path)?;
+        let mut merged = Self::load_if_present(path)?
+            .unwrap_or_else(|| Self::new(self.auto_install_on_app_exit));
+        merged.copy_cli_state_from(self);
+        merged.save_unlocked(path)?;
+        *self = merged;
+        Ok(())
+    }
+
+    pub fn reload_cli(&mut self, path: &Path) -> Result<()> {
+        let _lock = StateLock::acquire(path)?;
+        if let Some(latest) = Self::load_if_present(path)? {
+            self.copy_cli_state_from(&latest);
+        }
+        Ok(())
+    }
+
+    pub fn save_cli_if_unchanged(&mut self, path: &Path, expected: &Self) -> Result<bool> {
+        let _lock = StateLock::acquire(path)?;
+        let latest = Self::load_if_present(path)?.unwrap_or_else(|| expected.clone());
+        if !latest.same_cli_state(expected) {
+            *self = latest;
+            return Ok(false);
+        }
+        let mut merged = latest;
+        merged.copy_cli_state_from(self);
+        merged.save_unlocked(path)?;
+        *self = merged;
+        Ok(true)
+    }
+
+    pub fn save_cli_status(&mut self, path: &Path) -> Result<()> {
+        let _lock = StateLock::acquire(path)?;
+        let mut latest = Self::load_if_present(path)?.unwrap_or_else(|| self.clone());
+        latest.cli_status = self.cli_status.clone();
+        latest.cli_error_message = self.cli_error_message.clone();
+        latest.save_unlocked(path)?;
+        *self = latest;
         Ok(())
     }
 
@@ -248,9 +317,48 @@ impl PersistedState {
         self.wrapper_changelog = None;
         self.wrapper_dev_mode = None;
     }
+
+    fn load_if_present(path: &Path) -> Result<Option<Self>> {
+        match fs::read_to_string(path) {
+            Ok(content) => serde_json::from_str::<Self>(&content)
+                .with_context(|| format!("Failed to parse {}", path.display()))
+                .map(Some),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error).with_context(|| format!("Failed to read {}", path.display())),
+        }
+    }
+
+    fn save_unlocked(&self, path: &Path) -> Result<()> {
+        let content = serde_json::to_string_pretty(&self.redacted_for_persistence())?;
+        atomic_write(path, content.as_bytes())
+    }
+
+    fn copy_cli_state_from(&mut self, source: &Self) {
+        self.cli_path = source.cli_path.clone();
+        self.cli_install_channel = source.cli_install_channel.clone();
+        self.cli_installed_version = source.cli_installed_version.clone();
+        self.cli_official_latest_version = source.cli_official_latest_version.clone();
+        self.cli_package_manager_latest_version = source.cli_package_manager_latest_version.clone();
+        self.cli_status = source.cli_status.clone();
+        self.cli_last_check_at = source.cli_last_check_at;
+        self.cli_last_verified_at = source.cli_last_verified_at;
+        self.cli_error_message = source.cli_error_message.clone();
+    }
+
+    fn same_cli_state(&self, other: &Self) -> bool {
+        self.cli_path == other.cli_path
+            && self.cli_install_channel == other.cli_install_channel
+            && self.cli_installed_version == other.cli_installed_version
+            && self.cli_official_latest_version == other.cli_official_latest_version
+            && self.cli_package_manager_latest_version == other.cli_package_manager_latest_version
+            && self.cli_status == other.cli_status
+            && self.cli_last_check_at == other.cli_last_check_at
+            && self.cli_last_verified_at == other.cli_last_verified_at
+            && self.cli_error_message == other.cli_error_message
+    }
 }
 
-fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
+pub(crate) fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
     let parent = path
         .parent()
         .with_context(|| format!("{} has no parent directory", path.display()))?;
@@ -260,6 +368,7 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
     let mut temp_file = OpenOptions::new()
         .write(true)
         .create_new(true)
+        .mode(0o600)
         .open(&temp_path)
         .with_context(|| format!("Failed to create {}", temp_path.display()))?;
 
@@ -285,7 +394,54 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
             temp_path.display()
         )
     })?;
+    sync_directory(parent)?;
     Ok(())
+}
+
+pub(crate) fn sync_directory(path: &Path) -> Result<()> {
+    fs::File::open(path)
+        .with_context(|| format!("Failed to open directory {}", path.display()))?
+        .sync_all()
+        .with_context(|| format!("Failed to sync directory {}", path.display()))
+}
+
+struct StateLock {
+    _file: fs::File,
+}
+
+impl StateLock {
+    fn acquire(state_path: &Path) -> Result<Self> {
+        let parent = state_path
+            .parent()
+            .with_context(|| format!("{} has no parent directory", state_path.display()))?;
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create {}", parent.display()))?;
+        let lock_path = parent.join(STATE_LOCK_FILE_NAME);
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&lock_path)
+            .with_context(|| format!("Failed to open {}", lock_path.display()))?;
+        let metadata = file
+            .metadata()
+            .with_context(|| format!("Failed to inspect {}", lock_path.display()))?;
+        anyhow::ensure!(
+            metadata.is_file() && metadata.uid() == unsafe { libc::geteuid() },
+            "Updater state lock {} is not a user-owned regular file",
+            lock_path.display()
+        );
+        if metadata.permissions().mode() & 0o077 != 0 {
+            file.set_permissions(fs::Permissions::from_mode(0o600))
+                .with_context(|| format!("Failed to secure {}", lock_path.display()))?;
+        }
+        file.lock()
+            .with_context(|| format!("Failed to lock {}", lock_path.display()))?;
+        Ok(Self { _file: file })
+    }
 }
 
 fn atomic_temp_path(path: &Path) -> PathBuf {
@@ -323,6 +479,7 @@ mod tests {
         state.installed_version = "2026.03.24+deadbeef".to_string();
         state.status = UpdateStatus::WaitingForAppExit;
         state.candidate_version = Some("2026.03.25+feedface".to_string());
+        state.rollback_blocked_dmg_sha256 = Some("full-rollback-dmg-sha256".to_string());
         state.notified_events.insert("ready_to_install".to_string());
         state.waiting_for_app_exit_auto_install = true;
         state.save(&path)?;
@@ -335,6 +492,10 @@ mod tests {
             Some("2026.03.25+feedface")
         );
         assert!(loaded.notified_events.contains("ready_to_install"));
+        assert_eq!(
+            loaded.rollback_blocked_dmg_sha256.as_deref(),
+            Some("full-rollback-dmg-sha256")
+        );
         assert!(!loaded.auto_install_on_app_exit);
         assert!(loaded.waiting_for_app_exit_auto_install);
         Ok(())
@@ -382,6 +543,130 @@ mod tests {
     }
 
     #[test]
+    fn updater_and_cli_state_transactions_preserve_each_other() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("state.json");
+        PersistedState::new(true).save(&path)?;
+
+        let mut cli = PersistedState::load_or_default(&path, true)?;
+        cli.cli_status = CliStatus::UpToDate;
+        cli.cli_installed_version = Some("0.42.1".to_string());
+
+        let mut updater = PersistedState::load_or_default(&path, true)?;
+        updater.status = UpdateStatus::DownloadingDmg;
+        updater.remote_headers_fingerprint = Some("new-updater-state".to_string());
+        updater.cli_prompt_dismissed_at = Some(Utc::now());
+
+        cli.save_cli(&path)?;
+        updater.save_updater(&path)?;
+
+        let loaded = PersistedState::load_or_default(&path, true)?;
+        assert_eq!(loaded.cli_status, CliStatus::UpToDate);
+        assert_eq!(loaded.cli_installed_version.as_deref(), Some("0.42.1"));
+        assert_eq!(loaded.status, UpdateStatus::DownloadingDmg);
+        assert_eq!(
+            loaded.remote_headers_fingerprint.as_deref(),
+            Some("new-updater-state")
+        );
+        assert!(loaded.cli_prompt_dismissed_at.is_some());
+
+        let mut later_cli = PersistedState::new(true);
+        later_cli.cli_status = CliStatus::UpdateRequired;
+        later_cli.cli_error_message = Some("repair required".to_string());
+        later_cli.save_cli(&path)?;
+
+        let loaded = PersistedState::load_or_default(&path, true)?;
+        assert_eq!(loaded.cli_status, CliStatus::UpdateRequired);
+        assert_eq!(
+            loaded.remote_headers_fingerprint.as_deref(),
+            Some("new-updater-state")
+        );
+        assert!(loaded.cli_prompt_dismissed_at.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn guarded_cli_state_write_reloads_a_newer_cli_result() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("state.json");
+        PersistedState::new(true).save(&path)?;
+
+        let baseline = PersistedState::load_or_default(&path, true)?;
+        let mut stale = baseline.clone();
+        stale.cli_status = CliStatus::Unknown;
+        stale.cli_installed_version = Some("0.42.0".to_string());
+
+        let mut newer = baseline.clone();
+        newer.cli_status = CliStatus::UpToDate;
+        newer.cli_installed_version = Some("0.42.1".to_string());
+        newer.save_cli(&path)?;
+        newer.remote_headers_fingerprint = Some("must-survive".to_string());
+        newer.save_updater(&path)?;
+
+        assert!(!stale.save_cli_if_unchanged(&path, &baseline)?);
+        assert_eq!(stale.cli_status, CliStatus::UpToDate);
+        assert_eq!(stale.cli_installed_version.as_deref(), Some("0.42.1"));
+        assert_eq!(
+            stale.remote_headers_fingerprint.as_deref(),
+            Some("must-survive")
+        );
+        let loaded = PersistedState::load_or_default(&path, true)?;
+        assert_eq!(loaded.cli_status, CliStatus::UpToDate);
+        assert_eq!(loaded.cli_installed_version.as_deref(), Some("0.42.1"));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_status_write_preserves_the_latest_cli_identity() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("state.json");
+        let mut latest = PersistedState::new(true);
+        latest.cli_path = Some(PathBuf::from("/new/codex"));
+        latest.cli_installed_version = Some("0.42.1".to_string());
+        latest.cli_official_latest_version = Some("0.42.1".to_string());
+        latest.cli_last_verified_at = Some(Utc::now());
+        latest.cli_status = CliStatus::UpToDate;
+        latest.remote_headers_fingerprint = Some("must-survive".to_string());
+        latest.save(&path)?;
+
+        let mut stale = PersistedState::new(true);
+        stale.cli_path = Some(PathBuf::from("/old/codex"));
+        stale.cli_installed_version = Some("0.42.0".to_string());
+        stale.cli_official_latest_version = None;
+        stale.cli_status = CliStatus::UpdateRequired;
+        stale.cli_error_message = Some("repair required".to_string());
+        stale.save_cli_status(&path)?;
+
+        assert_eq!(stale.cli_path, Some(PathBuf::from("/new/codex")));
+        assert_eq!(stale.cli_installed_version.as_deref(), Some("0.42.1"));
+        assert_eq!(stale.cli_official_latest_version.as_deref(), Some("0.42.1"));
+        assert!(stale.cli_last_verified_at.is_some());
+        assert_eq!(stale.cli_status, CliStatus::UpdateRequired);
+        assert_eq!(stale.cli_error_message.as_deref(), Some("repair required"));
+        assert_eq!(
+            stale.remote_headers_fingerprint.as_deref(),
+            Some("must-survive")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn state_lock_rejects_a_symlink() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("state.json");
+        let target = temp.path().join("must-survive");
+        fs::write(&target, "unchanged\n")?;
+        std::os::unix::fs::symlink(&target, temp.path().join(STATE_LOCK_FILE_NAME))?;
+
+        PersistedState::new(true)
+            .save(&path)
+            .expect_err("state lock must reject symlinks");
+
+        assert_eq!(fs::read_to_string(target)?, "unchanged\n");
+        Ok(())
+    }
+
+    #[test]
     fn loads_legacy_state_without_cli_fields() -> Result<()> {
         let temp = tempdir()?;
         let path = temp.path().join("state.json");
@@ -406,62 +691,99 @@ mod tests {
         let loaded = PersistedState::load_or_default(&path, true)?;
         assert_eq!(loaded.cli_status, CliStatus::Unknown);
         assert_eq!(loaded.cli_installed_version, None);
-        assert_eq!(loaded.cli_latest_version, None);
+        assert_eq!(loaded.cli_official_latest_version, None);
+        assert_eq!(loaded.cli_package_manager_latest_version, None);
         assert_eq!(loaded.cli_error_message, None);
         assert!(!loaded.waiting_for_app_exit_auto_install);
         Ok(())
     }
 
     #[test]
-    fn loads_legacy_state_without_dmg_verification() -> Result<()> {
+    fn loads_legacy_rollback_block_without_dmg_hash() -> Result<()> {
         let temp = tempdir()?;
         let path = temp.path().join("state.json");
         fs::write(
             &path,
             r#"{
-  "installed_version": "2026.03.24",
+  "installed_version": "2026.03.24+deadbeef",
   "candidate_version": null,
   "status": "idle",
   "last_check_at": null,
   "last_successful_check_at": null,
   "remote_headers_fingerprint": null,
   "dmg_sha256": null,
-  "artifact_paths": {"dmg_path": null,"workspace_dir": null,"deb_path": null},
+  "artifact_paths": {"dmg_path": null, "workspace_dir": null, "deb_path": null},
   "error_message": null,
   "notified_events": [],
-  "auto_install_on_app_exit": true
+  "auto_install_on_app_exit": true,
+  "rollback_blocked_candidate_version": "2026.03.25+badcafe0"
 }"#,
         )?;
 
         let loaded = PersistedState::load_or_default(&path, true)?;
+
+        assert_eq!(
+            loaded.rollback_blocked_candidate_version.as_deref(),
+            Some("2026.03.25+badcafe0")
+        );
+        assert_eq!(loaded.rollback_blocked_dmg_sha256, None);
+        Ok(())
+    }
+
+    #[test]
+    fn loads_legacy_cli_latest_version_into_official_latest() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("state.json");
+        fs::write(
+            &path,
+            r#"{
+  "installed_version": "2026.03.24+deadbeef",
+  "candidate_version": null,
+  "status": "idle",
+  "last_check_at": null,
+  "last_successful_check_at": null,
+  "remote_headers_fingerprint": null,
+  "dmg_sha256": null,
+  "artifact_paths": {"dmg_path": null, "workspace_dir": null, "deb_path": null},
+  "error_message": null,
+  "notified_events": [],
+  "auto_install_on_app_exit": true,
+  "cli_latest_version": "0.42.1"
+}"#,
+        )?;
+
+        let loaded = PersistedState::load_or_default(&path, true)?;
+        assert_eq!(
+            loaded.cli_official_latest_version.as_deref(),
+            Some("0.42.1")
+        );
+        assert_eq!(loaded.cli_package_manager_latest_version, None);
+        Ok(())
+    }
+
+    #[test]
+    fn loads_state_without_dmg_verification_field() -> Result<()> {
+        let mut json = serde_json::to_value(PersistedState::new(true))?;
+        json.as_object_mut()
+            .expect("state must serialize as an object")
+            .remove("dmg_verification");
+
+        let loaded = serde_json::from_value::<PersistedState>(json)?;
 
         assert_eq!(loaded.dmg_verification, None);
         Ok(())
     }
 
     #[test]
-    fn loads_legacy_state_without_package_verification_fields() -> Result<()> {
-        let temp = tempdir()?;
-        let path = temp.path().join("state.json");
-        fs::write(
-            &path,
-            r#"{
-  "installed_version": "2026.03.24",
-  "candidate_version": null,
-  "status": "idle",
-  "last_check_at": null,
-  "last_successful_check_at": null,
-  "remote_headers_fingerprint": null,
-  "dmg_sha256": null,
-  "dmg_verification": null,
-  "artifact_paths": {"dmg_path": null,"workspace_dir": null,"deb_path": null},
-  "error_message": null,
-  "notified_events": [],
-  "auto_install_on_app_exit": true
-}"#,
-        )?;
+    fn loads_state_without_package_verification_fields() -> Result<()> {
+        let mut json = serde_json::to_value(PersistedState::new(true))?;
+        let object = json
+            .as_object_mut()
+            .expect("state must serialize as an object");
+        object.remove("package_verification");
+        object.remove("rollback_package_verification");
 
-        let loaded = PersistedState::load_or_default(&path, true)?;
+        let loaded = serde_json::from_value::<PersistedState>(json)?;
 
         assert_eq!(loaded.package_verification, None);
         assert_eq!(loaded.rollback_package_verification, None);
@@ -477,7 +799,7 @@ mod tests {
                 "6d440c7133771935c860a5546bcd603f8b9b65b37e9b82bdb0019d4fd0c85b6a".to_string(),
             ),
             manifest_path: Some(PathBuf::from(
-                "/usr/lib/codex-app/update-builder/updater/trusted-dmg-manifest.json",
+                "/usr/lib/chatgpt/update-builder/updater/trusted-dmg-manifest.json",
             )),
             verified_at: None,
             message: Some("Downloaded DMG matched repo-trusted metadata".to_string()),
@@ -513,11 +835,11 @@ mod tests {
 
     #[test]
     fn deserialises_legacy_deb_path_field() {
-        let json = r#"{"dmg_path":null,"workspace_dir":null,"deb_path":"/tmp/codex.deb"}"#;
+        let json = r#"{"dmg_path":null,"workspace_dir":null,"deb_path":"/tmp/chatgpt.deb"}"#;
         let paths: ArtifactPaths = serde_json::from_str(json).expect("should parse deb_path field");
         assert_eq!(
             paths.package_path.as_deref().and_then(|p| p.to_str()),
-            Some("/tmp/codex.deb")
+            Some("/tmp/chatgpt.deb")
         );
     }
 
@@ -526,7 +848,7 @@ mod tests {
         let paths = ArtifactPaths {
             dmg_path: None,
             workspace_dir: None,
-            package_path: Some(std::path::PathBuf::from("/tmp/codex.rpm")),
+            package_path: Some(std::path::PathBuf::from("/tmp/chatgpt.rpm")),
             rollback_package_path: None,
         };
         let json = serde_json::to_string(&paths).expect("should serialise");

@@ -6,9 +6,9 @@ const path = require("node:path");
 
 const APPROVED_SHOWCASE_PREFIX = "docs/assets/readme/";
 const GENERATED_OR_RUNTIME_PREFIXES = [
-  "codex-app/",
-  "codex-dev-app/",
-  "codex-cua-lab-app/",
+  "chatgpt/",
+  "chatgpt-dev-app/",
+  "chatgpt-cua-lab-app/",
   "dist/",
   "dist-next/",
 ];
@@ -56,12 +56,12 @@ function isAllowedBadge(src) {
 }
 
 function isExistingAppIcon(src) {
-  return normalizeSrc(src) === "assets/codex.png";
+  return normalizeSrc(src) === "assets/chatgpt.png";
 }
 
 function isGeneratedOrRuntimePath(src) {
   const normalized = canonicalizeLocalPath(src);
-  if (normalized === "Codex.dmg") {
+  if (normalized === "ChatGPT.dmg") {
     return true;
   }
   if (/^codex-[^/]+-app\//.test(normalized)) {

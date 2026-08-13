@@ -5,9 +5,9 @@
 This repository is a downstream maintenance fork of
 `ilysenko/codex-desktop-linux`. The git remote named `upstream` is the
 Linux-port upstream: it does the primary Linux conversion work from the
-official OpenAI Codex DMG and carries much of the Linux runtime enablement.
+official OpenAI ChatGPT DMG and carries much of the Linux runtime enablement.
 This fork is the finishing layer over that work: it preserves the local
-`codex-app` identity, distro-shaped install layout, updater policy, hardening,
+`chatgpt` identity, distro-shaped install layout, updater policy, hardening,
 security review, and packaging/runtime polish.
 
 Do not describe this repository as "the Linux fork" in durable docs or PR text.
@@ -16,7 +16,7 @@ upstream's work.
 
 Use explicit upstream terminology where it prevents ambiguity. `Linux-port
 upstream` means `ilysenko/codex-desktop-linux` or the git remote named
-`upstream`. `Official OpenAI Codex DMG`, `official OpenAI app bundle`, and
+`upstream`. `Official OpenAI ChatGPT DMG`, `official OpenAI app bundle`, and
 `OpenAI-hosted services` mean the OpenAI-distributed macOS app artifact,
 generated bundle behavior, and service/account surfaces. Once a section,
 document, or sentence clearly scopes the relevant surface, concise terms such
@@ -26,7 +26,7 @@ as `upstream`, `DMG`, or `app bundle` are fine. Do not use plain
 Use `port integration` in durable docs for configurable build-time modules that
 adapt official app behavior or local runtime helpers to this Linux port. The
 implementation path and config APIs are `port-integrations/`,
-`port-integrations.json`, and `CODEX_PORT_INTEGRATIONS_*`; use those exact names only
+`port-integrations.json`, and `CHATGPT_PORT_INTEGRATIONS_*`; use those exact names only
 for source paths, file paths, and environment variables. Do not describe these
 integrations as features of Linux.
 
@@ -36,11 +36,17 @@ Treat this file as always-loaded agent policy. Keep detailed package recipes, ru
 
 ### Issue tracker
 
-Engineering skills publish issues and PRDs to GitHub Issues for `nisavid/codex-app-linux`. See `docs/agents/issue-tracker.md`.
+Engineering skills publish issues and PRDs to GitHub Issues for `nisavid/chatgpt-linux`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
 The triage vocabulary uses the five default engineering-skill labels. See `docs/agents/triage-labels.md`.
+
+### Label governance
+
+`.github/labels.json` is the source of truth for repository labels. Follow
+`docs/label-governance.md` before proposing or applying classifications. Labels
+are staff-managed, and `workflow: manual only` blocks item-specific mutation.
 
 ### Domain docs
 
@@ -80,7 +86,7 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - The first time a task branch is pushed, create a draft PR in the same workflow
   turn. Mark it ready only after local readiness gates pass and the PR body
   records verification evidence.
-- Use `--repo nisavid/codex-app-linux` on every `gh pr` command in this
+- Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
   checkout, including `create`, `view`, `ready`, `checks`, `merge`, and
   `status`. Do not rely on GitHub CLI's inferred repository; it can target the
   wrong repository in this fork checkout.
@@ -92,32 +98,53 @@ This is a single-context repo. See `docs/agents/domain.md`.
   helpers, run a local app generation/build gate first. The minimum gate is a
   successful `./install.sh` or `make build-app` from the current sources plus the
   relevant local package builder when package contents are affected. Refresh
-  `Codex.dmg` first unless the cached DMG was refreshed within the last 24
+  `ChatGPT.dmg` first unless the cached DMG was refreshed within the last 24
   hours. Record the exact DMG refresh or age-check command and build command in
   the verification notes.
 - Use Conventional Commits. Commit messages must accurately describe the
   committed change.
+- Support the latest official `ChatGPT.dmg` and its current `ChatGPT.app`
+  bundle shape. When official-app drift is repaired, remove obsolete fallback
+  patch paths and version-specific compatibility branches in the same change.
+- Treat updater, package-builder, launcher, and port-integration framework
+  changes as cross-format unless the implementation explicitly scopes them.
+- Keep app generation transactional: build and validate a sibling candidate,
+  preserve the working app on rejected or inconclusive acceptance, and promote
+  with atomic directory exchange plus the recovery journal.
 - Do not hand-edit generated app output as the durable fix. Change `install.sh`, launcher templates, package templates, updater code, or shared helpers, then regenerate or inspect generated output as needed.
-- Treat `codex-app/`, `codex-*-app/`, `dist/`, `Codex.dmg`, and XDG updater config/state/cache paths as generated or runtime artifacts unless the task explicitly targets them.
-- Do not assume `codex-app/` is pristine. If it disagrees with source scripts, source scripts win.
+- Treat `chatgpt/`, side-by-side `*-app/` output, `dist/`, `ChatGPT.dmg`, and XDG updater config/state/cache paths as generated or runtime artifacts unless the task explicitly targets them.
+- Do not assume `chatgpt/` is pristine. If it disagrees with source scripts, source scripts win.
 - Keep Linux package behavior in `packaging/linux/`, `scripts/build-deb.sh`, `scripts/build-rpm.sh`, `scripts/build-pacman.sh`, and `scripts/lib/package-common.sh`.
+- Use `CHATGPT_*` for environment variables introduced by this fork or by the
+  Linux-port upstream. Keep inherited OpenAI `CODEX_*` interfaces unchanged,
+  including Codex CLI, app-server, plugin, browser-use, Node REPL, and bundle
+  contracts. Do not add legacy aliases for renamed port-owned variables; tests
+  may name rejected variables only when they verify fail-closed migration.
+- Preserve `Codex` in current prose and identifiers only for inherited OpenAI
+  interfaces such as the Codex CLI, npm packages, URL schemes, skills, bundle
+  identifiers, or explicit compatibility and historical discussion.
+- Native packages replace and conflict with the former `codex-app` and
+  `codex-desktop` packages. Do not ship compatibility commands, desktop files,
+  service aliases, or other runtime shims. Migrate wrapper-owned XDG state to
+  `chatgpt` and `chatgpt-updater` with the journaled migration helper; fail
+  closed on collisions and preserve the explicit reverse-migration command.
 - Preserve this fork's intentional names when syncing from `upstream`:
   the app, install roots, launchers, package names, desktop files, and XDG app
-  state use `codex-app`; the updater crate, binary, service, config, state,
-  cache, and logs use `codex-app-updater`. Integrate incoming behavior under
+  state use `chatgpt`; the updater crate, binary, service, config, state,
+  cache, and logs use `chatgpt-updater`. Integrate incoming behavior under
   the local names instead of adopting upstream names.
 - Preserve this fork's intentional layout when syncing from `upstream`.
   Path decisions follow these criteria in order: the XDG Base Directory
   Specification, the Filesystem Hierarchy Standard, then common conventions
   used by mainstream Linux distros for modern Electron-style apps. Native
-  packages keep the generated app bundle under `/opt/codex-app`, private
-  package support under `/usr/lib/codex-app`, system launch and desktop
+  packages keep the generated app bundle under `/opt/chatgpt`, private
+  package support under `/usr/lib/chatgpt`, system launch and desktop
   integration under `/usr/bin` and `/usr/share`, and user runtime/config/cache
   and state under the appropriate XDG base directories. Do not adopt upstream
-  `codex-app-linux` or `~/.local/opt` install roots as part of a sync.
+  `codex-desktop-linux` or `~/.local/opt` install roots as part of a sync.
 - Preserve this fork's package version contract. Native package versions come
   from the official OpenAI app bundle's `CFBundleShortVersionString`, written
-  to `codex-app/codex-app-version.env` during app generation. Do not replace
+  to `chatgpt/chatgpt-version.env` during app generation. Do not replace
   that with timestamp-based package versions during upstream syncs.
 - When syncing from `upstream`, use the user-global
   `syncing-forks-with-upstream` skill and the repo-local policy in
@@ -142,7 +169,7 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - During upstream syncs, close reusable policy gaps before handoff.
   If the sync reveals a hazard that future agents could miss, update the
   narrowest durable policy surface and record the change in the sync ledger.
-- Keep native-package-only launcher behavior in `packaging/linux/codex-packaged-runtime.sh`; `install.sh` should stay generic and load that helper only when packaging requires it.
+- Keep native-package-only launcher behavior in `packaging/linux/chatgpt-packaged-runtime.sh`; `install.sh` should stay generic and load that helper only when packaging requires it.
 - Keep package builders and `scripts/lib/package-common.sh` aligned when adding, removing, or moving packaged files.
 - Preserve the unprivileged updater boundary. Escalation belongs only at install time through the updater's privileged install subcommands.
 - If the updater crate version changes, update `updater/Cargo.toml`, `README.md`, `AGENTS.md`, and maintainer versioning docs in the same change.
@@ -161,9 +188,14 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - Linux patch registry and port integration descriptors: `scripts/patches/`,
   `scripts/lib/port-integrations.js`, and `port-integrations/`
 - Linux package templates, maintainer scripts, desktop entry, service unit, packaged runtime helper: `packaging/linux/`
+- AppImage-only runtime behavior: `packaging/appimage/chatgpt-appimage-runtime.sh`
+- Shared build pipeline: `scripts/lib/*.sh`
+- Official DMG automation: `scripts/automation/upstream-dmg-watchdog/` and
+  `docs/upstream-dmg-watchdog.md`
+- Nix package and modules: `flake.nix`, `flake.lock`, and `nix/`
 - Rust updater service and CLI: `updater/`
 - Updater crate version and versioning policy: `updater/Cargo.toml` and
-  `docs/maintainers/package-runtime-maintenance.md` (current version: `0.9.0`)
+  `docs/maintainers/package-runtime-maintenance.md` (current version: `0.10.4`)
 - User-facing overview and install guidance: `README.md`
 - Webview server design decision and acceptance criteria: `docs/webview-server-evaluation.md`
 - Fork-specific contracts and upstream sync review inventory: `docs/maintainers/fork-divergences.md`
@@ -172,14 +204,26 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - Security follow-up and `@codex-security` review routing: `docs/maintainers/security-backlog.md`
 - Additional maintainer notes: prefer `docs/maintainers/` over expanding this file.
 
+## Patch And Integration Rules
+
+- Treat `scripts/patch-linux-window-ui.js` as a build-facing CLI. Use the
+  descriptor, runner, and helper APIs under `scripts/patches/` for patch work.
+- Keep ASAR patches fail-soft and idempotent unless a descriptor is deliberately
+  marked `required-official-dmg`.
+- Do not recreate deleted compatibility barrels such as
+  `scripts/patches/main-process.js`, `webview-assets.js`, or `shared.js`.
+- Port integrations patch through `entrypoints.patchDescriptors`. Prefer
+  declarative `resources`, `runtimeHooks`, and `packageHooks` to ad hoc
+  staging, and keep resource targets inside the app directory.
+
 ## Triggered Guidance
 
-- Changing launcher behavior: edit `launcher/start.sh.template`; if install-time launcher identity or orchestration is involved, edit `install.sh`; if package-only behavior is involved, edit `packaging/linux/codex-packaged-runtime.sh`; then regenerate or inspect `codex-app/start.sh`.
+- Changing launcher behavior: edit `launcher/start.sh.template`; if install-time launcher identity or orchestration is involved, edit `install.sh`; if package-only behavior is involved, edit `packaging/linux/chatgpt-packaged-runtime.sh`; then regenerate or inspect `chatgpt/start.sh`.
 - Changing ASAR patches or Linux window behavior: edit the patching path from `install.sh` and `scripts/patch-linux-window-ui.js`; keep patches fail-soft when they target volatile official app bundles.
 - Changing webview serving: read `docs/webview-server-evaluation.md` before changing the local server model or port behavior.
 - Changing package contents: update the relevant file under `packaging/linux/`, the affected package builder, and `scripts/lib/package-common.sh` together.
 - Changing updater behavior: work in `updater/`, preserve persisted-state compatibility unless intentionally versioned, and check service/install behavior around failed, cancelled, or interrupted privileged installs.
-- Changing updater service lifecycle: inspect `packaging/linux/codex-app-updater.service` and the package maintainer scripts for Debian, RPM, and pacman effects.
+- Changing updater service lifecycle: inspect `packaging/linux/chatgpt-updater.service` and the package maintainer scripts for Debian, RPM, and pacman effects.
 - Changing runtime CLI discovery or install behavior: keep the launcher best-effort; warnings may not block Electron startup unless the task explicitly changes that policy.
 - Changing dependencies or supported runtime requirements: update `scripts/install-deps.sh`, `README.md`, and package metadata or maintainer docs as needed.
 - Syncing from `upstream`: use the user-global
@@ -192,15 +236,15 @@ This is a single-context repo. See `docs/agents/domain.md`.
 
 ## Generated And Runtime Artifacts
 
-- `codex-app/` and `codex-*-app/`: generated Linux app trees and launcher output.
-- `codex-app/codex-app-version.env`: generated package-version metadata read
+- `chatgpt/` and side-by-side `*-app/` directories: generated Linux app trees and launcher output.
+- `chatgpt/chatgpt-version.env`: generated package-version metadata read
   from the official OpenAI app bundle.
 - `dist/`: native package output.
-- `Codex.dmg`: cached official OpenAI Codex DMG.
-- `~/.config/codex-app-updater/config.toml`: updater runtime config.
-- `~/.local/state/codex-app-updater/`: updater state and service logs.
-- `~/.cache/codex-app-updater/`: downloaded DMGs, rebuild workspaces, staged packages, and build logs.
-- `~/.cache/codex-app/launcher.log` and `~/.local/state/codex-app/app.pid`: launcher diagnostics and app liveness state.
+- `ChatGPT.dmg`: cached official OpenAI ChatGPT DMG.
+- `~/.config/chatgpt-updater/config.toml`: updater runtime config.
+- `~/.local/state/chatgpt-updater/`: updater state and service logs.
+- `~/.cache/chatgpt-updater/`: downloaded DMGs, rebuild workspaces, staged packages, and build logs.
+- `~/.cache/chatgpt/launcher.log` and `~/.local/state/chatgpt/app.pid`: launcher diagnostics and app liveness state.
 
 Inspect generated artifacts to verify behavior, but do not make them the only source of a durable fix.
 
@@ -209,9 +253,9 @@ Inspect generated artifacts to verify behavior, but do not make them the only so
 Choose the smallest validation set that covers the changed behavior.
 
 - Shell changes: run `bash -n` on edited shell scripts.
-- Updater changes: run `cargo check -p codex-app-updater` and targeted updater tests; run full updater tests for state, install, or CLI changes.
+- Updater changes: run `cargo check -p chatgpt-updater` and targeted updater tests; run full updater tests for state, install, or CLI changes.
 - Package changes: build the affected package format when practical and inspect package metadata plus the first package file listing.
-- Launcher or installer changes: regenerate or inspect `codex-app/start.sh` and check launcher logs when runtime behavior is involved.
-- Webview changes: verify the local server still serves expected Codex webview startup assets before Electron launch.
+- Launcher or installer changes: regenerate or inspect `chatgpt/start.sh` and check launcher logs when runtime behavior is involved.
+- Webview changes: verify the local server still serves expected ChatGPT webview startup assets before Electron launch.
 
 If a preferred validation cannot run because a host tool is missing, state the missing tool and run the closest useful static or targeted check.

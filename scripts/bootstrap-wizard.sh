@@ -1,44 +1,89 @@
 #!/usr/bin/env bash
-# Guided, conservative setup helper for native Codex App Linux builds.
+# Guided, conservative setup helper for native ChatGPT for Linux builds.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INTEGRATIONS_ROOT="${CODEX_PORT_INTEGRATIONS_ROOT:-${CODEX_LINUX_FEATURES_ROOT:-$REPO_DIR/port-integrations}}"
-PACKAGE_NAME="${PACKAGE_NAME:-codex-app}"
+
+reject_obsolete_bootstrap_environment() {
+    local obsolete replacement
+    while read -r obsolete replacement; do
+        [ -n "$obsolete" ] || continue
+        if [[ -v "$obsolete" ]]; then
+            echo "$obsolete is no longer supported; use $replacement" >&2
+            return 1
+        fi
+    done <<'OBSOLETE_BOOTSTRAP_ENV'
+CHATGPT_LINUX_FEATURES_ROOT CHATGPT_PORT_INTEGRATIONS_ROOT
+CHATGPT_LINUX_FEATURES_CONFIG CHATGPT_PORT_INTEGRATIONS_CONFIG
+CHATGPT_LINUX_FEATURES CHATGPT_PORT_INTEGRATIONS
+CHATGPT_LINUX_DISABLE_FEATURES CHATGPT_DISABLE_PORT_INTEGRATIONS
+CHATGPT_BOOTSTRAP_CLEANUP_FEATURES CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS
+OBSOLETE_BOOTSTRAP_ENV
+}
+
+reject_obsolete_bootstrap_environment
+INTEGRATIONS_ROOT="${CHATGPT_PORT_INTEGRATIONS_ROOT:-$REPO_DIR/port-integrations}"
+PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/linux-target-detect.sh"
+SETUP_ERROR_REPORTED=0
+COLOR_RESET=""
+COLOR_BOLD=""
+COLOR_DIM=""
+COLOR_RED=""
+COLOR_YELLOW=""
+COLOR_CYAN=""
+COLOR_GREEN=""
 
 info() {
-    echo "[setup] $*"
+    echo "${COLOR_DIM}[setup]${COLOR_RESET} $*"
 }
 
 warn() {
-    echo "[setup][WARN] $*" >&2
+    echo "${COLOR_YELLOW}[setup][WARN]${COLOR_RESET} $*" >&2
 }
 
 error() {
-    echo "[setup][ERROR] $*" >&2
+    SETUP_ERROR_REPORTED=1
+    echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} $*" >&2
     exit 1
 }
+
+section() {
+    echo
+    echo "${COLOR_CYAN}${COLOR_BOLD}[setup] == $* ==${COLOR_RESET}"
+}
+
+unexpected_error() {
+    local status=$?
+    [ "$status" = "0" ] && return 0
+    [ "${SETUP_ERROR_REPORTED:-0}" = "1" ] && return "$status"
+    echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} setup-native stopped unexpectedly near line ${BASH_LINENO[0]:-unknown} (exit $status)." >&2
+    echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} Review the last [setup] lines above. You can rerun with CHATGPT_BOOTSTRAP_DRY_RUN=1 for a read-only preview." >&2
+    return "$status"
+}
+
+trap unexpected_error ERR
 
 usage() {
     cat <<'EOF'
 Usage: scripts/bootstrap-wizard.sh [--help]
 
 Environment:
-  CODEX_BOOTSTRAP_NONINTERACTIVE=1     never prompt
-  CODEX_BOOTSTRAP_DRY_RUN=1            preview install/cleanup actions without changing them
-  CODEX_BOOTSTRAP_INSTALL_DEPS=1       run bash scripts/install-deps.sh after checks
-  CODEX_BOOTSTRAP_INSTALL_NATIVE=1     run make install-native after checks
-  CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS=a,b cleanup integration-owned data with confirmation
-  CODEX_PORT_INTEGRATIONS=a,b             enable build-time port integrations
-  CODEX_DISABLE_PORT_INTEGRATIONS=a,b     disable build-time port integrations
-  CODEX_PORT_INTEGRATIONS_ROOT=/path      override port-integrations root
-  CODEX_PORT_INTEGRATIONS_CONFIG=/path    override integrations.json path
-  PACKAGE_NAME=codex-cua-lab           check side-by-side installed package state
+  CHATGPT_BOOTSTRAP_NONINTERACTIVE=1     never prompt
+  CHATGPT_BOOTSTRAP_DRY_RUN=1            preview install/cleanup actions without changing them
+  CHATGPT_BOOTSTRAP_INSTALL_DEPS=1       run bash scripts/install-deps.sh after checks
+  CHATGPT_BOOTSTRAP_INSTALL_NATIVE=1     run make install-native after checks
+  CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS=a,b cleanup integration-owned data with confirmation
+  CHATGPT_BOOTSTRAP_COLOR=auto|1|0       enable ANSI color automatically, force it, or disable it
+  CHATGPT_PORT_INTEGRATIONS=a,b             enable build-time port integrations
+  CHATGPT_DISABLE_PORT_INTEGRATIONS=a,b     disable build-time port integrations
+  CHATGPT_PORT_INTEGRATIONS_ROOT=/path      override port-integrations root
+  CHATGPT_PORT_INTEGRATIONS_CONFIG=/path    override integrations.json path
+  port-integrations/local/<id>/        user-local integrations are discovered and marked [local]
+  PACKAGE_NAME=chatgpt-cua-lab           check side-by-side installed package state
   PACKAGE_WITH_UPDATER=0               choose manual-update package mode
-
-Legacy CODEX_LINUX_FEATURES_* and CODEX_BOOTSTRAP_CLEANUP_FEATURES variables
-are accepted as compatibility aliases.
 
 The wizard is conservative: it does not install packages, start services, stop
 ydotoold, or delete integration-owned user data unless the user explicitly asks and
@@ -81,12 +126,39 @@ falsy() {
     esac
 }
 
+init_colors() {
+    case "${CHATGPT_BOOTSTRAP_COLOR:-auto}" in
+        1|true|True|TRUE|yes|Yes|YES|on|On|ON|always)
+            ;;
+        0|false|False|FALSE|no|No|NO|off|Off|OFF|never)
+            return 0
+            ;;
+        auto|"")
+            [ -z "${NO_COLOR:-}" ] || return 0
+            [ -t 1 ] || return 0
+            [ "${TERM:-}" != "dumb" ] || return 0
+            ;;
+        *)
+            error "CHATGPT_BOOTSTRAP_COLOR must be auto, 1, or 0"
+            ;;
+    esac
+
+    COLOR_RESET=$'\033[0m'
+    COLOR_BOLD=$'\033[1m'
+    COLOR_DIM=$'\033[2m'
+    COLOR_RED=$'\033[31m'
+    COLOR_YELLOW=$'\033[33m'
+    COLOR_CYAN=$'\033[36m'
+    COLOR_GREEN=$'\033[32m'
+}
+
+init_colors
 noninteractive_mode() {
-    truthy "${CODEX_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]
+    truthy "${CHATGPT_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]
 }
 
 dry_run_enabled() {
-    truthy "${CODEX_BOOTSTRAP_DRY_RUN:-0}"
+    truthy "${CHATGPT_BOOTSTRAP_DRY_RUN:-0}"
 }
 
 prompt_read() {
@@ -128,104 +200,12 @@ package_with_updater_enabled() {
 }
 
 integration_config_path() {
-    if [ -n "${CODEX_PORT_INTEGRATIONS_CONFIG:-}" ]; then
-        printf '%s\n' "$CODEX_PORT_INTEGRATIONS_CONFIG"
-    elif [ -n "${CODEX_LINUX_FEATURES_CONFIG:-}" ]; then
-        printf '%s\n' "$CODEX_LINUX_FEATURES_CONFIG"
+    if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ]; then
+        printf '%s\n' "$CHATGPT_PORT_INTEGRATIONS_CONFIG"
     elif [ -e "$INTEGRATIONS_ROOT/integrations.json" ]; then
         printf '%s\n' "$INTEGRATIONS_ROOT/integrations.json"
-    elif [ -e "$INTEGRATIONS_ROOT/features.json" ]; then
-        printf '%s\n' "$INTEGRATIONS_ROOT/features.json"
     else
         printf '%s\n' "$INTEGRATIONS_ROOT/integrations.json"
-    fi
-}
-
-os_release_field() {
-    local field="$1"
-    local file line value
-
-    for file in ${OS_RELEASE_FILE:-} /etc/os-release /usr/lib/os-release; do
-        [ -n "$file" ] || continue
-        [ -r "$file" ] || continue
-        while IFS= read -r line; do
-            case "$line" in
-                "$field="*)
-                    value="${line#*=}"
-                    value="${value#\"}"
-                    value="${value%\"}"
-                    value="${value#\'}"
-                    value="${value%\'}"
-                    printf '%s\n' "${value,,}"
-                    return 0
-                    ;;
-            esac
-        done < "$file"
-    done
-
-    return 1
-}
-
-os_release_matches() {
-    local expected token
-    for expected in "$@"; do
-        [ "${OS_RELEASE_ID:-}" = "$expected" ] && return 0
-        for token in ${OS_RELEASE_ID_LIKE:-}; do
-            [ "$token" = "$expected" ] && return 0
-        done
-    done
-    return 1
-}
-
-detect_package_manager() {
-    if os_release_matches debian ubuntu linuxmint pop elementary zorin && command -v apt-get >/dev/null 2>&1; then
-        echo "apt"
-    elif os_release_matches arch archlinux manjaro endeavouros artix && command -v pacman >/dev/null 2>&1; then
-        echo "pacman"
-    elif os_release_matches opensuse suse sles && command -v zypper >/dev/null 2>&1; then
-        echo "zypper"
-    elif os_release_matches fedora rhel centos rocky almalinux ol; then
-        if command -v dnf5 >/dev/null 2>&1; then
-            echo "dnf5"
-        elif command -v dnf >/dev/null 2>&1; then
-            echo "dnf"
-        else
-            echo "unknown"
-        fi
-    elif command -v apt-get >/dev/null 2>&1; then
-        echo "apt"
-    elif command -v dnf5 >/dev/null 2>&1; then
-        echo "dnf5"
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "dnf"
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "pacman"
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "zypper"
-    else
-        echo "unknown"
-    fi
-}
-
-detect_package_format() {
-    if os_release_matches arch archlinux manjaro endeavouros artix; then
-        echo "pacman"
-    elif os_release_matches fedora rhel centos rocky almalinux ol sles suse opensuse; then
-        echo "rpm"
-    elif os_release_matches debian ubuntu linuxmint pop elementary zorin; then
-        echo "deb"
-    elif command -v pacman >/dev/null 2>&1 && ! command -v dpkg-deb >/dev/null 2>&1; then
-        echo "pacman"
-    elif command -v rpmbuild >/dev/null 2>&1 && ! command -v dpkg-deb >/dev/null 2>&1; then
-        echo "rpm"
-    elif command -v dpkg-deb >/dev/null 2>&1; then
-        echo "deb"
-    elif command -v rpmbuild >/dev/null 2>&1; then
-        echo "rpm"
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "pacman"
-    else
-        echo "unknown"
     fi
 }
 
@@ -308,6 +288,9 @@ install_command_for_packages() {
         dnf)
             printf 'sudo dnf install %s' "$packages"
             ;;
+        rpm-ostree)
+            printf 'sudo rpm-ostree install %s' "$packages"
+            ;;
         pacman)
             printf 'sudo pacman -S %s' "$packages"
             ;;
@@ -346,7 +329,7 @@ computer_use_ydotool_packages() {
 }
 
 uinput_summary() {
-    local uinput_path="${CODEX_BOOTSTRAP_UINPUT_PATH:-/dev/uinput}"
+    local uinput_path="${CHATGPT_BOOTSTRAP_UINPUT_PATH:-/dev/uinput}"
     if [ ! -e "$uinput_path" ]; then
         printf 'missing'
         return
@@ -399,9 +382,9 @@ window_backend_hint() {
 computer_use_doctor_path() {
     local candidate
     for candidate in \
-        "$REPO_DIR/codex-app/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" \
-        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" \
-        "$(command -v codex-computer-use-linux 2>/dev/null || true)"; do
+        "$REPO_DIR/chatgpt/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux" \
+        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/computer-use/bin/chatgpt-computer-use-linux" \
+        "$(command -v chatgpt-computer-use-linux 2>/dev/null || true)"; do
         [ -n "$candidate" ] || continue
         if [ -x "$candidate" ]; then
             printf '%s\n' "$candidate"
@@ -412,14 +395,14 @@ computer_use_doctor_path() {
 }
 
 settings_file_path() {
-    if [ -n "${CODEX_LINUX_SETTINGS_FILE:-}" ]; then
-        printf '%s\n' "$CODEX_LINUX_SETTINGS_FILE"
+    if [ -n "${CHATGPT_LINUX_SETTINGS_FILE:-}" ]; then
+        printf '%s\n' "$CHATGPT_LINUX_SETTINGS_FILE"
     else
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local app_id="${CODEX_LINUX_APP_ID:-${CODEX_APP_ID:-codex-app}}"
+        local app_id="${CHATGPT_LINUX_APP_ID:-${CHATGPT_APP_ID:-chatgpt}}"
         case "$app_id" in
             */*|*[!A-Za-z0-9._-]*|"."|".."|"")
-                app_id="codex-app"
+                app_id="chatgpt"
                 ;;
         esac
         printf '%s\n' "$config_home/$app_id/settings.json"
@@ -448,20 +431,20 @@ PY
 }
 
 read_aloud_python_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_PYTHON:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_PYTHON:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-python")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-python")"
     fi
     if [ -z "$value" ]; then
-        value="${XDG_DATA_HOME:-$HOME/.local/share}/codex-app/read-aloud/kokoro-venv/bin/python"
+        value="${XDG_DATA_HOME:-$HOME/.local/share}/chatgpt/read-aloud/kokoro-venv/bin/python"
     fi
     printf '%s\n' "$value"
 }
 
 read_aloud_model_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_MODEL:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_MODEL:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-model")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-model")"
     fi
     if [ -z "$value" ]; then
         value="${XDG_DATA_HOME:-$HOME/.local/share}/kokoro/kokoro-v1.0.onnx"
@@ -470,9 +453,9 @@ read_aloud_model_path() {
 }
 
 read_aloud_voices_path() {
-    local value="${CODEX_LINUX_READ_ALOUD_KOKORO_VOICES:-}"
+    local value="${CHATGPT_LINUX_READ_ALOUD_KOKORO_VOICES:-}"
     if [ -z "$value" ]; then
-        value="$(json_setting_value "codex-linux-read-aloud-kokoro-voices")"
+        value="$(json_setting_value "chatgpt-linux-read-aloud-kokoro-voices")"
     fi
     if [ -z "$value" ]; then
         value="${XDG_DATA_HOME:-$HOME/.local/share}/kokoro/voices-v1.0.bin"
@@ -498,9 +481,9 @@ path_summary() {
 read_aloud_doctor_path() {
     local candidate
     for candidate in \
-        "$REPO_DIR/codex-app/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" \
-        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" \
-        "$(command -v codex-read-aloud-linux 2>/dev/null || true)"; do
+        "$REPO_DIR/chatgpt/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux" \
+        "/opt/$PACKAGE_NAME/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux" \
+        "$(command -v chatgpt-read-aloud-linux 2>/dev/null || true)"; do
         [ -n "$candidate" ] || continue
         if [ -x "$candidate" ]; then
             printf '%s\n' "$candidate"
@@ -528,7 +511,7 @@ print_read_aloud_details() {
     if [ -n "$doctor" ]; then
         info "  Read Aloud doctor command: $doctor doctor"
     else
-        info "  Read Aloud doctor command: enable read-aloud-mcp and rebuild/install, then run codex-read-aloud-linux doctor from the staged plugin."
+        info "  Read Aloud doctor command: enable read-aloud-mcp and rebuild/install, then run chatgpt-read-aloud-linux doctor from the staged plugin."
     fi
     info "  Setup hint: use the Read Aloud settings download flow or port-integrations/read-aloud/install-kokoro-runtime.sh; custom paths stay in settings/env."
 }
@@ -549,7 +532,7 @@ print_computer_use_details() {
     if [ -n "$doctor" ]; then
         info "  Computer Use doctor command: $doctor doctor"
     else
-        info "  Computer Use doctor command: build/install first, then run codex-computer-use-linux doctor from the staged plugin."
+        info "  Computer Use doctor command: build/install first, then run chatgpt-computer-use-linux doctor from the staged plugin."
     fi
 }
 
@@ -573,7 +556,7 @@ installed_package_version() {
 }
 
 updater_install_summary() {
-    if [ -x /usr/bin/codex-app-updater ] || [ -d "/opt/$PACKAGE_NAME/update-builder" ]; then
+    if [ -x /usr/bin/chatgpt-updater ] || [ -d "/opt/$PACKAGE_NAME/update-builder" ]; then
         printf 'updater artifacts detected'
     else
         printf 'not detected'
@@ -584,12 +567,17 @@ print_system_summary() {
     OS_RELEASE_ID="$(os_release_field ID 2>/dev/null || true)"
     OS_RELEASE_ID_LIKE="$(os_release_field ID_LIKE 2>/dev/null || true)"
     OS_RELEASE_VERSION_ID="$(os_release_field VERSION_ID 2>/dev/null || true)"
+    local atomic_host="no"
+    if linux_target_is_atomic; then
+        atomic_host="yes"
+    fi
 
-    info "Codex App Linux guided setup"
+    info "ChatGPT for Linux guided setup"
     info "Repository: $REPO_DIR"
     info "Distro: ID=${OS_RELEASE_ID:-unknown} ID_LIKE=${OS_RELEASE_ID_LIKE:-unknown} VERSION_ID=${OS_RELEASE_VERSION_ID:-unknown}"
     info "Package manager: $(detect_package_manager)"
     info "Native package format: $(detect_package_format)"
+    info "Atomic host: $atomic_host"
     info "Session: XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unknown} DESKTOP_SESSION=${DESKTOP_SESSION:-unknown} XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-none} DISPLAY=${DISPLAY:-none}"
     info "Helpers: pkexec=$(command_status pkexec) kdialog=$(command_status kdialog) zenity=$(command_status zenity)"
     info "Computer Use readiness: ydotool=$(command_status ydotool) ydotoold=$(command_status ydotoold) ydotoold.service(system)=[$(service_state ydotoold.service system)] ydotoold.service(user)=[$(service_state ydotoold.service user)] ydotool.service(system)=[$(service_state ydotool.service system)] ydotool.service(user)=[$(service_state ydotool.service user)] socket=$(ydotool_socket_summary) portal=$(portal_summary)"
@@ -601,6 +589,7 @@ run_integration_config_python() {
     local enable_raw="$1"
     local disable_raw="$2"
     local apply_changes="$3"
+    local output_mode="${4:-}"
     local config_path
     config_path="$(integration_config_path)"
 
@@ -612,7 +601,7 @@ run_integration_config_python() {
         return
     fi
 
-    python3 - "$INTEGRATIONS_ROOT" "$config_path" "$enable_raw" "$disable_raw" "$apply_changes" <<'PY'
+    if ! python3 - "$INTEGRATIONS_ROOT" "$config_path" "$enable_raw" "$disable_raw" "$apply_changes" "$output_mode" <<'PY'
 import json
 import pathlib
 import re
@@ -623,6 +612,7 @@ config_path = pathlib.Path(sys.argv[2])
 enable_raw = sys.argv[3]
 disable_raw = sys.argv[4]
 apply_changes = sys.argv[5] == "1"
+output_mode = sys.argv[6] if len(sys.argv) > 6 else ""
 
 id_re = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -633,20 +623,6 @@ def die(message):
 def warn(message):
     print(f"[setup][WARN] {message}", file=sys.stderr)
 
-def split_ids(raw):
-    if not raw.strip():
-        return []
-    ids = [item for item in re.split(r"[,\s]+", raw.strip()) if item]
-    seen = set()
-    result = []
-    for item in ids:
-        if not id_re.match(item):
-            die(f"Invalid port integration id: {item}")
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
-
 def read_json(path, label):
     try:
         return json.loads(path.read_text())
@@ -655,32 +631,119 @@ def read_json(path, label):
     except Exception as exc:
         die(f"Could not read {label} at {path}: {exc}")
 
+def normalize_id_list(value, label, manifest_path):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        die(f"Port integration manifest {manifest_path} field {label} must be an array")
+    result = []
+    seen = set()
+    for item in value:
+        if not isinstance(item, str) or not id_re.match(item):
+            die(f"Port integration manifest {manifest_path} field {label} contains invalid integration id: {item}")
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+def split_selectors(raw, integrations, label):
+    if not raw.strip():
+        return []
+    items = [item for item in re.split(r"[,\s]+", raw.strip()) if item]
+    integration_ids = list(integrations)
+    seen = set()
+    result = []
+
+    def add_integration_number(raw_number):
+        number = int(raw_number)
+        if number < 1 or number > len(integration_ids):
+            maximum = len(integration_ids)
+            hint = f"1-{maximum}" if maximum else "none available"
+            die(f"Integration number {number} is out of range for {label} (available: {hint}). Use integration ids, numbers, or ranges like 1,3-4.")
+        integration_id = integration_ids[number - 1]
+        if integration_id not in seen:
+            seen.add(integration_id)
+            result.append(integration_id)
+
+    for item in items:
+        if re.match(r"^[0-9]+-[0-9]+$", item):
+            start_raw, end_raw = item.split("-", 1)
+            start = int(start_raw)
+            end = int(end_raw)
+            if start > end:
+                die(f"Integration range {item} is invalid for {label}. Use ascending ranges like 2-4.")
+            for number in range(start, end + 1):
+                add_integration_number(str(number))
+            continue
+        if re.match(r"^[0-9]+$", item):
+            add_integration_number(item)
+            continue
+        if not id_re.match(item):
+            die(f"Invalid port integration selector for {label}: {item}. Use integration ids, numbers, or ranges like 1,3-4.")
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+def integration_manifest_paths(root):
+    if not root.exists():
+        return []
+    reserved = {
+        "local",
+        "README.md",
+        "integrations.example.json",
+        "integrations.json",
+        "features.example.json",
+        "features.json",
+    }
+    paths = []
+    for child in sorted(root.iterdir(), key=lambda item: item.name):
+        if child.name.startswith(".") or child.name in reserved or not child.is_dir():
+            continue
+        manifest_path = child / "integration.json"
+        if not manifest_path.exists():
+            manifest_path = child / "feature.json"
+        if manifest_path.exists():
+            paths.append(("repo", manifest_path))
+    local_root = root / "local"
+    if local_root.is_dir():
+        for child in sorted(local_root.iterdir(), key=lambda item: item.name):
+            if child.name.startswith(".") or not child.is_dir():
+                continue
+            manifest_path = child / "integration.json"
+            if not manifest_path.exists():
+                manifest_path = child / "feature.json"
+            if manifest_path.exists():
+                paths.append(("local", manifest_path))
+    return paths
+
 def discover_integrations(root):
     integrations = {}
     if not root.exists():
-        warn(f"port integrations root not found: {root}")
+        warn(f"Port integrations root not found: {root}")
         return integrations
-    manifest_paths = {}
-    for manifest_path in sorted(root.glob("*/integration.json")):
-        manifest_paths[manifest_path.parent] = manifest_path
-    for manifest_path in sorted(root.glob("*/feature.json")):
-        manifest_paths.setdefault(manifest_path.parent, manifest_path)
-    for manifest_path in sorted(manifest_paths.values()):
+    for origin, manifest_path in integration_manifest_paths(root):
         data = read_json(manifest_path, f"port integration manifest {manifest_path}") or {}
         integration_id = data.get("id")
         if not isinstance(integration_id, str) or not id_re.match(integration_id):
             warn(f"Skipping integration with invalid id in {manifest_path}")
             continue
+        if not (manifest_path.parent / "README.md").is_file():
+            die(f"Port integration '{integration_id}' must include README.md next to {manifest_path.name}")
         if integration_id in integrations:
-            warn(f"Skipping duplicate port integration id: {integration_id}")
-            continue
+            die(f"Duplicate port integration id '{integration_id}' in {manifest_path} and {integrations[integration_id]['manifest_path']}")
         title = data.get("title") or data.get("name") or integration_id
         description = data.get("description") or ""
         integrations[integration_id] = {
             "id": integration_id,
             "title": str(title),
             "description": str(description),
+            "origin": origin,
+            "local": origin == "local",
             "defaultEnabled": data.get("defaultEnabled") is True,
+            "requires": normalize_id_list(data.get("requires"), "requires", manifest_path),
+            "conflicts": normalize_id_list(data.get("conflicts"), "conflicts", manifest_path),
+            "manifest_path": str(manifest_path),
         }
     return dict(sorted(integrations.items()))
 
@@ -688,7 +751,7 @@ def normalize_config_ids(value, path, key):
     if value is None:
         return []
     if not isinstance(value, list):
-        die(f"port integrations config {path} must contain a {key} array")
+        die(f"Port integrations config {path} must contain a {key} array")
     result = []
     seen = set()
     for item in value:
@@ -699,7 +762,7 @@ def normalize_config_ids(value, path, key):
             result.append(item)
     return result
 
-def read_config_ids(path):
+def read_config(path):
     if not path.exists():
         fallback = integrations_root / "integrations.example.json"
         legacy_fallback = integrations_root / "features.example.json"
@@ -708,23 +771,24 @@ def read_config_ids(path):
         elif legacy_fallback.exists():
             data = read_json(legacy_fallback, "port integrations example config") or {}
         else:
-            return {"enabled": [], "disabled": []}
+            data = {}
     else:
         data = read_json(path, "port integrations config") or {}
-    return {
-        "enabled": normalize_config_ids(data.get("enabled"), path, "enabled"),
-        "disabled": normalize_config_ids(data.get("disabled"), path, "disabled"),
-    }
+    if not isinstance(data, dict):
+        die(f"Port integrations config {path} must be a JSON object")
+    return data, normalize_config_ids(data.get("enabled"), path, "enabled"), normalize_config_ids(data.get("disabled"), path, "disabled")
 
-def resolved_enabled_ids(config_enabled, config_disabled):
+def resolved_enabled_ids(integrations, config_enabled, config_disabled):
     disabled = set(config_disabled)
     result = []
     seen = set()
+
     def add(integration_id):
         if integration_id in disabled or integration_id in seen or integration_id not in integrations:
             return
         seen.add(integration_id)
         result.append(integration_id)
+
     for integration_id, integration in integrations.items():
         if integration.get("defaultEnabled") is True:
             add(integration_id)
@@ -736,14 +800,22 @@ def csv(ids):
     return ", ".join(ids) if ids else "none"
 
 integrations = discover_integrations(integrations_root)
-current = read_config_ids(config_path)
-current_enabled = current["enabled"]
-current_disabled = current["disabled"]
-enable = split_ids(enable_raw)
-disable = split_ids(disable_raw)
+config_data, current_enabled, current_disabled = read_config(config_path)
+current_resolved = resolved_enabled_ids(integrations, current_enabled, current_disabled)
+
+if output_mode == "tsv":
+    current_set = set(current_resolved)
+    for integration_id, integration in integrations.items():
+        title = integration["title"].replace("\t", " ").replace("\n", " ")
+        flag = "1" if integration_id in current_set else "0"
+        print(f"{integration_id}\t{title}\t{flag}")
+    sys.exit(0)
+
+enable = split_selectors(enable_raw, integrations, "enable")
+disable = split_selectors(disable_raw, integrations, "disable")
 conflicting = sorted(set(enable) & set(disable))
 if conflicting:
-    die(f"port integration ids cannot be both enabled and disabled: {csv(conflicting)}")
+    die(f"Port integration ids cannot be both enabled and disabled: {csv(conflicting)}")
 
 for integration_id in enable:
     if integration_id not in integrations:
@@ -762,18 +834,30 @@ for integration_id in disable:
     if integration_id not in final_disabled:
         final_disabled.append(integration_id)
 
-final_resolved = resolved_enabled_ids(final_enabled, final_disabled)
+final_resolved = resolved_enabled_ids(integrations, final_enabled, final_disabled)
+final_set = set(final_resolved)
+for integration_id in final_resolved:
+    integration = integrations.get(integration_id)
+    if integration is None:
+        continue
+    missing_required = [required for required in integration["requires"] if required not in final_set]
+    if missing_required:
+        die(f"Port integration '{integration_id}' requires enabled integration(s): {csv(missing_required)}")
+    conflicting_enabled = [conflict for conflict in integration["conflicts"] if conflict in final_set]
+    if conflicting_enabled:
+        die(f"Port integration '{integration_id}' conflicts with enabled integration(s): {csv(conflicting_enabled)}")
 
 if apply_changes and (enable or disable):
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        json.dumps({"enabled": final_enabled, "disabled": final_disabled}, indent=2) + "\n"
-    )
+    updated_config = dict(config_data)
+    updated_config["enabled"] = final_enabled
+    updated_config["disabled"] = final_disabled
+    config_path.write_text(json.dumps(updated_config, indent=2) + "\n")
     print(f"[setup] Updated port integration config: {config_path}")
 elif not config_path.exists():
-    print(f"[setup] port integration config: {config_path} (not created yet)")
+    print(f"[setup] Port integration config: {config_path} (not created yet)")
 else:
-    print(f"[setup] port integration config: {config_path}")
+    print(f"[setup] Port integration config: {config_path}")
 
 print(f"[setup] Enabled port integrations: {csv(final_resolved)}")
 print(f"[setup] Disabled port integrations: {csv(final_disabled)}")
@@ -787,18 +871,23 @@ if "conversation-mode" in final_resolved and "read-aloud" not in final_resolved:
 
 if integrations:
     print("[setup] Available port integrations:")
-    for integration_id, integration in integrations.items():
+    for index, (integration_id, integration) in enumerate(integrations.items(), start=1):
         state = "enabled" if integration_id in final_resolved else "disabled" if integration_id in final_disabled else "available"
         sample = " (developer sample)" if integration_id == "example-integration" else ""
-        print(f"[setup]   [{state}] {integration_id}{sample} - {integration['title']}")
+        local = " [local]" if integration.get("local") else ""
+        print(f"[setup]   {index}. [{state}] {integration_id}{local}{sample} - {integration['title']}")
 else:
     print("[setup] Available port integrations: none found")
 
 if apply_changes and (enable or disable):
-    print("[setup] Integration changes apply after rebuilding and reinstalling Codex App Linux.")
+    print("[setup] Integration changes apply after rebuilding and reinstalling ChatGPT for Linux.")
 PY
+    then
+        SETUP_ERROR_REPORTED=1
+        echo "${COLOR_RED}[setup][ERROR]${COLOR_RESET} Could not update port integration config; review the message above." >&2
+        return 1
+    fi
 }
-
 list_includes_id() {
     local raw="$1"
     local needle="$2"
@@ -818,7 +907,7 @@ print_safe_disable_guidance() {
 
     if list_includes_id "$disable_raw" "remote-mobile-control"; then
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local key_file="$config_home/codex-app/remote-control-device-keys-v1.json"
+        local key_file="$config_home/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
         info "Remote mobile control opt-out: Not deleting $key_file."
         info "Revoke paired devices from Codex Settings/Connections or ChatGPT before deleting local keys manually."
     fi
@@ -827,7 +916,7 @@ print_safe_disable_guidance() {
         list_includes_id "$disable_raw" "read-aloud-mcp" ||
         list_includes_id "$disable_raw" "conversation-mode"; then
         local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-        local read_aloud_data="$data_home/codex-app/read-aloud"
+        local read_aloud_data="$data_home/chatgpt/read-aloud"
         local read_aloud_model
         local read_aloud_voices
         local read_aloud_cache="$HOME/.codex/plugins/cache/openai-bundled/read-aloud"
@@ -869,7 +958,7 @@ cleanup_path_is_safe() {
             ;;
     esac
     case "$path" in
-        "$config_home"/codex-app/*|"$data_home"/codex-app/read-aloud|"$data_home"/codex-app/read-aloud/*|"$data_home"/kokoro/kokoro-v1.0.onnx|"$data_home"/kokoro/voices-v1.0.bin|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud/*)
+        "$config_home"/chatgpt/*|"$data_home"/chatgpt/read-aloud|"$data_home"/chatgpt/read-aloud/*|"$data_home"/kokoro/kokoro-v1.0.onnx|"$data_home"/kokoro/voices-v1.0.bin|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud|"$HOME"/.codex/plugins/cache/openai-bundled/read-aloud/*)
             return 0
             ;;
     esac
@@ -903,7 +992,7 @@ confirm_and_delete_path() {
 }
 
 run_integration_cleanup() {
-    local cleanup_raw="${CODEX_BOOTSTRAP_CLEANUP_INTEGRATIONS:-${CODEX_BOOTSTRAP_CLEANUP_FEATURES:-}}"
+    local cleanup_raw="${CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS:-}"
     if [ -z "$cleanup_raw" ]; then
         if noninteractive_mode; then
             return
@@ -920,7 +1009,10 @@ run_integration_cleanup() {
         esac
     fi
 
-    [ -n "$cleanup_raw" ] || return
+    if [ -z "$cleanup_raw" ]; then
+        info "No cleanup integration ids provided; skipping feature cleanup."
+        return 0
+    fi
     validate_cleanup_integration_ids "$cleanup_raw"
 
     if noninteractive_mode && ! dry_run_enabled; then
@@ -936,7 +1028,7 @@ run_integration_cleanup() {
 
     if list_includes_id "$cleanup_raw" "remote-mobile-control"; then
         local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-        local key_file="$config_home/codex-app/remote-control-device-keys-v1.json"
+        local key_file="$config_home/chatgpt/remote-control-device-keys/remote-control-device-keys-v1.json"
         info "Remote mobile control cleanup: revoke paired devices in Codex Settings/Connections or ChatGPT before deleting local keys."
         confirm_and_delete_path "$key_file"
     fi
@@ -945,7 +1037,7 @@ run_integration_cleanup() {
         list_includes_id "$cleanup_raw" "read-aloud-mcp" ||
         list_includes_id "$cleanup_raw" "conversation-mode"; then
         local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-        local read_aloud_data="$data_home/codex-app/read-aloud"
+        local read_aloud_data="$data_home/chatgpt/read-aloud"
         local read_aloud_model
         local read_aloud_voices
         local read_aloud_cache="$HOME/.codex/plugins/cache/openai-bundled/read-aloud"
@@ -961,14 +1053,14 @@ run_integration_cleanup() {
 
 print_package_mode_guidance() {
     if package_with_updater_enabled; then
-        info "Default native package mode includes codex-app-updater."
+        info "Default native package mode includes chatgpt-updater."
         info "Next rebuild/reinstall command: make install-native"
     else
         info "Manual-update native package mode selected (PACKAGE_WITH_UPDATER=0)."
         info "No-updater mode takes effect only after rebuilding and reinstalling the native package."
         info "Next rebuild/reinstall command: PACKAGE_WITH_UPDATER=0 make install-native"
     fi
-    info "AppImage builds never include codex-app-updater. Nix integration choices stay declarative in flake outputs, not port-integrations/integrations.json."
+    info "AppImage builds never include chatgpt-updater. Nix integration choices stay declarative in flake outputs, not port-integrations/integrations.json."
 }
 
 run_repo_command() {
@@ -1009,16 +1101,16 @@ maybe_run_install_steps() {
     local run_deps=0
     local run_install=0
 
-    if env_flag_enabled CODEX_BOOTSTRAP_INSTALL_DEPS; then
+    if env_flag_enabled CHATGPT_BOOTSTRAP_INSTALL_DEPS; then
         run_deps=1
     fi
-    if env_flag_enabled CODEX_BOOTSTRAP_INSTALL_NATIVE; then
+    if env_flag_enabled CHATGPT_BOOTSTRAP_INSTALL_NATIVE; then
         run_install=1
     fi
 
     if ! noninteractive_mode; then
         local answer
-        if [ -z "${CODEX_BOOTSTRAP_INSTALL_DEPS+x}" ]; then
+        if [ -z "${CHATGPT_BOOTSTRAP_INSTALL_DEPS+x}" ]; then
             prompt_read answer "[setup] Run host dependency bootstrap now (bash scripts/install-deps.sh)? [y/N]: " || true
             case "$answer" in
                 y|Y|yes|Yes|YES)
@@ -1026,7 +1118,7 @@ maybe_run_install_steps() {
                     ;;
             esac
         fi
-        if [ -z "${CODEX_BOOTSTRAP_INSTALL_NATIVE+x}" ]; then
+        if [ -z "${CHATGPT_BOOTSTRAP_INSTALL_NATIVE+x}" ]; then
             prompt_read answer "[setup] Run native build/package/install now? [y/N]: " || true
             case "$answer" in
                 y|Y|yes|Yes|YES)
@@ -1050,20 +1142,116 @@ maybe_run_install_steps() {
     fi
 }
 
-prompt_for_integration_changes() {
-    local enable_raw="${CODEX_PORT_INTEGRATIONS:-${CODEX_LINUX_FEATURES:-}}"
-    local disable_raw="${CODEX_DISABLE_PORT_INTEGRATIONS:-${CODEX_LINUX_DISABLE_FEATURES:-}}"
+# True when an interactive GUI checklist can be shown: a graphical session,
+# a dialog helper (zenity/kdialog), python3 for integration discovery, and no
+# explicit opt-out through CHATGPT_BOOTSTRAP_NO_GUI.
+gui_integration_picker_available() {
+    truthy "${CHATGPT_BOOTSTRAP_NO_GUI:-0}" && return 1
+    [ -t 0 ] || return 1
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+    command -v zenity >/dev/null 2>&1 || command -v kdialog >/dev/null 2>&1
+}
 
-    if truthy "${CODEX_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]; then
+prompt_for_integration_changes_gui() {
+    local integration_lines
+    integration_lines="$(run_integration_config_python "" "" "0" "tsv")" || return 1
+    [ -n "$integration_lines" ] || return 1
+
+    local -a all_ids=()
+    declare -A enabled_now=()
+    declare -A title_of=()
+    local id title flag
+    while IFS=$'\t' read -r id title flag; do
+        [ -n "$id" ] || continue
+        all_ids+=("$id")
+        title_of["$id"]="$title"
+        [ "$flag" = "1" ] && enabled_now["$id"]=1
+    done <<< "$integration_lines"
+
+    [ "${#all_ids[@]}" -gt 0 ] || return 1
+
+    local selected="" status=0
+    if command -v zenity >/dev/null 2>&1; then
+        local -a rows=()
+        for id in "${all_ids[@]}"; do
+            if [ -n "${enabled_now[$id]:-}" ]; then rows+=("TRUE"); else rows+=("FALSE"); fi
+            rows+=("$id" "${title_of[$id]}")
+        done
+        selected="$(zenity --list --checklist \
+            --title="ChatGPT for Linux port integrations" \
+            --text="Select optional port integrations for the next build." \
+            --column="Enable" --column="Integration" --column="Description" \
+            --print-column=2 --separator=$'\n' \
+            "${rows[@]}" 2>/dev/null)" || status=$?
+    else
+        local -a rows=()
+        for id in "${all_ids[@]}"; do
+            if [ -n "${enabled_now[$id]:-}" ]; then
+                rows+=("$id" "${title_of[$id]}" "on")
+            else
+                rows+=("$id" "${title_of[$id]}" "off")
+            fi
+        done
+        selected="$(kdialog --separate-output --checklist \
+            "Select optional port integrations for the next build." \
+            "${rows[@]}" 2>/dev/null)" || status=$?
+    fi
+
+    if [ "$status" -ne 0 ]; then
+        info "Integration selection cancelled; config unchanged."
+        return 0
+    fi
+
+    declare -A selected_set=()
+    while IFS= read -r id; do
+        id="${id//\"/}"
+        [ -n "$id" ] && selected_set["$id"]=1
+    done <<< "$selected"
+
+    local -a enable_ids=() disable_ids=()
+    for id in "${all_ids[@]}"; do
+        if [ -n "${selected_set[$id]:-}" ]; then
+            [ -z "${enabled_now[$id]:-}" ] && enable_ids+=("$id")
+        else
+            [ -n "${enabled_now[$id]:-}" ] && disable_ids+=("$id")
+        fi
+    done
+
+    if [ "${#enable_ids[@]}" -eq 0 ] && [ "${#disable_ids[@]}" -eq 0 ]; then
+        info "Integration config unchanged."
+        return 0
+    fi
+
+    local enable_csv disable_csv
+    enable_csv="$(IFS=,; echo "${enable_ids[*]}")"
+    disable_csv="$(IFS=,; echo "${disable_ids[*]}")"
+    run_integration_config_python "$enable_csv" "$disable_csv" "1"
+    print_safe_disable_guidance "$disable_csv"
+    return 0
+}
+
+prompt_for_integration_changes() {
+    local enable_raw="${CHATGPT_PORT_INTEGRATIONS:-}"
+    local disable_raw="${CHATGPT_DISABLE_PORT_INTEGRATIONS:-}"
+
+    if truthy "${CHATGPT_BOOTSTRAP_NONINTERACTIVE:-0}" || ! [ -t 0 ]; then
         run_integration_config_python "$enable_raw" "$disable_raw" "1"
         print_safe_disable_guidance "$disable_raw"
         return
     fi
 
+    if [ -z "$enable_raw$disable_raw" ] && gui_integration_picker_available; then
+        if prompt_for_integration_changes_gui; then
+            prompt_package_updater_mode
+            return
+        fi
+    fi
+
     run_integration_config_python "" "" "0"
     echo
-    prompt_read enable_raw "[setup] Enable integration ids for the next build (comma-separated, blank keeps current): " || true
-    prompt_read disable_raw "[setup] Disable integration ids for the next build (comma-separated, blank disables none): " || true
+    prompt_read enable_raw "[setup] Enable integration ids or numbers for the next build (comma-separated, blank keeps current): " || true
+    prompt_read disable_raw "[setup] Disable integration ids or numbers for the next build (comma-separated, blank disables none): " || true
     if [ -n "$enable_raw$disable_raw" ]; then
         run_integration_config_python "$enable_raw" "$disable_raw" "1"
         print_safe_disable_guidance "$disable_raw"
@@ -1071,9 +1259,13 @@ prompt_for_integration_changes() {
         info "Integration config unchanged."
     fi
 
+    prompt_package_updater_mode
+}
+
+prompt_package_updater_mode() {
     local answer
     if package_with_updater_enabled; then
-        prompt_read answer "[setup] Keep codex-app-updater in the next native package? [Y/n]: " || true
+        prompt_read answer "[setup] Keep chatgpt-updater in the next native package? [Y/n]: " || true
         case "$answer" in
             n|N|no|No|NO)
                 PACKAGE_WITH_UPDATER=0
@@ -1088,13 +1280,16 @@ prompt_for_integration_changes() {
         esac
     fi
 }
-
 main() {
+    section "System"
     print_system_summary
+    section "Port Integrations"
     prompt_for_integration_changes
+    section "Readiness"
     print_computer_use_details
     print_read_aloud_details
     run_integration_cleanup
+    section "Next Steps"
     print_package_mode_guidance
     maybe_run_install_steps
     if dry_run_enabled; then
