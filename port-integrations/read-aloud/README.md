@@ -8,8 +8,9 @@ is the only app-rendering path that starts speech.
 
 ## Disable the integration
 
-Conversation Mode requires Read Aloud. To remove the response-level voice UI,
-disable both integrations in `port-integrations/integrations.json`:
+Conversation Mode depends on the Read Aloud integration. To remove the
+response-level voice UI, disable both integrations in
+`port-integrations/integrations.json`:
 
 ```json
 {

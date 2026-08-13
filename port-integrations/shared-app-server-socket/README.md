@@ -70,6 +70,11 @@ to skip that bootstrap when this wrapper is used:
 export CODEX_SSH_SKIP_APP_SERVER_BOOT=true
 ```
 
+This is an existing official-app SSH transport switch. The port integration
+does not define or patch it: the official transport evaluates it in the remote
+login shell before its bootstrap command, then continues through the same
+`codex app-server proxy` flow that the wrapper redirects.
+
 Put that export in the startup file read by the account's SSH login shell (for
 example `~/.profile` when that is the active login profile). This is remote
 account configuration; setting it only in the local ChatGPT launcher does not

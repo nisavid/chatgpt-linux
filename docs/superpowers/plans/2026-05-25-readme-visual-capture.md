@@ -161,7 +161,7 @@ function isAllowedBadge(src) {
 }
 
 function isExistingAppIcon(src) {
-  return normalizeSrc(src) === "assets/codex.png";
+  return normalizeSrc(src) === "assets/chatgpt.png";
 }
 
 function isGeneratedOrRuntimePath(src) {

@@ -50,7 +50,7 @@ Use these terms when reporting support:
 | Readable | ChatGPT or Codex can load the skill's `SKILL.md`. |
 | Invocable | The user can explicitly select or mention the skill. |
 | Runnable | The tools and providers required by the skill are available. |
-| Verified | The relevant workflow completed in a live generated Linux app on the reported host. |
+| Verified | The relevant workflow completed in a generated Linux app in a live environment on the reported host. |
 
 ## Official OpenAI Product Contract
 
@@ -88,7 +88,7 @@ Official reference:
 - [ChatGPT desktop app](https://developers.openai.com/codex/app)
 - [ChatGPT and Codex changelog](https://developers.openai.com/codex/changelog)
 
-The June 18, 2026 changelog entry introduced Record & Replay in app version
+The June 18, 2026, changelog entry introduced Record & Replay in app version
 26.616 as a macOS feature that turns a demonstrated workflow into a reusable
 skill.
 

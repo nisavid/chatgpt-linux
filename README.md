@@ -61,8 +61,8 @@ the app, and installs the resulting native package. The expanded flow below is
 useful when you want to inspect the package before installing it.
 
 ```bash
-git clone https://github.com/nisavid/codex-app-linux.git chatgpt-linux
-cd chatgpt-linux
+git clone https://github.com/nisavid/codex-app-linux.git codex-app-linux
+cd codex-app-linux
 bash scripts/install-deps.sh
 make clean build-app package
 ```
@@ -213,7 +213,7 @@ you created. User configuration and state are preserved for reinstall.
 
 This fork is a downstream maintenance fork of
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).
-This fork's synced baseline carries that upstream's core DMG-to-Linux
+This fork's synced baseline carries the Linux-port upstream's core DMG-to-Linux
 conversion and runtime enablement. Current Linux-port upstream development now
 starts from OpenAI's official Linux package; this fork has not adopted that
 source transition. It keeps the local `chatgpt` package identity, install
