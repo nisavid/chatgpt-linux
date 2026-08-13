@@ -124,6 +124,9 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
         &config.builder_bundle_root,
         X11_COMPUTER_USE_HELPER,
     );
+    let x11_computer_use_in_catalog = catalog
+        .iter()
+        .any(|entry| entry.id == X11_COMPUTER_USE_INTEGRATION_ID);
     let catalog = catalog
         .into_iter()
         .filter(|entry| entry.id != X11_COMPUTER_USE_INTEGRATION_ID || x11_computer_use_available)
@@ -131,13 +134,12 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
     if catalog.is_empty() {
         return Ok(PickOutcome::Skipped("no-catalog"));
     }
-    let enabled = read_enabled(config, &source, &catalog);
-    if !x11_computer_use_available && enabled.contains(X11_COMPUTER_USE_INTEGRATION_ID) {
+    let mut enabled = read_enabled(config, &source, &catalog);
+    if !x11_computer_use_available && enabled.remove(X11_COMPUTER_USE_INTEGRATION_ID) {
         warn!(
             integration = X11_COMPUTER_USE_INTEGRATION_ID,
-            "integration picker preserved an existing selection unavailable in the installed builder bundle"
+            "integration picker removed an existing selection unavailable in the installed builder bundle"
         );
-        return Ok(PickOutcome::Skipped("unavailable-integration"));
     }
 
     match show_picker(&tool, &catalog, &enabled)? {
@@ -182,11 +184,16 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
 
             let picked_ids: std::collections::HashSet<&str> =
                 picked.iter().map(String::as_str).collect();
-            let disabled: Vec<String> = catalog
+            let mut disabled: Vec<String> = catalog
                 .iter()
                 .filter(|entry| entry.default_enabled && !picked_ids.contains(entry.id.as_str()))
                 .map(|entry| entry.id.clone())
                 .collect();
+            if x11_computer_use_in_catalog && !x11_computer_use_available {
+                disabled.push(X11_COMPUTER_USE_INTEGRATION_ID.to_string());
+                disabled.sort();
+                disabled.dedup();
+            }
 
             write_integration_config(config, &picked, &disabled)?;
             if dont_ask {
@@ -1231,7 +1238,7 @@ if (arg === "--integrations-json") {
     }
 
     #[test]
-    fn unavailable_existing_x11_selection_is_preserved_without_opening_picker() {
+    fn unavailable_existing_x11_selection_is_repaired_by_successful_picker() {
         let _g = env_lock();
         let root = tempdir().unwrap();
         let settings = tempdir().unwrap();
@@ -1245,7 +1252,8 @@ if (arg === "--integrations-json") {
         let original_config = concat!(
             "{\n",
             "  \"enabled\": [\"alpha\", \"x11-ewmh-computer-use\"],\n",
-            "  \"disabled\": []\n",
+            "  \"disabled\": [],\n",
+            "  \"settings\": {\"ui-tweaks\": {\"dockIcon\": {\"enabled\": false}}}\n",
             "}\n"
         );
         std::fs::write(&integration_config, original_config).unwrap();
@@ -1265,14 +1273,22 @@ if (arg === "--integrations-json") {
 
         run_pick_integrations(&config, &paths, false).unwrap();
 
-        assert_eq!(
-            std::fs::read_to_string(&integration_config).unwrap(),
-            original_config,
-            "an existing unavailable X11 selection must remain byte-for-byte unchanged"
-        );
         assert!(
-            !dialog_args.exists(),
-            "the picker must skip before opening a dialog for an unavailable existing selection"
+            !std::fs::read_to_string(&dialog_args)
+                .unwrap()
+                .contains("x11-ewmh-computer-use"),
+            "the picker must not offer an unavailable X11 integration"
+        );
+        let repaired: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&integration_config).unwrap()).unwrap();
+        assert_eq!(repaired["enabled"], serde_json::json!(["alpha"]));
+        assert_eq!(
+            repaired["disabled"],
+            serde_json::json!(["x11-ewmh-computer-use"])
+        );
+        assert_eq!(
+            repaired["settings"],
+            serde_json::json!({"ui-tweaks": {"dockIcon": {"enabled": false}}})
         );
 
         if let Some(path) = previous_path {

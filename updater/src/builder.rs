@@ -16,7 +16,7 @@ use std::{
     process::Command as StdCommand,
 };
 use tokio::process::Command;
-use tracing::info;
+use tracing::{info, warn};
 
 const UPDATE_BUILDER_MANIFEST: &str = ".chatgpt-linux/update-builder-manifest.txt";
 const TRUSTED_SYSTEM_PATH: &str = "/usr/sbin:/usr/bin:/sbin:/bin";
@@ -29,6 +29,8 @@ const MUTATION_BROKER_DIGEST: &str = "chatgpt-generated-app-mutation-broker.sha2
 const MUTATION_BROKER_SOURCE_ENV: &str = "CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE";
 const GENERATION_RECEIPT_HELPER: &str = "scripts/lib/package-provenance.py";
 const TRUSTED_PYTHON_PATHS: &[&str] = &["/usr/bin/python3", "/bin/python3"];
+const X11_COMPUTER_USE_INTEGRATION_ID: &str = "x11-ewmh-computer-use";
+const X11_COMPUTER_USE_HELPER_ENV: &str = "CHATGPT_X11_COMPUTER_USE_BINARY";
 const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 5] = [
     (
         "chatgpt-chrome-extension-host",
@@ -180,8 +182,12 @@ pub async fn build_update_from(
     } else {
         bundle_source.join("node-runtime")
     };
-    let integration_config = crate::config::effective_integration_config_path(config);
     let prebuilt_helpers = PrebuiltHelperSources::from_bundle(&config.builder_bundle_root)?;
+    let integration_config = integration_config_for_build(
+        config,
+        &workspace,
+        prebuilt_helpers.has_independent_helper(X11_COMPUTER_USE_HELPER_ENV),
+    )?;
     stage_git_source_info(bundle_source, &workspace.bundle_dir)?;
 
     state.status = UpdateStatus::PatchingApp;
@@ -344,9 +350,95 @@ impl PrebuiltHelperSources {
         }
     }
 
+    fn has_independent_helper(&self, env_name: &str) -> bool {
+        self.independent
+            .iter()
+            .any(|(candidate, _)| *candidate == env_name)
+    }
+
     fn apply_mutation_broker_to(&self, command: &mut Command) {
         command.env(MUTATION_BROKER_SOURCE_ENV, &self.mutation_broker.path);
     }
+}
+
+/// Returns the config used by app generation and native package staging.
+///
+/// Packages produced before the X11 helper-retention contract can have a saved
+/// X11 selection without a package-owned helper. Preserve that user preference,
+/// but disable the unavailable integration in a private workspace copy so the
+/// current rebuild remains usable. A later package that retains the helper can
+/// honor the saved selection again.
+fn integration_config_for_build(
+    config: &RuntimeConfig,
+    workspace: &BuilderWorkspace,
+    x11_computer_use_available: bool,
+) -> Result<Option<PathBuf>> {
+    let Some(source_path) = crate::config::effective_integration_config_path(config) else {
+        return Ok(None);
+    };
+    if x11_computer_use_available {
+        return Ok(Some(source_path));
+    }
+
+    let content = fs::read_to_string(&source_path)
+        .with_context(|| format!("Failed to read {}", source_path.display()))?;
+    let mut value: serde_json::Value = serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse {}", source_path.display()))?;
+    let object = value.as_object_mut().with_context(|| {
+        format!(
+            "Port integration config must be a JSON object: {}",
+            source_path.display()
+        )
+    })?;
+    let Some(enabled) = object.get_mut("enabled") else {
+        return Ok(Some(source_path));
+    };
+    let enabled = enabled.as_array_mut().with_context(|| {
+        format!(
+            "Port integration config enabled value must be an array: {}",
+            source_path.display()
+        )
+    })?;
+    if !enabled
+        .iter()
+        .any(|entry| entry.as_str() == Some(X11_COMPUTER_USE_INTEGRATION_ID))
+    {
+        return Ok(Some(source_path));
+    }
+    enabled.retain(|entry| entry.as_str() != Some(X11_COMPUTER_USE_INTEGRATION_ID));
+
+    let disabled = object
+        .entry("disabled")
+        .or_insert_with(|| serde_json::Value::Array(Vec::new()))
+        .as_array_mut()
+        .with_context(|| {
+            format!(
+                "Port integration config disabled value must be an array: {}",
+                source_path.display()
+            )
+        })?;
+    if !disabled
+        .iter()
+        .any(|entry| entry.as_str() == Some(X11_COMPUTER_USE_INTEGRATION_ID))
+    {
+        disabled.push(serde_json::Value::String(
+            X11_COMPUTER_USE_INTEGRATION_ID.to_string(),
+        ));
+    }
+
+    let normalized_path = workspace
+        .workspace_dir
+        .join("effective-port-integrations.json");
+    let serialized = serde_json::to_string_pretty(&value)
+        .context("Failed to serialize effective port integration config")?;
+    crate::config::atomic_write(&normalized_path, format!("{serialized}\n").as_bytes())?;
+    warn!(
+        integration = X11_COMPUTER_USE_INTEGRATION_ID,
+        source = %source_path.display(),
+        effective = %normalized_path.display(),
+        "disabled unavailable legacy port integration for this rebuild"
+    );
+    Ok(Some(normalized_path))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1682,11 +1774,27 @@ for helper_source in \
     "$CHATGPT_CHROME_EXTENSION_HOST_SOURCE" \
     "$CHATGPT_NOTIFICATION_ACTIONS_SOURCE" \
     "$CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE" \
-    "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE" \
-    "$CHATGPT_X11_COMPUTER_USE_BINARY"; do
+    "$CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE"; do
   [ -x "$helper_source" ]
   printf '%s\n' "$helper_source"
 done > "${CHATGPT_INSTALL_DIR}/install-prebuilt-helper-sources"
+if [ -n "${CHATGPT_PORT_INTEGRATIONS_CONFIG:-}" ] \
+    && python3 - "$CHATGPT_PORT_INTEGRATIONS_CONFIG" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    config = json.load(handle)
+raise SystemExit(0 if "x11-ewmh-computer-use" in config.get("enabled", []) else 1)
+PY
+then
+  [ -x "${CHATGPT_X11_COMPUTER_USE_BINARY:-}" ]
+fi
+if [ -n "${CHATGPT_X11_COMPUTER_USE_BINARY:-}" ]; then
+  [ -x "$CHATGPT_X11_COMPUTER_USE_BINARY" ]
+  printf '%s\n' "$CHATGPT_X11_COMPUTER_USE_BINARY" \
+    >> "${CHATGPT_INSTALL_DIR}/install-prebuilt-helper-sources"
+fi
 echo launcher > "${CHATGPT_INSTALL_DIR}/start.sh"
 chmod +x "${CHATGPT_INSTALL_DIR}/start.sh"
 echo CHATGPT_APP_PACKAGE_VERSION=26.429.20946 > "${CHATGPT_INSTALL_DIR}/chatgpt-version.env"
@@ -2023,6 +2131,71 @@ python3 scripts/lib/package-provenance.py write-generation-receipt \
             "CHATGPT_PORT_INTEGRATIONS_CONFIG={}",
             saved_integration_config.display()
         )));
+
+        fs::remove_file(
+            bundle_root
+                .join("prebuilt-helpers")
+                .join("chatgpt-computer-use-x11"),
+        )?;
+        let legacy_selection = serde_json::json!({
+            "enabled": ["example-integration", "x11-ewmh-computer-use"],
+            "disabled": [],
+            "settings": {
+                "ui-tweaks": {
+                    "dockIcon": {
+                        "enabled": false
+                    }
+                }
+            }
+        });
+        fs::write(
+            &saved_integration_config,
+            format!("{}\n", serde_json::to_string_pretty(&legacy_selection)?),
+        )?;
+        let mut legacy_state = PersistedState::new(true);
+        legacy_state.dmg_sha256 = Some(trusted_dmg_sha256.clone());
+
+        let legacy_artifacts = runtime.block_on(build_update(
+            &config,
+            &mut legacy_state,
+            &paths,
+            "2026.03.25+legacy-x11",
+            &dmg_path,
+        ))?;
+        let normalized_config_path = PathBuf::from(
+            fs::read_to_string(
+                legacy_artifacts
+                    .workspace_dir
+                    .join("chatgpt/install-integration-config-path"),
+            )?
+            .trim(),
+        );
+        assert_ne!(normalized_config_path, saved_integration_config);
+        assert_eq!(
+            fs::read_to_string(
+                legacy_artifacts
+                    .workspace_dir
+                    .join("dist/package-integration-config-path"),
+            )?
+            .trim(),
+            normalized_config_path.to_string_lossy()
+        );
+        let normalized_config: serde_json::Value =
+            serde_json::from_slice(&fs::read(&normalized_config_path)?)?;
+        assert_eq!(
+            normalized_config["enabled"],
+            serde_json::json!(["example-integration"])
+        );
+        assert_eq!(
+            normalized_config["disabled"],
+            serde_json::json!(["x11-ewmh-computer-use"])
+        );
+        assert_eq!(normalized_config["settings"], legacy_selection["settings"]);
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&saved_integration_config)?)?,
+            legacy_selection,
+            "capability normalization must not overwrite the user's saved preference"
+        );
         Ok(())
     }
 
