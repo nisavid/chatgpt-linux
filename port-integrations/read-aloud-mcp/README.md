@@ -13,7 +13,8 @@ surface is intentionally small:
 
 ## Disable
 
-Add the integration to `port-integrations/integrations.json` before rebuilding:
+Add `read-aloud-mcp` to the `disabled` list in
+`port-integrations/integrations.json` before rebuilding:
 
 ```json
 {

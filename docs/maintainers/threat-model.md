@@ -172,10 +172,10 @@ Open questions that materially affect risk:
   and acknowledgement params cross from generated webview/settings state to the
   main process and local helper runtime.
 - **AppShots port integration:** exposes the official app's AppShots on Linux,
-  patches main-process focused-window screenshot handlers, stages a bare-modifier
-  helper, and writes full-screen capture intermediates to private per-capture
-  temporary directories before returning cropped data URLs to the generated
-  app.
+  patches focused-window screenshot handlers in the main process, stages a
+  bare-modifier helper, and writes full-screen capture intermediates to private
+  per-capture temporary directories before returning cropped data URLs to the
+  generated app.
 - **Wrapper updater port integration:** adds generated app UI for local wrapper
   update status, settings, and apply-on-exit markers; the runtime stays
   user-context and delegates durable package/update behavior to
@@ -414,8 +414,8 @@ flowchart LR
   enforces the same decision. A build-time UI exposure flag is never an action
   grant.
 - Platform enablement patches must preserve OpenAI-hosted account, rollout, and
-  availability gates unless the local integration supplies an equivalent
-  documented control.
+  availability gates. A local integration may add a documented local gate, but
+  it must not replace an OpenAI-hosted gate.
 - Agent Workspaces helper command selection, permission files, and workspace
   start acknowledgements must be enforced by the main process or helper runtime
   before any local process launch.

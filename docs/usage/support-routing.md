@@ -49,8 +49,8 @@ Report an issue to
 is specific to this fork's package identity, distro-shaped install layout,
 updater policy, hardening, supported default integrations, docs, or local
 maintenance workflow. Also report here if you cannot reasonably try an
-official macOS or Linux build, or the Linux-port upstream repro needed for
-another tracker.
+official macOS or Linux build, or the Linux-port upstream reproduction needed
+for another tracker.
 
 If you are unsure, file the issue here and include enough detail to reroute it:
 the app version, build method, distro, desktop session, whether the same
