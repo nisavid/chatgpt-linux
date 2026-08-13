@@ -11,9 +11,10 @@ Linux app, then builds native packages and updater support around that local
 build.
 
 Most user-facing app behavior still comes from the official OpenAI app bundle
-and OpenAI-hosted services. OpenAI does not support Linux as a ChatGPT app
-platform, so Linux-port support depends on the community port, this fork's
-packaging layer, and the user's local system.
+and OpenAI-hosted services. OpenAI now publishes an official Linux package, but
+does not publish or support this community fork. Behavior introduced by this
+fork's DMG conversion, packaging, integrations, or local runtime remains this
+project's responsibility.
 
 ## Where To Report
 
@@ -25,9 +26,10 @@ reproduce in the OpenAI-owned Codex interface and are not specific to this
 Linux wrapper.
 
 > [!IMPORTANT]
-> When reporting to OpenAI, reproduce in an official build when possible and
-> base the report, screenshots, logs, and terminology on that build. Do not
-> report Linux-port-only behavior as an OpenAI app bug.
+> When reporting to OpenAI, reproduce in an official macOS or Linux build when
+> possible and base the report, screenshots, logs, and terminology on that
+> build. Do not report behavior unique to this community fork as an OpenAI app
+> bug.
 
 Report an issue to
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux)
@@ -37,22 +39,24 @@ to the shared Linux conversion layer that this fork inherits.
 > [!IMPORTANT]
 > When reporting to the Linux-port upstream, reproduce with a build of
 > `ilysenko/codex-desktop-linux` when possible and attach captures or logs from
-> that build. Use upstream's names for surfaces that this fork renames; see the
+> that build. Use the Linux-port upstream's names for surfaces that this fork
+> renames; see the
 > [rename and compatibility map](../maintainers/fork-divergences.md#current-local-rename-and-compatibility-map)
 > for the full mapping.
 
 Report an issue to
-[`nisavid/chatgpt-linux`](https://github.com/nisavid/chatgpt-linux) when it
+[`nisavid/codex-app-linux`](https://github.com/nisavid/codex-app-linux) when it
 is specific to this fork's package identity, distro-shaped install layout,
 updater policy, hardening, supported default integrations, docs, or local
-maintenance workflow. Also report here if you cannot reasonably try the macOS
-or Linux-port upstream repro needed for another tracker.
+maintenance workflow. Also report here if you cannot reasonably try an
+official macOS or Linux build, or the Linux-port upstream repro needed for
+another tracker.
 
 If you are unsure, file the issue here and include enough detail to reroute it:
 the app version, build method, distro, desktop session, whether the same
 behavior reproduces in the Linux-port upstream build, whether it also
-reproduces in the official macOS app, and any reason you could not attempt
-those repros.
+reproduces in an official macOS or Linux build, and any reason you could not
+attempt those repros.
 
 ## Port Integrations
 
@@ -73,6 +77,6 @@ state, audio availability, or remote-control enrollment, installing this fork
 does not change those requirements. Local control surfaces keep their own
 runtime gates: Agent Workspaces uses settings-page approval and permission rules
 for the normal UI flow, with main-process bridge hardening tracked in
-[#99](https://github.com/nisavid/chatgpt-linux/issues/99); AppShots keeps
+[#99](https://github.com/nisavid/codex-app-linux/issues/99); AppShots keeps
 global hotkeys inactive until selected; and wrapper update checks stay off until
 enabled in Settings.

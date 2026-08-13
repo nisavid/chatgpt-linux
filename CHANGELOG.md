@@ -34,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   keeps `read-aloud` installed, and the launcher syncs the plugin cache so new
   Codex windows expose the MCP tools through the same auto-install path as
   Computer Use.
-- A shared upstream DMG acceptance profile now produces the same structured
+- A shared official-DMG acceptance profile now produces the same structured
   decision for local installs, updater rebuilds, and scheduled CI. Scheduled
   rejections create one fingerprinted drift issue and supersede issues for
   older DMGs. Acceptance evaluates only the user's enabled port integrations and
@@ -67,11 +67,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   pinned Ubuntu 22.04 glibc ABI floor. Nix and installed-package checks reject
   newer GLIBC requirements before a public native package is accepted.
 
-- The project identity is now **ChatGPT for Linux**. The repository is
-  `nisavid/chatgpt-linux`; the app, native package, command, and XDG identity are
-  `chatgpt`; and the updater identity is `chatgpt-updater`. Native packages
-  replace the former `codex-app` and `codex-desktop` packages without shipping
-  compatibility launchers or service aliases.
+- The project identity is now **ChatGPT for Linux**. The app, native package,
+  command, and XDG identity are `chatgpt`; the updater identity is
+  `chatgpt-updater`. The live repository remains `nisavid/codex-app-linux`
+  until issue #119 completes its in-place rename to `nisavid/chatgpt-linux`.
+  Native packages replace the former `codex-app` and `codex-desktop` packages
+  without shipping compatibility launchers or service aliases.
 - First launch moves wrapper-owned XDG config, state, cache, data, and CLI
   quarantine directories from the former identity with an atomic, journaled
   migration. Collisions fail closed with a recovery command, interrupted moves
@@ -81,8 +82,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `CODEX_*` names.
 - The reviewed integration defaults now include Dock-icon selection and Suggested
   Prompts. Dock-icon synchronization changes and removes only marker-owned files;
-  Suggested Prompts still requires upstream eligibility, the user setting, and
-  working local Linux support.
+  Suggested Prompts still requires OpenAI-hosted eligibility, the user setting,
+  and working local Linux support.
 
 - The `chatgpt-updater` crate version is now `0.10.4`, matching the
   imported updater behavior and persisted-state compatibility contract.
@@ -90,9 +91,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   update, remote-control, speech, theme, and status surfaces. Local
   `port-integrations/integrations.json` and persisted package overrides can
   still disable defaults or enable optional integrations.
-- Remote mobile control now relies on the current upstream account-enrollment
-  compatibility and Connections tab resolver instead of patching duplicate
-  Linux-specific fallbacks into those paths.
+- Remote mobile control now relies on the current official app's
+  account-enrollment compatibility and Connections tab resolver instead of
+  patching duplicate Linux-specific fallbacks into those paths.
 - Remote notification hydration, replay, completed-item recovery, and remote
   terminal-status recovery are no longer part of the default Linux patch set and
   remain owned by the `remote-mobile-control` port integration.
@@ -161,9 +162,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Concurrent updater entrypoints now serialize state reloads and cache cleanup
   before persisting startup state. A second process can no longer prune an
   active rebuild workspace, while forced checks wait for startup maintenance
-  instead of returning without checking upstream, and manual ready-package
-  installs cannot race daemon reconciliation into launching the same install
-  twice.
+  instead of returning without checking the official DMG source, and manual
+  ready-package installs cannot race daemon reconciliation into launching the
+  same install twice.
 - Updater rebuild workspaces now retain the Git identity of the wrapper source
   after `.git` is stripped, so installed build metadata and packaged
   update-builder metadata report the wrapper commit instead of `unknown`.
@@ -179,7 +180,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Launcher startup no longer requires Python's pidfd wrappers for normal
   launcher lock acquire and release. Pidfd remains reserved for the
   identity-verified stale Electron termination path.
-- Approval notifications now preserve the upstream Approve, Approve for
+- Approval notifications now preserve the official app's Approve, Approve for
   session, and Decline actions on Linux. A small freedesktop notification
   bridge forwards the action and close signals that Electron's Linux
   notification backend does not expose, with the existing View-only Electron
@@ -195,11 +196,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   serialized read-modify-write updates and crash-durable atomic replacement.
   Unsafe paths, file types, ownership, permissions, malformed records, and
   oversized stores fail closed instead of being followed or silently erased.
-- Remote mobile control now patches the current upstream webview chunks for
-  feature sync, settings visibility, host enablement, and active conversation
-  status. Revoking the final controller now also clears the current mobile setup
-  state. The enablement bridge accepts the current bundle ordering where its log
-  marker is declared after the request handler.
+- Remote mobile control now patches the current official app bundle's webview
+  chunks for feature sync, settings visibility, host enablement, and active
+  conversation status. Revoking the final controller now also clears the current
+  mobile setup state. The enablement bridge accepts the current bundle ordering
+  where its log marker is declared after the request handler.
 - Automated user-local updates no longer inherit or set developer overrides
   that could replace a running Electron app or bypass DMG acceptance. Manual
   and timer rebuilds now fail safely at promotion, transactional installs retain
@@ -209,10 +210,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   Linux X11. This avoids a GNOME Shell modal input grab that could lock desktop
   input and flood system logs, while preserving parented dialogs on Wayland,
   macOS, and Windows.
-- Completed thread resume and turn submission once again use the upstream
-  conversation ownership lifecycle. Removing the Linux-only ownership reset
-  and submit-time reclaim avoids false ownership after failed turn starts and
-  races between windows.
+- Completed thread resume and turn submission once again use the official app's
+  conversation ownership lifecycle. Removing the Linux-only ownership reset and
+  submit-time reclaim avoids false ownership after failed turn starts and races
+  between windows.
 - Updater DMG downloads now publish crash-durable, content-addressed files only
   after a complete streamed download. Concurrent daemon and wrapper rebuilds
   cannot truncate or replace each other's input, and DMG hashing stays bounded
@@ -240,7 +241,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - The avatar overlay is focusable on Linux so inline pet reply inputs can accept
   keyboard input after being clicked, while still staying above the main Codex
   window as an overlay.
-- Plugin marketplace browsing now preserves upstream's `remote_plugin`
+- Plugin marketplace browsing now preserves the official app's `remote_plugin`
   feature sync on Linux, so current app servers can load the remote OpenAI
   curated catalog instead of falling back to only locally installed plugins.
 - The opt-in `remote-mobile-control` cold-start hook no longer removes

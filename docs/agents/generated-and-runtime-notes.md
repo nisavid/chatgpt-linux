@@ -24,11 +24,21 @@ that agents need without keeping them in the main quick-start.
 - `ChatGPT.dmg`
   Cached official OpenAI DMG.
 - `port-integrations/integrations.json`
-  Gitignored local opt-in integration config.
+  Gitignored checkout-local `enabled`, `disabled`, and `settings` overrides.
+  Reviewed `defaultEnabled` values live in each repository integration's
+  manifest.
 - `port-integrations/local/`
   Gitignored user-local integration directory.
 - `chatgpt/.chatgpt-linux/port-integrations-staged.json`
   Staged declarative integration ownership manifest.
+- `/usr/lib/chatgpt/update-builder/.chatgpt-linux/port-integrations.json`
+  Full resolved port integration snapshot stored in a native package's private
+  update-builder bundle. The copied integration tree excludes checkout-local
+  config files; updater rebuilds use the persistent per-user override when one
+  exists and otherwise preserve this snapshot.
+- `~/.config/chatgpt/port-integrations.json`
+  Persistent packaged-install override and integration-picker selection. It can
+  replace the packaged snapshot for later updater rebuilds.
 - `~/.config/chatgpt-updater/config.toml`
   Runtime updater config.
 - `~/.local/state/chatgpt-updater/state.json`
@@ -60,13 +70,22 @@ that agents need without keeping them in the main quick-start.
   performs one bounded synchronous repair and blocks Electron startup if that
   repair fails or times out, because the known-broken CLI cannot serve the app.
 - ASAR patches are fail-soft unless intentionally marked required. Each patch
-  should be idempotent and report warnings when upstream drift prevents a
+  should be idempotent and report warnings when official-app drift prevents a
   needle from matching.
 - Patch reports are written for installs and rebuilds. Official-DMG validation
   fails only for required official-app patches that are missing or skipped.
-- Linux Computer Use plugin registration is default-on platform port glue, but
-  Computer Use UI enablement remains opt-in and must not bypass upstream
-  server-side rollouts unrelated to local Linux support.
+- The Linux Computer Use backend, bundled plugin, and Linux support patches are
+  packaged or applied by default. The official installed-and-enabled
+  `computer-use@openai-bundled` plugin setting is the persistent user grant;
+  official account eligibility, allowed-app controls, and Codex tool approval,
+  sandboxing, and auto-approval policy still govern use. Host readiness proves
+  feasibility, not authorization.
+- The `read-aloud` UI and `read-aloud-mcp` port integrations are reviewed
+  defaults. They do not speak automatically: playback starts only from an
+  explicit message action, conversation-mode action, or MCP request. Voice
+  model/runtime downloads are also explicit. Because `conversation-mode`
+  requires `read-aloud`, disable both to remove the UI backend; disable
+  `read-aloud-mcp` separately to remove the agent-facing plugin.
 - The Linux Chrome integration stages the bundled Chrome plugin, native host,
   marketplace metadata, and browser profile/native-host diagnostics for Chrome,
   Brave, and Chromium. Do not fix only the user cache; patch staged bundled
@@ -82,6 +101,11 @@ that agents need without keeping them in the main quick-start.
   explicit retry path; avoid auto-retrying every reconcile cycle.
 - Manual rollback uses the last-known-good package recorded in updater state
   and the same format-specific command layer as normal installs.
+
+For current navigation and task-specific procedures, use `docs/README.md`,
+`docs/port-architecture.md`, `docs/port-integrations-architecture.md`,
+`docs/usage/build-and-run.md`, and `docs/usage/troubleshooting.md` instead of
+duplicating those guides here.
 
 ## Runtime Expectations
 

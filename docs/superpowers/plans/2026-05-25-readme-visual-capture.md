@@ -1,6 +1,9 @@
 # README Visual Capture Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: archived.** This plan was implemented and is retained only as
+> historical design evidence. Do not execute its code snippets; the current
+> contract lives in `scripts/ci/validate-readme-visuals.js`, its tests, and
+> `docs/maintainers/readme-visual-capture.md`.
 
 **Goal:** Define the first durable capture contract for future README showcase visuals and add a narrow validator for README image reference hygiene.
 
@@ -35,13 +38,13 @@ function errorsFor(markdown) {
   return validateReadmeVisualsContent(markdown).errors;
 }
 
-test("accepts the existing app icon and shields.io badges", () => {
+test("accepts the ChatGPT hero logo and shields.io badges", () => {
   const markdown = `
 <div align="center">
-  <img src="assets/codex.png" alt="Codex app icon" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT logo" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
-    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/chatgpt-linux"></a>
+    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
   </p>
 </div>
 `;

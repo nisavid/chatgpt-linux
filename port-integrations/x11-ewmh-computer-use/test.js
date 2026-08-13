@@ -128,24 +128,20 @@ function applyPatchTwice(patchFn, source) {
 }
 
 
-test("x11-ewmh-computer-use documents and pins v0.1.3 release artifact", () => {
+test("x11-ewmh-computer-use has no implicit remote release dependency", () => {
   const stage = fs.readFileSync(path.join(integrationDir, "stage.sh"), "utf8");
   const readme = fs.readFileSync(path.join(integrationDir, "README.md"), "utf8");
-  const url = "https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11/releases/download/v0.1.3/chatgpt-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz";
-  const sha = "067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b";
-  assert.equal(stage.includes(url), true);
-  assert.equal(stage.includes(sha), true);
-  assert.equal(readme.includes(url), true);
-  assert.equal(readme.includes(sha), true);
+  assert.doesNotMatch(stage, /AlekseiSeleznev\/chatgpt-computer-use-x11/);
+  assert.doesNotMatch(readme, /AlekseiSeleznev\/chatgpt-computer-use-x11/);
 });
 
 
-test("x11-ewmh-computer-use default release fails fast on unsupported architectures", () => {
-  const workspace = tempDir("x11-ewmh-arch");
+test("x11-ewmh-computer-use requires an explicit trusted staging input", () => {
+  const workspace = tempDir("x11-ewmh-explicit-input");
   assert.throws(
-    () => runStage(workspace, { ARCH: "aarch64" }),
+    () => runStage(workspace, { ARCH: "x86_64" }),
     (error) => {
-      assert.match(String(error.stderr), /no default release artifact for ARCH=aarch64/);
+      assert.match(String(error.stderr), /requires an explicit source, binary, tarball, or download URL/);
       return true;
     },
   );

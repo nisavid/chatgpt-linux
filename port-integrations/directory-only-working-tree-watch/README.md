@@ -135,7 +135,7 @@ covered by the dedicated metadata watches:
   at most one follow-up reconciliation while work is queued or running. A burst
   of more than 256 distinct rename paths collapses into one full topology
   reconciliation rather than retaining or synchronously probing every path.
-- This is an upstream-bundle patch. Drift in the enabled feature rejects a
+- This is an official-app-bundle patch. Drift in the enabled integration rejects a
   rebuild candidate instead of silently restoring the unbounded watcher.
 
 Before considering this integration for default or core Linux behavior, persistent

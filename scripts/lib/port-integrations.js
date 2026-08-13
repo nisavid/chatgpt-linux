@@ -202,7 +202,25 @@ function normalizeEnabledIntegrationIds(value, sourcePath, options = {}) {
   return ids;
 }
 
-function enabledIntegrationIdsFromBuildInfo(appDir) {
+function integrationIdsFromBuildInfo(value, fieldPath, buildInfoPath) {
+  if (!Array.isArray(value)) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} must contain ${fieldPath}`);
+  }
+
+  const seen = new Set();
+  const ids = [];
+  for (const rawId of value) {
+    const id = assertIntegrationId(rawId, `port integration id in ${buildInfoPath}`);
+    if (seen.has(id)) {
+      throw new Error(`Duplicate port integration id in ${buildInfoPath}: ${rawId}`);
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function portIntegrationSnapshotFromBuildInfo(appDir) {
   const buildInfoPath = path.join(path.resolve(appDir), BUILD_INFO_RELATIVE_PATH);
   let buildInfo;
   try {
@@ -213,23 +231,62 @@ function enabledIntegrationIdsFromBuildInfo(appDir) {
   if (buildInfo == null || typeof buildInfo !== "object" || Array.isArray(buildInfo)) {
     throw new Error(`Packaged app build info at ${buildInfoPath} must be a JSON object`);
   }
-  const enabled = buildInfo.portIntegrations?.enabled;
-  if (!Array.isArray(enabled)) {
-    throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations.enabled`);
+  const portIntegrations = buildInfo.portIntegrations;
+  if (portIntegrations == null || typeof portIntegrations !== "object" || Array.isArray(portIntegrations)) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations`);
   }
 
-  const seen = new Set();
-  const ids = [];
-  for (const rawId of enabled) {
-    const configuredId = assertIntegrationId(rawId, `port integration id in ${buildInfoPath}`);
-    const id = configuredId;
-    if (seen.has(id)) {
-      throw new Error(`Duplicate port integration id in ${buildInfoPath}: ${rawId}`);
-    }
-    seen.add(id);
-    ids.push(id);
+  const enabled = integrationIdsFromBuildInfo(
+    portIntegrations.enabled,
+    "portIntegrations.enabled",
+    buildInfoPath,
+  );
+  const resolved = portIntegrations.resolved;
+  if (resolved == null || typeof resolved !== "object" || Array.isArray(resolved)) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations.resolved`);
   }
-  return ids;
+  const resolvedEnabled = integrationIdsFromBuildInfo(
+    resolved.enabled,
+    "portIntegrations.resolved.enabled",
+    buildInfoPath,
+  );
+  integrationIdsFromBuildInfo(
+    resolved.disabled,
+    "portIntegrations.resolved.disabled",
+    buildInfoPath,
+  );
+  if (canonicalJson(enabled) !== canonicalJson(resolvedEnabled)) {
+    throw new Error(
+      `Packaged app build info at ${buildInfoPath} must keep portIntegrations.enabled and portIntegrations.resolved.enabled identical`,
+    );
+  }
+  if (
+    resolved.settings != null
+    && (typeof resolved.settings !== "object" || Array.isArray(resolved.settings))
+  ) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} portIntegrations.resolved.settings must be an object`);
+  }
+
+  const rootKind = portIntegrations.rootKind;
+  if (rootKind == null) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations.rootKind`);
+  }
+  if (rootKind !== "checkout" && rootKind !== "external") {
+    throw new Error(`Packaged app build info at ${buildInfoPath} has invalid portIntegrations.rootKind`);
+  }
+  const inputsSha256 = portIntegrations.inputsSha256;
+  if (inputsSha256 == null) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} must contain portIntegrations.inputsSha256`);
+  }
+  if (typeof inputsSha256 !== "string" || !/^[a-f0-9]{64}$/.test(inputsSha256)) {
+    throw new Error(`Packaged app build info at ${buildInfoPath} has invalid portIntegrations.inputsSha256`);
+  }
+
+  return { enabled, resolved, rootKind, inputsSha256 };
+}
+
+function enabledIntegrationIdsFromBuildInfo(appDir) {
+  return portIntegrationSnapshotFromBuildInfo(appDir).enabled;
 }
 
 function normalizePortIntegrationSettings(value, sourcePath) {
@@ -522,7 +579,25 @@ function integrationDirectoryEntries(integration) {
 function portIntegrationBuildInputs(options = {}) {
   const integrationsRoot = portIntegrationsRoot(options);
   const resolvedConfig = resolvedPortIntegrationsConfig({ ...options, integrationsRoot });
-  const integrations = loadEnabledPortIntegrations({ ...options, integrationsRoot }).map((integration) => ({
+  const enabledIntegrations = loadEnabledPortIntegrations({ ...options, integrationsRoot });
+  const enabledIds = new Set(enabledIntegrations.map(({ id }) => id));
+  const disabledCleanupIds = new Set(
+    disabledPortIntegrationCleanupHooks({ ...options, integrationsRoot }).map(({ id }) => id),
+  );
+  const disabledRetainedRuntimeHookIds = new Set(
+    enabledPortIntegrationInstallPlan({ ...options, integrationsRoot }).runtimeHooks
+      .map(({ id }) => id)
+      .filter((id) => !enabledIds.has(id)),
+  );
+  const buildAffectingIntegrations = [
+    ...enabledIntegrations,
+    ...discoverPortIntegrationManifests({ ...options, integrationsRoot })
+      .filter(({ id }) => (
+        !enabledIds.has(id)
+        && (disabledCleanupIds.has(id) || disabledRetainedRuntimeHookIds.has(id))
+      )),
+  ];
+  const integrations = buildAffectingIntegrations.map((integration) => ({
     id: integration.id,
     origin: integration.origin,
     relativeDir: integration.relativeDir.split(path.sep).join("/"),
@@ -541,25 +616,42 @@ function portIntegrationBuildInputs(options = {}) {
 }
 
 function packageIntegrationOptions(appDir, options = {}) {
-  const snapshotEnabled = enabledIntegrationIdsFromBuildInfo(appDir);
+  const snapshot = portIntegrationSnapshotFromBuildInfo(appDir);
   const strictOptions = { ...options, strictConfig: true };
-  const configuredEnabled = enabledPortIntegrationIds(strictOptions);
-  if (
-    snapshotEnabled.length !== configuredEnabled.length
-    || snapshotEnabled.some((id, index) => id !== configuredEnabled[index])
-  ) {
+  delete strictOptions.enabledIntegrationIds;
+  delete strictOptions.enabledFeatureIds;
+  const currentInputs = portIntegrationBuildInputs(strictOptions);
+  const mismatchDetails = [];
+  if (canonicalJson(snapshot.resolved) !== canonicalJson(currentInputs.resolvedConfig)) {
+    mismatchDetails.push(
+      `app snapshot resolved config: ${canonicalJson(snapshot.resolved)}`,
+      `current resolved config: ${canonicalJson(currentInputs.resolvedConfig)}`,
+    );
+  }
+  if (snapshot.rootKind !== currentInputs.rootKind) {
+    mismatchDetails.push(
+      `app snapshot root kind: ${JSON.stringify(snapshot.rootKind)}`,
+      `current root kind: ${JSON.stringify(currentInputs.rootKind)}`,
+    );
+  }
+  if (snapshot.inputsSha256 !== currentInputs.sha256) {
+    mismatchDetails.push(
+      `app snapshot inputs digest: ${snapshot.inputsSha256}`,
+      `current inputs digest: ${currentInputs.sha256}`,
+    );
+  }
+  if (mismatchDetails.length > 0) {
     throw new Error(
       [
-        `Packaged app port integration snapshot does not match the current integration config: ${path.resolve(appDir)}`,
-        `app snapshot: ${JSON.stringify(snapshotEnabled)}`,
-        `current config: ${JSON.stringify(configuredEnabled)}`,
+        `Packaged app port integration snapshot does not match the current integration inputs: ${path.resolve(appDir)}`,
+        ...mismatchDetails,
         "Rebuild the app with the current integration config before creating a native package.",
       ].join("\n"),
     );
   }
   return {
     ...strictOptions,
-    enabledIntegrationIds: snapshotEnabled,
+    enabledIntegrationIds: snapshot.enabled,
   };
 }
 

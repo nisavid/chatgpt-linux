@@ -14,6 +14,7 @@ const {
   enabledPortIntegrationPackageFiles,
   enabledPortIntegrationPackagePlan,
   loadPortIntegrationPatchDescriptors,
+  portIntegrationBuildInputs,
   portIntegrationsRoot,
   restoreEnabledPortIntegrationPackageResourcePermissions,
   stageEnabledPortIntegrationPackageResources,
@@ -103,12 +104,22 @@ function makePackageIntegrationRoot(root, integrationManifest) {
   return { integrationDir, integrationsRoot, id };
 }
 
-function writeBuildInfoSnapshot(appDir, enabled) {
+function writeBuildInfoSnapshot(appDir, integrationsRoot, overrides = {}) {
+  const integrationInputs = portIntegrationBuildInputs({ integrationsRoot, strictConfig: true });
   const buildInfoPath = path.join(appDir, ".chatgpt-linux", "build-info.json");
   fs.mkdirSync(path.dirname(buildInfoPath), { recursive: true });
   fs.writeFileSync(
     buildInfoPath,
-    `${JSON.stringify({ schemaVersion: 1, portIntegrations: { enabled } }, null, 2)}\n`,
+    `${JSON.stringify({
+      schemaVersion: 1,
+      portIntegrations: {
+        enabled: integrationInputs.resolvedConfig.enabled,
+        resolved: integrationInputs.resolvedConfig,
+        rootKind: integrationInputs.rootKind,
+        inputsSha256: integrationInputs.sha256,
+        ...overrides,
+      },
+    }, null, 2)}\n`,
   );
   return buildInfoPath;
 }
@@ -662,7 +673,7 @@ test("port integration package resources reject ancestor and descendant target o
 test("port integration package resources cannot target the packaged app directory", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-app-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const { integrationDir, integrationsRoot, id } = makePackageIntegrationRoot(root, {
+  const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     packageResources: [
       {
         source: "payload.txt",
@@ -675,7 +686,7 @@ test("port integration package resources cannot target the packaged app director
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   const packageRoot = path.join(root, "package-root");
   const appDir = path.join(packageRoot, "opt", "chatgpt");
-  writeBuildInfoSnapshot(appDir, [id]);
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
 
   assert.throws(
     () => stageEnabledPortIntegrationPackageResources(
@@ -690,7 +701,7 @@ test("port integration package resources cannot target the packaged app director
 test("port integration package resources cannot target an ancestor of the packaged app directory", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-app-ancestor-target-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const { integrationDir, integrationsRoot, id } = makePackageIntegrationRoot(root, {
+  const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
     packageResources: [
       {
         source: "payload.txt",
@@ -703,7 +714,7 @@ test("port integration package resources cannot target an ancestor of the packag
   fs.writeFileSync(path.join(integrationDir, "payload.txt"), "payload\n");
   const packageRoot = path.join(root, "package-root");
   const appDir = path.join(packageRoot, "opt", "chatgpt");
-  const buildInfoPath = writeBuildInfoSnapshot(appDir, [id]);
+  const buildInfoPath = writeBuildInfoSnapshot(appDir, integrationsRoot);
 
   assert.throws(
     () => stageEnabledPortIntegrationPackageResources(
@@ -990,7 +1001,7 @@ test("native package plans require the app integration snapshot to match the cur
   fs.writeFileSync(path.join(integrationDir, "fixture.txt"), "fixture\n");
 
   const appDir = path.join(root, "app");
-  writeBuildInfoSnapshot(appDir, [id]);
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
   const matchingPlan = enabledPortIntegrationPackagePlan({
     appDir,
     integrationsRoot,
@@ -1002,17 +1013,132 @@ test("native package plans require the app integration snapshot to match the cur
     ["usr/share/chatgpt-package-framework/fixture.txt"],
   );
 
-  writeBuildInfoSnapshot(appDir, []);
+  const configPath = path.join(integrationsRoot, "integrations.json");
+  fs.writeFileSync(configPath, '{"enabled":[]}\n');
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+  fs.writeFileSync(configPath, `{"enabled":["${id}"]}\n`);
   assert.throws(
     () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
-    /app snapshot: \[\][\s\S]*current config: \["package-framework-fixture"\]/,
+    /app snapshot resolved config:[\s\S]*current resolved config:/i,
   );
 
-  fs.writeFileSync(path.join(integrationsRoot, "integrations.json"), '{"enabled":[]}\n');
-  writeBuildInfoSnapshot(appDir, [id]);
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+  fs.writeFileSync(configPath, '{"enabled":[]}\n');
   assert.throws(
     () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
-    /app snapshot: \["package-framework-fixture"\][\s\S]*current config: \[\]/,
+    /app snapshot resolved config:[\s\S]*current resolved config:/i,
+  );
+});
+
+test("native package plans reject same-enabled integration settings drift", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-settings-drift-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { integrationsRoot, id } = makePackageIntegrationRoot(root, {});
+  const configPath = path.join(integrationsRoot, "integrations.json");
+  fs.writeFileSync(
+    configPath,
+    `${JSON.stringify({ enabled: [id], settings: { [id]: { channel: "stable" } } })}\n`,
+  );
+  const appDir = path.join(root, "app");
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+
+  fs.writeFileSync(
+    configPath,
+    `${JSON.stringify({ enabled: [id], settings: { [id]: { channel: "preview" } } })}\n`,
+  );
+
+  assert.throws(
+    () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
+    /resolved config[\s\S]*rebuild the app/i,
+  );
+});
+
+test("native package staging rejects integration input byte drift", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-input-drift-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
+    packageResources: [
+      {
+        source: "fixture.txt",
+        target: "usr/share/chatgpt-package-framework/fixture.txt",
+        mode: "0644",
+      },
+    ],
+  });
+  const sourcePath = path.join(integrationDir, "fixture.txt");
+  fs.writeFileSync(sourcePath, "generated app input\n");
+  const packageRoot = path.join(root, "package-root");
+  const appDir = path.join(packageRoot, "opt", "chatgpt");
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+
+  fs.writeFileSync(sourcePath, "package input changed\n");
+
+  assert.throws(
+    () => stageEnabledPortIntegrationPackageResources(
+      packageRoot,
+      { appDir, integrationsRoot, packageFormat: "deb" },
+    ),
+    /inputs digest[\s\S]*rebuild the app/i,
+  );
+});
+
+test("native package plans reject disabled cleanup-hook byte drift", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-disabled-cleanup-drift-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
+    entrypoints: { cleanupHook: "./cleanup.sh" },
+  });
+  const configPath = path.join(integrationsRoot, "integrations.json");
+  const cleanupPath = path.join(integrationDir, "cleanup.sh");
+  fs.writeFileSync(configPath, '{"enabled":[]}\n');
+  fs.writeFileSync(cleanupPath, "#!/bin/sh\n# generated app cleanup\n");
+  const appDir = path.join(root, "app");
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+
+  fs.writeFileSync(cleanupPath, "#!/bin/sh\n# package cleanup changed\n");
+
+  assert.throws(
+    () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
+    /inputs digest[\s\S]*rebuild the app/i,
+  );
+});
+
+test("native package plans reject disabled retained runtime-hook byte drift", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-disabled-retained-hook-drift-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { integrationDir, integrationsRoot } = makePackageIntegrationRoot(root, {
+    runtimeHooks: {
+      prelaunch: {
+        source: "retained-prelaunch.sh",
+        retainWhenDisabled: true,
+      },
+    },
+  });
+  const configPath = path.join(integrationsRoot, "integrations.json");
+  const hookPath = path.join(integrationDir, "retained-prelaunch.sh");
+  fs.writeFileSync(configPath, '{"enabled":[]}\n');
+  fs.writeFileSync(hookPath, "#!/bin/sh\n# generated app retained hook\n");
+  const appDir = path.join(root, "app");
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
+
+  fs.writeFileSync(hookPath, "#!/bin/sh\n# package retained hook changed\n");
+
+  assert.throws(
+    () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
+    /inputs digest[\s\S]*rebuild the app/i,
+  );
+});
+
+test("native package plans reject integration root identity drift", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-integration-package-root-drift-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { integrationsRoot } = makePackageIntegrationRoot(root, {});
+  const appDir = path.join(root, "app");
+  writeBuildInfoSnapshot(appDir, integrationsRoot, { rootKind: "checkout" });
+
+  assert.throws(
+    () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
+    /root kind[\s\S]*rebuild the app/i,
   );
 });
 
@@ -1021,11 +1147,11 @@ test("native package plans strictly validate the current integration config", (t
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { integrationsRoot } = makePackageIntegrationRoot(root, {});
   const appDir = path.join(root, "app");
-  writeBuildInfoSnapshot(appDir, []);
   const configPath = path.join(integrationsRoot, "integrations.json");
+  fs.writeFileSync(configPath, '{"enabled":[]}\n');
+  writeBuildInfoSnapshot(appDir, integrationsRoot);
   const options = { appDir, integrationsRoot, packageFormat: "deb" };
 
-  fs.writeFileSync(configPath, '{"enabled":[]}\n');
   assert.deepEqual(enabledPortIntegrationPackagePlan(options), {
     resources: [],
     dependencies: [],
@@ -1079,8 +1205,18 @@ test("native package plans reject missing or malformed app integration snapshots
     /could not read packaged app build info/i,
   );
 
-  const buildInfoPath = writeBuildInfoSnapshot(appDir, []);
+  const buildInfoPath = writeBuildInfoSnapshot(appDir, integrationsRoot);
   assert.deepEqual(enabledIntegrationIdsFromBuildInfo(appDir), []);
+  for (const missingField of ["resolved", "rootKind", "inputsSha256"]) {
+    const buildInfo = JSON.parse(fs.readFileSync(buildInfoPath, "utf8"));
+    delete buildInfo.portIntegrations[missingField];
+    fs.writeFileSync(buildInfoPath, `${JSON.stringify(buildInfo)}\n`);
+    assert.throws(
+      () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
+      new RegExp(`must contain portIntegrations\\.${missingField}`, "i"),
+    );
+    writeBuildInfoSnapshot(appDir, integrationsRoot);
+  }
   fs.writeFileSync(buildInfoPath, '{"portIntegrations":{}}\n');
   assert.throws(
     () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
@@ -1091,10 +1227,9 @@ test("native package plans reject missing or malformed app integration snapshots
     () => enabledPortIntegrationPackagePlan({ appDir, integrationsRoot, packageFormat: "deb" }),
     /must match/i,
   );
-  writeBuildInfoSnapshot(appDir, [
-    "package-framework-fixture",
-    "package-framework-fixture",
-  ]);
+  writeBuildInfoSnapshot(appDir, integrationsRoot, {
+    enabled: ["package-framework-fixture", "package-framework-fixture"],
+  });
   assert.throws(
     () => enabledIntegrationIdsFromBuildInfo(appDir),
     /duplicate port integration id/i,

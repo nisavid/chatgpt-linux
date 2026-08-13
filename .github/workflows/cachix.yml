@@ -64,7 +64,7 @@ jobs:
             git show "$BEFORE_SHA:flake.nix" > "$previous_flake"
             previous_hash="$(
               FLAKE_FILE="$previous_flake" scripts/ci/update-nix-hashes.sh \
-                read-flake-hash "chatgptDmg = pkgs.fetchurl {" "hash = "
+                read-flake-hash-or-missing "chatgptDmg = pkgs.fetchurl {" "hash = "
             )"
             if [ "$current_hash" = "$previous_hash" ]; then
               changed=false

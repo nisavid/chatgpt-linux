@@ -5,7 +5,7 @@
   "author": {
     "name": "avifenesh"
   },
-  "homepage": "https://github.com/nisavid/chatgpt-linux",
+  "homepage": "https://github.com/nisavid/codex-app-linux",
   "license": "MIT",
   "keywords": [
     "record-and-replay",
@@ -22,7 +22,7 @@
     "longDescription": "Record & Replay captures a Linux desktop or browser workflow as a semantic event stream, including explicit user markers and spoken transcript context, drafts a reusable Codex skill, and imports that skill after inspection. It uses Linux Computer Use diagnostics and avoids raw coordinate macro replay.",
     "developerName": "avifenesh",
     "category": "Productivity",
-    "websiteURL": "https://github.com/nisavid/chatgpt-linux",
+    "websiteURL": "https://github.com/nisavid/codex-app-linux",
     "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
     "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
     "logo": "./assets/app-icon.svg",

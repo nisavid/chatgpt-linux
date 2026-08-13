@@ -22,8 +22,8 @@ node - \
 const fs = require("node:fs");
 const path = require("node:path");
 const {
-  enabledPortIntegrationIds,
   integrationsJsonSummary,
+  portIntegrationBuildInputs,
 } = require(process.argv[2]);
 
 const requested = JSON.parse(process.argv[3]);
@@ -50,10 +50,18 @@ const config = {
 };
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-const enabled = enabledPortIntegrationIds({ integrationsConfigPath: configPath });
+const inputs = portIntegrationBuildInputs({ integrationsConfigPath: configPath });
 fs.writeFileSync(
   buildInfoPath,
-  `${JSON.stringify({ schemaVersion: 1, portIntegrations: { enabled } })}\n`,
+  `${JSON.stringify({
+    schemaVersion: 1,
+    portIntegrations: {
+      enabled: inputs.resolvedConfig.enabled,
+      resolved: inputs.resolvedConfig,
+      rootKind: inputs.rootKind,
+      inputsSha256: inputs.sha256,
+    },
+  })}\n`,
   "utf8",
 );
 NODE

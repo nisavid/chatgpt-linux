@@ -16,22 +16,27 @@ Use this index to choose the smallest document that matches your goal.
 - [User-Local App Integration](../contrib/user-local-install/README.md)
   describes the experimental rootless install layout under XDG user paths.
 
+## Configure Or Extend The Port
+
+- [Port Integrations](../port-integrations/README.md) is the catalog and user
+  configuration reference for modules under `port-integrations/`.
+- [Port Integration Architecture](port-integrations-architecture.md) is the
+  authoring reference for manifests, settings, descriptors, hooks, resources,
+  config resolution, and updater delivery.
+
 ## Understand The Design
 
 - [Port Architecture](port-architecture.md) explains how the official OpenAI
   ChatGPT DMG becomes a Linux Electron app and where replacement, patching, and
   launcher orchestration fit.
-- [Port Integrations](../port-integrations/README.md) explains the configurable
-  integration registry under `port-integrations/`.
 - [Webview Server Evaluation](webview-server-evaluation.md) explains why the
   launcher currently serves the extracted webview bundle with a local Python
   HTTP server and what would need to change before replacing it.
-- [Threat Model](maintainers/threat-model.md) describes trust boundaries,
-  attacker assumptions, and priority threat paths for the Linux conversion,
-  packaging, updater, and release flow.
-- [Security Best Practices](maintainers/security-best-practices.md) turns the
-  threat model into maintainer review rules for generated app patching and
-  default-enabled port integrations.
+- [Product and Visual Design](../DESIGN.md) defines the visual language,
+  product identity, screenshot policy, and fork-authored UI constraints.
+
+## Maintain The Fork And Project Record
+
 - [Fork Divergences](maintainers/fork-divergences.md) is the canonical
   inventory of intentional differences from the Linux-port upstream, including
   names, paths, versioning, updater boundaries, Computer Use compatibility, and
@@ -44,6 +49,15 @@ Use this index to choose the smallest document that matches your goal.
 - [Changelog](../CHANGELOG.md) tracks user-visible releases and packaging
   behavior changes.
 
+## Maintain Official DMG Compatibility
+
+- [Official DMG Acceptance](upstream-dmg-acceptance.md) explains the policy
+  gate for accepting a newly observed official app bundle.
+- [Official DMG Intelligence](upstream-dmg-intelligence.md) explains what the
+  local inspection tooling records about official releases and drift.
+- [Official DMG Watchdog](upstream-dmg-watchdog.md) explains the scheduled
+  automation that refreshes and verifies official DMG metadata.
+
 ## Maintain Packaging Or Runtime Behavior
 
 - [Package and Runtime Maintenance](maintainers/package-runtime-maintenance.md)
@@ -52,6 +66,8 @@ Use this index to choose the smallest document that matches your goal.
   and validation.
 - [README Visual Capture](maintainers/readme-visual-capture.md) defines the
   maintainer process for reproducible, non-sensitive README showcase assets.
+- [Launcher Performance](launcher-performance.md) explains launcher timing,
+  profiling, and performance acceptance.
 - [Threat Model](maintainers/threat-model.md) is the repository-scoped security
   model for scans and reviews.
 - [Security Best Practices](maintainers/security-best-practices.md) lists
@@ -68,6 +84,10 @@ Use this index to choose the smallest document that matches your goal.
 ## Pick Up Agent Work
 
 - Read [AGENTS.md](../AGENTS.md) first. It is the always-loaded policy surface.
+- [Repository Map](agents/repository-map.md) routes source, generated, package,
+  updater, integration, and documentation work to the current paths.
+- [Generated and Runtime Notes](agents/generated-and-runtime-notes.md)
+  distinguishes source-owned behavior from generated app and XDG state.
 - [Backlog](backlog.md) points to open GitHub Issues for non-security and
   security follow-up.
 - Use the package maintenance reference for details that are too large or too

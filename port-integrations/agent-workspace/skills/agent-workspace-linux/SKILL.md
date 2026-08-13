@@ -16,7 +16,7 @@ only the tool schemas needed for the next action.
 
 ## Critical Boundaries
 
-### Use the dedicated Codex for port integration page for setup
+### Use the dedicated Agent Workspaces page for setup
 
 ChatGPT for Linux owns Agent Workspace setup through the **Agent Workspaces** page:
 binary path, page-authored permission rules, permission file mutation,

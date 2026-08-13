@@ -1,12 +1,14 @@
 # Security Policy
 
-This repository is an unofficial community fork that layers hardening, packaging,
-and runtime polish over the Linux-port upstream's conversion of the official
-OpenAI ChatGPT app bundle. It is not affiliated with, endorsed by, or supported
-by OpenAI. Security reports for this fork should focus on the Linux conversion,
-package builders, generated
-launcher, native packages, updater, bundled runtime helpers, local desktop
-integration, and repository release workflows.
+This repository is an unofficial community fork that layers hardening,
+packaging, and runtime polish over the Linux-port upstream's synced
+DMG-conversion baseline. The Linux-port upstream now develops against OpenAI's
+signed Linux package; this fork remains on the official OpenAI ChatGPT DMG
+until that source transition is decided explicitly. It is not affiliated with,
+endorsed by, or supported by OpenAI. Security reports for this fork should
+focus on the DMG conversion, package builders, generated launcher, native
+packages, updater, bundled runtime helpers, local desktop integration, and
+repository release workflows.
 
 Security guarantees made by OpenAI services, OpenAI accounts, and the official
 OpenAI app bundle outside this local conversion path are outside this

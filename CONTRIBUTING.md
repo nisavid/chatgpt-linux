@@ -28,9 +28,10 @@ Contributions of all sizes are welcome: bug reports, documentation improvements,
 - Preserve existing platform behavior unless the pull request explicitly explains why it must change.
 - Use `CHATGPT_*` for port-owned environment variables. Preserve inherited OpenAI `CODEX_*` CLI, plugin, app-server, and protocol interfaces.
 - Keep package transitions free of compatibility commands and service aliases; use the journaled state migration for former `codex-app` XDG data.
-- Keep common launch and runtime compatibility in core. Put workflow-specific,
-  editor-specific, browser-specific, distro-specific, or otherwise optional
-  behavior in a `port-integrations/` module.
+- Keep common launch and runtime compatibility in core. Put configurable
+  workflow-specific, editor-specific, browser-specific, or distro-specific
+  behavior in a `port-integrations/` module; reviewed integrations may be
+  enabled by default.
 - Include a short summary, the user-visible behavior change, and the validation you ran.
 
 ## Before You Start
@@ -41,7 +42,9 @@ Please take a moment to understand how this repository is structured before maki
 - `scripts/build-deb.sh`, `scripts/build-rpm.sh`, and `scripts/build-pacman.sh` package an already-generated `chatgpt/`.
 - `scripts/install-deps.sh` bootstraps local development dependencies.
 - `updater/` contains the Rust update manager.
-- `scripts/patch-linux-window-ui.js` contains fail-soft ASAR patches for Linux behavior.
+- `scripts/patch-linux-window-ui.js` is the build-facing ASAR patch CLI. Patch
+  descriptors and implementations live under `scripts/patches/`; edit those
+  sources for Linux patch behavior.
 - `chatgpt/` and `dist/` are generated artifacts and should not be treated as primary source unless you are intentionally validating generated output.
 
 For repository-specific implementation details, read [`AGENTS.md`](./AGENTS.md) and the relevant sections in [`README.md`](./README.md) before starting work.
@@ -79,7 +82,7 @@ Good issue reports usually include:
 The recommended local setup is:
 
 ```bash
-git clone https://github.com/nisavid/chatgpt-linux.git
+git clone https://github.com/nisavid/codex-app-linux.git chatgpt-linux
 cd chatgpt-linux
 bash scripts/install-deps.sh
 ```

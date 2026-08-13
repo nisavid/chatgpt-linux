@@ -62,9 +62,9 @@ fi
 exec "$real_codex" "$@"
 ```
 
-The upstream SSH transport normally starts its own authority before invoking
-the proxy. Configure the **remote account's login-shell environment** to skip
-that bootstrap when this wrapper is used:
+The official app's SSH transport normally starts its own authority before
+invoking the proxy. Configure the **remote account's login-shell environment**
+to skip that bootstrap when this wrapper is used:
 
 ```bash
 export CODEX_SSH_SKIP_APP_SERVER_BOOT=true
@@ -103,6 +103,7 @@ To exclude the integration from a build, add it to `disabled` in the ignored
 
 ```json
 {
+  "enabled": [],
   "disabled": ["shared-app-server-socket"]
 }
 ```
@@ -121,6 +122,6 @@ Set `CODEX_CLI_PATH` to include the stock authority/socket/proxy lifecycle test:
 CODEX_CLI_PATH="/absolute/path/to/real/codex" node --test port-integrations/shared-app-server-socket/test.js
 ```
 
-The integration depends on upstream's current local transport factory, WebSocket
-adapter, and `app-server proxy` command. Bundle drift causes the optional patch
-to warn and skip instead of modifying an unknown surface.
+The integration depends on the official app bundle's current local transport
+factory, WebSocket adapter, and `app-server proxy` command. Bundle drift causes
+the optional patch to warn and skip instead of modifying an unknown surface.

@@ -3,10 +3,10 @@
 Open security follow-up now lives in GitHub Issues. Use this file as the
 repository-local index and review workflow pointer.
 
-- [All open security backlog issues](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog)
-- [Highest priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fhigh%22)
-- [Medium priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fmedium%22)
-- [Lower priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Flow%22)
+- [All open security backlog issues](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog)
+- [Highest priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fhigh%22)
+- [Medium priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Fmedium%22)
+- [Lower priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3A%22priority%2Flow%22)
 
 ## Security Review Workflow
 
@@ -34,31 +34,8 @@ the local build gate, CodeQL, package metadata inspection, threat-model updates,
 project [security best practices](security-best-practices.md), or human
 maintainer approval where those are required.
 
-## Migrated Issues
-
-Highest priority:
-
-- [Authenticate updater DMG inputs before rebuild and install](https://github.com/nisavid/chatgpt-linux/issues/53)
-- [Bind privileged installs to verified updater artifacts](https://github.com/nisavid/chatgpt-linux/issues/54)
-- [Add verification evidence to hash-refresh PRs](https://github.com/nisavid/chatgpt-linux/issues/55)
-- [Harden Agent Workspaces bridge command and start approval boundaries](https://github.com/nisavid/chatgpt-linux/issues/99)
-
-Medium priority:
-
-- [Review generated-app Electron IPC and file-manager handling](https://github.com/nisavid/chatgpt-linux/issues/57)
-- [Review Linux Computer Use desktop-control boundary](https://github.com/nisavid/chatgpt-linux/issues/58)
-- [Review experimental remote-control and Codex mobile host boundary](https://github.com/nisavid/chatgpt-linux/issues/59):
-  see [Remote Mobile Host Boundary Review](remote-mobile-host-boundary-review.md)
-  for the host-state matrix and repo-local evidence.
-- [Review bundled browser and Chrome native-host boundary](https://github.com/nisavid/chatgpt-linux/issues/60)
-- [Require trusted metadata for non-default DMG sources](https://github.com/nisavid/chatgpt-linux/issues/61)
-- [Pin executable build inputs outside the Nix path](https://github.com/nisavid/chatgpt-linux/issues/62)
-- [Harden updater user service filesystem surface](https://github.com/nisavid/chatgpt-linux/issues/63)
-- [Add public package signing and provenance](https://github.com/nisavid/chatgpt-linux/issues/64)
-- [Review npm CLI auto-upgrade trust](https://github.com/nisavid/chatgpt-linux/issues/65)
-- [Validate Copilot reasoning effort entitlement semantics](https://github.com/nisavid/chatgpt-linux/issues/100)
-
-Lower priority:
-
-- [Review Linux open-target discovery and desktop-entry inputs](https://github.com/nisavid/chatgpt-linux/issues/66)
-- [Redact credential-looking subprocess output before persistence](https://github.com/nisavid/chatgpt-linux/issues/67)
+The filtered links above are authoritative for status and priority. Do not
+duplicate issue inventories here; completed work otherwise remains falsely
+listed as open. The
+[Remote Mobile Host Boundary Review](remote-mobile-host-boundary-review.md)
+keeps the repository-local evidence for that specific review surface.

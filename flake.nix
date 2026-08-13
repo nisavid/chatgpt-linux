@@ -66,7 +66,7 @@
           else
             { };
         flakeSourceCommit = self.rev or (self.dirtyRev or (stagedSourceInfo.commit or ""));
-        flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";
+        flakeSourceRemote = "https://github.com/nisavid/codex-app-linux.git";
         flakeSourceDateEpoch = toString (stagedSourceInfo.sourceDateEpoch or (self.lastModified or 1));
         flakeSourceDirty =
           if self ? rev then false
@@ -1261,7 +1261,7 @@ PY
 
             ${patchNixInstalledApp "$out/opt/chatgpt"}
 
-            install -Dm0644 "$out/opt/chatgpt/.chatgpt-linux/chatgpt.png" \
+            install -Dm0644 ${sourceRoot}/assets/chatgpt-linux.png \
               "$out/share/icons/hicolor/256x256/apps/chatgpt.png"
 
             install -Dm0644 ${sourceRoot}/packaging/linux/chatgpt.desktop \
@@ -1301,7 +1301,7 @@ PY
                 "ChatGPT for Linux"
               else
                 "ChatGPT for Linux with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled";
-            homepage = "https://github.com/nisavid/chatgpt-linux";
+            homepage = "https://github.com/nisavid/codex-app-linux";
             license = pkgs.lib.licenses.mit;
             platforms = pkgs.lib.platforms.linux;
             mainProgram = "chatgpt";

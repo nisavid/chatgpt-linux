@@ -25,8 +25,10 @@ the Linux-port upstream.
 _Avoid_: Linux fork, primary Linux port
 
 **Linux-port upstream**:
-`ilysenko/codex-desktop-linux`, the direct upstream that performs the primary
-Linux conversion work.
+`ilysenko/codex-desktop-linux`, the direct upstream whose synced baseline
+performs the DMG-based Linux conversion used here. Its current development has
+moved to OpenAI's signed Linux package; this fork has not adopted that source
+transition.
 _Avoid_: using upstream when the official OpenAI artifact could also be meant
 
 **Port-owned identity**:

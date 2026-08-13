@@ -12,14 +12,16 @@
 //!    manual `pick-integrations` invocation without a candidate falls back to the
 //!    installed builder bundle.
 //! 2. Reads the catalog (`--integrations-json`) and the currently-enabled set
-//!    (the saved `port-integrations.json`, else `--enabled`).
+//!    (the saved `port-integrations.json`, else `--enabled`). It offers the X11
+//!    Computer Use integration only when the installed builder bundle retains
+//!    its trusted executable helper.
 //! 3. Shows a zenity/kdialog checklist pre-checked with the enabled set, plus a
 //!    sentinel "(Don't ask again …)" row.
 //! 4. Validates the chosen set against each manifest's `requires` and
-//!    `conflicts`, then writes `{"enabled":[…],"disabled":[…]}` to the user
-//!    integration config so the rebuild (which points
-//!    `CHATGPT_PORT_INTEGRATIONS_CONFIG` at that path) uses the selection. If the
-//!    sentinel row was checked, persists
+//!    `conflicts`, then updates `enabled` and `disabled` in the user integration
+//!    config while preserving the effective config's `settings` object (the
+//!    existing user override first, otherwise the packaged snapshot) so the
+//!    rebuild uses the selection. If the sentinel row was checked, persists
 //!    `chatgpt-linux-integration-picker-on-update=false` so future updates skip the
 //!    prompt.
 //!
@@ -46,6 +48,8 @@ use crate::{
 /// can never collide with a real integration id (`^[a-z0-9][a-z0-9-]*$`).
 const DONT_ASK_SENTINEL: &str = "__dont_ask_again__";
 const DONT_ASK_LABEL: &str = "(Don't ask again on future updates)";
+const X11_COMPUTER_USE_INTEGRATION_ID: &str = "x11-ewmh-computer-use";
+const X11_COMPUTER_USE_HELPER: &str = "chatgpt-computer-use-x11";
 
 /// A catalog integration row read from `--integrations-json`.
 struct CatalogEntry {
@@ -116,7 +120,25 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
     let Some((source, catalog)) = chosen else {
         return Ok(PickOutcome::Skipped("no-catalog"));
     };
+    let x11_computer_use_available = crate::builder::has_trusted_prebuilt_helper(
+        &config.builder_bundle_root,
+        X11_COMPUTER_USE_HELPER,
+    );
+    let catalog = catalog
+        .into_iter()
+        .filter(|entry| entry.id != X11_COMPUTER_USE_INTEGRATION_ID || x11_computer_use_available)
+        .collect::<Vec<_>>();
+    if catalog.is_empty() {
+        return Ok(PickOutcome::Skipped("no-catalog"));
+    }
     let enabled = read_enabled(config, &source, &catalog);
+    if !x11_computer_use_available && enabled.contains(X11_COMPUTER_USE_INTEGRATION_ID) {
+        warn!(
+            integration = X11_COMPUTER_USE_INTEGRATION_ID,
+            "integration picker preserved an existing selection unavailable in the installed builder bundle"
+        );
+        return Ok(PickOutcome::Skipped("unavailable-integration"));
+    }
 
     match show_picker(&tool, &catalog, &enabled)? {
         None => {
@@ -124,6 +146,17 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
             Ok(PickOutcome::Skipped("cancelled"))
         }
         Some(selection) => {
+            if !x11_computer_use_available
+                && selection
+                    .iter()
+                    .any(|id| id == X11_COMPUTER_USE_INTEGRATION_ID)
+            {
+                warn!(
+                    integration = X11_COMPUTER_USE_INTEGRATION_ID,
+                    "integration picker rejected an integration unavailable in the installed builder bundle"
+                );
+                return Ok(PickOutcome::Skipped("unavailable-integration"));
+            }
             let dont_ask = selection.iter().any(|id| id == DONT_ASK_SENTINEL);
             let catalog_ids: std::collections::HashSet<&str> =
                 catalog.iter().map(|entry| entry.id.as_str()).collect();
@@ -155,7 +188,7 @@ fn pick(config: &RuntimeConfig, paths: &RuntimePaths) -> Result<PickOutcome> {
                 .map(|entry| entry.id.clone())
                 .collect();
 
-            write_integration_config(&picked, &disabled)?;
+            write_integration_config(config, &picked, &disabled)?;
             if dont_ask {
                 if let Err(error) = config::write_integration_picker_on_update(false) {
                     warn!(?error, "could not persist don't-ask-again preference");
@@ -509,18 +542,46 @@ fn show_selection_error(tool: &DialogTool, message: &str) {
     }
 }
 
-/// Writes the chosen enabled set to the stable integration-config path.
-fn write_integration_config(enabled: &[String], disabled: &[String]) -> Result<()> {
+/// Writes the chosen enabled set to the stable integration-config path while
+/// preserving the effective config's valid top-level settings object. An
+/// existing user config remains the highest-priority source; otherwise the
+/// packaged snapshot seeds the first user config.
+fn write_integration_config(
+    config: &RuntimeConfig,
+    enabled: &[String],
+    disabled: &[String],
+) -> Result<()> {
     let path =
         config::integration_config_path().context("could not resolve integration config path")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)
             .with_context(|| format!("Failed to create {}", dir.display()))?;
     }
-    let value = serde_json::json!({
+    let existing_settings = config::effective_integration_config_path(config).and_then(
+        |settings_source| {
+            std::fs::read_to_string(&settings_source)
+                .ok()
+                .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+                .and_then(|value| match value.get("settings") {
+                    Some(settings) if settings.is_object() => Some(settings.clone()),
+                    Some(settings) if !settings.is_null() => {
+                        warn!(
+                            path = %settings_source.display(),
+                            "existing port integration settings must be an object; omitting invalid settings"
+                        );
+                        None
+                    }
+                    _ => None,
+                })
+        },
+    );
+    let mut value = serde_json::json!({
         "enabled": enabled,
         "disabled": disabled,
     });
+    if let Some(settings) = existing_settings {
+        value["settings"] = settings;
+    }
     let serialized =
         serde_json::to_string_pretty(&value).context("Failed to serialize integration config")?;
     config::atomic_write(&path, format!("{serialized}\n").as_bytes())
@@ -633,6 +694,35 @@ if (arg === "--integrations-json") {
         .unwrap();
     }
 
+    fn write_x11_catalog_script(source: &Path) {
+        let script_dir = source.join("scripts/lib");
+        std::fs::create_dir_all(&script_dir).unwrap();
+        std::fs::write(
+            script_dir.join("port-integrations.js"),
+            r#"
+const arg = process.argv[2];
+if (arg === "--integrations-json") {
+  process.stdout.write(JSON.stringify([
+    {"id":"alpha","title":"Alpha Integration","defaultEnabled":true},
+    {"id":"x11-ewmh-computer-use","title":"X11/EWMH Computer Use","defaultEnabled":false}
+  ]));
+} else if (arg === "--enabled") {
+  process.stdout.write("alpha\n");
+}
+"#,
+        )
+        .unwrap();
+    }
+
+    fn write_x11_prebuilt_helper(bundle_root: &Path) {
+        let helper = bundle_root
+            .join("prebuilt-helpers")
+            .join(X11_COMPUTER_USE_HELPER);
+        std::fs::create_dir_all(helper.parent().unwrap()).unwrap();
+        std::fs::write(&helper, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
     fn constrained_catalog() -> Vec<CatalogEntry> {
         vec![
             CatalogEntry {
@@ -696,7 +786,7 @@ if (arg === "--integrations-json") {
         std::fs::write(
             &bin,
             format!(
-                "#!/bin/sh\n[ \"$1\" = \"--error\" ] && exit 0\nprintf '%s' \"{stdout_lines}\"\nexit {exit_code}\n"
+                "#!/bin/sh\n[ \"$1\" = \"--error\" ] && exit 0\nif [ -n \"${{CHATGPT_TEST_DIALOG_ARGS_FILE:-}}\" ]; then\n  printf '%s\\n' \"$@\" > \"$CHATGPT_TEST_DIALOG_ARGS_FILE\"\nfi\nprintf '%s' \"{stdout_lines}\"\nexit {exit_code}\n"
             ),
         )
         .unwrap();
@@ -834,9 +924,10 @@ if (arg === "--integrations-json") {
         let _g = env_lock();
         let settings = tempdir().unwrap();
         let settings_file = settings.path().join("settings.json");
+        let config = base_config(settings.path());
         std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
 
-        write_integration_config(&["alpha".to_string()], &["beta".to_string()]).unwrap();
+        write_integration_config(&config, &["alpha".to_string()], &["beta".to_string()]).unwrap();
 
         let integration_config = settings.path().join("port-integrations.json");
         let content = std::fs::read_to_string(&integration_config).unwrap();
@@ -854,6 +945,110 @@ if (arg === "--integrations-json") {
             })
             .count();
         assert_eq!(temp_entries, 0);
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn write_integration_config_preserves_existing_settings_object() {
+        let _g = env_lock();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let config = base_config(settings.path());
+        let packaged_config = settings
+            .path()
+            .join(".chatgpt-linux/port-integrations.json");
+        std::fs::create_dir_all(packaged_config.parent().unwrap()).unwrap();
+        std::fs::write(
+            &packaged_config,
+            r#"{
+  "enabled": ["alpha"],
+  "settings": {
+    "pet-overlay": {
+      "petOverlay": {
+        "gravity": "top-left"
+      }
+    }
+  }
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &integration_config,
+            r#"{
+  "enabled": ["alpha"],
+  "disabled": [],
+  "settings": {
+    "pet-overlay": {
+      "petOverlay": {
+        "gravity": "bottom-right"
+      }
+    }
+  }
+}
+"#,
+        )
+        .unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+
+        write_integration_config(&config, &["beta".to_string()], &["alpha".to_string()]).unwrap();
+
+        let content = std::fs::read_to_string(&integration_config).unwrap();
+        let value = serde_json::from_str::<serde_json::Value>(&content).unwrap();
+        assert_eq!(value["enabled"], serde_json::json!(["beta"]));
+        assert_eq!(value["disabled"], serde_json::json!(["alpha"]));
+        assert_eq!(
+            value["settings"],
+            serde_json::json!({
+                "pet-overlay": {
+                    "petOverlay": {
+                        "gravity": "bottom-right"
+                    }
+                }
+            })
+        );
+
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+    }
+
+    #[test]
+    fn write_integration_config_omits_non_object_settings() {
+        let _g = env_lock();
+        let settings = tempdir().unwrap();
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let config = base_config(settings.path());
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+
+        for invalid_settings in [
+            serde_json::Value::Null,
+            serde_json::json!(["pet-overlay"]),
+            serde_json::json!("pet-overlay"),
+        ] {
+            std::fs::write(
+                &integration_config,
+                format!(
+                    "{}\n",
+                    serde_json::json!({
+                        "enabled": ["alpha"],
+                        "disabled": [],
+                        "settings": invalid_settings,
+                    })
+                ),
+            )
+            .unwrap();
+
+            write_integration_config(&config, &["beta".to_string()], &["alpha".to_string()])
+                .unwrap();
+
+            let content = std::fs::read_to_string(&integration_config).unwrap();
+            let value = serde_json::from_str::<serde_json::Value>(&content).unwrap();
+            assert_eq!(value["enabled"], serde_json::json!(["beta"]));
+            assert_eq!(value["disabled"], serde_json::json!(["alpha"]));
+            assert!(value.get("settings").is_none());
+        }
 
         std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
     }
@@ -981,6 +1176,165 @@ if (arg === "--integrations-json") {
     }
 
     #[test]
+    fn unavailable_x11_integration_is_not_offered_or_accepted() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_x11_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let dialog_args = settings.path().join("dialog-args");
+        let original_config = "{\n  \"enabled\": [\"alpha\"],\n  \"disabled\": []\n}\n";
+        std::fs::write(&integration_config, original_config).unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_DIALOG_ARGS_FILE", &dialog_args);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+
+        let (_dialog, fake_path) =
+            fake_dialog("zenity", "x11-ewmh-computer-use\n__dont_ask_again__", 0);
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = fake_path.clone();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            original_config,
+            "an unavailable X11 selection must leave the previous integration config unchanged"
+        );
+        assert!(
+            !std::fs::read_to_string(&dialog_args)
+                .unwrap()
+                .contains("x11-ewmh-computer-use"),
+            "an unavailable X11 integration must not be offered"
+        );
+        assert!(
+            !settings_file.exists(),
+            "an unavailable selection must not persist the don't-ask setting"
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_DIALOG_ARGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn unavailable_existing_x11_selection_is_preserved_without_opening_picker() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_x11_catalog_script(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let integration_config = settings.path().join("port-integrations.json");
+        let dialog_args = settings.path().join("dialog-args");
+        let original_config = concat!(
+            "{\n",
+            "  \"enabled\": [\"alpha\", \"x11-ewmh-computer-use\"],\n",
+            "  \"disabled\": []\n",
+            "}\n"
+        );
+        std::fs::write(&integration_config, original_config).unwrap();
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_DIALOG_ARGS_FILE", &dialog_args);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+
+        let (_dialog, fake_path) = fake_dialog("zenity", "alpha", 0);
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = fake_path.clone();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&integration_config).unwrap(),
+            original_config,
+            "an existing unavailable X11 selection must remain byte-for-byte unchanged"
+        );
+        assert!(
+            !dialog_args.exists(),
+            "the picker must skip before opening a dialog for an unavailable existing selection"
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_DIALOG_ARGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn retained_x11_helper_makes_integration_available_to_picker() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_x11_catalog_script(root.path());
+        write_x11_prebuilt_helper(root.path());
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let dialog_args = settings.path().join("dialog-args");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("CHATGPT_TEST_DIALOG_ARGS_FILE", &dialog_args);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+
+        let (_dialog, fake_path) = fake_dialog("zenity", "x11-ewmh-computer-use", 0);
+        let previous_path = std::env::var_os("PATH");
+        let mut joined_path = fake_path.clone();
+        if let Some(path) = &previous_path {
+            joined_path.push(":");
+            joined_path.push(path);
+        }
+        std::env::set_var("PATH", &joined_path);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        assert!(
+            std::fs::read_to_string(&dialog_args)
+                .unwrap()
+                .contains("x11-ewmh-computer-use"),
+            "a retained trusted X11 helper must make the integration available"
+        );
+        let saved = serde_json::from_str::<serde_json::Value>(
+            &std::fs::read_to_string(settings.path().join("port-integrations.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            saved["enabled"],
+            serde_json::json!(["x11-ewmh-computer-use"])
+        );
+
+        if let Some(path) = previous_path {
+            std::env::set_var("PATH", path);
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("CHATGPT_TEST_DIALOG_ARGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
     fn selection_writes_integration_config_outside_wrapper_src() {
         let _g = env_lock();
         let root = tempdir().unwrap();
@@ -1031,6 +1385,72 @@ if (arg === "--integrations-json") {
         assert!(settings_json
             .get("chatgpt-linux-integration-picker-on-update")
             .is_none());
+
+        if let Some(prev) = prev_path {
+            std::env::set_var("PATH", prev);
+        }
+        std::env::remove_var("CHATGPT_LINUX_SETTINGS_FILE");
+        std::env::remove_var("DISPLAY");
+    }
+
+    #[test]
+    fn first_picker_write_preserves_packaged_settings() {
+        let _g = env_lock();
+        let root = tempdir().unwrap();
+        let settings = tempdir().unwrap();
+        write_fake_catalog_script(root.path());
+        let packaged_config = root.path().join(".chatgpt-linux/port-integrations.json");
+        std::fs::create_dir_all(packaged_config.parent().unwrap()).unwrap();
+        std::fs::write(
+            &packaged_config,
+            r#"{
+  "enabled": ["alpha"],
+  "disabled": [],
+  "settings": {
+    "pet-overlay": {
+      "petOverlay": {
+        "gravity": "bottom-right"
+      }
+    }
+  }
+}
+"#,
+        )
+        .unwrap();
+        let config = base_config(root.path());
+        let paths = runtime_paths(root.path());
+
+        let settings_file = settings.path().join("settings.json");
+        let user_config = settings.path().join("port-integrations.json");
+        std::env::set_var("CHATGPT_LINUX_SETTINGS_FILE", &settings_file);
+        std::env::set_var("DISPLAY", ":99");
+        std::env::remove_var("WAYLAND_DISPLAY");
+
+        let (_d, fake_path) = fake_dialog("zenity", "beta\nalpha", 0);
+        let prev_path = std::env::var_os("PATH");
+        let mut joined = fake_path.clone();
+        if let Some(prev) = &prev_path {
+            joined.push(":");
+            joined.push(prev);
+        }
+        std::env::set_var("PATH", &joined);
+
+        run_pick_integrations(&config, &paths, false).unwrap();
+
+        let value = serde_json::from_str::<serde_json::Value>(
+            &std::fs::read_to_string(&user_config).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            value["settings"],
+            serde_json::json!({
+                "pet-overlay": {
+                    "petOverlay": {
+                        "gravity": "bottom-right"
+                    }
+                }
+            })
+        );
 
         if let Some(prev) = prev_path {
             std::env::set_var("PATH", prev);

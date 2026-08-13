@@ -1,6 +1,6 @@
 ---
 name: maintaining-chatgpt-package
-description: Use when changing native package metadata or payload, installer-generated launcher behavior, packaged runtime helper behavior, updater service or install behavior, or native package shape in the chatgpt-linux repository.
+description: Use when changing native package metadata or payload, installer-generated launcher behavior, packaged runtime helper behavior, updater service or install behavior, or native package shape in this repository.
 ---
 
 # Maintaining ChatGPT Package

@@ -14,8 +14,13 @@ over several inline screenshots so the README remains scannable on GitHub
 desktop and mobile.
 
 Store committed README showcase assets under `docs/assets/readme/` and reference
-them with non-empty alt text. The existing app icon remains `assets/chatgpt.png`
-because package and app builders use that path as an input.
+them with non-empty alt text. The README hero uses the actual ChatGPT logo at
+`assets/chatgpt.png`. Generated-app icon discovery prefers one valid compact
+ChatGPT icon from the official app bundle and falls back to
+`assets/chatgpt-linux.png`; an explicit build-time icon overrides that
+selection. Native-package builders default to the 256 px
+`assets/chatgpt-linux.png`, and Nix uses it for the desktop icon slot. The
+distinct Codex logo remains available at `assets/codex.png`.
 
 Run the README visual reference check before committing README visual changes:
 

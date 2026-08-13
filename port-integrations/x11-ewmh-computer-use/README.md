@@ -1,10 +1,14 @@
 # X11/EWMH Computer Use Port Integration
 
-This optional port integration stages the standalone `chatgpt-computer-use-x11` MCP plugin into ChatGPT for Linux. It stays disabled by default and is enabled only when listed in `port-integrations.json`.
+This optional port integration stages the standalone
+`chatgpt-computer-use-x11` MCP plugin into ChatGPT for Linux. It stays disabled
+by default.
 
 ## Enable
 
-Enable through the git-ignored upstream file `port-integrations.json`:
+For a checkout build, enable it through the git-ignored
+`port-integrations/integrations.json` and provide one of the explicit staging
+inputs below:
 
 ```json
 { "enabled": ["x11-ewmh-computer-use"] }
@@ -38,32 +42,52 @@ The staged plugin exposes the standalone namespaced tool surface:
 Pinned local artifact mode:
 
 ```bash
-CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL=/path/to/chatgpt-computer-use-x11-v<VERSION>-x86_64-unknown-linux-gnu.tar.gz
-CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=<expected-sha256>
+export CHATGPT_X11_COMPUTER_USE_RELEASE_TARBALL=/path/to/chatgpt-computer-use-x11-v<VERSION>-x86_64-unknown-linux-gnu.tar.gz
+export CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=<expected-sha256>
+make build-app
 ```
 
-Default pinned release mode downloads and verifies v0.1.3 for x86_64 Linux only. Unsupported architectures fail fast unless you provide an explicit source, binary, tarball, or download override:
+Download mode requires an explicit URL and SHA-256. The integration has no
+implicit remote release because the previously pinned repository is no longer
+available:
 
 ```bash
-CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL=https://github.com/AlekseiSeleznev/chatgpt-computer-use-x11/releases/download/v0.1.3/chatgpt-computer-use-x11-v0.1.3-x86_64-unknown-linux-gnu.tar.gz
-CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=067244a16f9e812eb369af42149658c8cf138b13057445bb9d10318f29b0c26b
+export CHATGPT_X11_COMPUTER_USE_DOWNLOAD_URL=https://downloads.example.invalid/chatgpt-computer-use-x11.tar.gz
+export CHATGPT_X11_COMPUTER_USE_RELEASE_SHA256=<expected-sha256>
+make build-app
 ```
 
-Those values are built into `stage.sh`; set the variables only to override the pinned artifact.
+Set one of the explicit tarball, binary, source, or download inputs before
+enabling the integration. Tarball and download modes always require a digest.
 
 Local source mode:
 
 ```bash
-CHATGPT_X11_COMPUTER_USE_SOURCE=/path/to/chatgpt-computer-use-x11
+CHATGPT_X11_COMPUTER_USE_SOURCE=/path/to/chatgpt-computer-use-x11 make build-app
 ```
 
 Direct binary test mode:
 
 ```bash
-CHATGPT_X11_COMPUTER_USE_BINARY=/path/to/chatgpt-computer-use-x11
+CHATGPT_X11_COMPUTER_USE_BINARY=/path/to/chatgpt-computer-use-x11 make build-app
 ```
 
-## Upstream alignment
+## Updater rebuilds
+
+When this integration is enabled during a native package build that includes
+the updater, the package retains the staged executable for updater rebuilds.
+Packaging fails if the enabled integration did not stage a regular executable
+helper. The updater picker offers the integration only when the installed
+builder bundle retains that trusted executable.
+
+A native package built without this integration cannot newly enable it during
+an updater rebuild because it has no package-owned helper to reuse. Build and
+install a new native package from a trusted checkout with the integration and
+an explicit staging input enabled first. Manually adding the integration to
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` does not add
+the missing helper.
+
+## Backend alignment
 
 This port integration wires the separate `chatgpt-computer-use-x11` plugin as an opt-in port integration. It does not move X11/EWMH behavior into the core Computer Use backend and does not replace the bundled `computer-use` plugin.
 

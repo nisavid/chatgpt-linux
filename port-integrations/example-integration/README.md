@@ -1,7 +1,8 @@
 # Example Port Integration
 
 This is a disabled-by-default example that documents the `port-integrations`
-contract. It is intentionally harmless and does not patch the real Codex bundle.
+contract. It is intentionally harmless and does not patch the official OpenAI
+app bundle.
 
 To try it locally, copy `port-integrations/integrations.example.json` to
 `port-integrations/integrations.json` and add:

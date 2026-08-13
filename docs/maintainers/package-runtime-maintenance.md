@@ -234,10 +234,14 @@ The ASAR patch step currently:
   and cleans up only marker-owned ChatGPT files. Suggested Prompts requires the
   official app's eligibility, the user setting, and a current local Linux patch
   contract. Checkout builds use `port-integrations/integrations.json` or an
-  explicit `CHATGPT_PORT_INTEGRATIONS_CONFIG` file. Native package update-builder
-  bundles resolve
-  `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` at rebuild
-  time, then fall back to `port-integrations/integrations.example.json`.
+  explicit `CHATGPT_PORT_INTEGRATIONS_CONFIG` file. Native packages stage the
+  exact resolved build selection at
+  `update-builder/.chatgpt-linux/port-integrations.json`. Updater rebuilds
+  prefer a saved user selection at
+  `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`, then that
+  packaged snapshot, then the legacy builder config. If none exists, the
+  fetched wrapper's manifest defaults provide the initial selection; an
+  available saved or packaged selection is never silently replaced.
 
 ## Updater Boundary
 

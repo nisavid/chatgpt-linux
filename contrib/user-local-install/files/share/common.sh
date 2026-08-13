@@ -17,7 +17,7 @@ INSTALL_CONFIG_FILE="${STATE_DIR}/install.env"
 ICON_PATH="${XDG_DATA_HOME}/icons/hicolor/512x512/apps/chatgpt.png"
 DESKTOP_FILE="${XDG_DATA_HOME}/applications/chatgpt.desktop"
 
-REPO_DIR_DEFAULT="${HOME}/workspace/chatgpt-linux"
+REPO_DIR_DEFAULT="${HOME}/workspace/codex-app-linux"
 SOURCE_REPO_DIR="$REPO_DIR_DEFAULT"
 MANAGED_REPO_DIR="${DATA_DIR}/managed-repo"
 BUILD_REPO_DIR=""

@@ -86,7 +86,7 @@ Area identifies the source-of-truth surface a reviewer must inspect.
 | `area: native packaging` | Shared or format-specific `.deb`, RPM, or pacman package behavior. |
 | `area: appimage` | AppImage construction, runtime behavior, or desktop integration. |
 | `area: nix` | Flake outputs, Nix modules, fixed-output hashes, or Nix-only packaging. |
-| `area: upstream dmg` | Compatibility with, or drift in, the latest supported upstream DMG. |
+| `area: upstream dmg` | Compatibility with, or drift in, the latest supported official OpenAI ChatGPT DMG. |
 | `area: port integrations` | The port integration framework or one of its modules. |
 | `area: computer use` | Linux Computer Use backends, helpers, capture, input, or desktop control. |
 | `area: integrations` | Browser, desktop environment, portal, or other external integration boundaries. |
@@ -106,7 +106,7 @@ Status records the single next condition needed to move an issue forward.
 | `status: needs information` | The reporter must provide named missing details, such as logs, versions, or commands. |
 | `status: needs reproduction` | The report is understandable but still needs a reliable reproduction or failing test. |
 | `status: ready for work` | The problem is confirmed, scoped, and has enough acceptance criteria to implement. |
-| `status: awaiting upstream` | Progress depends on an upstream DMG, dependency, or external project. Name that dependency in the thread. |
+| `status: awaiting upstream` | Progress depends on an official OpenAI ChatGPT DMG, dependency, or external project. Name that dependency in the thread. |
 | `status: needs maintainer decision` | Product direction, architecture, scope, or policy must be decided by a maintainer. |
 | `status: blocked` | A documented non-upstream blocker prevents progress. Replace it when the blocker clears. |
 
@@ -197,7 +197,7 @@ protection, review requirements, and the contributor workflow in
 
 Repository-owned issue producers must read their labels from the policy and
 apply a complete deterministic classification. The Computer Use sync reminder
-and upstream DMG drift reconciler follow this rule. Existing item automation,
+and official-DMG drift reconciler follow this rule. Existing item automation,
 including the contributor pull request limit, must inspect
 `workflow: manual only` before any comment, edit, classification, close, or
 merge operation and leave that item for staff.
@@ -229,7 +229,7 @@ The migration is intentionally split:
 
 1. Merge the reviewed policy, documentation, script, tests, and workflow.
 2. Update or disable any external automation that still writes retired names.
-   The committed Computer Use and upstream DMG issue producers read their
+   The committed Computer Use and official-DMG issue producers read their
    classifications from the policy.
 3. Run `plan`. It is read-only and needs no confirmation text.
    It also reports open items whose migrated labels still need a required
@@ -261,7 +261,7 @@ For a local read-only plan:
 
 ```bash
 GITHUB_TOKEN="$(gh auth token)" node scripts/ci/manage-labels.js \
-  --repo ilysenko/codex-desktop-linux
+  --repo nisavid/codex-app-linux
 ```
 
 Keep tokens in the environment, not in command arguments. For an emergency
@@ -269,7 +269,7 @@ non-destructive restore, download a workflow snapshot and run:
 
 ```bash
 GITHUB_TOKEN="$(gh auth token)" node scripts/ci/manage-labels.js \
-  --repo ilysenko/codex-desktop-linux \
+  --repo nisavid/codex-app-linux \
   --restore /path/to/repository-labels-before.json \
   --confirm RESTORE
 ```

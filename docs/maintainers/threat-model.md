@@ -171,8 +171,8 @@ Open questions that materially affect risk:
   `agent-workspace-linux`; workspace profiles, permission JSON, command paths,
   and acknowledgement params cross from generated webview/settings state to the
   main process and local helper runtime.
-- **AppShots port integration:** exposes upstream AppShots on Linux, patches
-  main-process focused-window screenshot handlers, stages a bare-modifier
+- **AppShots port integration:** exposes the official app's AppShots on Linux,
+  patches main-process focused-window screenshot handlers, stages a bare-modifier
   helper, and writes full-screen capture intermediates to private per-capture
   temporary directories before returning cropped data URLs to the generated
   app.
@@ -413,7 +413,7 @@ flowchart LR
   boundaries unless the trusted main process, backend, or OpenAI-hosted service
   enforces the same decision. A build-time UI exposure flag is never an action
   grant.
-- Platform enablement patches must preserve upstream account, rollout, and
+- Platform enablement patches must preserve OpenAI-hosted account, rollout, and
   availability gates unless the local integration supplies an equivalent
   documented control.
 - Agent Workspaces helper command selection, permission files, and workspace
@@ -712,15 +712,15 @@ profile handling, viewer spawning, settings UI, and prelaunch skill staging.
 **Gaps:** the main process still needs hardening for executable selection and
 hidden-workspace approval before the settings UI can be treated as the security
 boundary; tracked in
-[issue #99](https://github.com/nisavid/chatgpt-linux/issues/99).
+[issue #99](https://github.com/nisavid/codex-app-linux/issues/99).
 
 **Priority:** High when changing Agent Workspaces bridge behavior; Medium
 otherwise.
 
 ### T5d: AppShots Captures Sensitive Desktop Content
 
-**Entry points:** default-enabled `appshots` port integration, upstream AppShots
-availability flag, composer capture requests, focused-window metadata,
+**Entry points:** default-enabled `appshots` port integration, the official app's
+AppShots availability flag, composer capture requests, focused-window metadata,
 accessibility output, Linux screenshot tools, ImageMagick crop path,
 bare-modifier hotkey helper, and temporary capture files.
 
@@ -732,8 +732,8 @@ data expose sensitive desktop content before the user submits or discards it.
 the main risk is same-user or renderer-mediated confidentiality loss rather
 than privilege escalation.
 
-**Existing mitigations:** AppShots preserves the upstream availability flag,
-fails closed when focused-window capture inputs are unavailable, stages
+**Existing mitigations:** AppShots preserves the official app's availability
+flag, fails closed when focused-window capture inputs are unavailable, stages
 temporary full-screen captures in owner-only per-capture directories, cleans up
 deterministically, keeps global hotkeys inactive until selected, and uses tests
 for availability gates, capture routing, hotkey options, stale settings repair,
@@ -770,7 +770,7 @@ hooks, and Copilot settings patching.
 
 **Gaps:** fork-side tests cannot prove OpenAI-hosted Copilot entitlement
 semantics; tracked in
-[issue #100](https://github.com/nisavid/chatgpt-linux/issues/100). Wrapper
+[issue #100](https://github.com/nisavid/codex-app-linux/issues/100). Wrapper
 update UI changes still need review for misleading status and privilege-boundary
 confusion.
 

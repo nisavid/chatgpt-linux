@@ -51,13 +51,13 @@ The generated launcher can install `@openai/codex` on first run when the CLI is
 missing. To install it before launching:
 
 ```bash
-npm i -g @openai/codex
+npm i -g --include=optional @openai/codex
 ```
 
 If global npm installs require elevated privileges, install under `~/.local`:
 
 ```bash
-npm i -g --prefix ~/.local @openai/codex
+npm i -g --prefix ~/.local --include=optional @openai/codex
 ```
 
 ## Upgrading Existing Wrapper State
@@ -135,13 +135,17 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Run the flake:
 
 ```bash
-nix run github:nisavid/chatgpt-linux
+nix run github:nisavid/codex-app-linux
 ```
+
+The default app runs the Nix-store build directly. Use
+`nix run github:nisavid/codex-app-linux#installer` only when you want the
+installer to generate `chatgpt/` in the current checkout.
 
 Or enter a development shell:
 
 ```bash
-nix develop github:nisavid/chatgpt-linux
+nix develop github:nisavid/codex-app-linux
 ```
 
 The flake pins the SRI hash of the official OpenAI `ChatGPT.dmg`. OpenAI
@@ -239,7 +243,7 @@ inactive until selected; wrapper checks stay off until enabled in Settings; Dock
 icon synchronization mutates only marker-owned ChatGPT files; and Suggested
 Prompts requires official-app eligibility, the user setting, and a current local
 Linux patch contract. Main-process hardening for direct workspace bridge calls is
-tracked in [#99](https://github.com/nisavid/chatgpt-linux/issues/99).
+tracked in [#99](https://github.com/nisavid/codex-app-linux/issues/99).
 
 To disable default integrations or enable still-optional integrations, copy
 `port-integrations/integrations.example.json` to the git-ignored
@@ -499,7 +503,7 @@ installs the newest built native package.
 `.chatgpt-generation-receipts/` directory, `ChatGPT.dmg`, and `dist/`.
 `make clean-state` removes updater runtime state under XDG directories.
 
-## How The Build Works
+## Build Flow Overview
 
 The build flow is:
 
@@ -516,18 +520,10 @@ The build flow is:
 9. when installed from a native package, run `chatgpt-updater` as a
    `systemd --user` service for local update checks and package rebuilds.
 
-The macOS ChatGPT app is an Electron application. Most of the app bundle is
-platform-independent JavaScript, but the original package includes macOS-native
-modules and a macOS Electron binary. The installer replaces Electron, rebuilds
-native modules with `@electron/rebuild`, and removes the macOS-only `sparkle`
-module. For the design rationale behind this flow, see
-[Port Architecture](../port-architecture.md).
-
-During ASAR patching, the installer also tries to adapt Linux window behavior:
-
-- `Open in File Manager` integration is patched when the official OpenAI app
-  bundle still matches the expected shape.
-- If that targeted patch no longer matches, the installer continues and prints
-  `Failed to apply Linux File Manager Patch`.
-- Linux `opaqueWindows` defaults to `true` only when the user has not already
-  saved an explicit `Translucent sidebar` preference.
+The macOS ChatGPT app is an Electron application. The installer replaces its
+platform-specific runtime pieces, rebuilds Linux native modules, applies the
+descriptor registry, validates the generated app, and only then packages it.
+For the component boundaries and rationale, use
+[Port Architecture](../port-architecture.md). For manifest, descriptor, hook,
+resource, and updater-selection details, use
+[Port Integration Architecture](../port-integrations-architecture.md).

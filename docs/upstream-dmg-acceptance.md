@@ -1,6 +1,6 @@
 # Official DMG Acceptance
 
-Local installs, updater rebuilds, and the scheduled upstream workflow use the
+Local installs, updater rebuilds, and the scheduled official-DMG workflow use the
 same release profile from `scripts/lib/upstream-dmg-release-profile.js`. Shell
 and workflow entrypoints produce reports; `scripts/validate-upstream-dmg.js`
 is the only component that decides whether the candidate can be promoted.
@@ -88,4 +88,4 @@ Normal local builds run acceptance automatically:
 ```
 
 The generated decision and its referenced patch reports are sufficient to
-reproduce the verdict; upstream intelligence reports remain diagnostic only.
+reproduce the verdict; official-DMG intelligence reports remain diagnostic only.

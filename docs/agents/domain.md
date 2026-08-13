@@ -41,10 +41,13 @@ fine.
 ## Port Integration Terminology
 
 Use `port integration` for configurable build-time modules that adapt official app
-behavior or local runtime helpers to this Linux port. The implementation path,
-config file, and environment variables are `port-integrations/`,
-`port-integrations.json`, and `CHATGPT_PORT_INTEGRATIONS_*`; mention those exact names
-only when documenting source paths or config APIs.
+behavior or local runtime helpers to this Linux port. The implementation path is
+`port-integrations/`. Checkout config uses
+`port-integrations/integrations.json`; packaged installs use
+`${XDG_CONFIG_HOME:-$HOME/.config}/<app-id>/port-integrations.json`, with
+`chatgpt` as the default app id. Environment variables use
+`CHATGPT_PORT_INTEGRATIONS_*`. Mention those exact names only when documenting
+source paths or config APIs.
 
 Do not call port integrations features of Linux. They are port-authored
 integrations for user-facing ChatGPT app surfaces, and this fork enables the

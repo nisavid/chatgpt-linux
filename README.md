@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/chatgpt.png" alt="ChatGPT app icon" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT logo" width="128" height="128">
   <h1>ChatGPT for Linux</h1>
   <p><strong>A hardened, package-ready ChatGPT desktop build for Linux.</strong></p>
   <p>
@@ -9,21 +9,28 @@
   </p>
 </div>
 
-The official ChatGPT app is published for macOS. This repository layers package
-identity, updater policy, hardening, and runtime polish over the Linux
-conversion work from
+This build currently converts the official OpenAI ChatGPT app from its macOS
+DMG. It layers package identity, updater policy, hardening, and runtime polish
+over the Linux conversion work from
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux),
 aimed at users who want a polished local app and maintainers who want auditable
 native packages.
+
+OpenAI also publishes an official Linux package named `chatgpt`. That package
+is not this fork's current build source. Because this fork's native packages
+use the same package and command name, treat the two distributions as mutually
+exclusive until the source and package-ownership transition is resolved.
 
 > [!IMPORTANT]
 > **ChatGPT for Linux is an unofficial community project.** It is not affiliated
 > with, endorsed by, or supported by OpenAI. OpenAI owns ChatGPT, Codex, the
 > official app, and the OpenAI-hosted services this build uses. This repository
-> does not redistribute the official app; it automates a local conversion from
-> the official OpenAI ChatGPT DMG. The repository license covers this fork's
-> source code and packaging work, not the downloaded OpenAI app or services. Your
-> use of OpenAI software and services remains subject to OpenAI's terms.
+> does not redistribute the official app bundle; it automates a local conversion
+> from the official OpenAI ChatGPT DMG. The committed ChatGPT logo identifies
+> the app and remains OpenAI property. The repository license covers this fork's
+> source code and packaging work, not the downloaded OpenAI app, logo, or
+> services. Your use of OpenAI software and services remains subject to OpenAI's
+> terms.
 
 ## Start Here
 
@@ -37,6 +44,9 @@ native packages.
   [Support and Issue Routing](docs/usage/support-routing.md).
 - **Computer Use, updater, release, or maintainer work:** use
   [Linux Computer Use](#linux-computer-use) and [Learn More](#learn-more).
+- **Port integrations and architecture:** use the
+  [Documentation Index](docs/README.md) to choose the catalog, configuration,
+  authoring, or design document for the task.
 
 ## Quick Start
 
@@ -51,7 +61,7 @@ the app, and installs the resulting native package. The expanded flow below is
 useful when you want to inspect the package before installing it.
 
 ```bash
-git clone https://github.com/nisavid/chatgpt-linux.git
+git clone https://github.com/nisavid/codex-app-linux.git chatgpt-linux
 cd chatgpt-linux
 bash scripts/install-deps.sh
 make clean build-app package
@@ -203,10 +213,12 @@ you created. User configuration and state are preserved for reinstall.
 
 This fork is a downstream maintenance fork of
 [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).
-The Linux-port upstream does the core Linux app conversion and runtime
-enablement. This fork keeps the local `chatgpt` package identity, install
+This fork's synced baseline carries that upstream's core DMG-to-Linux
+conversion and runtime enablement. Current Linux-port upstream development now
+starts from OpenAI's official Linux package; this fork has not adopted that
+source transition. It keeps the local `chatgpt` package identity, install
 layout, updater policy, hardening posture, and maintenance workflow coherent on
-top of that base.
+top of the synced baseline.
 
 For the full inventory of fork-specific contracts, see
 [`docs/maintainers/fork-divergences.md`](docs/maintainers/fork-divergences.md).
@@ -302,15 +314,20 @@ leaves unmanaged launchers and favorites untouched. Suggested Prompts requires
 the official app's eligibility, the user's setting, and supported local
 Linux patch contracts at the same time. Main-process hardening for direct
 workspace bridge calls is tracked in
-[`#99`](https://github.com/nisavid/chatgpt-linux/issues/99).
+[`#99`](https://github.com/nisavid/codex-app-linux/issues/99).
 
-To disable default integrations or enable still-optional integrations, copy
+To disable default integrations, enable still-optional integrations, or set
+integration-specific options, copy
 `port-integrations/integrations.example.json` to the git-ignored
 `port-integrations/integrations.json`, edit the `enabled` and `disabled` lists, then
 rebuild. Packaged installs can use
 `${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` for the same
 override shape; checkout builds ignore that persistent user file and use
 `port-integrations/integrations.json` or `CHATGPT_PORT_INTEGRATIONS_CONFIG` instead.
+Updater rebuilds prefer the saved user override, then the resolved integration
+snapshot shipped in the native package, then the legacy builder config. They do
+not silently replace an available selection. If none of those three inputs
+exists, the fetched wrapper's manifest defaults provide the initial selection.
 See [`port-integrations/README.md`](port-integrations/README.md) for the integration
 contract.
 
@@ -461,23 +478,25 @@ The flake handles dependencies and Electron patching under the local
 `chatgpt` identity:
 
 ```bash
-nix run github:nisavid/chatgpt-linux
+nix run github:nisavid/codex-app-linux
 ```
 
-This installs the generated app into `chatgpt/` in the current directory. For
-a development shell:
+This builds the flake's default ChatGPT package in the Nix store and launches
+it. Use the `#installer` app below when you specifically want a generated
+`chatgpt/` directory in the current checkout. For a development shell:
 
 ```bash
-nix develop github:nisavid/chatgpt-linux
+nix develop github:nisavid/codex-app-linux
 ```
 
-Integration-specific outputs are available when you want the generated app to carry
-non-default integration choices that would otherwise be read from the git-ignored
-`port-integrations/integrations.json`:
+The remote-mobile output is retained as a compatibility alias for the
+manifest-default-enabled mobile integration. The installer output generates
+`chatgpt/` in the current checkout using the ordinary port integration
+selection:
 
 ```bash
-nix run github:nisavid/chatgpt-linux#chatgpt-remote-mobile-control
-nix run github:nisavid/chatgpt-linux#installer
+nix run github:nisavid/codex-app-linux#chatgpt-remote-mobile-control
+nix run github:nisavid/codex-app-linux#installer
 ```
 
 For a declarative NixOS or Home Manager install with the mobile remote-control
@@ -583,7 +602,8 @@ Common next steps:
 
 - blank window or splash hang: check whether something else is serving port
   `5175`;
-- Codex CLI warning: install `@openai/codex` globally or under `~/.local`;
+- Codex CLI warning: install `@openai/codex` with optional packages globally
+  or under `~/.local`;
 - hardened `/tmp` with `noexec`: set `TMPDIR` and `XDG_CACHE_HOME` to
   executable user-owned paths before install/build;
 - Electron download issues: retry, or set `ELECTRON_MIRROR` and
@@ -598,6 +618,12 @@ Common next steps:
   the `input` group;
 - updater service issue: inspect
   `~/.local/state/chatgpt-updater/service.log`.
+- `Critical patch failures` during a local or updater rebuild: update the
+  checkout or installed update-builder and rebuild from the same DMG. For a
+  local build, inspect `dist-next/rebuild/patch-report.json` and
+  `chatgpt/.chatgpt-linux/build-info.json`; for an updater rebuild, inspect the
+  workspace `.chatgpt-linux/source-info.json` and patch report. Do not disable
+  critical enforcement except for a deliberately non-release emergency build.
 
 See [Troubleshooting](docs/usage/troubleshooting.md) for the full symptom table
 and log locations.
@@ -608,6 +634,7 @@ and log locations.
 | --- | --- |
 | Build, run, package, install, or customize the app | [Build and Run Guide](docs/usage/build-and-run.md) |
 | Understand how the DMG conversion works | [Port Architecture](docs/port-architecture.md) |
+| Configure or author a port integration | [Port Integrations](port-integrations/README.md) and [Port Integration Architecture](docs/port-integrations-architecture.md) |
 | Diagnose launch, CLI, webview, or updater issues | [Troubleshooting](docs/usage/troubleshooting.md) |
 | Decide where to report an issue or feature request | [Support and Issue Routing](docs/usage/support-routing.md) |
 | Set up or debug Linux Computer Use | [Build and Run Guide](docs/usage/build-and-run.md#linux-computer-use-controls-and-readiness) and [Troubleshooting](docs/usage/troubleshooting.md) |

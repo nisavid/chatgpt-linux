@@ -1,6 +1,7 @@
 # Global Dictation
 
-This optional feature enables the global dictation controls already present in the desktop app.
+This default-enabled port integration enables the global dictation controls
+already present in ChatGPT.
 
 X11 uses Electron for shortcut registration and a short-lived modifier-state
 watcher while hold-to-talk is active. Wayland uses the XDG GlobalShortcuts
@@ -11,11 +12,15 @@ X11 requires `xinput`, `xmodmap`, and `xdotool` at runtime. Wayland requires a
 desktop portal backend that implements `org.freedesktop.portal.GlobalShortcuts`
 and `org.freedesktop.portal.RemoteDesktop`.
 
-Enable the integration in `port-integrations/integrations.json` before rebuilding:
+## Configuration
+
+To disable it for a checkout build, add its id to `disabled` in the gitignored
+`port-integrations/integrations.json`, then rebuild the app:
 
 ```json
 {
-  "enabled": ["global-dictation"]
+  "enabled": [],
+  "disabled": ["global-dictation"]
 }
 ```
 
@@ -28,3 +33,9 @@ the macOS or Windows paths.
 Wayland shortcuts must contain at least one modifier and one key. Modifier-only
 shortcuts cannot be represented by the XDG shortcut format and are rejected
 before registration.
+
+## Test
+
+```bash
+node --test port-integrations/global-dictation/test.js
+```

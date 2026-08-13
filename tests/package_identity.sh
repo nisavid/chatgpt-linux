@@ -45,6 +45,31 @@ assert_contains packaging/linux/chatgpt.spec 'Obsoletes:      codex-desktop'
 assert_contains packaging/linux/PKGBUILD.template "provides=('codex-app' 'codex-desktop')"
 assert_contains packaging/linux/PKGBUILD.template "conflicts=('codex-app' 'codex-desktop')"
 assert_contains packaging/linux/PKGBUILD.template "replaces=('codex-app' 'codex-desktop')"
+assert_contains packaging/linux/PKGBUILD.template 'url="https://github.com/nisavid/codex-app-linux"'
+assert_contains packaging/linux/com.github.nisavid.chatgpt.update.policy \
+    '<vendor_url>https://github.com/nisavid/codex-app-linux</vendor_url>'
+assert_contains scripts/lib/build-info.js \
+    'notes: "nix run github:nisavid/codex-app-linux"'
+assert_contains scripts/ci/hash-refresh-evidence.sh \
+    'DEFAULT_REPO="nisavid/codex-app-linux"'
+assert_contains scripts/ci/container-entrypoint.sh \
+    'export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"'
+assert_contains scripts/ci/container-entrypoint.sh \
+    'export CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/chatgpt.port-integrations.json"'
+assert_contains scripts/ci/container-entrypoint.sh \
+    'CHATGPT_FIXTURE_PORT_INTEGRATIONS_JSON="$enabled_json"'
+assert_not_contains scripts/ci/container-entrypoint.sh \
+    'codex-micro-integrations.json'
+assert_contains scripts/automation/upstream-dmg-watchdog/watchdog.py \
+    'DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/codex-app-linux")'
+assert_contains .agents/fork-sync-policy.toml \
+    'github_pr_repo = "nisavid/codex-app-linux"'
+assert_contains plugins/openai-bundled/plugins/read-aloud/.codex-plugin/plugin.json \
+    '"homepage": "https://github.com/nisavid/codex-app-linux"'
+assert_contains port-integrations/record-and-replay/plugin-template/.codex-plugin/plugin.json \
+    '"homepage": "https://github.com/nisavid/codex-app-linux"'
+assert_contains port-integrations/record-and-replay/plugin-template/.codex-plugin/plugin.json \
+    '"websiteURL": "https://github.com/nisavid/codex-app-linux"'
 
 assert_contains packaging/linux/chatgpt-updater.service \
     'ExecStartPre=/opt/chatgpt/.chatgpt-linux/state-migration.py --forward'
@@ -104,6 +129,7 @@ assert_contains flake.nix 'packages = {'
 assert_contains flake.nix 'chatgpt = chatgpt;'
 assert_contains flake.nix '/opt/chatgpt'
 assert_contains flake.nix '/bin/chatgpt'
+assert_contains flake.nix '${sourceRoot}/assets/chatgpt-linux.png'
 assert_contains flake.nix 'chatgpt-linux = default;'
 assert_not_contains flake.nix 'codex-app-linux = default;'
 assert_contains nix/home-manager-module.nix 'config.programs.chatgptLinux'

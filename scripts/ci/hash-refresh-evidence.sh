@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO="nisavid/chatgpt-linux"
+DEFAULT_REPO="nisavid/codex-app-linux"
 DEFAULT_WORKFLOW="verify-apple-dmg.yml"
 DEFAULT_RUN_PREFIX="Verify Apple DMG"
 

@@ -14,6 +14,7 @@ Disable it by copying `port-integrations/integrations.example.json` to
 
 ```json
 {
+  "enabled": [],
   "disabled": [
     "copilot-reasoning-effort"
   ]
@@ -38,7 +39,7 @@ This integration changes the client-side model settings and preference surface.
 OpenAI-hosted Copilot request handling remains authoritative for account
 entitlement, quota, and request normalization. Backend behavior for non-medium
 Copilot reasoning efforts is tracked in
-[#100](https://github.com/nisavid/chatgpt-linux/issues/100).
+[#100](https://github.com/nisavid/codex-app-linux/issues/100).
 
 ## Validation
 

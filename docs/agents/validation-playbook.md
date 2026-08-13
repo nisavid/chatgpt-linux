@@ -36,7 +36,7 @@ node --test port-integrations/*/test.js
 bash tests/scripts_smoke.sh
 ```
 
-For upstream drift or protected surface analysis:
+For official-app drift or protected-surface analysis:
 
 ```bash
 make inspect-dmg DMG=/path/to/ChatGPT.dmg
@@ -49,11 +49,12 @@ For patch report validation:
 node scripts/ci/validate-patch-report.js chatgpt/.chatgpt-linux/patch-report.json --profile official-dmg-build
 ```
 
-Local installs and scheduled CI share `scripts/validate-upstream-dmg.js` and
+Local installs and scheduled CI share the historically named
+`scripts/validate-upstream-dmg.js` and
 `scripts/lib/upstream-dmg-release-profile.js`. Acceptance must inspect only the
-features recorded as enabled in the candidate patch report. Add fixtures
-proving enabled feature drift rejects promotion and disabled features are not
-probed. Exercise decision and issue behavior with:
+port integrations recorded as enabled in the candidate patch report. Add
+fixtures proving enabled integration drift rejects promotion and disabled
+integrations are not probed. Exercise decision and issue behavior with:
 
 ```bash
 node --test scripts/ci/upstream-dmg-acceptance.test.js

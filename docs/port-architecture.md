@@ -48,27 +48,30 @@ The diagram separates the three recurring adaptation layers:
 
 - **Replacement:** substitute Linux-native runtimes and binaries for macOS-native
   pieces.
-- **Patching:** adapt the Electron app payload where the upstream bundle assumes
-  macOS, Windows, or a different local integration model.
+- **Patching:** adapt the Electron app payload where the official app bundle
+  assumes macOS, Windows, or a different local integration model.
 - **Orchestration:** start the generated app with Linux-specific launch, webview,
   CLI, package, and updater behavior.
 
 ## Project Boundaries
 
-Three upstream or downstream boundaries matter when reading this repository:
+Three source and maintenance boundaries matter when reading this repository:
 
 - **Official OpenAI ChatGPT DMG:** the macOS app artifact used as the app-generation
   input.
-- **Linux-port upstream:** `ilysenko/codex-desktop-linux`, which owns the primary
-  Linux conversion work and much of the runtime enablement.
+- **Linux-port upstream:** `ilysenko/codex-desktop-linux`. This fork's synced
+  baseline supplies the primary DMG-to-Linux conversion work and much of the
+  runtime enablement; current Linux-port upstream development has moved to
+  OpenAI's official Linux package.
 - **This fork:** a local hardening and finishing fork that preserves the
   `chatgpt` identity, distro-shaped install layout, updater policy, validation
   gates, and packaging polish.
 
 These boundaries help route questions. App behavior that comes from the official
 OpenAI-hosted service or account policy belongs outside this repository. Broad Linux
-conversion mechanics usually start with the Linux-port upstream. Package
-identity, local updater behavior, hardening, and distro layout belong here.
+conversion mechanics inherited from the synced baseline usually start with the
+Linux-port upstream history. Package identity, local updater behavior,
+hardening, and distro layout belong here.
 
 ## Why The Conversion Is Possible
 
@@ -146,8 +149,8 @@ Orchestration makes the generated app behave like a Linux desktop app:
   helpers, and the `chatgpt-updater` support path.
 
 Orchestration is intentionally separate from the app payload. The app payload
-contains upstream-derived behavior and Linux patches; the launcher and package
-support decide how that payload starts and integrates with the host.
+contains official-app-derived behavior and Linux patches; the launcher and
+package support decide how that payload starts and integrates with the host.
 
 ## Build Flow
 
@@ -188,11 +191,11 @@ extracted payload.
 
 Some helper binaries are staged separately from the ASAR payload. Browser and
 Computer Use resources, Chrome native-messaging helpers, Node runtimes, and
-other packaged support files can be copied from Linux-compatible upstream
-resources, built from this repository, supplied by environment overrides, or
-downloaded from a pinned runtime archive. Where the pipeline accepts a Linux
-binary, it checks that the file is an ELF executable for the expected
-architecture.
+other packaged support files can be copied from Linux-compatible resources in
+the official app bundle, built from this repository, supplied by environment
+overrides, or downloaded from a pinned runtime archive. Where the pipeline
+accepts a Linux binary, it checks that the file is an ELF executable for the
+expected architecture.
 
 macOS-only pieces are removed or bypassed. Sparkle is a macOS updater framework,
 so the port removes the Sparkle native module and routes package update behavior
@@ -212,8 +215,8 @@ Typical payload patches do one of the following:
 - replace a macOS or Windows-only desktop integration with a Linux implementation;
 - set Linux-safe window defaults;
 - preserve this fork's package and desktop identity;
-- expose or hide integration UI according to local build settings and upstream
-  account-side gates;
+- expose or hide integration UI according to local build settings and
+  OpenAI-hosted account and rollout gates;
 - integrate local wrapper-update controls with `chatgpt-updater` while
   preserving the official app's native Linux package-updater implementation.
 
@@ -245,7 +248,7 @@ At launch time, the script:
 8. syncs bundled plugin resources where needed;
 9. launches the Linux Electron binary with the patched app payload.
 
-This launch model lets the port keep upstream-derived app code mostly inside the
+This launch model lets the port keep official-app-derived code mostly inside the
 Electron payload while Linux-specific runtime behavior stays in the launcher,
 package support files, and updater service.
 
@@ -269,7 +272,7 @@ The architecture has important trust and maintenance consequences:
 
 - The DMG URL is mutable, so release and updater flows need reviewed hash and
   verification evidence.
-- The generated Electron app is upstream-derived code plus local patches, so
+- The generated Electron app is official-app-derived code plus local patches, so
   bundle drift can break patch assumptions.
 - The local webview server, plugin resources, wrapper-updater integration, and
   desktop automation helpers create local trust boundaries that need targeted

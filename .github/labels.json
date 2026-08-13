@@ -58,7 +58,7 @@
     {
       "name": "type: feature",
       "color": "A2EEEF",
-      "description": "A new user-facing capability or opt-in Linux feature.",
+      "description": "A new user-facing capability or opt-in port integration.",
       "group": "type"
     },
     {
@@ -124,7 +124,7 @@
     {
       "name": "area: upstream dmg",
       "color": "C5DEF5",
-      "description": "Compatibility or drift in the latest supported upstream DMG.",
+      "description": "Compatibility or drift in the latest supported official OpenAI ChatGPT DMG.",
       "group": "area"
     },
     {
@@ -178,7 +178,7 @@
     {
       "name": "status: awaiting upstream",
       "color": "D4C5F9",
-      "description": "Blocked on an upstream DMG, dependency, or external project.",
+      "description": "Blocked on an official OpenAI ChatGPT DMG, dependency, or external project.",
       "group": "status"
     },
     {

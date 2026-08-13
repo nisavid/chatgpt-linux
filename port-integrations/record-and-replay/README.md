@@ -3,7 +3,7 @@
 Opt-in Linux integration for Record & Replay demo-to-skill workflows.
 
 This integration stages the official `Record & Replay` bundled plugin shell from
-the current upstream DMG when it is available, swaps the macOS helper for a
+the current official OpenAI ChatGPT DMG when it is available, swaps the macOS helper for a
 Linux `event-stream` helper, and keeps the fallback template aligned with that
 same contract. The staged plugin launches `./bin/SkyLinuxComputerUseClient
 event-stream mcp`; that helper is backed by the Rust

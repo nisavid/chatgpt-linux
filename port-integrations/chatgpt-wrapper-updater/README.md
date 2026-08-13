@@ -4,9 +4,9 @@ Default-enabled port integration that adds a **separate** in-app update path for
 ChatGPT wrapper: this repository's Linux patches, bundled integrations,
 packaging glue, launcher, and `chatgpt-updater`.
 
-This is intentionally distinct from the upstream ChatGPT app update path. The
-upstream path tracks the official macOS DMG. This integration tracks newer builds of
-`chatgpt` itself.
+This is intentionally distinct from `chatgpt-updater`'s official-app update
+path, which tracks the official macOS DMG. This integration tracks newer commits
+from the configured wrapper repository.
 
 ## Control Surfaces
 
@@ -19,12 +19,12 @@ upstream path tracks the official macOS DMG. This integration tracks newer build
 - When wrapper update checks are on, `chatgpt-updater` may check the
   wrapper repository for a newer Linux wrapper commit.
 - If a newer wrapper build is available, a small top-right **Update** button is
-  shown inside Codex.
+  shown inside ChatGPT.
 - The button stays hidden when no wrapper update candidate is recorded.
 - The button tooltip includes the recorded wrapper changelog when available.
 - Clicking the button may show the integration picker, then writes a pending marker
-  and quits Codex. The integration hook applies the wrapper update while the app is
-  stopped.
+  and quits ChatGPT. The integration hook applies the wrapper update while the app
+  is stopped.
 - Packages built with `PACKAGE_WITH_UPDATER=0`, and AppImage builds, export
   `CHATGPT_PACKAGE_HAS_UPDATER=0`; the in-app wrapper updater stays hidden and
   stale pending markers are cleared because the artifact has no updater manager.
@@ -44,11 +44,16 @@ The picker shows a `zenity` or `kdialog` checklist of optional port integrations
 pre-checked with the currently enabled set, so the user can choose which
 integrations the rebuild stages.
 
-- The chosen set is written to:
+- The updater derives the packaged persistent override from the resolved app
+  settings path. A non-empty `CHATGPT_LINUX_SETTINGS_FILE` takes precedence and
+  places `port-integrations.json` beside that explicit settings file. Otherwise,
+  the default app id writes the chosen set to:
 
   ```text
-  ~/.config/<app-id>/port-integrations.json
+  ${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json
   ```
+
+  A custom app id replaces `chatgpt` with that id.
 
 - The rebuild points `CHATGPT_PORT_INTEGRATIONS_CONFIG` at that file.
 - The checklist is loaded from the recorded candidate wrapper source when one is
@@ -66,12 +71,12 @@ integrations the rebuild stages.
 ## Update button states
 
 - The action button is color-coded:
-  - **green Update** means a genuinely newer upstream build is available.
+  - **green Update** means a genuinely newer wrapper-source build is available.
   - **amber dev mode** (non-clickable) means the installed build appears to be
     ahead of the tracked remote, so updating would be a downgrade; the update
     action is suppressed and the apply path refuses.
-- "Ahead of upstream" is decided by fetching the tracked branch and checking
-  whether the candidate descends from the installed commit. Offline or
+- The ahead-of-branch classification fetches the tracked wrapper branch and
+  checks whether the candidate descends from the installed commit. Offline or
   non-git/frozen bundles clear stale candidates and show no update action.
 
 ## Why this is a port integration
@@ -103,12 +108,17 @@ integration config when the build should omit the wrapper update UI and hooks:
 
 ```json
 {
+  "enabled": [],
   "disabled": ["chatgpt-wrapper-updater"]
 }
 ```
 
-The file is `port-integrations.json`, and it is intentionally gitignored.
-After changing it, rebuild the app or package.
+For checkout builds, the file is `port-integrations/integrations.json`, and it
+is intentionally gitignored. Packaged updater rebuilds instead use the
+persistent override resolved above: normally
+`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`, or
+`port-integrations.json` beside a non-empty `CHATGPT_LINUX_SETTINGS_FILE`.
+After changing the applicable file, rebuild the app or package.
 
 When enabled, the integration contributes three patch descriptors:
 
@@ -148,9 +158,9 @@ For the default app id, that is:
 ```
 
 The settings are persisted through the app's `get-global-state` /
-`set-global-state` path, not through the upstream typed settings schema. This is
-important because these Linux-only keys do not exist in upstream's settings
-schema.
+`set-global-state` path, not through the official app bundle's typed settings
+schema. This is important because these Linux-only keys do not exist in the
+official schema.
 
 `chatgpt-updater` reads the same settings and treats
 `chatgpt-linux-wrapper-updates-enabled` as the runtime opt-in for wrapper update
@@ -281,7 +291,7 @@ chatgpt-updater pick-integrations --json
 
 If either row appears but the toggle immediately reverts, confirm the installed
 settings bundle uses `get-global-state` and `set-global-state`. If it uses the
-upstream typed settings API, the app will reject the Linux-only keys.
+official app's typed settings API, the app will reject the Linux-only keys.
 
 If the **Update** button does not appear, check:
 

@@ -8,11 +8,13 @@ is the only app-rendering path that starts speech.
 
 ## Disable the integration
 
-Add the integration to `port-integrations/integrations.json`:
+Conversation Mode requires Read Aloud. To remove the response-level voice UI,
+disable both integrations in `port-integrations/integrations.json`:
 
 ```json
 {
-  "disabled": ["read-aloud"]
+  "enabled": [],
+  "disabled": ["conversation-mode", "read-aloud"]
 }
 ```
 
@@ -44,25 +46,17 @@ where the default Kokoro paths are not ready:
 
 Nothing is downloaded during app install or on first launch.
 
-## Conversation mode direction
+## Conversation Mode
 
-The current integration intentionally stops at an explicit output button. A
-higher-level conversation mode should be layered on top of this instead of
-hidden inside message rendering:
+The default-enabled sibling
+[`conversation-mode`](../conversation-mode/) integration builds a
+back-and-forth voice loop on this output backend. It owns microphone capture,
+dictation submission, assistant-turn observation, interruption, and explicit
+mode controls; Read Aloud remains the small speech primitive underneath it.
 
-- enter an explicit voice/conversation mode from the UI or by user instruction;
-- stream microphone audio through a separate STT component;
-- after a short quiet period, submit the transcribed user turn to Codex;
-- stream the assistant response into the voice backend as chunks become stable;
-- when the user starts talking again, call `stop` and steer the active response.
-
-That keeps the safe primitive small while leaving room for a real back-and-forth
-voice experience.
-
-For the first agent-facing primitive, enable `port-integrations/read-aloud-mcp`.
-That stages a separate `read-aloud` MCP plugin with `doctor`, `read_aloud`, and
-`stop` tools. It reuses the same Kokoro paths and runtime overrides documented
-below.
+The default-enabled `port-integrations/read-aloud-mcp` sibling stages a separate
+`read-aloud` MCP plugin with `doctor`, `read_aloud`, and `stop` tools. It reuses
+the same Kokoro paths and runtime overrides documented below.
 
 ## Voice model
 

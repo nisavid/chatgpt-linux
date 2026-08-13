@@ -119,8 +119,9 @@ PY
 read_flake_hash() {
     local anchor="$1"
     local key="$2"
+    local missing_value="${3:-}"
 
-    python3 - "$FLAKE_FILE" "$anchor" "$key" <<'PY'
+    python3 - "$FLAKE_FILE" "$anchor" "$key" "$missing_value" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -128,11 +129,14 @@ import sys
 path = Path(sys.argv[1])
 anchor = sys.argv[2]
 key = sys.argv[3]
+missing_value = sys.argv[4]
 
 in_block = False
+anchor_found = False
 for line in path.read_text().splitlines():
     if anchor in line:
         in_block = True
+        anchor_found = True
         continue
     if not in_block:
         continue
@@ -144,8 +148,19 @@ for line in path.read_text().splitlines():
     if line.strip() == "};":
         break
 
+if not anchor_found and missing_value:
+    print(missing_value)
+    raise SystemExit(0)
+
 raise SystemExit(f"Could not find {key!r} after {anchor!r} in {path}")
 PY
+}
+
+read_flake_hash_or_missing() {
+    local anchor="$1"
+    local key="$2"
+
+    read_flake_hash "$anchor" "$key" missing
 }
 
 run_nix_build() {
@@ -255,6 +270,13 @@ case "${1:-}" in
             exit 2
         fi
         read_flake_hash "$2" "$3"
+        ;;
+    read-flake-hash-or-missing)
+        if [ "$#" -ne 3 ]; then
+            echo "usage: $0 read-flake-hash-or-missing <anchor> <key>" >&2
+            exit 2
+        fi
+        read_flake_hash_or_missing "$2" "$3"
         ;;
     read-flake-string)
         if [ "$#" -ne 2 ]; then

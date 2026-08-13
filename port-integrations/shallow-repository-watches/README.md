@@ -1,6 +1,6 @@
 # Shallow Linux Repository Watches
 
-This opt-in feature makes ChatGPT for Linux's local recursive `fs.watch` requests
+This opt-in port integration makes ChatGPT for Linux's local recursive `fs.watch` requests
 non-recursive on Linux.
 
 Sidebar task previews create short-lived watches for the task's working tree
@@ -38,7 +38,7 @@ programs.chatgptLinux.portIntegrations = [
 - The integration intentionally favors bounded UI latency over continuous recursive
   coverage. It is disabled by default.
 - It conflicts with `directory-only-working-tree-watch`; select one strategy.
-- This is an upstream-bundle patch. Drift in the enabled feature rejects a
+- This is an official-app-bundle patch. Drift in the enabled integration rejects a
   rebuild candidate rather than silently restoring recursive watches.
 
 Run its tests with:

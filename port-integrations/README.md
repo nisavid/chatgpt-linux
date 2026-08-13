@@ -1,161 +1,187 @@
-# Port Integrations
+# Port Integration Registry
 
-`port-integrations/` is the source path for this fork's configurable
-port integration registry. A port integration is a build-time integration module that
-adapts official ChatGPT app behavior or local runtime helpers to this Linux port.
-Integrations are not official Codex plugins and are not necessarily Linux-only
-Codex feature concepts. They can add ASAR patches, webview or extracted-app
-patches, staged resources, or build/install hooks.
+`port-integrations/` is the catalog and configuration boundary for configurable
+modules that adapt official OpenAI app bundle behavior or add local runtime and
+package support to this Linux port. This page is the registry and configuration
+reference. See [Port Integrations Architecture](../docs/port-integrations-architecture.md)
+for the loader lifecycle and manifest authoring contract.
 
-The Linux-port upstream calls this registry "Linux features" and keeps it under
-`linux-features/`. This fork uses "port integrations" and `port-integrations/`
-because the modules are port-authored integration points, not features of Linux
-itself. When reporting an issue upstream, translate this fork's names back to
-upstream's names and reproduce with an upstream build when possible.
+Port integrations are not official Codex plugins, and they are not features of
+Linux. The Linux-port upstream calls the equivalent registry "Linux features"
+and stores it under `linux-features/`; translate the names when reporting an
+issue there and reproduce against a Linux-port upstream build when possible.
 
-The registry is not a complete inventory of port-authored behavior. Browser Use
-and Linux Computer Use use separate packaging and patching paths. Keep core
-compatibility patches in `scripts/patches/` until they are deliberately
-migrated. Use `port-integrations/` for configurable integrations whose default can be
-changed without moving code into the core patch registry.
+The registry is not a complete inventory of port-authored behavior. Core
+compatibility patches remain in `scripts/patches/`. Browser Use and Linux
+Computer Use use separate packaging and patch paths.
 
-## Defaults And Local Overrides
+## Catalog
 
-This fork enables the current supported integration set by default:
-`agent-workspace`, `api-key-model-visibility`, `api-key-service-tier`,
-`appshots`, `chatgpt-wrapper-updater`, `conversation-mode`,
-`copilot-reasoning-effort`, `global-dictation`, `omarchy-theme`,
-`open-target-discovery`, `persistent-status-panel`, `pet-overlay`,
-`project-group-last-updated-sort`, `project-task-sort`, `read-aloud`,
-`read-aloud-mcp`, `remote-control-ui`, `remote-mobile-control`,
-`shared-app-server-socket`, `ssh-command-wrapper`, and `ui-tweaks`.
-Open target discovery improves the Linux Open menus with terminal, editor, and
-file-manager targets. It reads the current user's desktop app entries and launches selected
-targets as that same user; see
-[`open-target-discovery/README.md`](open-target-discovery/README.md) for the
-scope and trust notes. Agent Workspaces remains controlled from its settings page
-for the normal UI flow; main-process hardening for direct bridge calls is tracked
-in [#99](https://github.com/nisavid/chatgpt-linux/issues/99). AppShots uses
-best-effort focused-window capture, preserves the upstream availability flag, and
-keeps global hotkeys inactive until the user selects one. Wrapper update checks
-remain off at runtime until the user enables them in Settings. Copilot reasoning
-effort defaults only affect Copilot auth sessions; backend entitlement semantics
-are tracked in [#100](https://github.com/nisavid/chatgpt-linux/issues/100).
-The remote control and voice integrations still depend on OpenAI account rollout,
-local audio, connected-client state, and host network availability.
+The catalog below mirrors the tracked `integration.json` manifests. A
+default-enabled integration participates in a build unless config disables it.
+Runtime availability can still depend on app settings, OpenAI account rollout,
+host capabilities, or integration-specific setup.
 
-To disable a default integration for a checkout build, copy `integrations.example.json`
-to the git-ignored `integrations.json`, add the integration id under `disabled`, then
-rerun `./install.sh` or the package build:
+### Default-enabled integrations
 
-```json
-{
-  "enabled": [],
-  "disabled": [
-    "conversation-mode",
-    "agent-workspace",
-    "appshots",
-    "chatgpt-wrapper-updater",
-    "copilot-reasoning-effort",
-    "remote-control-ui",
-    "remote-mobile-control",
-    "read-aloud",
-    "read-aloud-mcp"
-  ]
-}
-```
+| Integration | Purpose |
+| --- | --- |
+| [`agent-workspace`](agent-workspace/) | Adds the Linux settings and Electron bridge for Agent Workspaces. |
+| [`api-key-model-visibility`](api-key-model-visibility/) | Shows non-hidden models reported by API-key-authenticated OpenAI-compatible providers. |
+| [`api-key-service-tier`](api-key-service-tier/) | Adds provider-advertised Fast/service-tier controls for API-key sessions. |
+| [`appshots`](appshots/) | Captures and crops the focused window for AppShots without changing the core backend. |
+| [`chatgpt-wrapper-updater`](chatgpt-wrapper-updater/) | Adds the wrapper update control and its apply lifecycle. |
+| [`conversation-mode`](conversation-mode/) | Adds the Linux voice conversation loop; requires `read-aloud`. |
+| [`copilot-reasoning-effort`](copilot-reasoning-effort/) | Persists and selects reasoning-effort defaults for Copilot-authenticated sessions. |
+| [`global-dictation`](global-dictation/) | Adds user-enabled global dictation hotkeys through X11 and XDG portal backends. |
+| [`omarchy-theme`](omarchy-theme/) | Loads user CSS generated from the active Omarchy theme. |
+| [`open-target-discovery`](open-target-discovery/) | Discovers Linux terminal, editor, and file-manager targets for Open menus. |
+| [`persistent-status-panel`](persistent-status-panel/) | Keeps the `/status` panel open across task switches and app restarts. |
+| [`pet-overlay`](pet-overlay/) | Adds compositor-safe Linux avatar overlay placement. |
+| [`project-group-last-updated-sort`](project-group-last-updated-sort/) | Applies Last updated sorting to project groups as well as their tasks. |
+| [`project-task-sort`](project-task-sort/) | Restores Created sorting for local tasks in the alternate Projects sidebar. |
+| [`read-aloud`](read-aloud/) | Adds the Linux read-aloud action for assistant responses. |
+| [`read-aloud-mcp`](read-aloud-mcp/) | Adds an MCP plugin that exposes the Linux Read Aloud backend to the agent. |
+| [`remote-control-ui`](remote-control-ui/) | Exposes remote-control, Codex mobile onboarding, and related settings surfaces on Linux. |
+| [`remote-mobile-control`](remote-mobile-control/) | Adds experimental Linux support for Codex mobile remote-control host enrollment. |
+| [`shared-app-server-socket`](shared-app-server-socket/) | Adds a runtime-opt-in Unix socket shared by ChatGPT and ordinary app-server clients. |
+| [`ssh-command-wrapper`](ssh-command-wrapper/) | Adds a per-connection argv wrapper for Codex SSH operations. |
+| [`ui-tweaks`](ui-tweaks/) | Groups configurable ChatGPT UI customizations. |
 
-To enable a still-optional integration, list it under `enabled`:
+### Optional integrations
 
-```json
-{
-  "enabled": [
-    "node-repl-reaper",
-    "frameless-titlebar"
-  ],
-  "disabled": []
-}
-```
+| Integration | Purpose |
+| --- | --- |
+| [`authenticated-proxy`](authenticated-proxy/) | Adds launcher and main-process support for authenticated HTTP proxies. |
+| [`codex-micro`](codex-micro/) | Adds the verified Linux native binding and device policy for Work Louder Codex Micro. |
+| [`directory-only-working-tree-watch`](directory-only-working-tree-watch/) | Replaces recursive working-tree watching with bounded directory watches. |
+| [`example-integration`](example-integration/) | Demonstrates patch-descriptor and stage-hook contracts. |
+| [`frameless-titlebar`](frameless-titlebar/) | Hides app titlebar and menu chrome for compositor-managed decorations. |
+| [`mcp-helper-reaper`](mcp-helper-reaper/) | Reaps orphaned MCP helpers without touching live sessions. |
+| [`node-repl-reaper`](node-repl-reaper/) | Reaps Browser Use `node_repl` helpers leaked by the app-server. |
+| [`record-and-replay`](record-and-replay/) | Adds the Linux demo-to-skill Record & Replay workflow. |
+| [`shallow-repository-watches`](shallow-repository-watches/) | Limits transient repository previews; conflicts with `directory-only-working-tree-watch`. |
+| [`thorium-chrome-plugin`](thorium-chrome-plugin/) | Adds Thorium support to the bundled Chrome plugin. |
+| [`x11-ewmh-computer-use`](x11-ewmh-computer-use/) | Stages the standalone X11/EWMH Computer Use adapter. |
 
-You can combine both lists:
+## Configuration Schema
+
+Configuration files are JSON objects with these fields:
 
 ```json
 {
   "enabled": [
-    "copilot-reasoning-effort"
+    "codex-micro"
   ],
   "disabled": [
     "open-target-discovery"
-  ]
+  ],
+  "settings": {
+    "pet-overlay": {
+      "petOverlay": {
+        "gravity": "bottom-right"
+      }
+    }
+  }
 }
 ```
 
-`disabled` wins if the same integration appears in both lists. `integrations.json` is
-ignored by git so local choices do not leak into commits. Integration choices are
-read during the install/build pipeline; if you change this file after an app
-has already been generated, rerun the install/build step.
+| Field | Behavior |
+| --- | --- |
+| `enabled` | Adds known integration IDs to the manifest defaults. |
+| `disabled` | Removes integration IDs after defaults and `enabled` are combined. It wins when an ID appears in both arrays. |
+| `settings` | Maps an integration ID to an integration-owned settings object. The loader supplies settings only to enabled integrations; each integration defines its own schema. |
 
-Packaged installs and updater rebuilds can use a persistent user override at
-`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json` with the same
-shape. Checkout builds intentionally ignore that persistent user file when the
-repo has a `.git` directory or worktree pointer, so packaged-install preferences
-do not silently change local development builds or tests. For one-off builds,
-set `CHATGPT_PORT_INTEGRATIONS_CONFIG=/path/to/file.json` to point at an explicit
-config file.
-Native packages omit checkout-local integration config from the packaged
-update-builder bundle. Updater rebuilds resolve the persistent user override at
-`${XDG_CONFIG_HOME:-$HOME/.config}/chatgpt/port-integrations.json`, then fall
-back to the default-enabled integration manifests in the bundle.
+`enabled` is required; `disabled` and `settings` are optional. Integration IDs
+match `^[a-z0-9][a-z0-9-]*$`. Default-enabled manifests are added in ID order,
+then explicit `enabled` IDs are added in config order. The loader validates
+`requires` and `conflicts` after applying config. The generic loader requires
+each `settings` value to be an object but leaves its nested schema to the
+integration.
 
-You can also let the guided native setup helper discover integration manifests and
-write `integrations.json`:
+## Configuration Sources
 
-```bash
-make setup-native
+The JavaScript loader resolves one config file in this order:
 
-# non-interactive integration edits:
-CHATGPT_BOOTSTRAP_NONINTERACTIVE=1 \
-CHATGPT_PORT_INTEGRATIONS=remote-mobile-control,read-aloud \
-CHATGPT_DISABLE_PORT_INTEGRATIONS=conversation-mode \
-make setup-native
-```
+1. `CHATGPT_PORT_INTEGRATIONS_CONFIG`, when set.
+2. `<integration-root>/integrations.json`, when present.
+3. `${XDG_CONFIG_HOME:-$HOME/.config}/<app-id>/port-integrations.json`, when the
+   integration root is not a Git checkout and the file exists. The default app
+   ID is `chatgpt`.
+4. `<integration-root>/integrations.example.json`.
 
-Disabling an integration in `integrations.json` only affects the next rebuild. The helper
-does not delete local device keys, Read Aloud model files, plugin caches, Python
-runtimes, or ydotool services. Integration-owned cleanup is a separate interactive
-action:
+`CHATGPT_PORT_INTEGRATIONS_ROOT` overrides the default `port-integrations/`
+root. Checkout builds intentionally ignore the persistent user config so an
+installed app's preferences cannot silently change development builds or tests.
+
+For a checkout build, copy the default config to the git-ignored checkout path
+and edit it before rebuilding:
 
 ```bash
-CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS=remote-mobile-control,read-aloud make setup-native
+cp port-integrations/integrations.example.json port-integrations/integrations.json
+./install.sh
 ```
 
-The helper lists exact paths and deletes only paths confirmed with
-`DELETE <exact path>`. Add `CHATGPT_BOOTSTRAP_DRY_RUN=1` to preview cleanup
-targets without deleting them.
+Changing config or integration source affects the next app generation; it does
+not mutate an already generated app. Native packaging requires the current full
+resolved config, integration-root kind, and integration-input digest to match
+the generated app's build info, so regenerate the app before packaging after
+any such change.
 
-Each integration directory should include:
+## Native Packages And Updater Rebuilds
 
-- `integration.json` — metadata, optional `defaultEnabled`, and entrypoints
-- `README.md` — what it does, how to test it, and known risks
-- optional `patch.js` — exports `applyMainBundlePatch(source, context)`, or
-  descriptor patches when `integration.json` uses `entrypoints.patchDescriptors`
-- optional `stage.sh` — install/build staging hook
-- optional `test.js` — self-contained tests for the integration
+Native package builders copy the configured integration tree into the packaged
+`update-builder`. They remove checkout-local config and write the full resolved
+selection to `update-builder/.chatgpt-linux/port-integrations.json`: the final
+`enabled` list, the configured `disabled` list, and settings for enabled
+integrations.
 
-`stage.sh` hooks run with `SCRIPT_DIR`, `INSTALL_DIR`, `WORK_DIR`, `ARCH`, and
-`CHATGPT_OFFICIAL_APP_DIR` in the environment.
+The updater selects rebuild config in this order:
 
-Descriptor patches use the same shape as `scripts/patches/core/**/patch.js`.
-They can target `main-bundle`, `webview-asset`, or `extracted-app` phases.
-Integration descriptor ids are namespaced as `integration:<integration-id>:<descriptor-id>`
-in patch reports and are optional by default.
+1. the saved per-user `<config>/<app-id>/port-integrations.json` written by the
+   integration picker;
+2. the packaged `update-builder/.chatgpt-linux/port-integrations.json` snapshot;
+3. the legacy `update-builder/port-integrations/integrations.json`, when present.
 
-Integration self-tests live inside each integration directory. Run them with:
+The updater passes the selected path through
+`CHATGPT_PORT_INTEGRATIONS_CONFIG`, so it takes precedence over config in a
+freshly fetched wrapper source. Config sources are selected as whole files; they
+are not merged. The picker updates `enabled` and `disabled` while preserving the
+effective config's valid top-level `settings` object. On its first write it
+seeds settings from the highest-priority available fallback: the modern packaged
+snapshot, then the legacy builder config. After a user file exists, that file
+remains the highest-priority source. If no updater config source exists, the
+selected wrapper source uses its normal loader config resolution and manifest
+defaults.
+
+## Setup Helper Interface
+
+`make setup-native` discovers repository and user-local manifests and can update
+`port-integrations/integrations.json`. These environment variables control its
+non-interactive interface:
+
+| Variable | Meaning |
+| --- | --- |
+| `CHATGPT_BOOTSTRAP_NONINTERACTIVE=1` | Never prompt. |
+| `CHATGPT_PORT_INTEGRATIONS=a,b` | Add integration IDs to `enabled`. |
+| `CHATGPT_DISABLE_PORT_INTEGRATIONS=a,b` | Add integration IDs to `disabled`. |
+| `CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS=a,b` | Offer separate cleanup of integration-owned user data. |
+| `CHATGPT_BOOTSTRAP_DRY_RUN=1` | Print setup or cleanup actions without changing files. |
+
+Disabling an integration changes only the next rebuild. Cleanup is separate,
+lists exact paths, and deletes only a path confirmed with `DELETE <exact path>`.
+
+## Validation
+
+Integration self-tests live beside their manifests:
 
 ```bash
 node --test port-integrations/*/test.js
 ```
 
-The manifest file is `integration.json`, and config files use the `enabled` and
-`disabled` keys. Treat those names as implementation API, not as the
-reader-facing model for what the integration provides.
+Run the registry identity and naming policy separately when changing the
+registry contract:
+
+```bash
+node --test port-integrations/identity-policy.test.js
+```

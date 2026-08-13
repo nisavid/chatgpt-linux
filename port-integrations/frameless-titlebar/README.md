@@ -1,14 +1,14 @@
 # Frameless Titlebar
 
 This optional port integration hides the Linux Electron titlebar overlay controls and
-removes the native menu chrome from the primary and Quick Chat Codex windows.
+removes the native menu chrome from the primary and Quick Chat windows.
 It is intended for compositors or window managers where compositor-managed
 decorations already provide the expected window controls, such as Hyprland
 setups. It is also a useful diagnostic switch for GNOME/X11 titlebar right-click
 lockups because it removes the Linux Window Controls Overlay path from the main window.
 
 The default build leaves the existing titlebar overlay behavior in place.
-Enable this only when the built-in Codex titlebar/buttons visually conflict
+Enable this only when the built-in ChatGPT titlebar/buttons visually conflict
 with your desktop environment.
 
 Enable it by copying `port-integrations/integrations.example.json` to
@@ -53,6 +53,6 @@ For a manual check, enable the integration as above, rebuild, and launch the app
 
 ## Known risks
 
-This removes Codex's Electron-provided Linux titlebar buttons.
+This removes ChatGPT's Electron-provided Linux titlebar buttons.
 Window movement, resize, and close/minimize/maximize controls then depend on
 your compositor or desktop environment.

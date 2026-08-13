@@ -76,8 +76,11 @@ SMOKE_PORT_INTEGRATIONS_CONFIG="$TMP_DIR/port-integrations-disabled.json"
 CHATGPT_PORT_INTEGRATIONS_CONFIG="$REPO_DIR/port-integrations/integrations.example.json" \
     node - "$REPO_DIR/scripts/lib/port-integrations.js" "$SMOKE_PORT_INTEGRATIONS_CONFIG" <<'NODE'
 const fs = require("node:fs");
-const { enabledPortIntegrationIds } = require(process.argv[2]);
-const config = { enabled: [], disabled: enabledPortIntegrationIds() };
+const { integrationsJsonSummary } = require(process.argv[2]);
+const config = {
+  enabled: [],
+  disabled: integrationsJsonSummary().map(({ id }) => id),
+};
 fs.writeFileSync(process.argv[3], `${JSON.stringify(config, null, 2)}\n`);
 NODE
 export CHATGPT_PORT_INTEGRATIONS_CONFIG="$SMOKE_PORT_INTEGRATIONS_CONFIG"
@@ -118,6 +121,31 @@ print(format(os.lstat(sys.argv[1]).st_mode & 0o777, "o"))
 PY
 )"
     [ "$actual" = "$expected" ] || fail "Expected mode $expected for $path, got $actual"
+}
+
+write_port_integration_build_info() {
+    local app_dir="$1"
+    local integrations_root="$2"
+    local integration_config="$3"
+
+    mkdir -p "$app_dir/.chatgpt-linux"
+    CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root" \
+    CHATGPT_PORT_INTEGRATIONS_CONFIG="$integration_config" \
+        node - "$REPO_DIR/scripts/lib/port-integrations.js" \
+        "$app_dir/.chatgpt-linux/build-info.json" <<'NODE'
+const fs = require("node:fs");
+const { portIntegrationBuildInputs } = require(process.argv[2]);
+const inputs = portIntegrationBuildInputs({ strictConfig: true });
+fs.writeFileSync(process.argv[3], `${JSON.stringify({
+  schemaVersion: 1,
+  portIntegrations: {
+    enabled: inputs.resolvedConfig.enabled,
+    resolved: inputs.resolvedConfig,
+    rootKind: inputs.rootKind,
+    inputsSha256: inputs.sha256,
+  },
+})}\n`);
+NODE
 }
 
 assert_contains() {
@@ -473,6 +501,7 @@ test_package_icon_source_resolution() {
     local app_dir="$workspace/app"
     local generated_icon="$app_dir/.chatgpt-linux/chatgpt.png"
     local explicit_icon="$workspace/explicit.png"
+    local bundled_icon="$REPO_DIR/assets/chatgpt-linux.png"
 
     mkdir -p "$(dirname "$generated_icon")"
     printf '%s\n' 'generated-chatgpt-icon' > "$generated_icon"
@@ -483,8 +512,8 @@ test_package_icon_source_resolution() {
     APP_DIR="$app_dir"
     PACKAGE_NAME="side-by-side-chatgpt"
     PACKAGE_ICON_SOURCE=""
-    [ "$(resolve_package_icon_source)" = "$generated_icon" ] \
-        || fail "Expected a unique generated app icon to survive a custom package name"
+    [ "$(resolve_package_icon_source)" = "$bundled_icon" ] \
+        || fail "Expected native packages to use the size-correct bundled Linux icon"
 
     PACKAGE_ICON_SOURCE="$explicit_icon"
     [ "$(resolve_package_icon_source)" = "$explicit_icon" ] \
@@ -566,8 +595,7 @@ JSON
 JSON
     printf '%s\n' '{"enabled":[]}' > "$integrations_root/integrations.example.json"
     printf '%s\n' '{"enabled":["private-package"]}' > "$integration_config"
-    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["private-package"]}}' \
-        > "$app_root/.chatgpt-linux/build-info.json"
+    write_port_integration_build_info "$app_root" "$integrations_root" "$integration_config"
 
     # shellcheck disable=SC1091
     source "$REPO_DIR/scripts/lib/package-common.sh"
@@ -955,8 +983,8 @@ JSON
     printf '%s\n' '# Bad Package Hook' > "$integrations_root/bad-package-hook/README.md"
     printf '%s\n' '{"enabled":["bad-package-hook"]}' > "$integration_config"
     mkdir -p "$root/opt/chatgpt/.chatgpt-linux"
-    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["bad-package-hook"]}}' \
-        > "$root/opt/chatgpt/.chatgpt-linux/build-info.json"
+    write_port_integration_build_info \
+        "$root/opt/chatgpt" "$integrations_root" "$integration_config"
 
     if (
         export APP_DIR="$app_dir"
@@ -1001,8 +1029,7 @@ test_port_integration_package_dependency_failure_propagates() {
 }
 JSON
     printf '%s\n' '{"enabled":["bad-package-dependency"]}' > "$integration_config"
-    printf '%s\n' '{"schemaVersion":1,"portIntegrations":{"enabled":["bad-package-dependency"]}}' \
-        > "$app_dir/.chatgpt-linux/build-info.json"
+    write_port_integration_build_info "$app_dir" "$integrations_root" "$integration_config"
 
     set +e
     (
@@ -11957,10 +11984,20 @@ test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
     local install_dir="$workspace/install"
     local config="$workspace/integrations.json"
     local cargo_marker="$workspace/cargo-ran"
+    local x11_source="$app_dir/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11"
 
     make_fake_app "$app_dir"
-    mkdir -p "$update_builder/prebuilt-helpers" "$workspace/bin" "$install_dir"
-    printf '%s\n' '{"enabled":["global-dictation","read-aloud-mcp"],"disabled":[]}' > "$config"
+    mkdir -p \
+        "$update_builder/prebuilt-helpers" \
+        "$workspace/bin" \
+        "$install_dir" \
+        "$(dirname "$x11_source")"
+    cp "$TRUE_BIN" "$x11_source"
+    chmod 0755 "$x11_source"
+    write_fake_app_generation_receipt "$app_dir"
+    printf '%s\n' \
+        '{"enabled":["global-dictation","read-aloud-mcp","x11-ewmh-computer-use"],"disabled":[]}' \
+        > "$config"
     ln -s "$(PATH="$HOST_TOOL_PATH" type -P node)" "$workspace/bin/node"
     printf '%s\n' '#!/bin/sh' "touch '$cargo_marker'" 'exit 1' > "$workspace/bin/cargo"
     chmod 0755 "$workspace/bin/cargo"
@@ -11975,6 +12012,7 @@ test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
 
     assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-global-dictation-linux"
     assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-read-aloud-linux"
+    assert_file_exists "$update_builder/prebuilt-helpers/chatgpt-computer-use-x11"
     SCRIPT_DIR="$REPO_DIR" \
     INSTALL_DIR="$install_dir" \
     CHATGPT_GLOBAL_DICTATION_LINUX_SOURCE="$update_builder/prebuilt-helpers/chatgpt-global-dictation-linux" \
@@ -11986,12 +12024,58 @@ test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks() {
     CHATGPT_LINUX_READ_ALOUD_MCP_SOURCE="$update_builder/prebuilt-helpers/chatgpt-read-aloud-linux" \
     PATH="$workspace/bin:/usr/bin:/bin" \
         bash "$REPO_DIR/port-integrations/read-aloud-mcp/stage.sh"
+    SCRIPT_DIR="$REPO_DIR" \
+    INSTALL_DIR="$install_dir" \
+    WORK_DIR="$workspace/work" \
+    CHATGPT_X11_COMPUTER_USE_BINARY="$update_builder/prebuilt-helpers/chatgpt-computer-use-x11" \
+    PATH="$workspace/bin:/usr/bin:/bin" \
+        bash "$REPO_DIR/port-integrations/x11-ewmh-computer-use/stage.sh"
 
     assert_file_exists "$install_dir/resources/native/chatgpt-global-dictation-linux"
     assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin/chatgpt-read-aloud-linux"
+    assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11"
     assert_file_not_exists "$cargo_marker"
 }
 
+test_update_builder_requires_enabled_x11_computer_use_helper() {
+    info "Checking enabled X11 Computer Use packaging fails closed without a valid helper"
+    local workspace="$TMP_DIR/update-builder-x11-helper-required"
+    local config="$workspace/integrations.json"
+    local output_log="$workspace/output.log"
+    local scenario
+
+    mkdir -p "$workspace"
+    printf '%s\n' '{"enabled":["x11-ewmh-computer-use"],"disabled":[]}' > "$config"
+
+    for scenario in missing non-executable; do
+        local app_dir="$workspace/$scenario-app"
+        local update_builder="$workspace/$scenario-update-builder"
+        local x11_source="$app_dir/resources/plugins/openai-bundled/plugins/chatgpt-computer-use-x11/bin/chatgpt-computer-use-x11"
+
+        make_fake_app "$app_dir"
+        mkdir -p "$update_builder/prebuilt-helpers"
+        if [ "$scenario" = "non-executable" ]; then
+            mkdir -p "$(dirname "$x11_source")"
+            printf '%s\n' '#!/bin/sh' 'exit 0' > "$x11_source"
+            chmod 0644 "$x11_source"
+            write_fake_app_generation_receipt "$app_dir"
+        fi
+
+        set +e
+        (
+            export APP_DIR="$app_dir"
+            export CHATGPT_PORT_INTEGRATIONS_CONFIG="$config"
+            # shellcheck disable=SC1091
+            source "$REPO_DIR/scripts/lib/package-common.sh"
+            stage_update_builder_prebuilt_helpers "$update_builder" "$app_dir"
+        ) > "$output_log" 2>&1
+        local status=$?
+        set -e
+
+        [ "$status" -ne 0 ] || fail "Expected enabled X11 Computer Use packaging to reject a $scenario helper"
+        assert_contains "$output_log" "Enabled X11/EWMH Computer Use helper is missing or invalid"
+    done
+}
 
 assert_not_matches() {
     local path="$1"
@@ -13397,6 +13481,7 @@ main() {
     test_bundled_plugin_builders_accept_prebuilt_binaries
     test_notification_actions_bridge_accepts_prebuilt_binary
     test_update_builder_prebuilt_helpers_cover_default_native_stage_hooks
+    test_update_builder_requires_enabled_x11_computer_use_helper
     test_bundled_plugin_system_computer_use_preserves_cosmic_helper_name
     test_browser_use_node_repl_fallback_runtime
     test_browser_use_file_url_policy_patch_behavior
