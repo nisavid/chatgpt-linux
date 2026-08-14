@@ -418,6 +418,50 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
   return patchedSource;
 }
 
+function applyBrowserUseNodeReplSecurityContextPatch(currentSource) {
+  const helperName = "chatgptLinuxBrowserUseRequestMeta";
+  if (currentSource.includes(`function ${helperName}(`)) {
+    return currentSource;
+  }
+
+  const runtimeConfigPattern =
+    /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{(?:codexCliPath:[^,]+,codexHome:[^,]+,envVars:[^,]+,)?extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)([A-Za-z_$][\w$]*)(,sentryUserId:)/g;
+  const matches = [...currentSource.matchAll(runtimeConfigPattern)];
+  if (matches.length !== 1) {
+    if (
+      currentSource.includes("BROWSER_USE_AVAILABLE_BACKENDS") ||
+      currentSource.includes("browser_use_setup_failed")
+    ) {
+      console.warn(
+        `WARN: Expected one Browser Use node_repl security-context producer, found ${matches.length} — leaving the main bundle unchanged`,
+      );
+    }
+    return currentSource;
+  }
+
+  const helper =
+    `function ${helperName}(__chatgptExisting,__chatgptEnv){` +
+    `let __chatgptMeta={};if(__chatgptExisting!=null){try{__chatgptMeta=JSON.parse(__chatgptExisting)}catch{throw Error(\`Browser node_repl request metadata is invalid\`)}if(typeof __chatgptMeta!==\`object\`||__chatgptMeta==null||Array.isArray(__chatgptMeta))throw Error(\`Browser node_repl request metadata is invalid\`)}` +
+    `let __chatgptAllowed=new Set([\`BROWSER_AUTH_BROKER_SOCKET_PATH\`,\`BROWSER_USE_AVAILABLE_BACKENDS\`,\`BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED\`,\`BROWSER_USE_CODEX_APP_BUILD_FLAVOR\`,\`BROWSER_USE_CODEX_APP_VERSION\`,\`BROWSER_USE_DISABLE_AMBIENT_NETWORK\`,\`BROWSER_USE_DISABLE_API_MEMBERS\`,\`BROWSER_USE_DISABLE_BROWSER_CAPABILITIES\`,\`BROWSER_USE_DISABLE_TAB_CAPABILITIES\`,\`BROWSER_USE_SECURITY_MODE\`,\`CODEX_CHROME_USER_DATA_DIR\`,\`NODE_REPL_DISABLE_ANALYTICS\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME\`]),__chatgptContext={};` +
+    `for(let[__chatgptKey,__chatgptValue]of Object.entries(__chatgptEnv??{})){if(!__chatgptAllowed.has(__chatgptKey))continue;if(typeof __chatgptValue!==\`string\`)throw Error(\`Browser node_repl security context is invalid\`);__chatgptContext[__chatgptKey]=__chatgptValue}` +
+    `let __chatgptFlavor=__chatgptContext.BROWSER_USE_CODEX_APP_BUILD_FLAVOR,__chatgptMode=__chatgptContext.BROWSER_USE_SECURITY_MODE;if(![\`dev\`,\`internal\`,\`prod\`].includes(__chatgptFlavor))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode!=null&&![\`\`,\`disabled-for-local-testing\`,\`gaas-browser-environment\`].includes(__chatgptMode))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode===\`disabled-for-local-testing\`&&__chatgptFlavor!==\`dev\`)throw Error(\`Browser node_repl security context is invalid\`);` +
+    `return JSON.stringify({...__chatgptMeta,[\`chatgpt/browser-runtime-context\`]:{version:1,env:__chatgptContext}})}`;
+  const strictDirective = '"use strict";';
+  const helperInsertionIndex = currentSource.startsWith(strictDirective)
+    ? strictDirective.length
+    : 0;
+  const patchedSource = currentSource.replace(
+    runtimeConfigPattern,
+    (_match, callPrefix, extraEnv, prefix, requestMeta, suffix) =>
+      `${callPrefix}${extraEnv}${prefix}${helperName}(${requestMeta},${extraEnv})${suffix}`,
+  );
+  return (
+    patchedSource.slice(0, helperInsertionIndex) +
+    helper +
+    patchedSource.slice(helperInsertionIndex)
+  );
+}
+
 // The trusted-hash setup and node_repl config can live in different build chunks.
 // Scan every chunk carrying either marker so each patch reaches its current host.
 function applyBrowserUseNodeReplApprovalAssets(extractedDir) {
@@ -620,6 +664,7 @@ function applyLinuxExternalOpenEnvPatch(currentSource) {
 module.exports = {
   applyBrowserUseNodeReplApprovalPatch,
   applyBrowserUseNodeReplApprovalAssets,
+  applyBrowserUseNodeReplSecurityContextPatch,
   applyLinuxBundledPluginCopyPermissionsPatch,
   applyLinuxBundledPluginReconcileStaleSnapshotPatch,
   applyLinuxExternalOpenEnvPatch,

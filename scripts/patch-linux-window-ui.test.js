@@ -58,6 +58,7 @@ const {
 const {
   applyBrowserUseNodeReplApprovalPatch,
   applyBrowserUseNodeReplApprovalAssets,
+  applyBrowserUseNodeReplSecurityContextPatch,
   applyLinuxBundledPluginCopyPermissionsPatch,
   applyLinuxBundledPluginReconcileStaleSnapshotPatch,
   applyLinuxBrowserUseRouteLivenessPatch,
@@ -1083,6 +1084,7 @@ test("default core patch descriptors are grouped and unique", () => {
     "linux-chrome-plugin-auto-install",
     "linux-chrome-native-host-runtime",
     "browser-use-node-repl-approval",
+    "linux-browser-use-node-repl-security-context",
     "linux-bundled-plugin-reconcile-stale-snapshot",
     "linux-bundled-plugin-copy-permissions",
     "linux-browser-use-socket-directory",
@@ -1165,6 +1167,12 @@ test("default core patch descriptors are grouped and unique", () => {
   assert.equal(
     descriptors.find(
       (descriptor) => descriptor.id === "linux-bundled-plugin-copy-permissions",
+    )?.ciPolicy,
+    "required-official-dmg",
+  );
+  assert.equal(
+    descriptors.find(
+      (descriptor) => descriptor.id === "linux-browser-use-node-repl-security-context",
     )?.ciPolicy,
     "required-official-dmg",
   );
@@ -1636,6 +1644,10 @@ function currentBrowserUseTrustedHashesRuntimeBuilderFixture() {
 
 const currentBrowserUseTrustedHashesInsertionRegex =
   /trustedBrowserClientSha256s:h=\[\],shouldUseWslPaths:f\}\)\{h=chatgptLinuxTrustedBrowserClientSha256s\(h\);return h/;
+
+function currentBrowserUseSecurityContextBuilderFixture() {
+  return '"use strict";function fte(){let b={BROWSER_USE_AVAILABLE_BACKENDS:`iab`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:`prod`,BROWSER_USE_CODEX_APP_VERSION:`26.803.41515`},p=`modules`,l={nodePath:`node`,nodeReplPath:`node_repl`,platform:`linux`},d=!1,n={ci:e=>e},g=void 0,u=null;return Ye({extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:g,sentryUserId:u})}';
+}
 
 function electron42BrowserUseRuntimeResolverBundleFixture() {
   return [
@@ -10156,6 +10168,52 @@ test("uses xdg-open path when CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH is not 1
   assert.deepEqual(originalCalls, []);
   assert.equal(spawnCalls.length, 1);
   assert.equal(spawnCalls[0].command, "xdg-open");
+});
+
+test("propagates the Browser security context through node_repl request metadata", () => {
+  const patched = applyPatchTwice(
+    applyBrowserUseNodeReplSecurityContextPatch,
+    currentBrowserUseSecurityContextBuilderFixture(),
+  );
+
+  assert.match(patched, /function chatgptLinuxBrowserUseRequestMeta/);
+  assert.match(
+    patched,
+    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(g,b\),sentryUserId:u/,
+  );
+
+  const metadata = JSON.parse(
+    vm.runInNewContext(
+      `${patched};chatgptLinuxBrowserUseRequestMeta(JSON.stringify({existing:\`kept\`}),{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,UNRELATED_SECRET:\`drop-me\`})`,
+    ),
+  );
+  assert.equal(metadata.existing, "kept");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(metadata["chatgpt/browser-runtime-context"])),
+    {
+      version: 1,
+      env: {
+        BROWSER_USE_AVAILABLE_BACKENDS: "iab",
+        BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
+        BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+      },
+    },
+  );
+  assert.equal(metadata["chatgpt/browser-runtime-context"].env.UNRELATED_SECRET, undefined);
+});
+
+test("refuses the local-testing Browser security mode outside a development build", () => {
+  const patched = applyBrowserUseNodeReplSecurityContextPatch(
+    currentBrowserUseSecurityContextBuilderFixture(),
+  );
+
+  assert.throws(
+    () =>
+      vm.runInNewContext(
+        `${patched};chatgptLinuxBrowserUseRequestMeta(null,{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,BROWSER_USE_SECURITY_MODE:\`disabled-for-local-testing\`})`,
+      ),
+    /Browser node_repl security context is invalid/,
+  );
 });
 
 test("trusts the current direct Browser Use node_repl runtime config builder", () => {

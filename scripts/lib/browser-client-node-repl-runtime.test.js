@@ -2,8 +2,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const readline = require("node:readline");
 const test = require("node:test");
@@ -11,13 +12,40 @@ const { pathToFileURL } = require("node:url");
 
 const runtimePath = process.env.CODEX_NODE_REPL_PATH;
 const pluginsRoot = process.env.CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT;
+const repoRoot = path.resolve(__dirname, "../..");
+const bundledPlugins = path.join(repoRoot, "scripts/lib/bundled-plugins.sh");
 
-function runNodeReplImport(runtime, clients) {
+function stageBrowserClient(sourcePath) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-browser-runtime-client-"));
+  const clientPath = path.join(tempDir, "browser-client.mjs");
+  fs.copyFileSync(sourcePath, clientPath);
+  const result = spawnSync(
+    "bash",
+    [
+      "-c",
+      'set -euo pipefail; warn() { printf "%s\\n" "$*" >&2; }; info() { :; }; source "$BUNDLED_PLUGINS"; patch_browser_use_node_repl_process_env_import "$CLIENT"; patch_browser_use_node_repl_config_shim "$CLIENT"',
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        BUNDLED_PLUGINS: bundledPlugins,
+        CLIENT: clientPath,
+        SCRIPT_DIR: repoRoot,
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return { clientPath, tempDir };
+}
+
+function runNodeReplCode(runtime, code, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(runtime, [], {
       env: {
         ...process.env,
         CODEX_BROWSER_USE_SOCKET_DIR: "/tmp/codex-browser-use-runtime-test",
+        ...extraEnv,
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -36,9 +64,6 @@ function runNodeReplImport(runtime, clients) {
     };
 
     const send = (message) => child.stdin.write(`${JSON.stringify(message)}\n`);
-    const code = `${clients
-      .map((client) => `await import(${JSON.stringify(pathToFileURL(client).href)});`)
-      .join("")}nodeRepl.write("imports-ok")`;
     const timer = setTimeout(
       () => finish(new Error(`node_repl import timed out: ${stderr}`)),
       20_000,
@@ -109,18 +134,101 @@ function runNodeReplImport(runtime, clients) {
   });
 }
 
+function runNodeReplImport(runtime, clients) {
+  const code = `${clients
+    .map((client) => `await import(${JSON.stringify(pathToFileURL(client).href)});`)
+    .join("")}nodeRepl.write("imports-ok")`;
+  return runNodeReplCode(runtime, code);
+}
+
+test(
+  "real node_repl transports the versioned Browser security context",
+  { skip: !runtimePath },
+  async () => {
+    const context = {
+      version: 1,
+      env: {
+        BROWSER_USE_AVAILABLE_BACKENDS: "iab",
+        BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
+        BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+      },
+    };
+    const output = await runNodeReplCode(
+      runtimePath,
+      'nodeRepl.write(JSON.stringify(nodeRepl.requestMeta?.["chatgpt/browser-runtime-context"]));',
+      {
+        NODE_REPL_REQUEST_META: JSON.stringify({
+          "chatgpt/browser-runtime-context": context,
+        }),
+      },
+    );
+
+    assert.deepEqual(JSON.parse(output), context);
+  },
+);
+
 test(
   "staged Browser and Chrome clients import through the real node_repl runtime",
   { skip: !runtimePath || !pluginsRoot },
   async () => {
-    const clients = ["browser", "chrome"].map((plugin) =>
+    const sources = ["browser", "chrome"].map((plugin) =>
       path.join(pluginsRoot, plugin, "scripts", "browser-client.mjs"),
     );
     assert.ok(fs.existsSync(runtimePath), `node_repl runtime not found: ${runtimePath}`);
-    for (const client of clients) {
-      assert.ok(fs.existsSync(client), `staged Browser client not found: ${client}`);
+    for (const source of sources) {
+      assert.ok(fs.existsSync(source), `Browser client not found: ${source}`);
     }
+    const stagedClients = sources.map(stageBrowserClient);
 
-    assert.equal(await runNodeReplImport(runtimePath, clients), "imports-ok");
+    try {
+      assert.equal(
+        await runNodeReplImport(
+          runtimePath,
+          stagedClients.map(({ clientPath }) => clientPath),
+        ),
+        "imports-ok",
+      );
+    } finally {
+      for (const { tempDir } of stagedClients) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+test(
+  "staged Browser client initializes through the real node_repl security context",
+  { skip: !runtimePath || !pluginsRoot },
+  async () => {
+    const sourcePath = path.join(
+      pluginsRoot,
+      "browser",
+      "scripts",
+      "browser-client.mjs",
+    );
+    assert.ok(fs.existsSync(sourcePath), `Browser client not found: ${sourcePath}`);
+    const { clientPath, tempDir } = stageBrowserClient(sourcePath);
+    try {
+      const context = {
+        version: 1,
+        env: {
+          BROWSER_USE_AVAILABLE_BACKENDS: "iab",
+          BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
+          BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+        },
+      };
+      const code =
+        `const {setupBrowserRuntime}=await import(${JSON.stringify(pathToFileURL(clientPath).href)});` +
+        'await setupBrowserRuntime();nodeRepl.write("setup-ok")';
+      const output = await runNodeReplCode(runtimePath, code, {
+        NODE_REPL_REQUEST_META: JSON.stringify({
+          "chatgpt/browser-runtime-context": context,
+        }),
+      });
+
+      assert.equal(output, "setup-ok");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   },
 );
