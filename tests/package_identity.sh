@@ -84,8 +84,8 @@ assert_contains flake.nix \
     fail 'missing OpenAI package terms notice'
 [ -f "$REPO_DIR/packaging/linux/debian-copyright" ] || \
     fail 'missing Debian copyright source'
-assert_contains scripts/build-deb.sh \
-    '"$REPO_DIR/packaging/linux/debian-copyright" "$PKG_ROOT/usr/share/doc/$PACKAGE_NAME/copyright"'
+assert_contains scripts/lib/package-common.sh \
+    '"$root/usr/share/doc/$PACKAGE_NAME/copyright"'
 assert_contains scripts/lib/package-common.sh \
     'cp "$REPO_DIR/packaging/linux/debian-copyright" "$update_builder_root/packaging/linux/debian-copyright"'
 python3 - "$REPO_DIR/packaging/linux/debian-copyright" <<'PY'

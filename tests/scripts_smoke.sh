@@ -12260,6 +12260,35 @@ test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing() 
     assert_contains "$output_log" "Could not resolve a unique tray icon"
 }
 
+test_stage_native_package_payload_stages_debian_copyright() {
+    info "Checking native Debian staging includes the policy copyright file"
+    local workspace="$TMP_DIR/native-debian-copyright"
+    local root="$workspace/root"
+
+    mkdir -p "$root"
+    (
+        export PACKAGE_NAME="chatgpt"
+        export PACKAGE_WITH_UPDATER=0
+        # shellcheck disable=SC1091
+        source "$REPO_DIR/scripts/lib/package-common.sh"
+        ensure_package_source_date_epoch() { :; }
+        stage_common_package_files() { :; }
+        write_launcher_stub() { :; }
+        stage_port_integration_package_resources() { :; }
+        run_port_integration_package_hooks() { :; }
+        normalize_package_payload_permissions() { :; }
+        restore_port_integration_payload_permissions() { :; }
+        restore_port_integration_package_resource_permissions() { :; }
+        normalize_package_payload_timestamps() { :; }
+        stage_native_package_payload "$root" deb
+    )
+
+    assert_file_exists "$root/usr/share/doc/chatgpt/copyright"
+    assert_contains \
+        "$root/usr/share/doc/chatgpt/copyright" \
+        "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
+}
+
 test_update_builder_omits_build_time_port_integrations_config() {
     info "Checking update-builder omits build-time port integration config"
     local workspace="$TMP_DIR/update-builder-port-integrations"
@@ -13599,6 +13628,7 @@ main() {
     test_desktop_renderer_preserves_non_updater_actions
     test_stage_common_package_files_resolves_tray_icon_deterministically
     test_stage_common_package_files_tray_icon_fallbacks_when_ambiguous_or_missing
+    test_stage_native_package_payload_stages_debian_copyright
     test_update_builder_omits_build_time_port_integrations_config
     test_update_builder_omits_port_integration_build_outputs
     test_update_builder_omits_legacy_port_integration_config
