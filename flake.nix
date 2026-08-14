@@ -236,10 +236,15 @@
           hash = "sha256-ghAJ+cGDAFDYlK755hkGywpTeyAAstm77ZmF//HV4NA=";
         };
 
+        codexMicroNativeArtifacts = builtins.fromJSON (
+          builtins.readFile ./port-integrations/codex-micro/native-artifacts.json
+        );
+        codexMicroNodeHidArchiveName =
+          "${codexMicroNativeArtifacts.name}-${codexMicroNativeArtifacts.version}.tgz";
         codexMicroNodeHidArchive = pkgs.fetchurl {
-          name = "node-hid-3.3.0.tgz";
-          url = "https://registry.npmjs.org/node-hid/-/node-hid-3.3.0.tgz";
-          hash = "sha512-j+dFgJLRAE0nufQKXk3IfS6T6YuHhCgMvz4TrG0sgtb6DSCdYpfJ1etcdmeCmPQjUgO+yo32ktVrRliNs/+fmg==";
+          name = codexMicroNodeHidArchiveName;
+          url = "https://registry.npmjs.org/${codexMicroNativeArtifacts.name}/-/${codexMicroNodeHidArchiveName}";
+          hash = codexMicroNativeArtifacts.integrity;
         };
 
         browserUseNodeReplRuntime = pkgs.fetchurl {

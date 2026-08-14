@@ -36,13 +36,26 @@ function exportedFeatureGateHook(source) {
 
   const exportBlock = source.slice(exportStart, exportEnd + 1);
   const candidates = new RegExp(
-    `function (${JS_IDENT})\\((${JS_IDENT})\\)\\{return ` +
-      `(${JS_IDENT})\\(\\),(${JS_IDENT})\\((${JS_IDENT}),\\2\\)\\}`,
+    `function (?<hookName>${JS_IDENT})\\((?<argumentName>${JS_IDENT})\\)\\{` +
+      `let (?<memoName>${JS_IDENT})=\\(0,(?<memoCacheName>${JS_IDENT})\\.c\\)\\(2\\);` +
+      `(?<contextHookName>${JS_IDENT})\\(typeof \\k<argumentName>==\\\`string\\\`\\);` +
+      `let (?<resolvedName>${JS_IDENT});return ` +
+      `\\k<memoName>\\[0\\]===\\k<argumentName>\\?` +
+      `\\k<resolvedName>=\\k<memoName>\\[1\\]:\\(` +
+      `\\k<resolvedName>=typeof \\k<argumentName>==\\\`boolean\\\`\\?` +
+      `\\k<argumentName>:\\{cache:\\\`signal\\\`,` +
+      `resolve\\((?<resolveTargetName>${JS_IDENT}),(?<resolveContextName>${JS_IDENT})\\)\\{` +
+      `return (?<signalScopeName>${JS_IDENT})\\.resolve\\(` +
+      `\\k<resolveTargetName>,\\k<resolveContextName>,\\k<argumentName>\\)\\.atom\\},` +
+      `scope:\\k<signalScopeName>\\.scope\\},` +
+      `\\k<memoName>\\[0\\]=\\k<argumentName>,` +
+      `\\k<memoName>\\[1\\]=\\k<resolvedName>\\),` +
+      `(?<atomReadName>${JS_IDENT})\\(\\k<resolvedName>\\)\\}`,
     "g",
   );
   const exportedCandidates = [];
   for (const match of source.matchAll(candidates)) {
-    const hookName = match[1];
+    const { hookName, argumentName } = match.groups;
     const exportedAsGateHook = new RegExp(
       `(?:\\{|,)${escapeRegExp(hookName)} as ${JS_IDENT}(?:,|\\})`,
     );
@@ -50,10 +63,7 @@ function exportedFeatureGateHook(source) {
       exportedCandidates.push({
         source: match[0],
         hookName,
-        argumentName: match[2],
-        contextHookName: match[3],
-        atomReadName: match[4],
-        gateAtomName: match[5],
+        argumentName,
       });
     }
   }
@@ -104,10 +114,9 @@ function applyCodexMicroFeatureGatePatch(source) {
   }
 
   const replacement =
-    `function ${hook.hookName}(${hook.argumentName}){return ` +
-    `${hook.contextHookName}(),${hook.atomReadName}(${hook.gateAtomName},${hook.argumentName})||` +
-    `${hook.argumentName}===\`${CODEX_MICRO_GATE_ID}\`/*${CODEX_MICRO_GATE_MARKER}*/}`;
-  return source.replace(hook.source, replacement);
+    `${hook.source.slice(0, -1)}||${hook.argumentName}===\`${CODEX_MICRO_GATE_ID}\`` +
+    `/*${CODEX_MICRO_GATE_MARKER}*/}`;
+  return source.replace(hook.source, () => replacement);
 }
 
 function hasCodexMicroServiceContract(source) {
@@ -323,7 +332,7 @@ module.exports = {
       phase: "extracted-app:post-webview",
       order: 29_000,
       ciPolicy: "opt-in",
-      targetSummary: "current Work Louder nested node-hid 3.3.0 dependency",
+      targetSummary: "current Work Louder nested node-hid 3.4.0 dependency",
       apply: (extractedDir) => stageNativeBinding(extractedDir),
       status: (result) => ({
         status: result?.changed
