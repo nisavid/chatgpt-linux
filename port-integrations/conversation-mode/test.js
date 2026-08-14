@@ -2120,6 +2120,21 @@ test("dictation endpoint patch adds VAD stop-on-silence and send action", () => 
   assert.match(patched, /stop:\(\)=>\{k\.current=`send`;c\.state!==`inactive`&&c\.stop\(\)\}/);
 });
 
+test("dictation endpoint patch preserves dollar sequences in bundle identifiers", () => {
+  const source = dictationSource
+    .replace("Udt(", () => "U$$dt(")
+    .replace(/\bO\b/g, () => "O$$chunks")
+    .replace(/\b_\b/g, () => "_$$mark")
+    .replace(/\b_m\b/g, () => "_$$messages");
+
+  const patched = applyDictationEndpointPatch(source);
+
+  assert.ok(patched.includes("U$$dt({channelCount:1,echoCancellation:!0"));
+  assert.ok(patched.includes("O$$chunks.current=[]"));
+  assert.ok(patched.includes("_$$mark(!0)"));
+  assert.ok(patched.includes("_$$messages.getInstance()"));
+});
+
 test("dictation endpoint patch fails soft and atomically when the current recorder contract drifts", () => {
   const drifted = dictationSource.replace("new MediaRecorder", "new AudioRecorder");
   const { value: patched, warnings } = captureWarns(() => applyDictationEndpointPatch(drifted));

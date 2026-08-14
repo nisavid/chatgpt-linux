@@ -308,19 +308,23 @@ function applyDictationEndpointPatch(source) {
   const actionRef = actionRefMatch[1];
   let patched = source.replace(
     micConstraintsMatch[0],
-    `stream:(${micConstraintsMatch[1]}==null?${micConstraintsMatch[2]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[3]}):${micConstraintsMatch[4]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[1]},${micConstraintsMatch[3]})).then(`,
+    () =>
+      `stream:(${micConstraintsMatch[1]}==null?${micConstraintsMatch[2]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[3]}):${micConstraintsMatch[4]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[1]},${micConstraintsMatch[3]})).then(`,
   );
   patched = patched.replace(
     cleanupMatch[0],
-    `let ${cleanupMatch[1]}=${cleanupMatch[2]}.current,${cleanupMatch[3]}=${cleanupMatch[4]}.current;${cleanupMatch[4]}.current=null;let ${cleanupMatch[5]}=${cleanupMatch[6]}.current;if(${cleanupMatch[6]}.current=[],${cleanupMatch[1]}?.chatgptLinuxConversationCleanup?.(),${cleanupMatch[1]}&&(${cleanupMatch[1]}.ondataavailable=null,${cleanupMatch[1]}.onstop=null),${cleanupMatch[2]}.current=null,`,
+    () =>
+      `let ${cleanupMatch[1]}=${cleanupMatch[2]}.current,${cleanupMatch[3]}=${cleanupMatch[4]}.current;${cleanupMatch[4]}.current=null;let ${cleanupMatch[5]}=${cleanupMatch[6]}.current;if(${cleanupMatch[6]}.current=[],${cleanupMatch[1]}?.chatgptLinuxConversationCleanup?.(),${cleanupMatch[1]}&&(${cleanupMatch[1]}.ondataavailable=null,${cleanupMatch[1]}.onstop=null),${cleanupMatch[2]}.current=null,`,
   );
   patched = patched.replace(
     recorderStartMatch[0],
-    `${recorderVar}.onstop=()=>{${recorderStartMatch[2]}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderStartMatch[3]}==null?${recorderVar}.start():${recorderVar}.start(${recorderStartMatch[4]}),${recorderStartMatch[5]}.performance.mark(\`recording_started\`),${recorderStartMatch[6]}(!0)`,
+    () =>
+      `${recorderVar}.onstop=()=>{${recorderStartMatch[2]}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderStartMatch[3]}==null?${recorderVar}.start():${recorderVar}.start(${recorderStartMatch[4]}),${recorderStartMatch[5]}.performance.mark(\`recording_started\`),${recorderStartMatch[6]}(!0)`,
   );
   return patched.replace(
     transcriptMatch[0],
-    `${transcriptMatch[1]}.length>0&&${transcriptMatch[5]}.action!==\`discard\`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(${transcriptMatch[1]},${transcriptMatch[5]}.action)!==!1&&(${transcriptMatch[2]}==null?${transcriptMatch[3]}.getInstance().dispatchMessage(\`global-dictation-record-history-item\`,{text:${transcriptMatch[1]}}):${transcriptMatch[2]}.setTranscript(${transcriptMatch[1]}),${transcriptMatch[4]}.performance.mark(\`transcript_dispatched\`),${transcriptMatch[5]}.action===\`send\`?${transcriptMatch[6]}.onTranscriptSend(${transcriptMatch[1]}):${transcriptMatch[6]}.onTranscriptInsert(${transcriptMatch[1]}))`,
+    () =>
+      `${transcriptMatch[1]}.length>0&&${transcriptMatch[5]}.action!==\`discard\`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(${transcriptMatch[1]},${transcriptMatch[5]}.action)!==!1&&(${transcriptMatch[2]}==null?${transcriptMatch[3]}.getInstance().dispatchMessage(\`global-dictation-record-history-item\`,{text:${transcriptMatch[1]}}):${transcriptMatch[2]}.setTranscript(${transcriptMatch[1]}),${transcriptMatch[4]}.performance.mark(\`transcript_dispatched\`),${transcriptMatch[5]}.action===\`send\`?${transcriptMatch[6]}.onTranscriptSend(${transcriptMatch[1]}):${transcriptMatch[6]}.onTranscriptInsert(${transcriptMatch[1]}))`,
   );
 }
 

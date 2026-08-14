@@ -548,6 +548,22 @@ test("shows Linux AppShots accelerator choices in current settings chunk", () =>
   assert.match(patched, /hotkey:`Ctrl\+Super\+A`,label:`Ctrl \+ Super \+ A`/);
 });
 
+test("AppShots settings patch preserves dollar sequences from the current bundle", () => {
+  const source = currentAppshotSettingsRuntimeFixture().replace(
+    "`Alt + Alt`",
+    () => "`$& + Alt`",
+  );
+
+  const patched = applyLinuxAppshotSettingsHotkeyPatch(source);
+
+  assert.notEqual(patched, source);
+  assert.ok(
+    patched.includes(
+      "let t=chatgptLinuxAppshotHotkeyOptions(d,i,[{hotkey:`DoubleAlt`,label:n.formatMessage(`$& + Alt`)},{hotkey:`DoubleShift`,label:n.formatMessage(`Shift + Shift`)}]),r=t.find(",
+    ),
+  );
+});
+
 test("current AppShots settings helper is declared in strict module scope", () => {
   const patched = applyPatchTwice(
     applyLinuxAppshotSettingsHotkeyPatch,
