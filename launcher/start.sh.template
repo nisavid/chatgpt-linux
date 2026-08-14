@@ -2999,6 +2999,138 @@ recover_unhealthy_running_app() {
     rm -f "$APP_PID_FILE" "$WEBVIEW_PID_FILE" "$LAUNCH_ACTION_SOCKET"
 }
 
+recover_stale_computer_use_sockets() {
+    if ! needs_cold_start; then
+        return 0
+    fi
+    if [ "$LAUNCHER_LOCK_HELD" -ne 1 ]; then
+        echo "WARN: refusing Computer Use socket recovery without the cold-start launcher lock" >&2
+        return 0
+    fi
+    if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        return 0
+    fi
+
+    if ! python3 - "$XDG_RUNTIME_DIR" "$LAUNCH_ACTION_RUNTIME_DIR" <<'PY'
+import errno
+import os
+import socket
+import stat
+import sys
+
+runtime_root = os.path.abspath(sys.argv[1])
+runtime_dir = os.path.abspath(sys.argv[2])
+current_uid = os.getuid()
+
+
+def private_directory(path):
+    try:
+        metadata = os.lstat(path)
+    except OSError as exc:
+        print(f"WARN: preserving Computer Use sockets because {path} cannot be inspected: {exc}", file=sys.stderr)
+        return False
+    return (
+        stat.S_ISDIR(metadata.st_mode)
+        and not stat.S_ISLNK(metadata.st_mode)
+        and metadata.st_uid == current_uid
+        and stat.S_IMODE(metadata.st_mode) == 0o700
+    )
+
+
+try:
+    confined = os.path.commonpath((runtime_root, runtime_dir)) == runtime_root
+except ValueError:
+    confined = False
+if not confined or not private_directory(runtime_root):
+    print("WARN: preserving Computer Use sockets because XDG_RUNTIME_DIR is not a trusted private directory", file=sys.stderr)
+    sys.exit(0)
+
+relative_dir = os.path.relpath(runtime_dir, runtime_root)
+cursor = runtime_root
+if relative_dir != ".":
+    for component in relative_dir.split(os.sep):
+        if component in ("", ".", ".."):
+            print("WARN: preserving Computer Use sockets because the runtime path is not confined", file=sys.stderr)
+            sys.exit(0)
+        cursor = os.path.join(cursor, component)
+        if not private_directory(cursor):
+            print("WARN: preserving Computer Use sockets because the app runtime directory is not private", file=sys.stderr)
+            sys.exit(0)
+
+
+def recover_socket(name):
+    path = os.path.join(runtime_dir, name)
+    if len(os.fsencode(path)) > 100:
+        print(f"WARN: preserving Computer Use socket with an overlong path: {name}", file=sys.stderr)
+        return
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        print(f"WARN: preserving Computer Use socket {name}: {exc}", file=sys.stderr)
+        return
+
+    if not (
+        stat.S_ISSOCK(before.st_mode)
+        and before.st_uid == current_uid
+        and stat.S_IMODE(before.st_mode) == 0o600
+    ):
+        print(f"WARN: preserving untrusted Computer Use endpoint: {name}", file=sys.stderr)
+        return
+
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.settimeout(0.15)
+    try:
+        client.connect(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        if exc.errno != errno.ECONNREFUSED:
+            print(f"WARN: preserving Computer Use socket {name} after probe error: {exc}", file=sys.stderr)
+            return
+    else:
+        print(f"Preserving active Computer Use socket: {name}")
+        return
+    finally:
+        client.close()
+
+    try:
+        after = os.lstat(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        print(f"WARN: preserving Computer Use socket {name} after revalidation error: {exc}", file=sys.stderr)
+        return
+
+    if not (
+        after.st_dev == before.st_dev
+        and after.st_ino == before.st_ino
+        and stat.S_ISSOCK(after.st_mode)
+        and after.st_uid == current_uid
+        and stat.S_IMODE(after.st_mode) == 0o600
+    ):
+        print(f"WARN: preserving Computer Use socket changed during recovery: {name}", file=sys.stderr)
+        return
+
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        print(f"WARN: could not remove stale Computer Use socket {name}: {exc}", file=sys.stderr)
+        return
+    print(f"Removed stale Computer Use socket: {name}")
+
+
+recover_socket("computer-use-authority.sock")
+recover_socket("computer-use-cursor.sock")
+PY
+    then
+        echo "WARN: Computer Use socket recovery failed closed; preserving existing endpoints" >&2
+    fi
+}
+
 send_warm_start_launch_action() {
     [ "$WARM_START" -eq 1 ] || return 1
     [ -S "$LAUNCH_ACTION_SOCKET" ] || return 1
@@ -4961,6 +5093,7 @@ log_phase "initial_launch_state_refreshed"
 
 recover_unhealthy_running_app
 prepare_launch_state_under_lock
+recover_stale_computer_use_sockets
 
 if send_warm_start_launch_action "${LAUNCHER_ARGS[@]}"; then
     echo "Sent launch args over warm-start IPC"
