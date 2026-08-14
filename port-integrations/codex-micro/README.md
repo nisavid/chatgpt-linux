@@ -5,7 +5,7 @@ already ships in the official ChatGPT app bundle. It does three narrowly scoped
 things:
 
 1. enables the official app's Codex Micro feature gate locally; and
-2. adds the verified `node-hid@3.3.0` Linux prebuild for the current app's
+2. adds the verified `node-hid@3.4.0` Linux prebuild for the current app's
    nested Work Louder dependency; and
 3. watches Linux `hidraw` topology so a Micro connected after ChatGPT starts is
    discovered without restarting the app.

@@ -162,7 +162,7 @@ function createBundledFixture(t, options = {}) {
   });
   writeJson(path.join(nodeHidDir, "package.json"), {
     name: "node-hid",
-    version: options.bundledVersion ?? "3.3.0",
+    version: options.bundledVersion ?? "3.4.0",
     license: "(MIT OR X11)",
     main: "./nodehid.js",
     binary: { napi_versions: [4] },
@@ -190,7 +190,7 @@ function createMaterializedPackage(t, options = {}) {
   );
   writeJson(path.join(packageDir, "package.json"), {
     name: options.name ?? "node-hid",
-    version: options.version ?? "3.3.0",
+    version: options.version ?? "3.4.0",
     license: options.license ?? "(MIT OR X11)",
     scripts: { install: "must never execute" },
   });
@@ -215,11 +215,10 @@ function materializer(packageDir, artifact, overrides = {}) {
 function currentFeatureGateFixture() {
   return [
     "const warning=`useFeatureGate hook failed to find a valid StatsigClient`;",
-    "function Lh(){return zh().isLoading}",
-    "function Rh(e){return bnt(),Bo(Fh,e)}",
-    `const microGate=Rh(\`${CODEX_MICRO_GATE_ID}\`);`,
+    "function gg(e){let t=(0,Kit.c)(2);Git(typeof e==`string`);let n;return t[0]===e?n=t[1]:(n=typeof e==`boolean`?e:{cache:`signal`,resolve(t,n){return pg.resolve(t,n,e).atom},scope:pg.scope},t[0]=e,t[1]=n),Y(n)}",
+    `const microGate=gg(\`${CODEX_MICRO_GATE_ID}\`);`,
     `const microRoute=\`${CODEX_MICRO_ROUTE}\`;`,
-    "export{zh as c,Lh as flt,Rh as rlt};",
+    "export{gg as DCt};",
   ].join("");
 }
 
@@ -338,16 +337,13 @@ function runOnlyTimer(timers) {
   return { timer, delay: entry.delay };
 }
 
-test("Codex Micro locally enables only its current upstream feature gate", () => {
+test("Codex Micro locally enables only its current official-app feature gate", () => {
   const source = currentFeatureGateFixture();
   const hook = exportedFeatureGateHook(source);
   assert.deepEqual(hook, {
-    source: "function Rh(e){return bnt(),Bo(Fh,e)}",
-    hookName: "Rh",
+    source: "function gg(e){let t=(0,Kit.c)(2);Git(typeof e==`string`);let n;return t[0]===e?n=t[1]:(n=typeof e==`boolean`?e:{cache:`signal`,resolve(t,n){return pg.resolve(t,n,e).atom},scope:pg.scope},t[0]=e,t[1]=n),Y(n)}",
+    hookName: "gg",
     argumentName: "e",
-    contextHookName: "bnt",
-    atomReadName: "Bo",
-    gateAtomName: "Fh",
   });
   assert.equal(matchesCodexMicroFeatureGateContract(source), true);
 
@@ -355,12 +351,67 @@ test("Codex Micro locally enables only its current upstream feature gate", () =>
   assert.match(
     patched,
     new RegExp(
-      `function Rh\\(e\\)\\{return bnt\\(\\),Bo\\(Fh,e\\)\\|\\|` +
+      `function gg\\(e\\)\\{let t=\\(0,Kit\\.c\\)\\(2\\);Git\\(typeof e==\\\`string\\\`\\);` +
+        `let n;return t\\[0\\]===e\\?n=t\\[1\\]:\\(n=typeof e==\\\`boolean\\\`\\?e:` +
+        `\\{cache:\\\`signal\\\`,resolve\\(t,n\\)\\{return pg\\.resolve\\(t,n,e\\)\\.atom\\},` +
+        `scope:pg\\.scope\\},t\\[0\\]=e,t\\[1\\]=n\\),Y\\(n\\)\\|\\|` +
         `e===\\\`${CODEX_MICRO_GATE_ID}\\\`/\\*${CODEX_MICRO_GATE_MARKER}\\*/\\}`,
     ),
   );
   assert.equal(applyCodexMicroFeatureGatePatch(patched), patched);
   assert.equal(matchesCodexMicroFeatureGateContract(patched), true);
+});
+
+test("Codex Micro keeps the current gate hook active while enabling its gate", () => {
+  const patched = applyCodexMicroFeatureGatePatch(currentFeatureGateFixture());
+  const functionStart = patched.indexOf("function gg(");
+  const functionEnd = patched.indexOf("const microGate", functionStart);
+  const memo = [];
+  const contextChecks = [];
+  const atomReads = [];
+  const gateHook = new Function(
+    "Kit",
+    "Git",
+    "pg",
+    "Y",
+    `${patched.slice(functionStart, functionEnd)};return gg;`,
+  )(
+    { c: (size) => (assert.equal(size, 2), memo) },
+    (isString) => contextChecks.push(isString),
+    { resolve: () => assert.fail("the lazy signal must not resolve during this probe"), scope: {} },
+    (signal) => (atomReads.push(signal), signal === true),
+  );
+
+  assert.equal(gateHook(CODEX_MICRO_GATE_ID), true);
+  assert.equal(gateHook("unrelated-gate"), false);
+  assert.equal(gateHook(true), true);
+  assert.deepEqual(contextChecks, [true, true, false]);
+  assert.equal(atomReads.length, 3);
+});
+
+test("Codex Micro rejects the superseded direct atom-read gate shape", () => {
+  const superseded = [
+    "const warning=`useFeatureGate hook failed to find a valid StatsigClient`;",
+    "function Rh(e){return bnt(),Bo(Fh,e)}",
+    `const microGate=Rh(\`${CODEX_MICRO_GATE_ID}\`);`,
+    `const microRoute=\`${CODEX_MICRO_ROUTE}\`;`,
+    "export{Rh as rlt};",
+  ].join("");
+
+  assert.equal(exportedFeatureGateHook(superseded), null);
+  assert.equal(matchesCodexMicroFeatureGateContract(superseded), false);
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(message);
+  try {
+    assert.equal(applyCodexMicroFeatureGatePatch(superseded), superseded);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.deepEqual(warnings, [
+    "WARN: Could not find the current exported feature-gate hook - " +
+      "skipping Codex Micro gate override",
+  ]);
 });
 
 test("Codex Micro service patch adds disposable Linux hidraw hot-plug discovery", () => {
@@ -482,9 +533,9 @@ test("Codex Micro service discovery patches exactly one current bundle", (t) => 
 
 test("generic Statsig hook bundles are not accepted as Codex Micro assets", () => {
   const generic = currentFeatureGateFixture()
-    .replace(`const microGate=kh(\`${CODEX_MICRO_GATE_ID}\`);`, "")
+    .replace(`const microGate=gg(\`${CODEX_MICRO_GATE_ID}\`);`, "")
     .replace(`const microRoute=\`${CODEX_MICRO_ROUTE}\`;`, "");
-  assert.equal(exportedFeatureGateHook(generic)?.hookName, "Rh");
+  assert.equal(exportedFeatureGateHook(generic)?.hookName, "gg");
   assert.equal(matchesCodexMicroFeatureGateContract(generic), false);
   assert.equal(applyCodexMicroFeatureGatePatch(generic), generic);
 });
@@ -500,7 +551,7 @@ test("Codex Micro gate drift cannot redirect the patch to an unrelated exported 
   const drifted = [
     "const warning=`useFeatureGate hook failed to find a valid StatsigClient`;",
     "function Ah(e){return changedGateShape(e)}",
-    "function Uh(e){return touch(),read(atom,e)}",
+    "function Uh(e){let t=(0,Cache.c)(2);touch(typeof e==`string`);let n;return t[0]===e?n=t[1]:(n=typeof e==`boolean`?e:{cache:`signal`,resolve(t,n){return atoms.resolve(t,n,e).atom},scope:atoms.scope},t[0]=e,t[1]=n),read(n)}",
     `const microGate=Ah(\`${CODEX_MICRO_GATE_ID}\`);`,
     `const microRoute=\`${CODEX_MICRO_ROUTE}\`;`,
     "export{Ah as gate,Uh as unrelated};",
@@ -515,7 +566,7 @@ test("Codex Micro hook matching rejects identifier suffix collisions", () => {
   const drifted = [
     "const warning=`useFeatureGate hook failed to find a valid StatsigClient`;",
     "function Rh(e){return changedGateShape(e)}",
-    "function h(e){return touch(),read(atom,e)}",
+    "function h(e){let t=(0,Cache.c)(2);touch(typeof e==`string`);let n;return t[0]===e?n=t[1]:(n=typeof e==`boolean`?e:{cache:`signal`,resolve(t,n){return atoms.resolve(t,n,e).atom},scope:atoms.scope},t[0]=e,t[1]=n),read(n)}",
     `const microGate=Rh(\`${CODEX_MICRO_GATE_ID}\`);`,
     `const microRoute=\`${CODEX_MICRO_ROUTE}\`;`,
     "export{Rh as gate,h as unrelated};",
@@ -540,19 +591,36 @@ test("Codex Micro gate patch targets only the current app-initial bundle shape",
   assert.equal(descriptor.pattern.test("app-initial~old-chunk.js"), false);
 });
 
-test("the shipped artifact manifest is prebuild-only and pinned for x64 and arm64", () => {
+test("the shipped artifact manifest pins the current archive and loader contract", () => {
   const artifact = shippedArtifact();
   assert.doesNotThrow(() => validateArtifactManifest(artifact));
   assert.equal(artifact.name, "node-hid");
-  assert.equal(artifact.version, "3.3.0");
+  assert.equal(artifact.version, "3.4.0");
+  assert.equal(
+    artifact.integrity,
+    "sha512-Br7EO3bJARAJBdtcsGzF/Vs5TjfbkaMdglqLQ+Rk9GOGgVqv5DxYUVH5znLerJU+OfBWw8sd552Ujcprz1bG9g==",
+  );
+  assert.equal(artifact.shasum, "dca0b7eb00eb9ee8bc652ef0437e30ed1889fba4");
+  assert.deepEqual(artifact.loaderContract, {
+    main: "./nodehid.js",
+    napiVersions: [4],
+    files: {
+      "nodehid.js": "fdfbaa5a6daf95886de570df6536f0c7ba59991db62222e4cf5b512225c09bf5",
+      "binding-options.js": "e7c820107f3b6571ca1505a5ffbe17511088336e4c410ec718ea9ec200c6b1e6",
+    },
+  });
+});
+
+test("the shipped artifact manifest is prebuild-only and pinned for x64 and arm64", () => {
+  const artifact = shippedArtifact();
   assert.deepEqual(Object.keys(artifact.prebuilds).sort(), ["arm64", "x64"]);
   assert.equal(
     artifact.prebuilds.x64.sha256,
-    "6c7f3b3fcc238a74e7e3237b50b2ff05181e94862b1963e8074ff8fc75885021",
+    "5b50d9229ca6ebc78eba1dd9a8c73de18035addf041dbc5a1323cb904dd838c4",
   );
   assert.equal(
     artifact.prebuilds.arm64.sha256,
-    "06ea97f377e2246a1e9bf3770186727e72ff3c166579d9c259c6d32a07aeaa60",
+    "b0e734bfcca7a2f6ce8e9543a2d39836ff61d3dadf17de5ae5a4387118457b58",
   );
   assert.equal(fs.existsSync(path.join(__dirname, "source-build")), false);
 });
@@ -598,7 +666,7 @@ test("Codex Micro uses the ChatGPT-owned node-hid archive override", async (t) =
   });
 
   await assert.rejects(
-    defaultMaterializePackage({ name: "node-hid", version: "3.3.0" }),
+    defaultMaterializePackage({ name: "node-hid", version: "3.4.0" }),
     /CHATGPT_MICRO_NODE_HID_ARCHIVE is not a safe file/u,
   );
 });
@@ -629,9 +697,9 @@ test("an already verified binding is idempotent and performs no package fetch", 
   assert.equal(result.source, "existing-prebuild");
 });
 
-test("an unexpected upstream binding fails closed before package materialization", async (t) => {
+test("an unexpected official-app binding fails closed before package materialization", async (t) => {
   const expectedBinary = makeElf("x64", "expected-binding");
-  const unexpectedBinary = makeElf("x64", "unexpected-upstream-binding");
+  const unexpectedBinary = makeElf("x64", "unexpected-official-app-binding");
   const artifact = fixtureArtifact({ x64: expectedBinary });
   const fixture = createBundledFixture(t);
   const targetPath = path.join(fixture.nodeHidDir, bindingRelativePath("x64"));
@@ -645,7 +713,7 @@ test("an unexpected upstream binding fails closed before package materialization
       artifactManifest: artifact,
       materializePackage: async () => {
         materializeCalls += 1;
-        throw new Error("unexpected upstream bindings must fail before materialization");
+        throw new Error("unexpected official-app bindings must fail before materialization");
       },
     }),
     /existing node-hid native binding hash mismatch/i,
@@ -654,9 +722,9 @@ test("an unexpected upstream binding fails closed before package materialization
   assert.deepEqual(fs.readFileSync(targetPath), unexpectedBinary);
 });
 
-test("upstream node-hid version or loader drift fails before package materialization", async (t) => {
+test("official app node-hid version or loader drift fails before package materialization", async (t) => {
   for (const options of [
-    { bundledVersion: "3.3.1", expected: /version mismatch/i },
+    { bundledVersion: "3.3.0", expected: /version mismatch/i },
     { loader: "module.exports = 'drift';\n", expected: /loader contract hash mismatch/i },
   ]) {
     const fixture = createBundledFixture(t, options);
@@ -694,7 +762,7 @@ for (const scenario of [
   },
   {
     label: "package version",
-    metadata: { version: "3.3.1" },
+    metadata: { version: "3.3.0" },
     expected: /version mismatch/i,
   },
 ]) {
@@ -864,7 +932,7 @@ test("the nested discovery path cannot be substituted with a hoisted node-hid", 
   const root = tempDirectory(t, "codex-micro-hoisted-");
   writeJson(path.join(root, "node_modules/node-hid/package.json"), {
     name: "node-hid",
-    version: "3.3.0",
+    version: "3.4.0",
   });
   assert.throws(
     () => discoverBundledNodeHid(root),
