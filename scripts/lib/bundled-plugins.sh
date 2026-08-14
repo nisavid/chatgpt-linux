@@ -1327,6 +1327,7 @@ function chatgptLinuxBrowserUseConfigShim() {
   let repl = globalThis.nodeRepl;
   if (repl == null) return;
   chatgptLinuxBrowserUseNodeReplMethodShim(repl);
+  chatgptLinuxBrowserUseEnvironmentShim(repl);
   if (repl.config != null) return;
   let config = {
     read: async () => ({ config: await chatgptLinuxBrowserUseReadToml("config.toml") }),
@@ -1351,6 +1352,103 @@ function chatgptLinuxBrowserUseConfigShim() {
       });
     }
   } catch {}
+}
+
+function chatgptLinuxBrowserUseEnvironmentShim(repl) {
+  let context = repl.requestMeta?.["chatgpt/browser-runtime-context"];
+  if (context == null) {
+    throw new Error("Browser security context is unavailable from ChatGPT. Restart ChatGPT and retry Browser automation.");
+  }
+  if (
+    typeof context != "object" ||
+    Array.isArray(context) ||
+    context.version !== 1 ||
+    typeof context.env != "object" ||
+    context.env == null ||
+    Array.isArray(context.env)
+  ) {
+    throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
+  }
+
+  let allowedKeys = new Set([
+    "BROWSER_AUTH_BROKER_SOCKET_PATH",
+    "BROWSER_USE_AVAILABLE_BACKENDS",
+    "BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED",
+    "BROWSER_USE_CODEX_APP_BUILD_FLAVOR",
+    "BROWSER_USE_CODEX_APP_VERSION",
+    "BROWSER_USE_DISABLE_AMBIENT_NETWORK",
+    "BROWSER_USE_DISABLE_API_MEMBERS",
+    "BROWSER_USE_DISABLE_BROWSER_CAPABILITIES",
+    "BROWSER_USE_DISABLE_TAB_CAPABILITIES",
+    "BROWSER_USE_SECURITY_MODE",
+    "CODEX_CHROME_USER_DATA_DIR",
+    "NODE_REPL_DISABLE_ANALYTICS",
+    "NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER",
+    "NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME",
+  ]);
+  let env = {};
+  for (let [key, value] of Object.entries(context.env)) {
+    if (!allowedKeys.has(key)) continue;
+    if (typeof value != "string") {
+      throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
+    }
+    env[key] = value;
+  }
+
+  let buildFlavor = env.BROWSER_USE_CODEX_APP_BUILD_FLAVOR;
+  let availableBackends = env.BROWSER_USE_AVAILABLE_BACKENDS;
+  if (
+    !["dev", "internal", "prod"].includes(buildFlavor) ||
+    typeof availableBackends != "string" ||
+    availableBackends.split(",").some((backend) => !["cdp", "chrome", "iab"].includes(backend.trim()))
+  ) {
+    throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
+  }
+
+  let securityMode = env.BROWSER_USE_SECURITY_MODE;
+  if (
+    securityMode != null &&
+    !["", "disabled-for-local-testing", "gaas-browser-environment"].includes(securityMode)
+  ) {
+    throw new Error("Browser security context contains an invalid security mode. Restart ChatGPT and retry Browser automation.");
+  }
+  if (securityMode === "disabled-for-local-testing" && buildFlavor !== "dev") {
+    throw new Error("Browser security context contains an invalid security mode. Restart ChatGPT and retry Browser automation.");
+  }
+
+  Object.freeze(env);
+  let existingEnv;
+  try {
+    existingEnv = repl.env;
+  } catch {
+    throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+  }
+  if (existingEnv != null) {
+    let expectedKeys = Object.keys(env);
+    let existingKeys =
+      typeof existingEnv == "object" && !Array.isArray(existingEnv)
+        ? Object.keys(existingEnv)
+        : [];
+    if (
+      existingKeys.length === expectedKeys.length &&
+      expectedKeys.every((key) => existingEnv[key] === env[key])
+    ) return;
+    throw new Error("Browser security context cannot replace an untrusted Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+  }
+
+  try {
+    let prototype = Object.getPrototypeOf(repl);
+    if (prototype != null && Object.getOwnPropertyDescriptor(prototype, "env") == null) {
+      Object.defineProperty(prototype, "env", {
+        configurable: true,
+        get: () => env,
+      });
+    }
+  } catch {}
+
+  if (repl.env !== env) {
+    throw new Error("Browser security context cannot be attached to the Browser runtime. Restart ChatGPT and retry Browser automation.");
+  }
 }
 
 function chatgptLinuxBrowserUseNodeReplMethodShim(repl) {
@@ -1481,7 +1579,27 @@ replacement = (
     + f'function {helper}(){{chatgptLinuxBrowserUseConfigShim();let {value}=globalThis.nodeRepl;'
     + f'return {value}?.config==null?void 0:{value}}}'
 )
-path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")
+patched = source[:match.start()] + replacement + source[match.end():]
+runtime_clone_pattern = re.compile(
+    r'(?P<prefix>async function [A-Za-z_$][\w$]*\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
+    r'let [A-Za-z_$][\w$]*=(?P=runtime)\.createElicitation\.bind\((?P=runtime)\),'
+    r'[A-Za-z_$][\w$]*=\{\.\.\.(?P=runtime),)platform:'
+)
+runtime_clone_matches = list(runtime_clone_pattern.finditer(patched))
+if len(runtime_clone_matches) != 1:
+    print(
+        f"WARN: Expected one Browser Use runtime environment clone, found {len(runtime_clone_matches)} — leaving browser-client.mjs unchanged",
+        file=sys.stderr,
+    )
+    raise SystemExit(0)
+
+runtime = runtime_clone_matches[0].group("runtime")
+patched = runtime_clone_pattern.sub(
+    rf'\g<prefix>env:{runtime}.env,addAfterSubmittedCodeHook:{runtime}.addAfterSubmittedCodeHook/*chatgptLinuxBrowserUseRuntimeEnv*/,platform:',
+    patched,
+    count=1,
+)
+path.write_text(patched, encoding="utf-8")
 PY
 }
 
