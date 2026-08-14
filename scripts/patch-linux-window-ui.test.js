@@ -211,7 +211,7 @@ const obsoleteTerminalEnvBundle =
 const currentOpaqueWindowSurfaceBackgroundHelper =
   "var W4=`#00000000`,G4=`#000000`,K4=`#f9f9f9`;function g3(e){return e===`avatarOverlay`||e===`browserCommentPopup`||e===`globalDictation`||e===`hotkeyWindowHome`||e===`hotkeyWindowThread`||e===`hud`}function v3({appearance:e,opaqueWindowsEnabled:t,platform:n}){return t&&!g3(e)&&(n===`darwin`||n===`win32`)}function S3({platform:e,appearance:t,opaqueWindowSurfaceEnabled:n,prefersDarkColors:r}){return n?{backgroundColor:r?G4:K4,backgroundMaterial:e===`win32`?`none`:null}:e===`win32`&&!g3(t)?{backgroundColor:W4,backgroundMaterial:`mica`}:{backgroundColor:W4,backgroundMaterial:null}}";
 const currentOpaqueWindowSurfaceBackgroundBundle =
-  `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!BA()&&!g3(e)}}`;
+  `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!r.w()&&!g3(e)}}`;
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -1425,10 +1425,9 @@ test("subagent nickname metadata descriptor targets the current monolithic app b
 
 function trayBundleFixture() {
   return [
-    "async function gj(e){let t=e;if(typeof t.whenReady!=`function`)return process.platform!==`linux`;try{return await t.whenReady(),!0}catch{return!1}}function _j(e){let t=e;return typeof t.isReady==`function`?t.isReady():process.platform!==`linux`}",
     "async function fae(e){let t=await pae(e.buildFlavor,e.appBrand,e.repoRoot),r=new c.Tray(t.defaultIcon,process.platform===`win32`&&c.app.isPackaged?dEe(e.buildFlavor):void 0);r.setToolTip(c.app.getName());let i=new pb(r);return!await i.waitForReady()?(i.destroy(),null):i}",
     "async function pae(e,t,n){if(process.platform===`darwin`)return null;if(process.platform===`linux`){let r=`${fv(e,t)}.png`,i=c.nativeImage.createFromPath(c.app.isPackaged?(0,u.join)(process.resourcesPath,r):(0,u.join)(n,`electron`,`src`,`icons`,r));if(i.isEmpty())throw Error(`Linux tray application icon is unavailable`);return{defaultIcon:i.resize({width:V9,height:V9,quality:`best`}),chronicleRunningIcon:null}}return null}",
-    "var pb=class{trayMenuThreads={runningThreads:[],unreadThreads:[],pinnedThreads:[],recentThreads:[],usageLimits:[]};constructor(e={on(){},setContextMenu(){}}){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return _j(this.tray)}waitForReady(){return gj(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
+    "var pb=class{trayMenuThreads={runningThreads:[],unreadThreads:[],pinnedThreads:[],recentThreads:[],usageLimits:[]};constructor(e={on(){},setContextMenu(){}}){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return r.S(this.tray)}waitForReady(){return r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
     "v&&k.on(`close`,e=>{this.persistPrimaryWindowBounds(k);let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}if(process.platform===`darwin`&&!this.isAppQuitting&&!t){e.preventDefault(),k.hide()}});",
     "let oe=async()=>{try{await fae({appBrand:a.U(),buildFlavor:b,repoRoot:j.repoRoot})}catch(e){v.reportNonFatal(e)}};(E||process.platform===`linux`)&&oe();",
   ].join("");
@@ -1438,9 +1437,8 @@ function currentTrayLifecycleBundleFixture() {
   return [
     "let chatgptLinuxQuitInProgress=!1,chatgptLinuxExplicitQuitApproved=!1,chatgptLinuxMarkQuitInProgress=()=>{chatgptLinuxQuitInProgress=!0},chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()},chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0,chatgptLinuxIsQuitInProgress=()=>chatgptLinuxQuitInProgress===!0;",
     "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
-    "async function gj(e){let t=e;if(typeof t.whenReady!=`function`)return!0;try{return await t.whenReady(),!0}catch{return!1}}function _j(e){let t=e;return typeof t.isReady==`function`?t.isReady():!0}",
     "var H9=null,U9=null,G9=!1;async function fae(e){return G9=!0,U9??H9??(U9=(async()=>{let t={defaultIcon:e},r=new c.Tray(t.defaultIcon,process.platform===`win32`&&c.app.isPackaged?dEe(e.buildFlavor):void 0);if(!G9)return r.destroy(),null;r.setToolTip(c.app.getName());let i=new pb(r);return H9=i,!await i.waitForReady()||H9!==i?(H9===i&&(H9=null,i.destroy()),null):i})().finally(()=>{U9=null}),U9)}",
-    "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return _j(this.tray)}waitForReady(){return gj(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
+    "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
   ].join("");
 }
 
@@ -2717,11 +2715,11 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
 
   assert.match(
     patched,
-    /if\(typeof t\.whenReady!=`function`\)return!0;try\{return await t\.whenReady\(\),!0\}catch\{return!1\}/,
+    /isReady\(\)\{return process\.platform===`linux`&&typeof this\.tray\.isReady!=`function`\?!0:r\.S\(this\.tray\)\}/,
   );
   assert.match(
     patched,
-    /return typeof t\.isReady==`function`\?t\.isReady\(\):!0/,
+    /waitForReady\(\)\{return process\.platform===`linux`&&typeof this\.tray\.whenReady!=`function`\?Promise\.resolve\(!0\):r\.W\(this\.tray\)\}/,
   );
   assert.match(
     patched,
@@ -2734,17 +2732,20 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
     /if\(i\.isEmpty\(\)&&process\.platform===`linux`\)i=c\.nativeImage\.createFromPath/,
   );
 
-  const readinessHelpers = patched.match(
-    /async function gj\(e\)\{let t=e;[^]*?\}function _j\(e\)\{let t=e;[^}]+\}/,
+  const readinessMethods = patched.match(
+    /isReady\(\)\{return process\.platform===`linux`[^}]+\}waitForReady\(\)\{return process\.platform===`linux`[^}]+\}/,
   )?.[0];
-  assert.ok(readinessHelpers);
-  const context = { process: { platform: "linux" }, result: null };
-  await vm.runInNewContext(
-    `${readinessHelpers};result=(async()=>({stockWait:await gj({}),stockReady:_j({}),nativeWait:await gj({whenReady:async()=>{}}),nativeReady:_j({isReady:()=>!1}),failedWait:await gj({whenReady:async()=>{throw Error(\`not ready\`)}})}))()`,
-    context,
-  );
+  assert.ok(readinessMethods);
+  const evaluateReadiness = async (platform) => {
+    const context = { process: { platform }, result: null };
+    await vm.runInNewContext(
+      `let r={S:e=>typeof e.isReady==\`function\`?e.isReady():process.platform!==\`linux\`,W:async e=>{if(typeof e.whenReady!=\`function\`)return process.platform!==\`linux\`;try{return await e.whenReady(),!0}catch{return!1}}};class T{constructor(e){this.tray=e}${readinessMethods}}result=(async()=>{let stock=new T({}),native=new T({isReady:()=>!1,whenReady:async()=>{}}),failed=new T({whenReady:async()=>{throw Error(\`not ready\`)}});return{stockWait:await stock.waitForReady(),stockReady:stock.isReady(),nativeWait:await native.waitForReady(),nativeReady:native.isReady(),failedWait:await failed.waitForReady()}})()`,
+      context,
+    );
+    return JSON.parse(JSON.stringify(await context.result));
+  };
   assert.deepEqual(
-    JSON.parse(JSON.stringify(await context.result)),
+    await evaluateReadiness("linux"),
     {
       stockWait: true,
       stockReady: true,
@@ -2753,6 +2754,13 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
       failedWait: false,
     },
   );
+  assert.deepEqual(await evaluateReadiness("win32"), {
+    stockWait: true,
+    stockReady: true,
+    nativeWait: true,
+    nativeReady: false,
+    failedWait: false,
+  });
 
   const iconLoaderStart = patched.indexOf("async function pae(");
   const iconLoaderEnd = patched.indexOf("var pb=class", iconLoaderStart);
@@ -3743,7 +3751,7 @@ test("patches current opaque window surface background helper shape for Linux", 
   );
   assert.match(
     patched,
-    /shouldAlwaysUseOpaqueWindowSurface\(e\)\{return process\.platform===`linux`&&!g3\(e\)\|\|v3\(\{appearance:e,opaqueWindowsEnabled:this\.isOpaqueWindowsEnabled\(\),platform:process\.platform\}\)\|\|!BA\(\)&&!g3\(e\)\}/,
+    /shouldAlwaysUseOpaqueWindowSurface\(e\)\{return process\.platform===`linux`&&!g3\(e\)\|\|v3\(\{appearance:e,opaqueWindowsEnabled:this\.isOpaqueWindowsEnabled\(\),platform:process\.platform\}\)\|\|!r\.w\(\)&&!g3\(e\)\}/,
   );
   assert.match(patched, /opaqueWindowSurfaceEnabled:n/);
 });

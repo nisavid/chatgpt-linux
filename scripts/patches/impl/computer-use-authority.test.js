@@ -748,6 +748,44 @@ test("patches the current nested Computer Use plugin edit contract", () => {
   );
 });
 
+test("patches an unassigned Computer Use plugin write without dropping extra bindings", async () => {
+  const source = [
+    "let order=[];let dp={dispatchMessage:async e=>{order.push(e)}};",
+    "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
+    "async function w_n(){return null}async function cm(){order.push(`persist`)}async function ipa(){}function I2n(e){return[e]}",
+    "function Kfa(e){let n=e?.hostId??`local`,r={},i={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
+  ].join("");
+
+  const patched = applyLinuxComputerUseDisableOrderingPatch(source);
+  const api = vm.runInNewContext(`${patched};({mutate:Kfa({}),order})`);
+
+  assert.match(
+    patched,
+    /let\{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c\}=e;/,
+  );
+  assert.equal(matchesLinuxComputerUseDisableOrderingContract(patched), true);
+  assert.equal(applyLinuxComputerUseDisableOrderingPatch(patched), patched);
+
+  await api.mutate({
+    enabled: false,
+    marketplaceAnalytics: {},
+    plugin: {},
+    pluginId: "computer-use@openai-bundled",
+  });
+  assert.deepEqual(Array.from(api.order), [
+    "chatgpt-linux-computer-use-disable-requested",
+    "persist",
+  ]);
+  api.order.length = 0;
+  await api.mutate({
+    enabled: true,
+    marketplaceAnalytics: {},
+    plugin: {},
+    pluginId: "computer-use@openai-bundled",
+  });
+  assert.deepEqual(Array.from(api.order), ["persist"]);
+});
+
 test("disable-before-write rejects marker-only state and ignores marker decoys", () => {
   const mutationSource = [
     "let dp={dispatchMessage:async()=>{}};",

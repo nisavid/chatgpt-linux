@@ -2,7 +2,7 @@ Name:           __PACKAGE_NAME__
 Version:        __RPM_VERSION__
 Release:        __RPM_RELEASE__%{?dist}
 Summary:        Unofficial ChatGPT for Linux community build
-License:        Proprietary
+License:        MIT AND Proprietary
 ExclusiveArch:  __ARCH__
 Provides:       codex-app
 Provides:       codex-desktop
@@ -47,6 +47,8 @@ cp -a "__RPM_STAGING_DIR__/." "%{buildroot}/"
 /usr/bin/__PACKAGE_NAME__
 /usr/share/applications/__PACKAGE_NAME__.desktop
 /usr/share/icons/hicolor/256x256/apps/__PACKAGE_NAME__.png
+%license /usr/share/licenses/__PACKAGE_NAME__/LICENSE
+%license /usr/share/licenses/__PACKAGE_NAME__/OPENAI-NOTICE
 __PORT_INTEGRATION_FILES__
 __UPDATER_FILES__
 

@@ -34,7 +34,7 @@ function appPageEligibilityPattern() {
 }
 
 function mainEligibilityPattern() {
-  return /return ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\?\{enabled:!0,staleTimeMs:([A-Za-z_$][\w$]*)\}:\{enabled:!1\}/gu;
+  return /return ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\?\{enabled:!0,computerUseAvailable:([A-Za-z_$][\w$]*),featureDiscoveryEnabled:([A-Za-z_$][\w$]*),staleTimeMs:([A-Za-z_$][\w$]*)\}:\{enabled:!1\}/gu;
 }
 
 function settingsEligibilityPattern() {
@@ -42,7 +42,7 @@ function settingsEligibilityPattern() {
 }
 
 function homeContentSourcePattern() {
-  return /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)===`curated`(?=,[A-Za-z_$][\w$]*=[A-Za-z_$][\w$]*\([A-Za-z_$][\w$]*\.email\),[A-Za-z_$][\w$]*=[A-Za-z_$][\w$]*\(\{canUsePersonalizedSuggestions:[A-Za-z_$][\w$]*,generatedSuggestionsEnabled:[A-Za-z_$][\w$]*,hasGeneratedSuggestionsReadSettled:[A-Za-z_$][\w$]*,shouldUseCuratedNewChatPageSuggestions:\1\}\))/gu;
+  return /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)===`curated`(?=,[A-Za-z_$][\w$]*;[\s\S]{0,300}?shouldUseCuratedNewChatPageSuggestions:\1\}\))/gu;
 }
 
 function matchCount(source, pattern) {
@@ -154,8 +154,15 @@ function applySuggestedPromptsMainPatch(source) {
 
     return source.replace(
       mainEligibilityPattern(),
-      (_match, eligibilityMethod, accountName, staleTimeName) =>
-        `return ${eligibilityMethod}(${accountName})&&function ${MAIN_ELIGIBILITY_MARKER}(){return!0}()?{enabled:!0,staleTimeMs:${staleTimeName}}:{enabled:!1}`,
+      (
+        _match,
+        eligibilityMethod,
+        accountName,
+        computerUseName,
+        featureDiscoveryName,
+        staleTimeName,
+      ) =>
+        `return ${eligibilityMethod}(${accountName})&&function ${MAIN_ELIGIBILITY_MARKER}(){return!0}()?{enabled:!0,computerUseAvailable:${computerUseName},featureDiscoveryEnabled:${featureDiscoveryName},staleTimeMs:${staleTimeName}}:{enabled:!1}`,
     );
   } catch (error) {
     console.warn(

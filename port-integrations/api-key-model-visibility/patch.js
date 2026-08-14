@@ -11,16 +11,18 @@ function applyApiKeyModelVisibilityPatch(source) {
   const modelVisibilityPattern = new RegExp(
     "(function " + JS_IDENT + "\\(\\{additionalAvailableModels:" + JS_IDENT +
       ",authMethod:(" + JS_IDENT + "),availableModels:" + JS_IDENT +
-      ",model:" + JS_IDENT + ",useHiddenModels:(" + JS_IDENT + ")\\}\\)" +
-      "\\{return [^{}]{0,300}?\\|\\|\\()" +
-      "\\3&&\\2!==`amazonBedrock`(?=\\?)",
+      ",isCustomModelProvider:(" + JS_IDENT + "),model:(" + JS_IDENT +
+      "),useHiddenModels:(" + JS_IDENT + ")\\}\\)" +
+      "\\{return [^{}]{0,300}?\\|\\|\\4\\.model!==`codex-auto-review`&&\\()" +
+      "\\5&&!\\3&&\\2!==`amazonBedrock`(?=\\?)",
     "g",
   );
 
   const patched = source.replace(
     modelVisibilityPattern,
-    (_match, prefix, authMethodVar, useHiddenModelsVar) =>
-      `${prefix}${useHiddenModelsVar}&&${authMethodVar}!==\`amazonBedrock\`&&` +
+    (_match, prefix, authMethodVar, customProviderVar, _modelVar, useHiddenModelsVar) =>
+      `${prefix}${useHiddenModelsVar}&&!${customProviderVar}&&` +
+      `${authMethodVar}!==\`amazonBedrock\`&&` +
       `${authMethodVar}!==\`apikey\`/*${PATCH_MARKER}*/`,
   );
 

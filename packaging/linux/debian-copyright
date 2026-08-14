@@ -1,0 +1,48 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ChatGPT for Linux
+Upstream-Contact: https://github.com/nisavid/codex-app-linux/issues
+Source: https://github.com/nisavid/codex-app-linux
+ Official OpenAI app input:
+ https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg
+Disclaimer: This package is not part of the Debian distribution because it
+ includes a proprietary official OpenAI application bundle.
+Copyright: 2025 ilysenko
+ OpenAI
+License: MIT and LicenseRef-OpenAI-Proprietary
+
+Files: *
+Copyright: 2025 ilysenko
+License: MIT
+
+License: MIT
+ MIT License
+ .
+ Copyright (c) 2025 ilysenko
+ .
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+
+License: LicenseRef-OpenAI-Proprietary
+ The official OpenAI application bundle is proprietary. This repository does
+ not grant a redistribution license or any rights in ChatGPT, Codex, OpenAI
+ software, OpenAI marks, hosted services, or bundled assets. Use and any
+ redistribution must be authorized under applicable OpenAI terms or separate
+ permission from OpenAI:
+ .
+ https://openai.com/policies/terms-of-use/
+ https://openai.com/policies/service-terms/

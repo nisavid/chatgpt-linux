@@ -63,9 +63,12 @@ function currentFilteredCopilotReasoningEffortModelListFixture() {
 
 function currentCopilotReasoningEffortUiFixture() {
   return [
-    "function DYs(){let F=!e1r(y)||m.isLoading||T===`pending`,I=u?.authMethod===`copilot`,L=Pqs(b,_),R=ECs(b),z=Fqs(m.reasoningEffort,L),B=!F&&!I&&!0,V=o!=null&&!F&&p&&!I&&y!==`error`;return TY(`composer.increaseReasoningEffort`,()=>Se(`increase`),{enabled:B}),TY(`composer.decreaseReasoningEffort`,()=>Se(`decrease`),{enabled:B}),(0,TZ.jsx)(QJs,{reasoningEffortDisabled:I})}",
+    "function Y3s(){let K=G,q=p?.authMethod===`copilot`,ee=q0s(A,T),te=sks(A),ne=J0s(y.reasoningEffort,ee),re=!K&&!q&&!0,ie=l!=null&&!K&&g&&!q&&k!==`error`;",
+    "let Be;t[42]===Ie?Be=t[43]:(Be=()=>{Ie(`increase`)},t[42]=Ie,t[43]=Be);let Ve;t[44]===re?Ve=t[45]:(Ve={enabled:re},t[44]=re,t[45]=Ve),N$(`composer.increaseReasoningEffort`,Be,Ve);",
+    "x".repeat(2_600),
+    "return(0,w2.jsx)(_3s,{model:T,reasoningEffort:y.reasoningEffort,reasoningEffortDisabled:q,showReasoningEffortControls:!0})}",
     "function unrelatedGate(){let q=a&&b&&!0,c;return q}",
-    "function uU(){let h=o?.authMethod===`copilot`;let E=i.formatMessage({id:`composer.reasoningSlashCommand.title`});let M=l&&m&&!h&&!0,N;return{enabled:M,dependencies:N}}",
+    "function wuc(){let h=c?.authMethod===`copilot`;let A=o.formatMessage({id:`composer.reasoningSlashCommand.title`,defaultMessage:`Reasoning`,description:`Title for the reasoning slash command`});let M=l&&m&&!h&&!0,N;return{enabled:M,dependencies:N}}",
     "function permissionGate(){let A=O.length>0,j=!w&&!A;return{shouldAutoDenyPermissionRequest:j}}",
   ].join("");
 }
@@ -252,11 +255,11 @@ test("allows Copilot auth to use the current app effort controls", () => {
     currentCopilotReasoningEffortUiFixture(),
   );
 
-  assert.match(patched, /I=u\?\.authMethod===`copilot`[\s\S]*B=!F&&!0\/\*chatgptLinuxCopilotReasoningEffort\*\//);
+  assert.match(patched, /q=p\?\.authMethod===`copilot`[\s\S]*re=!K&&!0\/\*chatgptLinuxCopilotReasoningEffort\*\//);
   assert.match(patched, /reasoningEffortDisabled:!1/);
-  assert.match(patched, /let E=i\.formatMessage\(\{id:`composer\.reasoningSlashCommand\.title`\}\);let M=l&&m&&!0,N;/);
-  assert.doesNotMatch(patched, /B=!F&&!I&&!0/);
-  assert.doesNotMatch(patched, /reasoningEffortDisabled:I/);
+  assert.match(patched, /let A=o\.formatMessage\(\{id:`composer\.reasoningSlashCommand\.title`[\s\S]*?\}\);let M=l&&m&&!0,N;/);
+  assert.doesNotMatch(patched, /re=!K&&!q&&!0/);
+  assert.doesNotMatch(patched, /reasoningEffortDisabled:q/);
   assert.doesNotMatch(patched, /M=l&&m&&!h&&!0/);
   assert.match(patched, /let q=a&&b&&!0,c/);
   assert.match(patched, /A=O\.length>0,j=!w&&!A/);

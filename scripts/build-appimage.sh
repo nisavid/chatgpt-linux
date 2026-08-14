@@ -177,6 +177,10 @@ prepare_appdir() {
     cp "$ICON_SOURCE" "$APPDIR/usr/share/icons/hicolor/256x256/apps/$PACKAGE_NAME.png"
     cp "$ICON_SOURCE" "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/$PACKAGE_NAME.png"
     cp "$REPO_DIR/launcher/cli-launch-path.py" "$APPDIR/opt/$PACKAGE_NAME/.chatgpt-linux/cli-launch-path.py"
+    install -Dm0644 \
+        "$REPO_DIR/LICENSE" "$APPDIR/usr/share/licenses/$PACKAGE_NAME/LICENSE"
+    install -Dm0644 \
+        "$REPO_DIR/packaging/OPENAI-NOTICE" "$APPDIR/usr/share/licenses/$PACKAGE_NAME/OPENAI-NOTICE"
 
     render_template \
         "$APPIMAGE_RUNTIME_TEMPLATE" \

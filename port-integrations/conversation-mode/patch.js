@@ -266,7 +266,7 @@ function applyDictationEndpointPatch(source) {
   }
 
   const micConstraintsPattern =
-    /stream:([A-Za-z_$][\w$]*)\(\{channelCount:1\}\)\.then\(/gu;
+    /stream:\(([A-Za-z_$][\w$]*)==null\?([A-Za-z_$][\w$]*)\(\{channelCount:1\},([A-Za-z_$][\w$]*)\):([A-Za-z_$][\w$]*)\(\{channelCount:1\},\1,\3\)\)\.then\(/gu;
   const cleanupPattern =
     /let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current;\4\.current=null;let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.current;if\(\6\.current=\[\],\1&&\(\1\.ondataavailable=null,\1\.onstop=null\),\2\.current=null,/gu;
   const actionRefPattern =
@@ -276,7 +276,7 @@ function applyDictationEndpointPatch(source) {
   const recorderStartPattern =
     /([A-Za-z_$][\w$]*)\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},([A-Za-z_$][\w$]*)==null\?\1\.start\(\):\1\.start\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/gu;
   const transcriptPattern =
-    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)==null\?([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\):\2\.setTranscript\(\1\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\6\.onTranscriptInsert\(\1\)\)/gu;
+    /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)==null\?([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\):\2\.setTranscript\(\1\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)\.action===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\6\.onTranscriptInsert\(\1\)\)/gu;
   const uniqueMatch = (pattern) => {
     const matches = [...source.matchAll(pattern)];
     return matches.length === 1 ? matches[0] : null;
@@ -294,9 +294,7 @@ function applyDictationEndpointPatch(source) {
     recorderCreationMatch == null ||
     recorderStartMatch == null ||
     transcriptMatch == null ||
-    cleanupMatch[1] !== recorderCreationMatch[1] ||
     cleanupMatch[2] !== recorderCreationMatch[3] ||
-    cleanupMatch[3] !== recorderCreationMatch[4] ||
     recorderStartMatch[1] !== recorderCreationMatch[1] ||
     recorderStartMatch[3] !== recorderCreationMatch[4]
   ) {
@@ -310,7 +308,7 @@ function applyDictationEndpointPatch(source) {
   const actionRef = actionRefMatch[1];
   let patched = source.replace(
     micConstraintsMatch[0],
-    `stream:${micConstraintsMatch[1]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}).then(`,
+    `stream:(${micConstraintsMatch[1]}==null?${micConstraintsMatch[2]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[3]}):${micConstraintsMatch[4]}({channelCount:1,echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0},${micConstraintsMatch[1]},${micConstraintsMatch[3]})).then(`,
   );
   patched = patched.replace(
     cleanupMatch[0],
@@ -322,7 +320,7 @@ function applyDictationEndpointPatch(source) {
   );
   return patched.replace(
     transcriptMatch[0],
-    `${transcriptMatch[1]}.length>0&&${transcriptMatch[5]}!==\`discard\`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(${transcriptMatch[1]},${transcriptMatch[5]})!==!1&&(${transcriptMatch[2]}==null?${transcriptMatch[3]}.getInstance().dispatchMessage(\`global-dictation-record-history-item\`,{text:${transcriptMatch[1]}}):${transcriptMatch[2]}.setTranscript(${transcriptMatch[1]}),${transcriptMatch[4]}.performance.mark(\`transcript_dispatched\`),${transcriptMatch[5]}===\`send\`?${transcriptMatch[6]}.onTranscriptSend(${transcriptMatch[1]}):${transcriptMatch[6]}.onTranscriptInsert(${transcriptMatch[1]}))`,
+    `${transcriptMatch[1]}.length>0&&${transcriptMatch[5]}.action!==\`discard\`&&globalThis.chatgptLinuxConversationShouldSendTranscript?.(${transcriptMatch[1]},${transcriptMatch[5]}.action)!==!1&&(${transcriptMatch[2]}==null?${transcriptMatch[3]}.getInstance().dispatchMessage(\`global-dictation-record-history-item\`,{text:${transcriptMatch[1]}}):${transcriptMatch[2]}.setTranscript(${transcriptMatch[1]}),${transcriptMatch[4]}.performance.mark(\`transcript_dispatched\`),${transcriptMatch[5]}.action===\`send\`?${transcriptMatch[6]}.onTranscriptSend(${transcriptMatch[1]}):${transcriptMatch[6]}.onTranscriptInsert(${transcriptMatch[1]}))`,
   );
 }
 

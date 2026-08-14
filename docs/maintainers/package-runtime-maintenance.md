@@ -111,7 +111,11 @@ destinations are:
 - `/usr/lib/chatgpt/packaged-runtime.sh`;
 - `/usr/lib/systemd/user/chatgpt-updater.service`;
 - `/usr/share/applications/chatgpt.desktop`;
-- `/usr/share/icons/hicolor/256x256/apps/chatgpt.png`.
+- `/usr/share/icons/hicolor/256x256/apps/chatgpt.png`;
+- `/usr/share/licenses/chatgpt/LICENSE` and
+  `/usr/share/licenses/chatgpt/OPENAI-NOTICE`; Debian packages also install the
+  uncompressed, regular-file copyright record at
+  `/usr/share/doc/chatgpt/copyright`.
 
 Debian, RPM, and pacman package builders use `scripts/lib/package-common.sh`
 for the shared staging path. App payload staging rejects absolute or upward
@@ -127,6 +131,10 @@ notification-actions bridge, Global Dictation helper, and Read Aloud MCP
 helper. Rebuilds pass only validated copies from this bundle to `install.sh`;
 packaged updater rebuilds execute these package-owned prebuilt helpers rather
 than compiling replacements from user-controlled app or plugin paths.
+
+The update-builder carries the repository MIT license, the OpenAI proprietary
+component notice, and the Debian copyright source so every updater rebuild
+preserves the package-format licensing metadata.
 
 The update-builder also carries the repository-approved `@parcel/watcher`
 offline bundle under `scripts/lib/parcel-watcher/`. App generation requires the
@@ -144,6 +152,7 @@ loading the module. Every approved target requires platform `linux` and libc
 
 Version drift and unsupported platform, architecture, libc, kernel-machine, or
 ARM ABI fail before npm runs.
+
 Refresh this bundle only as a reviewed dependency update: obtain canonical npm
 tarballs for the exact official version and complete transitive/optional graph,
 regenerate the lock and approval digests, run

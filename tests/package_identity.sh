@@ -49,6 +49,88 @@ assert_contains scripts/build-appimage.sh \
     "PACKAGE_COMMENT:-Unofficial community build. $unofficial_notice"
 assert_contains flake.nix \
     "Unofficial ChatGPT for Linux community build. $unofficial_notice"
+assert_contains packaging/linux/chatgpt.spec 'License:        MIT AND Proprietary'
+assert_contains packaging/linux/chatgpt.spec \
+    '%license /usr/share/licenses/__PACKAGE_NAME__/LICENSE'
+assert_contains packaging/linux/chatgpt.spec \
+    '%license /usr/share/licenses/__PACKAGE_NAME__/OPENAI-NOTICE'
+assert_contains packaging/linux/PKGBUILD.template \
+    "license=('MIT AND LicenseRef-OpenAI-Proprietary')"
+assert_contains flake.nix \
+    'license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.unfree ];'
+assert_contains flake.nix 'allowUnfreePredicate = pkg:'
+assert_contains flake.nix 'packageName == "chatgpt" || nixpkgs.lib.hasPrefix "chatgpt-" packageName;'
+assert_contains flake.nix \
+    'sourceProvenance = [ pkgs.lib.sourceTypes.binaryNativeCode ];'
+assert_contains scripts/lib/package-common.sh \
+    '"$REPO_DIR/LICENSE" "$root/usr/share/licenses/$PACKAGE_NAME/LICENSE"'
+assert_contains scripts/lib/package-common.sh \
+    '"$REPO_DIR/packaging/OPENAI-NOTICE" "$root/usr/share/licenses/$PACKAGE_NAME/OPENAI-NOTICE"'
+assert_contains scripts/lib/package-common.sh \
+    'cp "$REPO_DIR/LICENSE" "$update_builder_root/LICENSE"'
+assert_contains scripts/lib/package-common.sh \
+    'cp "$REPO_DIR/packaging/OPENAI-NOTICE" "$update_builder_root/OPENAI-NOTICE"'
+assert_contains scripts/lib/package-common.sh \
+    'cp "$REPO_DIR/packaging/OPENAI-NOTICE" "$update_builder_root/packaging/OPENAI-NOTICE"'
+assert_contains scripts/build-appimage.sh \
+    '"$REPO_DIR/LICENSE" "$APPDIR/usr/share/licenses/$PACKAGE_NAME/LICENSE"'
+assert_contains scripts/build-appimage.sh \
+    '"$REPO_DIR/packaging/OPENAI-NOTICE" "$APPDIR/usr/share/licenses/$PACKAGE_NAME/OPENAI-NOTICE"'
+assert_contains flake.nix \
+    'install -Dm0644 ${sourceRoot}/LICENSE'
+assert_contains flake.nix \
+    'install -Dm0644 ${sourceRoot}/packaging/OPENAI-NOTICE'
+[ -f "$REPO_DIR/packaging/OPENAI-NOTICE" ] || \
+    fail 'missing OpenAI package terms notice'
+[ -f "$REPO_DIR/packaging/linux/debian-copyright" ] || \
+    fail 'missing Debian copyright source'
+assert_contains scripts/build-deb.sh \
+    '"$REPO_DIR/packaging/linux/debian-copyright" "$PKG_ROOT/usr/share/doc/$PACKAGE_NAME/copyright"'
+assert_contains scripts/lib/package-common.sh \
+    'cp "$REPO_DIR/packaging/linux/debian-copyright" "$update_builder_root/packaging/linux/debian-copyright"'
+python3 - "$REPO_DIR/packaging/linux/debian-copyright" <<'PY'
+from pathlib import Path
+import sys
+
+
+def parse_stanza(raw):
+    fields = {}
+    current = None
+    for line in raw.splitlines():
+        if line.startswith((" ", "\t")):
+            if current is None:
+                raise SystemExit("Debian copyright has an orphan continuation line")
+            fields[current] += "\n" + line[1:]
+            continue
+        name, separator, value = line.partition(":")
+        if not separator or not name:
+            raise SystemExit(f"Invalid Debian copyright field: {line}")
+        current = name
+        fields[current] = value.lstrip()
+    return fields
+
+
+stanzas = [parse_stanza(raw) for raw in Path(sys.argv[1]).read_text(encoding="utf-8").strip().split("\n\n")]
+header = stanzas[0]
+if header.get("License") != "MIT and LicenseRef-OpenAI-Proprietary":
+    raise SystemExit("Debian copyright header must summarize the mixed binary package license")
+if "not part of the Debian distribution" not in header.get("Disclaimer", ""):
+    raise SystemExit("Debian copyright header must carry the non-free disclaimer")
+files_stanzas = [stanza for stanza in stanzas[1:] if "Files" in stanza]
+if len(files_stanzas) != 1 or files_stanzas[0].get("Files") != "*":
+    raise SystemExit("Debian copyright must have one repository source Files stanza")
+if files_stanzas[0].get("License") != "MIT":
+    raise SystemExit("Repository source Files stanza must remain MIT-only")
+if "OpenAI" in files_stanzas[0].get("Copyright", ""):
+    raise SystemExit("Repository source Files stanza must not attribute the fetched app bundle")
+license_names = {
+    stanza.get("License", "").splitlines()[0]
+    for stanza in stanzas[1:]
+    if "Files" not in stanza and "License" in stanza
+}
+if license_names != {"MIT", "LicenseRef-OpenAI-Proprietary"}:
+    raise SystemExit("Debian copyright must define both standalone license texts")
+PY
 
 assert_contains packaging/linux/control 'Provides: codex-app, codex-desktop'
 assert_contains packaging/linux/control 'Conflicts: codex-app, codex-desktop'

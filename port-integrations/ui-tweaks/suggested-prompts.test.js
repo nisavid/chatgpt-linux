@@ -55,9 +55,18 @@ function appPageFixture() {
 function mainFixture() {
   return [
     "function Or(e){return br().ambientSuggestions&&e.getEffective(n.Wi.enabled.key)===!0}",
-    "async function kr({appServerConnection:e,settingsStore:t}){let{ambientSuggestionsStaleTimeMs:n}=br();",
+    "async function kr({appServerConnection:e,settingsStore:t}){let{ambientSuggestionsFeatureDiscovery:o,ambientSuggestionsStaleTimeMs:n,computerUse:i}=br();",
     "if(!Or(t)||n==null)return{enabled:!1};let{account:r}=await e.getAccount();",
-    "return ie(r)?{enabled:!0,staleTimeMs:n}:{enabled:!1}}",
+    "return ie(r)?{enabled:!0,computerUseAvailable:i,featureDiscoveryEnabled:o,staleTimeMs:n}:{enabled:!1}}",
+  ].join("");
+}
+
+function latestMainFixture() {
+  return [
+    "function Ar(e){return Tr().ambientSuggestions&&e.getEffective(n.Zi.enabled.key)===!0}",
+    "async function Mr({appServerConnection:e,settingsStore:t}){let{ambientSuggestionsFeatureDiscovery:n,ambientSuggestionsStaleTimeMs:r,computerUse:i}=Tr();",
+    "if(!Ar(t)||r==null)return{enabled:!1};let{account:a}=await e.getAccount();",
+    "return re(a)?{enabled:!0,computerUseAvailable:i,featureDiscoveryEnabled:n,staleTimeMs:r}:{enabled:!1}}",
   ].join("");
 }
 
@@ -67,9 +76,19 @@ function homeContentFixture() {
     "let Ee=d(b.enabled)===!0,De=a(jn),Oe=a(fn),Me=i&&l!=null,",
     "Ne=De==null&&Me&&Ee,{data:Pe,isLoading:Fe}=rr({enabled:Ne}),",
     "ze=Ne&&(Fe||Le&&P)?null:ir({debugOverride:De,experimentEligible:Le,personalized:Re}),",
-    "z=ze===`curated`,Be=ln(ye.email),Ve=ar({canUsePersonalizedSuggestions:Ee,",
+    "z=ze===`curated`,Be;t[48]===ye.email?Be=t[49]:(Be=ln(ye.email),t[48]=ye.email,t[49]=Be);Ve=ar({canUsePersonalizedSuggestions:Ee,",
     "generatedSuggestionsEnabled:Me,hasGeneratedSuggestionsReadSettled:x,",
     "shouldUseCuratedNewChatPageSuggestions:z});return Ve}",
+  ].join("");
+}
+
+function latestHomeContentFixture() {
+  return [
+    "function home(){let Ct=s&&(_||p!=null),wt=!_&&I==null&&Ct&&E,Tt={accountId:T.accountId,enabled:wt,hostId:c};",
+    "let{data:Et,isLoading:Dt}=we(Tt),Ot=Ut(`452956359`),kt=wt&&Et===!0,At;",
+    "if(cacheMiss){let e=kt&&!P&&Ot.get(`personalized`,!1);At=_?`generated`:wt&&(Dt||kt&&P)?null:ze({debugOverride:I,experimentEligible:kt,personalized:e}),memoize(At)}else At=readMemo();",
+    "let L=At===`curated`,jt;t[48]===T.email?jt=t[49]:(jt=fe(T.email),t[48]=T.email,t[49]=jt);",
+    "let Mt=jt,Pt=ee({canUsePersonalizedSuggestions:E,generatedSuggestionsEnabled:Ct,hasGeneratedSuggestionsReadSettled:me,shouldUseCuratedNewChatPageSuggestions:L});return Pt}",
   ].join("");
 }
 
@@ -140,6 +159,18 @@ test("main patch preserves the user setting gate and upstream account eligibilit
   assert.equal(applySuggestedPromptsMainPatch(patched), patched);
 });
 
+test("main patch preserves the 26.810 eligibility result fields", () => {
+  const source = latestMainFixture();
+  const patched = applySuggestedPromptsMainPatch(source);
+
+  assert.notEqual(patched, source);
+  assert.match(patched, /re\(a\)&&function chatgptLinuxUiTweaksSuggestedPromptsMainEnabled/);
+  assert.match(patched, /computerUseAvailable:i/);
+  assert.match(patched, /featureDiscoveryEnabled:n/);
+  assert.match(patched, /staleTimeMs:r/);
+  assert.equal(applySuggestedPromptsMainPatch(patched), patched);
+});
+
 test("Home content keeps the user setting in its generated-suggestion conjunction", () => {
   const source = homeContentFixture();
   const patched = applySuggestedPromptsHomeContentPatch(source);
@@ -150,6 +181,17 @@ test("Home content keeps the user setting in its generated-suggestion conjunctio
   assert.equal((patched.match(new RegExp(HOME_CONTENT_SOURCE_MARKER, "g")) || []).length, 1);
   assert.match(patched, /ze===`curated`/);
   assert.match(patched, /function chatgptLinuxSuggestedPromptsGeneratedSource\(\)\{return!0\}/);
+  assert.equal(applySuggestedPromptsHomeContentPatch(patched), patched);
+});
+
+test("Home content marks the 26.810 memoized generated-source selection", () => {
+  const source = latestHomeContentFixture();
+  const patched = applySuggestedPromptsHomeContentPatch(source);
+
+  assert.notEqual(patched, source);
+  assert.match(patched, /L=At===`curated`/);
+  assert.match(patched, /function chatgptLinuxSuggestedPromptsGeneratedSource\(\)\{return!0\}/);
+  assert.match(patched, /generatedSuggestionsEnabled:Ct/);
   assert.equal(applySuggestedPromptsHomeContentPatch(patched), patched);
 });
 
