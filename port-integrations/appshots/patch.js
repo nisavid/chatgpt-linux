@@ -15,60 +15,21 @@ function warn(message, patchName) {
 }
 
 function applyLinuxAppshotAvailabilityPatch(currentSource) {
-  const normalizedGatePattern =
-    /return \([A-Za-z_$][\w$]*===`linux`\|\|[A-Za-z_$][\w$]*===`macOS`\)&&[A-Za-z_$][\w$]*/;
-  const legacyLinuxGatePattern =
-    /return ([A-Za-z_$][\w$]*)===`linux`\|\|\1===`macOS`&&([A-Za-z_$][\w$]*)/;
-  const legacyMacGatePattern = /return ([A-Za-z_$][\w$]*)===`macOS`&&([A-Za-z_$][\w$]*)/;
-  const normalizedCurrentGate =
-    currentSource.includes("!==`linux`&&(") && currentSource.includes("!==`macOS`||");
-  const hasNormalizedGate = normalizedGatePattern.test(currentSource);
-  const hasLegacyGate =
-    legacyLinuxGatePattern.test(currentSource) || legacyMacGatePattern.test(currentSource);
-
-  if (
-    (currentSource.includes("chatgptLinuxAppshotsPlatformAvailable") && !hasLegacyGate) ||
-    ((hasNormalizedGate || normalizedCurrentGate) && !hasLegacyGate)
-  ) {
+  const patchedGatePattern =
+    /function [A-Za-z_$][\w$]*\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{return \1===`linux`\|\|\1===`macOS`\|\|\1===`windows`&&\2!=null&&[A-Za-z_$][\w$]*\.isInternal\(\2\)\}/;
+  if (patchedGatePattern.test(currentSource)) {
     return currentSource;
   }
 
-  let changed = false;
-  let needsPlatformHelper = false;
-  let patchedSource = currentSource.replace(
-    /async function ([A-Za-z_$][\w$]*)\(\{hostId:([A-Za-z_$][\w$]*),queryClient:([A-Za-z_$][\w$]*),scope:([A-Za-z_$][\w$]*)\}\)\{return \4\.get\(([A-Za-z_$][\w$]*)\)!==`macOS`\|\|!([A-Za-z_$][\w$]*)\(\4,`1304276663`\)\?!1:/g,
-    (match, functionName, hostIdVar, queryClientVar, scopeVar, platformAtomVar, flagGetFn) => {
-      changed = true;
-      needsPlatformHelper = true;
-      return `async function ${functionName}({hostId:${hostIdVar},queryClient:${queryClientVar},scope:${scopeVar}}){return !chatgptLinuxAppshotsPlatformAvailable(${scopeVar}.get(${platformAtomVar}))||!${flagGetFn}(${scopeVar},\`1304276663\`)?!1:`;
-    },
-  );
-  patchedSource = patchedSource.replace(
-    /if\(([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)!==`macOS`\|\|!([A-Za-z_$][\w$]*)\(([^)]*?)\)\)return!1;/g,
-    (match, platformGetFn, platformAtomVar, flagGetFn, flagArgs) => {
-      changed = true;
-      return `if(${platformGetFn}(${platformAtomVar})!==\`linux\`&&(${platformGetFn}(${platformAtomVar})!==\`macOS\`||!${flagGetFn}(${flagArgs})))return!1;`;
-    },
-  );
-  patchedSource = patchedSource.replace(
-    /return ([A-Za-z_$][\w$]*)===`linux`\|\|\1===`macOS`&&([A-Za-z_$][\w$]*)/g,
-    (match, platformVar, flagVar) => {
-      changed = true;
-      return `return (${platformVar}===\`linux\`||${platformVar}===\`macOS\`)&&${flagVar}`;
-    },
-  );
-  patchedSource = patchedSource.replace(
-    /return ([A-Za-z_$][\w$]*)===`macOS`&&([A-Za-z_$][\w$]*)/g,
-    (match, platformVar, flagVar) => {
-      changed = true;
-      return `return (${platformVar}===\`linux\`||${platformVar}===\`macOS\`)&&${flagVar}`;
-    },
-  );
-
-  if (changed) {
-    return needsPlatformHelper
-      ? `${patchedSource}function chatgptLinuxAppshotsPlatformAvailable(e){return e===\`macOS\`||e===\`linux\`}`
-      : patchedSource;
+  const currentGatePattern =
+    /function ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)\{return \2===`macOS`\|\|\2===`windows`&&\3!=null&&([A-Za-z_$][\w$]*)\.isInternal\(\3\)\}/g;
+  const matches = [...currentSource.matchAll(currentGatePattern)];
+  if (matches.length === 1) {
+    return currentSource.replace(
+      currentGatePattern,
+      (_match, functionName, platformVar, buildFlavorVar, buildFlavorModule) =>
+        `function ${functionName}(${platformVar},${buildFlavorVar}){return ${platformVar}===\`linux\`||${platformVar}===\`macOS\`||${platformVar}===\`windows\`&&${buildFlavorVar}!=null&&${buildFlavorModule}.isInternal(${buildFlavorVar})}`,
+    );
   }
 
   if (currentSource.includes("macOS") || currentSource.includes("appshot")) {
@@ -87,40 +48,38 @@ function applyLinuxAppshotMainProcessPatch(currentSource) {
     return currentSource;
   }
 
-  let patchedFrontmost = false;
-  let patchedCapture = false;
-  let patchedSource = currentSource.replace(
-    /"computer-use-frontmost-window":async\(\)=>process\.platform===`darwin`\?([A-Za-z_$][\w$]*)\(\):null/g,
-    (match, macFrontmostFn) => {
-      patchedFrontmost = true;
-      return `"computer-use-frontmost-window":async()=>process.platform===\`linux\`?chatgptLinuxAppshotFrontmostWindow():process.platform===\`darwin\`?${macFrontmostFn}():null`;
-    },
-  );
-
-  patchedSource = patchedSource.replace(
-    /"computer-use-start-capture":async\(\{animationDestination:([A-Za-z_$][\w$]*),bundleIdentifier:([A-Za-z_$][\w$]*),origin:([A-Za-z_$][\w$]*),requestId:([A-Za-z_$][\w$]*)\}\)=>\{if\(process\.platform!==`darwin`\|\|this\.requestComputerUseCaptureWorker==null\|\|this\.subscribeComputerUseCaptureWorkerEvent==null\)return null;/g,
-    (match, animationDestinationVar, bundleIdentifierVar, originVar, requestIdVar) => {
-      patchedCapture = true;
-      return `"computer-use-start-capture":async({animationDestination:${animationDestinationVar},bundleIdentifier:${bundleIdentifierVar},origin:${originVar},requestId:${requestIdVar}})=>{if(process.platform===\`linux\`)return chatgptLinuxAppshotStartCapture({origin:${originVar},requestId:${requestIdVar},bundleIdentifier:${bundleIdentifierVar},windowManager:this.windowManager});if(process.platform!==\`darwin\`||this.requestComputerUseCaptureWorker==null||this.subscribeComputerUseCaptureWorkerEvent==null)return null;`;
-    },
-  );
-
-  if (!patchedFrontmost || !patchedCapture) {
+  const frontmostPattern =
+    /"computer-use-frontmost-window":async\(\{origin:([A-Za-z_$][\w$]*),signal:([A-Za-z_$][\w$]*)\}\)=>process\.platform===`win32`\?([A-Za-z_$][\w$]*)\(\)\.appshotsEnabled\?this\.windowsCaptureNativeBridge\?\.getFrontmostWindow\(\1,\2\)\?\?null:null:process\.platform===`darwin`\?([A-Za-z_$][\w$]*)\(\):null/g;
+  const capturePattern =
+    /"computer-use-start-capture":async\(\{animationDestination:([A-Za-z_$][\w$]*),bundleIdentifier:([A-Za-z_$][\w$]*),origin:([A-Za-z_$][\w$]*),requestId:([A-Za-z_$][\w$]*),signal:([A-Za-z_$][\w$]*)\}\)=>\{if\(process\.platform!==`darwin`&&process\.platform!==`win32`\)return null;/g;
+  if (
+    [...currentSource.matchAll(frontmostPattern)].length !== 1 ||
+    [...currentSource.matchAll(capturePattern)].length !== 1
+  ) {
     if (currentSource.includes("computer-use-frontmost-window") || currentSource.includes("computer-use-start-capture")) {
       warn("Could not find AppShots main-process handlers", "Linux AppShots main-process patch");
     }
     return currentSource;
   }
 
+  let patchedSource = currentSource.replace(
+    frontmostPattern,
+    (_match, originVar, signalVar, appshotsStateFn, macFrontmostFn) =>
+      `"computer-use-frontmost-window":async({origin:${originVar},signal:${signalVar}})=>process.platform===\`linux\`?chatgptLinuxAppshotFrontmostWindow():process.platform===\`win32\`?${appshotsStateFn}().appshotsEnabled?this.windowsCaptureNativeBridge?.getFrontmostWindow(${originVar},${signalVar})??null:null:process.platform===\`darwin\`?${macFrontmostFn}():null`,
+  );
+  patchedSource = patchedSource.replace(
+    capturePattern,
+    (_match, animationDestinationVar, bundleIdentifierVar, originVar, requestIdVar, signalVar) =>
+      `"computer-use-start-capture":async({animationDestination:${animationDestinationVar},bundleIdentifier:${bundleIdentifierVar},origin:${originVar},requestId:${requestIdVar},signal:${signalVar}})=>{if(process.platform===\`linux\`)return chatgptLinuxAppshotStartCapture({origin:${originVar},requestId:${requestIdVar},bundleIdentifier:${bundleIdentifierVar},windowManager:this.windowManager});if(process.platform!==\`darwin\`&&process.platform!==\`win32\`)return null;`,
+  );
+
   return appendLinuxAppshotHelper(patchedSource);
 }
 
 function applyLinuxAppshotHotkeyPatch(currentSource) {
   const alreadyPatched = [
-    /this\.configuredHotkey=[A-Za-z_$][\w$]*===void 0\?\(process\.platform===`linux`\?null:[A-Za-z_$][\w$]*\):[A-Za-z_$][\w$]*/,
-    /supported:this\.enabled&&\(process\.platform===`darwin`\|\|process\.platform===`linux`\),configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null,linuxWayland:chatgptLinuxAppshotIsWayland\(\)/,
-    /if\(!this\.enabled\|\|process\.platform!==`darwin`&&process\.platform!==`linux`\)return\{success:!1,error:`Not supported\.`,state:this\.getState\(\)\}/,
-    /!this\.enabled\|\|process\.platform!==`darwin`&&process\.platform!==`linux`\|\|this\.configuredHotkey==null/,
+    /[A-Za-z_$][\w$]*===void 0\?this\.configuredHotkey=process\.platform===`linux`\?null:process\.platform===`win32`\?[A-Za-z_$][\w$]*:[A-Za-z_$][\w$]*:this\.configuredHotkey=[A-Za-z_$][\w$]*/,
+    /supported:this\.enabled&&\(process\.platform===`linux`\|\|process\.platform===`darwin`\|\|process\.platform===`win32`&&this\.windowsCaptureNativeBridge!=null&&!this\.windowsCaptureNativeBridgeFailed\),configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null,linuxWayland:chatgptLinuxAppshotIsWayland\(\)/,
     /return [A-Za-z_$][\w$]*\.length===1\?\([A-Za-z_$][\w$]*===`darwin`\|\|[A-Za-z_$][\w$]*===`linux`\)\?/,
     /return \([A-Za-z_$][\w$]*===`darwin`\|\|[A-Za-z_$][\w$]*===`linux`&&!chatgptLinuxAppshotIsWayland\(\)\)&&/,
     /if\(process\.platform!==`darwin`&&process\.platform!==`linux`\)return null/,
@@ -143,21 +102,13 @@ function applyLinuxAppshotHotkeyPatch(currentSource) {
   }
 
   replaceRequired(
-    /this\.configuredHotkey=([A-Za-z_$][\w$]*)===void 0\?([A-Za-z_$][\w$]*):\1/,
-    (match, storedVar, defaultHotkeyVar) =>
-      `this.configuredHotkey=${storedVar}===void 0?(process.platform===\`linux\`?null:${defaultHotkeyVar}):${storedVar}`,
+    /([A-Za-z_$][\w$]*)===void 0\?this\.configuredHotkey=process\.platform===`win32`\?([A-Za-z_$][\w$]*):([A-Za-z_$][\w$]*):this\.configuredHotkey=\1/,
+    (match, storedVar, windowsDefaultHotkeyVar, macDefaultHotkeyVar) =>
+      `${storedVar}===void 0?this.configuredHotkey=process.platform===\`linux\`?null:process.platform===\`win32\`?${windowsDefaultHotkeyVar}:${macDefaultHotkeyVar}:this.configuredHotkey=${storedVar}`,
   );
   replaceRequired(
-    /getState\(\)\{return\{supported:this\.enabled&&process\.platform===`darwin`,configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null\}\}/,
-    "getState(){return{supported:this.enabled&&(process.platform===`darwin`||process.platform===`linux`),configuredHotkey:this.configuredHotkey,isActive:this.registration!=null,linuxWayland:chatgptLinuxAppshotIsWayland()}}",
-  );
-  replaceRequired(
-    /if\(!this\.enabled\|\|process\.platform!==`darwin`\)return\{success:!1,error:`Not supported\.`,state:this\.getState\(\)\}/,
-    "if(!this.enabled||process.platform!==`darwin`&&process.platform!==`linux`)return{success:!1,error:`Not supported.`,state:this.getState()}",
-  );
-  replaceRequired(
-    /!this\.enabled\|\|process\.platform!==`darwin`\|\|this\.configuredHotkey==null/,
-    "!this.enabled||process.platform!==`darwin`&&process.platform!==`linux`||this.configuredHotkey==null",
+    /getState\(\)\{return\{supported:this\.enabled&&\(process\.platform===`darwin`\|\|process\.platform===`win32`&&this\.windowsCaptureNativeBridge!=null&&!this\.windowsCaptureNativeBridgeFailed\),configuredHotkey:this\.configuredHotkey,isActive:this\.registration!=null\}\}/,
+    "getState(){return{supported:this.enabled&&(process.platform===`linux`||process.platform===`darwin`||process.platform===`win32`&&this.windowsCaptureNativeBridge!=null&&!this.windowsCaptureNativeBridgeFailed),configuredHotkey:this.configuredHotkey,isActive:this.registration!=null,linuxWayland:chatgptLinuxAppshotIsWayland()}}",
   );
   replaceRequired(
     /return ([A-Za-z_$][\w$]*)\.length===1\?([A-Za-z_$][\w$]*)===`darwin`\?([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*),\2\)\?null:`This shortcut key is not supported\.`:`Choose a shortcut with Ctrl or Alt plus another key\.`:`Use Ctrl, Alt, or Command when combining with another key\.`/,
@@ -214,57 +165,57 @@ function applyLinuxAppshotSettingsHotkeyPatch(currentSource) {
     return currentSource;
   }
 
-  let optionsMatched = false;
-  let optionsVarName = null;
-  let patchedSource = currentSource.replace(
-    /((?:var\s+|,)([A-Za-z_$][\w$]*)=)(\[\{hotkey:`DoubleCommand`,label:`[^`]+`\},\{hotkey:`DoubleOption`,label:`[^`]+`\},\{hotkey:`DoubleShift`,label:`[^`]+`\}\])(?=[,;)}])/,
-    (match, declarationPrefix, optionsVar, macOptions) => {
-      optionsMatched = true;
-      optionsVarName = optionsVar;
-      return `${declarationPrefix}${macOptions}`;
-    },
-  );
-
-  let patchedFind = false;
-  let patchedMap = false;
-  if (optionsMatched && optionsVarName != null) {
-    const findResult = replaceIdentifierCall(
-      patchedSource,
-      optionsVarName,
-      "find",
-      `chatgptLinuxAppshotHotkeyOptions(${stateDataVar}).find(`,
-    );
-    patchedSource = findResult.source;
-    patchedFind = findResult.count > 0;
-    const mapResult = replaceIdentifierCall(
-      patchedSource,
-      optionsVarName,
-      "map",
-      `chatgptLinuxAppshotHotkeyOptions(${stateDataVar}).map(`,
-    );
-    patchedSource = mapResult.source;
-    patchedMap = mapResult.count > 0;
-  }
-
-  if (optionsMatched && patchedFind && patchedMap) {
-    const helper =
-      `function chatgptLinuxAppshotHotkeyOptions(e){return typeof navigator!=\`undefined\`&&navigator.userAgent.includes(\`Linux\`)?e?.linuxWayland?${linuxWaylandOptions}:${linuxX11Options}:${optionsVarName}}`;
-    const sourceMapIndex = patchedSource.lastIndexOf("\n//# sourceMappingURL=");
-    if (sourceMapIndex >= 0) {
-      return `${patchedSource.slice(0, sourceMapIndex)};${helper}${patchedSource.slice(sourceMapIndex)}`;
+  const optionsPattern =
+    /((?:var\s+|,)([A-Za-z_$][\w$]*)=)(\[\{hotkey:`DoubleCommand`,label:`[^`]+`\},\{hotkey:`DoubleOption`,label:`[^`]+`\},\{hotkey:`DoubleShift`,label:`[^`]+`\}\])(?=[,;)}])/g;
+  const optionsMatches = [...currentSource.matchAll(optionsPattern)];
+  if (optionsMatches.length !== 1) {
+    if (currentSource.includes("appshot-hotkey-state") || currentSource.includes("DoubleCommand")) {
+      warn("Could not find AppShots settings hotkey options", "Linux AppShots settings patch");
     }
-    return `${patchedSource}\n;${helper}`;
+    return currentSource;
   }
 
-  if (optionsMatched) {
+  const optionsVarName = optionsMatches[0][2];
+  const selectionPattern = new RegExp(
+    `let ([A-Za-z_$][\\w$]*)=([A-Za-z_$][\\w$]*)===\`windows\`\\?(\\[\\{hotkey:\`DoubleAlt\`,label:[^{}]+\\},\\{hotkey:\`DoubleShift\`,label:[^{}]+\\}\\]):${optionsVarName},([A-Za-z_$][\\w$]*)=\\1\\.find\\(`,
+    "g",
+  );
+  const selectionMatches = [...currentSource.matchAll(selectionPattern)];
+  if (selectionMatches.length !== 1) {
     warn("Could not find both AppShots settings hotkey option call sites", "Linux AppShots settings patch");
     return currentSource;
   }
 
-  if (currentSource.includes("appshot-hotkey-state") || currentSource.includes("DoubleCommand")) {
-    warn("Could not find AppShots settings hotkey options", "Linux AppShots settings patch");
+  const [, optionsLocalVar, platformVar, windowsOptions, selectedOptionVar] =
+    selectionMatches[0];
+  const findCount = replaceIdentifierCall(
+    currentSource,
+    optionsLocalVar,
+    "find",
+    `${optionsLocalVar}.find(`,
+  ).count;
+  const mapCount = replaceIdentifierCall(
+    currentSource,
+    optionsLocalVar,
+    "map",
+    `${optionsLocalVar}.map(`,
+  ).count;
+  if (findCount !== 1 || mapCount !== 1) {
+    warn("Could not find both AppShots settings hotkey option call sites", "Linux AppShots settings patch");
+    return currentSource;
   }
-  return currentSource;
+
+  const patchedSource = currentSource.replace(
+    selectionPattern,
+    `let ${optionsLocalVar}=chatgptLinuxAppshotHotkeyOptions(${stateDataVar},${platformVar},${windowsOptions}),${selectedOptionVar}=${optionsLocalVar}.find(`,
+  );
+  const helper =
+    `function chatgptLinuxAppshotHotkeyOptions(e,t,n){return typeof navigator!=\`undefined\`&&navigator.userAgent.includes(\`Linux\`)?e?.linuxWayland?${linuxWaylandOptions}:${linuxX11Options}:t===\`windows\`?n:${optionsVarName}}`;
+  const sourceMapIndex = patchedSource.lastIndexOf("\n//# sourceMappingURL=");
+  if (sourceMapIndex >= 0) {
+    return `${patchedSource.slice(0, sourceMapIndex)};${helper}${patchedSource.slice(sourceMapIndex)}`;
+  }
+  return `${patchedSource}\n;${helper}`;
 }
 
 function linuxAppshotWaylandHelperSource() {

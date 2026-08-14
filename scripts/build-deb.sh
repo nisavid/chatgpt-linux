@@ -8,6 +8,7 @@ APP_DIR="${APP_DIR_OVERRIDE:-$REPO_DIR/chatgpt}"
 PKG_ROOT="${PKG_ROOT_OVERRIDE:-$REPO_DIR/dist/deb-root}"
 DIST_DIR="${DIST_DIR_OVERRIDE:-$REPO_DIR/dist}"
 CONTROL_TEMPLATE="$REPO_DIR/packaging/linux/control"
+COPYRIGHT_SOURCE="$REPO_DIR/packaging/linux/debian-copyright"
 DESKTOP_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt.desktop"
 SERVICE_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater.service"
 USER_SERVICE_HELPER_TEMPLATE="$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh"
@@ -48,6 +49,7 @@ main() {
 
     ensure_app_layout
     ensure_file_exists "$CONTROL_TEMPLATE" "control template"
+    ensure_file_exists "$COPYRIGHT_SOURCE" "Debian copyright source"
     ensure_file_exists "$DESKTOP_TEMPLATE" "desktop template"
     ensure_file_exists "$ICON_SOURCE" "icon"
     ensure_file_exists "$PACKAGED_RUNTIME_SOURCE" "packaged launcher runtime helper"
@@ -77,6 +79,8 @@ main() {
         "$PKG_ROOT/DEBIAN" \
         "$PKG_ROOT/opt"
 
+    install -Dm0644 \
+        "$REPO_DIR/packaging/linux/debian-copyright" "$PKG_ROOT/usr/share/doc/$PACKAGE_NAME/copyright"
     stage_native_package_payload "$PKG_ROOT" "deb"
 
     local deb_depends

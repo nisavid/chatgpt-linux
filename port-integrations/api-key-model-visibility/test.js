@@ -34,20 +34,20 @@ function applyPatchTwice(patchFn, source) {
 
 function modelCatalogFixture() {
   return [
-    "function Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:i}){return e?.has(r.model)===!0||(i&&t!==`amazonBedrock`?n.has(r.model):!r.hidden)}",
-    "function vbe({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,models:o,useHiddenModels:s}){let c=[],l=null;return o.forEach(r=>{if(Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:s})){c.push(r),r.isDefault&&(l=r)}}),l??=c.find(e=>e.model===r)??null,{models:c,defaultModel:l}}",
+    "function ati({additionalAvailableModels:e,authMethod:t,availableModels:n,isCustomModelProvider:r,model:i,useHiddenModels:a}){return e?.has(i.model)===!0||i.model!==`codex-auto-review`&&(a&&!r&&t!==`amazonBedrock`?n.has(i.model):!i.hidden)}",
+    "function iti({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,isCustomModelProvider:o=!1,models:s,useHiddenModels:c}){let l=[],u=null;return s.forEach(r=>{if(ati({additionalAvailableModels:e,authMethod:t,availableModels:n,isCustomModelProvider:o,model:r,useHiddenModels:c})){l.push(r),r.isDefault&&(u=r)}}),u??=l.find(e=>e.model===r)??null,{models:l,defaultModel:u}}",
   ].join("");
 }
 
 function serviceTierCompatibleFixture() {
   return [
-    "function Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:i}){return e?.has(r.model)===!0||(i&&t!==`amazonBedrock`?n.has(r.model):!r.hidden)}",
-    "function vbe({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,models:o,useHiddenModels:s}){let c=[],l=null,u=o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),d=a&&o.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return o.forEach(r=>{if(Kxr({additionalAvailableModels:e,authMethod:t,availableModels:n,model:r,useHiddenModels:s})){let n=a?r.supportedReasoningEfforts:r.supportedReasoningEfforts.filter(({reasoningEffort:e})=>e!==`ultra`),o=(t===`copilot`?[n.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:n).filter(({reasoningEffort:e})=>Gx(e)&&i.has(e)),s={...r,supportedReasoningEfforts:o};c.push(s),r.isDefault&&(l=s)}}),l??=c.find(e=>e.model===r)??null,{models:c,defaultModel:l}}",
+    "function ati({additionalAvailableModels:e,authMethod:t,availableModels:n,isCustomModelProvider:r,model:i,useHiddenModels:a}){return e?.has(i.model)===!0||i.model!==`codex-auto-review`&&(a&&!r&&t!==`amazonBedrock`?n.has(i.model):!i.hidden)}",
+    "function iti({additionalAvailableModels:e,authMethod:t,availableModels:n,defaultModel:r,enabledReasoningEfforts:i,includeUltraReasoningEffort:a,isCustomModelProvider:o=!1,models:s,useHiddenModels:c}){let l=[],u=null,d=s.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`max`)),f=a&&s.some(e=>e.supportedReasoningEfforts.some(({reasoningEffort:e})=>e===`ultra`));return s.forEach(r=>{if(ati({additionalAvailableModels:e,authMethod:t,availableModels:n,isCustomModelProvider:o,model:r,useHiddenModels:c})){let e=a?r.supportedReasoningEfforts:r.supportedReasoningEfforts.filter(({reasoningEffort:e})=>e!==`ultra`),n=(t===`copilot`?[e.find(e=>e.reasoningEffort===`medium`)??{reasoningEffort:`medium`,description:`medium effort`}]:e).filter(({reasoningEffort:e})=>Gx(e)&&i.has(e)),o={...r,supportedReasoningEfforts:n};l.push(o),r.isDefault&&(u=o)}}),u??=l.find(e=>e.model===r)??null,{models:l,defaultModel:u}}",
   ].join("");
 }
 
 function evaluateCatalog(source, authMethod, useHiddenModels = true, additionalAvailableModels) {
-  const catalog = Function(`${source};return vbe;`)();
+  const catalog = Function(`${source};return iti;`)();
   return catalog({
     additionalAvailableModels,
     authMethod,
@@ -55,6 +55,7 @@ function evaluateCatalog(source, authMethod, useHiddenModels = true, additionalA
     defaultModel: "gpt-5.5",
     enabledReasoningEfforts: new Set(),
     includeUltraReasoningEffort: true,
+    isCustomModelProvider: false,
     models: [
       { model: "gpt-5.6-sol", hidden: false, isDefault: true },
       { model: "gpt-5.6-terra", hidden: false, isDefault: false },
@@ -248,8 +249,8 @@ test("model visibility composes with provider-authoritative API key service tier
 
 test("extended upstream model gates fail soft instead of patching mid-expression", () => {
   const source = modelCatalogFixture().replace(
-    "i&&t!==`amazonBedrock`?",
-    "i&&t!==`amazonBedrock`&&featureGate?",
+    "a&&!r&&t!==`amazonBedrock`?",
+    "a&&!r&&t!==`amazonBedrock`&&featureGate?",
   );
 
   assert.equal(applyApiKeyModelVisibilityPatch(source), source);

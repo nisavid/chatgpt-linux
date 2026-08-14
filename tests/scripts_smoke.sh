@@ -779,6 +779,25 @@ SCRIPT
         "scripts/lib/parcel-watcher-target.js"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/Cargo.toml"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/CHANGELOG.md"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/LICENSE"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/LICENSE" \
+        "Permission is hereby granted"
+    assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/OPENAI-NOTICE"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/OPENAI-NOTICE" \
+        "LicenseRef-OpenAI-Proprietary"
+    assert_file_exists \
+        "$pkg_root/usr/lib/chatgpt/update-builder/packaging/linux/debian-copyright"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "LICENSE"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "OPENAI-NOTICE"
+    assert_contains \
+        "$pkg_root/usr/lib/chatgpt/update-builder/.chatgpt-linux/update-builder-manifest.txt" \
+        "packaging/linux/debian-copyright"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/launcher/cli-launch-path.py"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/computer-use-linux/Cargo.toml"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/notification-actions-linux/Cargo.toml"
@@ -798,6 +817,22 @@ SCRIPT
     assert_file_exists "$pkg_root/opt/chatgpt/.chatgpt-linux/chatgpt-desktop-entry-doctor.sh"
     assert_file_exists "$pkg_root/usr/lib/chatgpt/update-builder/packaging/linux/chatgpt-desktop-entry-doctor.sh"
     assert_file_exists "$pkg_root/opt/chatgpt/resources/node-runtime/bin/node"
+    assert_file_exists "$pkg_root/usr/share/licenses/chatgpt/LICENSE"
+    assert_contains \
+        "$pkg_root/usr/share/licenses/chatgpt/LICENSE" \
+        "Permission is hereby granted"
+    assert_file_exists "$pkg_root/usr/share/licenses/chatgpt/OPENAI-NOTICE"
+    assert_contains \
+        "$pkg_root/usr/share/licenses/chatgpt/OPENAI-NOTICE" \
+        "LicenseRef-OpenAI-Proprietary"
+    assert_file_exists "$pkg_root/usr/share/doc/chatgpt/copyright"
+    assert_contains \
+        "$pkg_root/usr/share/doc/chatgpt/copyright" \
+        "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
+    assert_contains "$pkg_root/usr/share/doc/chatgpt/copyright" "License: MIT"
+    assert_contains \
+        "$pkg_root/usr/share/doc/chatgpt/copyright" \
+        "License: LicenseRef-OpenAI-Proprietary"
     assert_contains "$pkg_root/DEBIAN/control" "libgtk-3-0t64 | libgtk-3-0"
     assert_not_contains "$pkg_root/DEBIAN/control" "libgtk-3.0-0"
 }
@@ -1613,6 +1648,14 @@ SCRIPT
     assert_file_exists "$capture_dir/AppDir/opt/chatgpt/.chatgpt-linux/chatgpt-packaged-runtime.sh"
     assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/node-runtime/bin/node"
     assert_file_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/preserve.txt"
+    assert_file_exists "$capture_dir/AppDir/usr/share/licenses/chatgpt/LICENSE"
+    assert_contains \
+        "$capture_dir/AppDir/usr/share/licenses/chatgpt/LICENSE" \
+        "Permission is hereby granted"
+    assert_file_exists "$capture_dir/AppDir/usr/share/licenses/chatgpt/OPENAI-NOTICE"
+    assert_contains \
+        "$capture_dir/AppDir/usr/share/licenses/chatgpt/OPENAI-NOTICE" \
+        "LicenseRef-OpenAI-Proprietary"
     assert_mode "$capture_dir/AppDir/opt/chatgpt" "755"
     assert_mode "$capture_dir/AppDir/opt/chatgpt/resources" "755"
     assert_file_not_exists "$capture_dir/AppDir/opt/chatgpt/resources/codex-cli/bin/codex"
@@ -10068,10 +10111,9 @@ test_linux_tray_patch_smoke() {
     mkdir -p "$workspace"
     bundle_body="$(cat <<'JS'
 const x={o:e=>e};let s=require(`node:url`),n=require(`electron`);n=x.o(n);let l=require(`node:os`);l=x.o(l);let i=require(`node:path`);i=x.o(i);let d=require(`node:util`),q=require(`node:crypto`),a=require(`node:fs`);a=x.o(a);
-async function gj(e){let t=e;if(typeof t.whenReady!=`function`)return process.platform!==`linux`;try{return await t.whenReady(),!0}catch{return!1}}function _j(e){let t=e;return typeof t.isReady==`function`?t.isReady():process.platform!==`linux`}
 async function fae(e){let t=await pae(e.buildFlavor,e.appBrand,e.repoRoot),r=new n.Tray(t.defaultIcon);r.setToolTip(n.app.getName());let i=new pb(r);return!await i.waitForReady()?(i.destroy(),null):i}
 async function pae(e,t,r){if(process.platform===`darwin`)return null;if(process.platform===`linux`){let a=`${fv(e,t)}.png`,o=n.nativeImage.createFromPath(n.app.isPackaged?(0,i.join)(process.resourcesPath,a):(0,i.join)(r,`electron`,`src`,`icons`,a));if(o.isEmpty())throw Error(`Linux tray application icon is unavailable`);return{defaultIcon:o.resize({width:V9,height:V9,quality:`best`}),chronicleRunningIcon:null}}return null}
-var pb=class{trayMenuThreads={runningThreads:[],unreadThreads:[],pinnedThreads:[],recentThreads:[],usageLimits:[]};constructor(e={on(){},setContextMenu(){}}){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return _j(this.tray)}waitForReady(){return gj(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(n.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}};
+var pb=class{trayMenuThreads={runningThreads:[],unreadThreads:[],pinnedThreads:[],recentThreads:[],usageLimits:[]};constructor(e={on(){},setContextMenu(){}}){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return r.S(this.tray)}waitForReady(){return r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(n.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}};
 v&&k.on(`close`,e=>{this.persistPrimaryWindowBounds(k);let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}if(process.platform===`darwin`&&!this.isAppQuitting&&!t){e.preventDefault(),k.hide()}});
 let oe=async()=>{try{await fae({appBrand:a.U(),buildFlavor:b,repoRoot:j.repoRoot})}catch(e){v.reportNonFatal(e)}};(E||process.platform===`linux`)&&oe();
 JS
@@ -10081,8 +10123,8 @@ JS
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_contains "$extracted/.vite/build/main-test.js" '(process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())'
     assert_contains "$extracted/.vite/build/main-test.js" 'r=chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0'
-    assert_contains "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0'
+    assert_contains "$extracted/.vite/build/main-test.js" 'isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon.*app-test.png'
     assert_contains "$extracted/.vite/build/main-test.js" 'if(o.isEmpty()&&process.platform===`linux`)o=n.nativeImage.createFromPath'
     assert_contains "$extracted/.vite/build/main-test.js" 'updatePersistentTrayMenu(){process.platform===`linux`'
@@ -10180,8 +10222,8 @@ NODE
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" '!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())' '1'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray=e=>(chatgptLinuxTray=e,e)'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxDestroyTray=()=>{if(process.platform!==`linux`)return;'

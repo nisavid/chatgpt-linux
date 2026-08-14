@@ -124,10 +124,10 @@ integration descriptor to appear exactly once in this table.
 
 Remote SSH behavior is nested inside the shared settings descriptor rather than
 registered as a separate descriptor. `applyLinuxRemoteControlSshInstallActionPatch`
-keeps the install action visible, and
-`applyLinuxRemoteControlSshInstallReleasePatch` selects the requested Codex
-release for install or update. Both remain `remote-ssh` responsibilities;
-neither function enables remote-control on the SSH host.
+keeps the install action visible. It remains a `remote-ssh` responsibility and
+does not enable remote-control on the SSH host. The current official app owns
+release selection for `install-remote-codex`; the integration sends its native
+host-only request shape unchanged.
 
 Integration-owned surfaces outside the descriptor array are also topology-scoped:
 
@@ -138,7 +138,6 @@ Integration-owned surfaces outside the descriptor array are also topology-scoped
 | `applyLinuxRemoteMobileChromeBridgePatch` | `mobile-host` | Keeps local Browser Use available to an authorized mobile-controlled session. |
 | Nix `chatgpt-remote-control.service` | `mobile-host` | Replaces the mutable standalone fallback with one declarative local app-server owner. |
 | `applyLinuxRemoteControlSshInstallActionPatch` | `remote-ssh` | Keeps the existing Remote SSH install action available. |
-| `applyLinuxRemoteControlSshInstallReleasePatch` | `remote-ssh` | Sends an explicit Codex release only to the Remote SSH install/update action. |
 
 The main RPC boundaries are:
 
@@ -151,7 +150,7 @@ The main RPC boundaries are:
 - shared host routing: `set-experimental-feature-enablement-for-host`,
   `refresh-remote-connections`, and `get-global-state` for the local
   installation identity used by auto-connect;
-- Remote SSH: the existing `install-codex` action and its release parameter.
+- Remote SSH: the existing `install-codex` action and host-only install request.
 
 Remote mobile daemon requirement:
 

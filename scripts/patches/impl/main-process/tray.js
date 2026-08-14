@@ -99,33 +99,26 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     );
   }
 
-  const trayWhenReadyFallbackPattern =
-    /if\(typeof ([A-Za-z_$][\w$]*)\.whenReady!=`function`\)return process\.platform!==`linux`;try\{return await \1\.whenReady\(\),!0\}catch\{return!1\}/;
-  const compatibleTrayWhenReadyPattern =
-    /if\(typeof ([A-Za-z_$][\w$]*)\.whenReady!=`function`\)return!0;try\{return await \1\.whenReady\(\),!0\}catch\{return!1\}/;
-  if (!compatibleTrayWhenReadyPattern.test(patchedSource)) {
-    if (!trayWhenReadyFallbackPattern.test(patchedSource)) {
-      console.warn("WARN: Could not find current Linux tray whenReady fallback — skipping Linux tray compatibility patch");
+  const providerPath = "[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*";
+  const trayReadinessWrapperPattern = new RegExp(
+    `isReady\\(\\)\\{return (${providerPath})\\(this\\.tray\\)\\}` +
+      `waitForReady\\(\\)\\{return (${providerPath})\\(this\\.tray\\)\\}`,
+  );
+  const compatibleTrayReadinessWrapperPattern = new RegExp(
+    `isReady\\(\\)\\{return process\\.platform===\`linux\`&&typeof this\\.tray\\.isReady!=\`function\`\\?!0:${providerPath}\\(this\\.tray\\)\\}` +
+      `waitForReady\\(\\)\\{return process\\.platform===\`linux\`&&typeof this\\.tray\\.whenReady!=\`function\`\\?Promise\\.resolve\\(!0\\):${providerPath}\\(this\\.tray\\)\\}`,
+  );
+  if (!compatibleTrayReadinessWrapperPattern.test(patchedSource)) {
+    const readinessMatch = patchedSource.match(trayReadinessWrapperPattern);
+    if (readinessMatch == null) {
+      console.warn("WARN: Could not find current Linux tray readiness wrappers — skipping Linux tray compatibility patch");
       return currentSource;
     }
+    const [, isReadyProvider, waitForReadyProvider] = readinessMatch;
     patchedSource = patchedSource.replace(
-      trayWhenReadyFallbackPattern,
-      "if(typeof $1.whenReady!=`function`)return!0;try{return await $1.whenReady(),!0}catch{return!1}",
-    );
-  }
-
-  const trayIsReadyFallbackPattern =
-    /return typeof ([A-Za-z_$][\w$]*)\.isReady==`function`\?\1\.isReady\(\):process\.platform!==`linux`/;
-  const compatibleTrayIsReadyPattern =
-    /return typeof ([A-Za-z_$][\w$]*)\.isReady==`function`\?\1\.isReady\(\):!0/;
-  if (!compatibleTrayIsReadyPattern.test(patchedSource)) {
-    if (!trayIsReadyFallbackPattern.test(patchedSource)) {
-      console.warn("WARN: Could not find current Linux tray isReady fallback — skipping Linux tray compatibility patch");
-      return currentSource;
-    }
-    patchedSource = patchedSource.replace(
-      trayIsReadyFallbackPattern,
-      "return typeof $1.isReady==`function`?$1.isReady():!0",
+      trayReadinessWrapperPattern,
+      `isReady(){return process.platform===\`linux\`&&typeof this.tray.isReady!=\`function\`?!0:${isReadyProvider}(this.tray)}` +
+        `waitForReady(){return process.platform===\`linux\`&&typeof this.tray.whenReady!=\`function\`?Promise.resolve(!0):${waitForReadyProvider}(this.tray)}`,
     );
   }
 

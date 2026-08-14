@@ -1,14 +1,14 @@
 "use strict";
 
 const currentGroupSorter =
-  "function O8o({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return A6i(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}";
+  "function TOn({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return sEn(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}";
 const patchedGroupSorter =
-  "function O8o({groups:e,items:t,projectOrder:n,sortMode:chatgptLinuxProjectSortMode}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return((chatgptLinuxRecencySortedGroups)=>chatgptLinuxProjectSortMode===`updated_at`?chatgptLinuxRecencySortedGroups:A6i(chatgptLinuxRecencySortedGroups,n))(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e))}";
+  "function TOn({groups:e,items:t,projectOrder:n,sortMode:chatgptLinuxProjectSortMode}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return((chatgptLinuxRecencySortedGroups)=>chatgptLinuxProjectSortMode===`updated_at`?chatgptLinuxRecencySortedGroups:sEn(chatgptLinuxRecencySortedGroups,n))(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e))}";
 
 const currentGroupSorterCall =
-  "N=O8o({groups:A,items:f,projectOrder:Dm(t,yu.PROJECT_ORDER)})";
+  "M=TOn({groups:k,items:f,projectOrder:Am(t,hu.PROJECT_ORDER)})";
 const patchedGroupSorterCall =
-  "N=O8o({groups:A,items:f,projectOrder:Dm(t,yu.PROJECT_ORDER),sortMode:M})";
+  "M=TOn({groups:k,items:f,projectOrder:Am(t,hu.PROJECT_ORDER),sortMode:j})";
 
 function countOccurrences(source, needle) {
   return source.split(needle).length - 1;

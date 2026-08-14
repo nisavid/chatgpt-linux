@@ -50,6 +50,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Official DMG compatibility now covers ChatGPT 26.810.41047 across core
+  window, tray, and Computer Use behavior plus AppShots, Global Dictation,
+  remote mobile control, Suggested Prompts, SSH command wrapping, Conversation
+  Mode, API-key model visibility, Copilot reasoning, and project sorting. The
+  updated patches preserve current Windows branches, OpenAI-hosted eligibility
+  gates, and the Linux revoke-before-write authority boundary.
+- Native, AppImage, and Nix packages now ship the repository MIT license and an
+  explicit OpenAI terms notice. Package metadata describes the combined
+  MIT-licensed community work and unfree official app instead of treating the
+  complete package as MIT-only.
 - App generation and updater rebuilds install the official app's exact
   `@parcel/watcher` dependency graph from a repository-approved offline archive
   set. Host selection allows only `linux-x64-glibc` on `x86_64`,

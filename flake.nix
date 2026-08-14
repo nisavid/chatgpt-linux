@@ -46,6 +46,9 @@
 
         pkgs = import nixpkgs {
           inherit system;
+          config.allowUnfreePredicate = pkg:
+            let packageName = nixpkgs.lib.getName pkg;
+            in packageName == "chatgpt" || nixpkgs.lib.hasPrefix "chatgpt-" packageName;
           overlays = [
             (_final: prev: {
               fetchurl = args:
@@ -131,10 +134,10 @@
 
         chatgptDmg = pkgs.fetchurl {
           url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg";
-          hash = "sha256-kfxLgJwnMLOeV9mtvGswxmnvB0yQDKKMY6HgtvpBJow=";
+          hash = "sha256-OlgOxGTLq7YoDGVig/wnaalvCNw+ItP9r/DDc0OWY/c=";
         };
 
-        chatgptVersion = "26.803.81509";
+        chatgptVersion = "26.810.41047";
         electronVersion = "42.3.0";
         electronPlatform =
           {
@@ -1266,6 +1269,10 @@ PY
 
             install -Dm0644 ${sourceRoot}/packaging/linux/chatgpt.desktop \
               "$out/share/applications/chatgpt.desktop"
+            install -Dm0644 ${sourceRoot}/LICENSE \
+              "$out/share/licenses/chatgpt/LICENSE"
+            install -Dm0644 ${sourceRoot}/packaging/OPENAI-NOTICE \
+              "$out/share/licenses/chatgpt/OPENAI-NOTICE"
             substituteInPlace "$out/share/applications/chatgpt.desktop" \
               --replace-fail "/usr/bin/chatgpt" "$out/bin/chatgpt" \
               --replace-fail "/usr/share/applications/chatgpt.desktop" "$out/share/applications/chatgpt.desktop"
@@ -1302,7 +1309,8 @@ PY
               else
                 "Unofficial ChatGPT for Linux community build with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.";
             homepage = "https://github.com/nisavid/codex-app-linux";
-            license = pkgs.lib.licenses.mit;
+            license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.unfree ];
+            sourceProvenance = [ pkgs.lib.sourceTypes.binaryNativeCode ];
             platforms = pkgs.lib.platforms.linux;
             mainProgram = "chatgpt";
           };

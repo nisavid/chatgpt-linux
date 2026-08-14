@@ -92,7 +92,7 @@ function applyCopilotReasoningEffortUiPatch(currentSource) {
     "(" + jsIdent + ")=(" + jsIdent + ")\\?\\.authMethod===`copilot`" +
       "([\\s\\S]{0,500}?),(" + jsIdent + ")=!(" + jsIdent + ")&&!\\1&&!0" +
       "(?=,[\\s\\S]{0,5000}?composer\\.increaseReasoningEffort" +
-      "[\\s\\S]{0,2500}?reasoningEffortDisabled:\\1)",
+      "[\\s\\S]{0,5000}?reasoningEffortDisabled:\\1)",
   );
   const currentComposerGateMatch = currentComposerGateRegex.exec(currentSource);
 

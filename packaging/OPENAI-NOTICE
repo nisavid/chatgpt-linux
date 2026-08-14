@@ -1,0 +1,23 @@
+OpenAI proprietary component terms notice
+
+License reference: LicenseRef-OpenAI-Proprietary
+
+This package combines MIT-licensed community packaging and integration code
+with an official OpenAI ChatGPT application bundle obtained separately during
+the build.
+
+The MIT License shipped with this package applies only to the repository source
+code and packaging work covered by that license. The official OpenAI
+application bundle is proprietary. This repository supplies no license to
+redistribute it and grants no rights in ChatGPT, Codex, OpenAI software, OpenAI
+marks, hosted services, or bundled assets.
+
+Use of OpenAI software and services remains subject to the applicable OpenAI
+terms, including:
+
+https://openai.com/policies/terms-of-use/
+https://openai.com/policies/service-terms/
+
+This notice documents the nonfree component represented in package metadata by
+LicenseRef-OpenAI-Proprietary. It is informational and does not grant or modify
+any rights.

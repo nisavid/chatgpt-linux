@@ -1074,6 +1074,10 @@ stage_common_package_files() {
         "$support_root" \
         "$root/usr/share/applications" \
         "$root/usr/share/icons/hicolor/256x256/apps"
+    install -Dm0644 \
+        "$REPO_DIR/LICENSE" "$root/usr/share/licenses/$PACKAGE_NAME/LICENSE"
+    install -Dm0644 \
+        "$REPO_DIR/packaging/OPENAI-NOTICE" "$root/usr/share/licenses/$PACKAGE_NAME/OPENAI-NOTICE"
     staged_receipt_root="$(cd "$root/opt" && pwd)/.chatgpt-generation-receipts"
 
     rm -rf "$app_root"
@@ -1202,6 +1206,9 @@ stage_update_builder_bundle() {
 
     cp "$REPO_DIR/install.sh" "$update_builder_root/install.sh"
     cp "$REPO_DIR/CHANGELOG.md" "$update_builder_root/CHANGELOG.md"
+    cp "$REPO_DIR/LICENSE" "$update_builder_root/LICENSE"
+    cp "$REPO_DIR/packaging/OPENAI-NOTICE" "$update_builder_root/OPENAI-NOTICE"
+    cp "$REPO_DIR/packaging/OPENAI-NOTICE" "$update_builder_root/packaging/OPENAI-NOTICE"
     cp "$REPO_DIR/launcher/start.sh.template" "$update_builder_root/launcher/start.sh.template"
     cp "$REPO_DIR/launcher/cli-launch-path.py" "$update_builder_root/launcher/cli-launch-path.py"
     cp "$REPO_DIR/launcher/webview-server.py" "$update_builder_root/launcher/webview-server.py"
@@ -1271,6 +1278,7 @@ stage_update_builder_bundle() {
     cp "$REPO_DIR/packaging/linux/chatgpt-updater-user-service.sh" \
         "$update_builder_root/packaging/linux/chatgpt-updater-user-service.sh"
     cp "$REPO_DIR/packaging/linux/PKGBUILD.template" "$update_builder_root/packaging/linux/PKGBUILD.template"
+    cp "$REPO_DIR/packaging/linux/debian-copyright" "$update_builder_root/packaging/linux/debian-copyright"
     cp "$REPO_DIR/packaging/linux/chatgpt.install" "$update_builder_root/packaging/linux/chatgpt.install"
     cp "$UPDATER_SERVICE_SOURCE" "$update_builder_root/packaging/linux/chatgpt-updater.service"
     cp "$REPO_DIR/packaging/linux/chatgpt-updater.postinst" "$update_builder_root/packaging/linux/chatgpt-updater.postinst"

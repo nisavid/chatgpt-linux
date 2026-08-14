@@ -22,7 +22,6 @@ const REMOTE_CONTROL_SETTINGS_UX_MARKER = "chatgptLinuxRemoteControlSettingsTabs
 const REMOTE_CONTROL_SETTINGS_TABS_HELPER =
   "function chatgptLinuxRemoteControlSettingsTabs(e){return e}";
 const REMOTE_CONTROL_SSH_INSTALL_ACTION_MARKER = "chatgptLinuxRemoteControlSshInstallActions";
-const REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER = "chatgptLinuxRemoteControlSshInstallRelease";
 const REMOTE_CONNECTIONS_REFRESH_MARKER = "chatgptLinuxRemoteConnectionsRefreshNow";
 const REMOTE_MOBILE_CHROME_BRIDGE_MARKER = "chatgptLinuxRemoteMobileBrowserBackends";
 const REMOTE_CONTROL_LOAD_GATE_MARKER = "chatgptLinuxRemoteControlLoadGateEnabled";
@@ -504,148 +503,8 @@ function applyLinuxRemoteControlSshInstallActionPatch(source) {
   );
 }
 
-function applyLinuxRemoteControlSshInstallReleasePatch(source) {
-  if (source.includes(REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER)) {
-    return source;
-  }
-  if (!source.includes("install-remote-codex") || !source.includes("install-codex")) {
-    return source;
-  }
-
-  const id = "[A-Za-z_$][\\w$]*";
-  const currentActionBuilderRegex = new RegExp(
-    `function (${id})\\(\\{action:(${id}),disabled:(${id}),hostId:(${id}),` +
-      `installCodexPending:(${id}),onAuthenticate:(${id}),onInstallCodex:(${id}),` +
-      `onReconnect:(${id}),onRestart:(${id})\\}\\)\\{if\\(\\2==null\\)return null;` +
-      `switch\\(\\2\\.kind\\)\\{case\\x60install-codex\\x60:return\\{disabled:\\3,label:\\2\\.label,` +
-      `loading:\\5,loadingLabel:\\2\\.loadingLabel,renderInElectronOnly:!0,` +
-      `tooltipText:\\2\\.tooltipText,onClick:\\(\\)=>\\7\\(\\4\\)\\}`,
-    "u",
-  );
-  const currentActionCallRegex = new RegExp(
-    `(${id})\\(\\{action:(${id})\\.action,disabled:(${id}),hostId:(${id})\\.hostId,` +
-      `installCodexPending:(${id}),onReconnect:(${id}),onRestart:(${id}),` +
-      `onAuthenticate:(${id}),onInstallCodex:(${id})\\}\\)`,
-    "u",
-  );
-  const currentLocalVersionRegex = new RegExp(
-    `\\{appServerVersion:(${id}),error:(${id}),installedCodexVersion:(${id}),state:(${id})\\}` +
-      `=(${id})\\((${id})\\.hostId\\),(${id})=\\6\\.displayName`,
-    "u",
-  );
-  const currentMutationRegex = new RegExp(
-    `(${id})=(${id})=>\\{(${id})\\.mutate\\(\\{hostId:\\2\\},` +
-      `\\{onSuccess:\\(\\{state:(${id}),error:(${id})\\}\\)=>\\{(${id})\\(\\2,\\4,\\5\\)\\}\\}\\)\\}`,
-    "u",
-  );
-  const currentActionBuilderMatch = source.match(currentActionBuilderRegex);
-  const currentActionCallMatch = source.match(currentActionCallRegex);
-  const currentLocalVersionMatch = source.match(currentLocalVersionRegex);
-  const currentMutationMatch = source.match(currentMutationRegex);
-  if (
-    currentActionBuilderMatch == null ||
-    currentActionCallMatch == null ||
-    currentLocalVersionMatch == null ||
-    currentMutationMatch == null
-  ) {
-    console.warn("WARN: Could not find remote-control SSH install release needles - skipping Linux install release patch");
-    return source;
-  }
-
-  const [
-    ,
-    builderFn,
-    actionVar,
-    disabledVar,
-    hostVar,
-    pendingVar,
-    authenticateVar,
-    installVar,
-    reconnectVar,
-    restartVar,
-  ] = currentActionBuilderMatch;
-  const actionBuilderReplacement =
-    `function ${builderFn}({action:${actionVar},disabled:${disabledVar},hostId:${hostVar},` +
-    `installCodexPending:${pendingVar},installCodexRelease:chatgptLinuxRemoteControlSshInstallReleaseTarget,` +
-    `onAuthenticate:${authenticateVar},onInstallCodex:${installVar},onReconnect:${reconnectVar},onRestart:${restartVar}}){` +
-    `if(${actionVar}==null)return null;switch(${actionVar}.kind){case\`install-codex\`:return{` +
-    `disabled:${disabledVar},label:${actionVar}.label,loading:${pendingVar},loadingLabel:${actionVar}.loadingLabel,` +
-    `renderInElectronOnly:!0,tooltipText:${actionVar}.tooltipText,` +
-    `onClick:()=>${installVar}(${hostVar},chatgptLinuxRemoteControlSshInstallReleaseTarget)}`;
-
-  const [
-    ,
-    actionFn,
-    connectionActionVar,
-    callDisabledVar,
-    connectionVar,
-    callPendingVar,
-    callReconnectVar,
-    callRestartVar,
-    callAuthenticateVar,
-    callInstallVar,
-  ] = currentActionCallMatch;
-  const actionCallReplacement =
-    `${actionFn}({action:${connectionActionVar}.action,disabled:${callDisabledVar},` +
-    `hostId:${connectionVar}.hostId,installCodexPending:${callPendingVar},` +
-    `installCodexRelease:${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(chatgptLinuxRemoteControlSshInstallError),` +
-    `onReconnect:${callReconnectVar},onRestart:${callRestartVar},` +
-    `onAuthenticate:${callAuthenticateVar},onInstallCodex:${callInstallVar}})`;
-
-  const [
-    ,
-    appServerVersionVar,
-    errorVar,
-    installedVersionVar,
-    stateVar,
-    connectionStateFn,
-    localConnectionVar,
-    displayNameVar,
-  ] = currentLocalVersionMatch;
-  const localVersionReplacement =
-    `{appServerVersion:${appServerVersionVar},error:${errorVar},` +
-    `installedCodexVersion:${installedVersionVar},state:${stateVar}}=` +
-    `${connectionStateFn}(${localConnectionVar}.hostId),` +
-    `{appServerVersion:chatgptLinuxRemoteControlSshInstallLocalVersion}=${connectionStateFn}(\`local\`),` +
-    `chatgptLinuxRemoteControlSshInstallError=${errorVar},` +
-    `${displayNameVar}=(chatgptLinuxRemoteControlSshInstallDefaultRelease=` +
-    `chatgptLinuxRemoteControlValidRelease(chatgptLinuxRemoteControlSshInstallLocalVersion)??` +
-    `chatgptLinuxRemoteControlSshInstallDefaultRelease,${localConnectionVar}.displayName)`;
-
-  const [
-    ,
-    mutationHandlerVar,
-    mutationHostVar,
-    mutationVar,
-    mutationStateVar,
-    mutationErrorVar,
-    syncStateFn,
-  ] = currentMutationMatch;
-  const mutationReplacement =
-    `${mutationHandlerVar}=(${mutationHostVar},chatgptLinuxRemoteControlSshInstallTargetRelease)=>{` +
-    `let chatgptLinuxRemoteControlSshInstallRequest={hostId:${mutationHostVar}},` +
-    `chatgptLinuxRemoteControlSshInstallResolvedRelease=` +
-    `chatgptLinuxRemoteControlSshInstallTargetRelease??chatgptLinuxRemoteControlSshInstallDefaultRelease;` +
-    `chatgptLinuxRemoteControlSshInstallResolvedRelease!=null&&` +
-    `(chatgptLinuxRemoteControlSshInstallRequest.release=chatgptLinuxRemoteControlSshInstallResolvedRelease),` +
-    `${mutationVar}.mutate(chatgptLinuxRemoteControlSshInstallRequest,{onSuccess:({state:${mutationStateVar},` +
-    `error:${mutationErrorVar}})=>{${syncStateFn}(${mutationHostVar},${mutationStateVar},${mutationErrorVar})}})}`;
-
-  const helper = [
-    "let chatgptLinuxRemoteControlSshInstallDefaultRelease=null,chatgptLinuxRemoteControlSshInstallError=null;",
-    "function chatgptLinuxRemoteControlValidRelease(e){return typeof e==`string`&&e.trim().length>0?e.trim():null}",
-    `function ${REMOTE_CONTROL_SSH_INSTALL_RELEASE_MARKER}(e){return e?.code===\`update-required\`?chatgptLinuxRemoteControlValidRelease(e.minRequiredVersion):null}`,
-  ].join("");
-
-  return helper + source
-    .replace(currentLocalVersionRegex, localVersionReplacement)
-    .replace(currentActionBuilderRegex, actionBuilderReplacement)
-    .replace(currentActionCallRegex, actionCallReplacement)
-    .replace(currentMutationRegex, mutationReplacement);
-}
-
 function applyLinuxRemoteControlSettingsUxPatch(source) {
-  let patched = applyLinuxRemoteControlSshInstallReleasePatch(replaceLinuxRemoteControlCopy(source).patched);
+  let patched = replaceLinuxRemoteControlCopy(source).patched;
   patched = applyLinuxRemoteControlSshInstallActionPatch(patched);
 
   if (!patched.includes(REMOTE_CONTROL_SETTINGS_UX_MARKER)) {
@@ -680,7 +539,7 @@ function applyLinuxRemoteConnectionsRefreshPatch(source) {
   }
 
   const effectPattern =
-    /\(0,([A-Za-z_$][\w$]*)\.useEffect\)\(\(\)=>\{let ([A-Za-z_$][\w$]*)=null,([A-Za-z_$][\w$]*)=!1,([A-Za-z_$][\w$]*)=async\(\)=>\{if\(![A-Za-z_$][\w$]*\)\{[A-Za-z_$][\w$]*=!0,[A-Za-z_$][\w$]*=new AbortController;try\{await ([A-Za-z_$][\w$]*)\([A-Za-z_$][\w$]*\.signal\)\}finally\{[A-Za-z_$][\w$]*=null,[A-Za-z_$][\w$]*=!1\}\}\},([A-Za-z_$][\w$]*)=window\.setInterval\(\(\)=>\{[A-Za-z_$][\w$]*\(\)\},([A-Za-z_$][\w$]*)\);return\(\)=>\{[A-Za-z_$][\w$]*\?\.abort\(\),window\.clearInterval\([A-Za-z_$][\w$]*\)\}\},\[\]\);/;
+    /([A-Za-z_$][\w$]*)=\(\)=>\{let ([A-Za-z_$][\w$]*)=null,([A-Za-z_$][\w$]*)=!1,([A-Za-z_$][\w$]*)=async\(\)=>\{\3\|\|\(\3=!0,\2=new AbortController,await\(async\(\)=>\{await ([A-Za-z_$][\w$]*)\(\2\.signal\)\}\)\(\)\.finally\(\(\)=>\{\2=null,\3=!1\}\)\)\},([A-Za-z_$][\w$]*)=window\.setInterval\(\(\)=>\{\4\(\)\},([A-Za-z_$][\w$]*)\);return\(\)=>\{\2\?\.abort\(\),window\.clearInterval\(\6\)\}\}/u;
   const match = patched.match(effectPattern);
   if (match == null) {
     if (patched.includes("refresh-remote-connections") && patched.includes("setInterval")) {
@@ -691,7 +550,7 @@ function applyLinuxRemoteConnectionsRefreshPatch(source) {
 
   const [
     needle,
-    reactVar,
+    effectVar,
     abortVar,
     pendingVar,
     refreshVar,
@@ -700,7 +559,7 @@ function applyLinuxRemoteConnectionsRefreshPatch(source) {
     intervalConstantVar,
   ] = match;
   const replacement =
-    `(0,${reactVar}.useEffect)(()=>{let ${abortVar}=null,${pendingVar}=!1,${refreshVar}=async()=>{if(!${pendingVar}){${pendingVar}=!0,${abortVar}=new AbortController;try{await ${refreshEventVar}(${abortVar}.signal)}finally{${abortVar}=null,${pendingVar}=!1}}},` +
+    `${effectVar}=()=>{let ${abortVar}=null,${pendingVar}=!1,${refreshVar}=async()=>{if(!${pendingVar}){${pendingVar}=!0,${abortVar}=new AbortController;try{await ${refreshEventVar}(${abortVar}.signal)}finally{${abortVar}=null,${pendingVar}=!1}}},` +
     `chatgptLinuxRemoteConnectionsRefreshTimer=null,chatgptLinuxRemoteConnectionsRefreshLast=0,${REMOTE_CONNECTIONS_REFRESH_MARKER}=()=>{if(document.visibilityState===\`hidden\`)return;let e=Date.now(),t=()=>{chatgptLinuxRemoteConnectionsRefreshLast=Date.now(),chatgptLinuxRemoteConnectionsRefreshTimer=null,${refreshVar}()};if(e-chatgptLinuxRemoteConnectionsRefreshLast<1e3){chatgptLinuxRemoteConnectionsRefreshTimer!=null&&window.clearTimeout(chatgptLinuxRemoteConnectionsRefreshTimer),chatgptLinuxRemoteConnectionsRefreshTimer=window.setTimeout(t,1e3-(e-chatgptLinuxRemoteConnectionsRefreshLast));return}t()},` +
     `${intervalVar}=window.setInterval(()=>{${refreshVar}()},${intervalConstantVar});` +
     `document.addEventListener(\`visibilitychange\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
@@ -712,7 +571,7 @@ function applyLinuxRemoteConnectionsRefreshPatch(source) {
     `document.removeEventListener(\`visibilitychange\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.removeEventListener(\`focus\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
     `window.removeEventListener(\`online\`,${REMOTE_CONNECTIONS_REFRESH_MARKER}),` +
-    `window.removeEventListener(\`resume\`,${REMOTE_CONNECTIONS_REFRESH_MARKER})}},[]);`;
+    `window.removeEventListener(\`resume\`,${REMOTE_CONNECTIONS_REFRESH_MARKER})}}`;
 
   return patched.replace(needle, replacement);
 }
@@ -890,7 +749,7 @@ function applyLinuxRemoteMobileCompletedItemRecoveryPatch(source) {
   }
 
   const completedItemDropPattern =
-    /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)&&\(([A-Za-z_$][\w$]*)\.firstTurnWorkItemStartedAtMs=\3\.firstTurnWorkItemStartedAtMs\?\?Date\.now\(\)\),!\(\2\.type!==`subAgentActivity`&&!([A-Za-z_$][\w$]*)\(\3,\2\.id,\2\.type\)\)&&\(\2\.type,([A-Za-z_$][\w$]*)\(\3,([A-Za-z_$][\w$]*)\)\)/u;
+    /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)&&\(([A-Za-z_$][\w$]*)\.firstTurnWorkItemStartedAtMs=\3\.firstTurnWorkItemStartedAtMs\?\?Date\.now\(\)\),!\(\2\.type!==`subAgentActivity`&&\(\2\.type!==`sleep`\|\|([A-Za-z_$][\w$]*)\.mode!==`durable`\)&&!([A-Za-z_$][\w$]*)\(\3,\2\.id,\2\.type\)\)&&\(\2\.type,([A-Za-z_$][\w$]*)\(\3,([A-Za-z_$][\w$]*)\)\)/u;
 
   if (completedItemDropPattern.test(source)) {
     return source.replace(
@@ -900,11 +759,12 @@ function applyLinuxRemoteMobileCompletedItemRecoveryPatch(source) {
         workItemPredicate,
         completedItemVar,
         turnVar,
+        conversationVar,
         findItemFn,
         upsertItemFn,
         viewItemVar,
       ) =>
-        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let chatgptLinuxCompletedItemExists=${turnVar}.items.some(e=>e.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&chatgptLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
+        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let chatgptLinuxCompletedItemExists=${turnVar}.items.some(e=>e.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&(${completedItemVar}.type!==\`sleep\`||${conversationVar}.mode!==\`durable\`)&&chatgptLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
     );
   }
 
@@ -1485,5 +1345,4 @@ module.exports.applyLinuxRemoteControlIntegrationSyncPatch = applyLinuxRemoteCon
 module.exports.applyLinuxRemoteControlVisibilityPatch = applyLinuxRemoteControlVisibilityPatch;
 module.exports.applyLinuxRemoteControlCopyPatch = applyLinuxRemoteControlCopyPatch;
 module.exports.applyLinuxRemoteControlSshInstallActionPatch = applyLinuxRemoteControlSshInstallActionPatch;
-module.exports.applyLinuxRemoteControlSshInstallReleasePatch = applyLinuxRemoteControlSshInstallReleasePatch;
 module.exports.applyLinuxRemoteControlSettingsUxPatch = applyLinuxRemoteControlSettingsUxPatch;
