@@ -80,10 +80,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Port-owned environment variables use the `CHATGPT_*` namespace.
   OpenAI-owned Codex CLI, plugin, and app-server interfaces retain their inherited
   `CODEX_*` names.
-- The reviewed integration defaults now include Dock-icon selection and Suggested
-  Prompts. Dock-icon synchronization changes and removes only marker-owned files;
-  Suggested Prompts still requires OpenAI-hosted eligibility, the user setting,
-  and working local Linux support.
+- The README, generated app, tray, native packages, updater payload, and Nix
+  desktop entry now use the original Tux-derived ChatGPT for Linux project logo.
+  The canonical SVG retains its Tux source metadata, and a digest-bound rights
+  record covers the deterministic raster exports. The official app's ChatGPT/Codex Dock-icon
+  selector is now opt-in and changes only marker-owned files when enabled;
+  Suggested Prompts remains default-on and still requires OpenAI-hosted
+  eligibility, the user setting, and working local Linux support.
 
 - The `chatgpt-updater` crate version is now `0.10.4`, matching the
   imported updater behavior and persisted-state compatibility contract.

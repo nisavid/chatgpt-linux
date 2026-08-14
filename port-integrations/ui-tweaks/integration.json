@@ -19,7 +19,7 @@
   "tweaks": {
     "appearance": {
       "dockIcon": {
-        "enabled": true
+        "enabled": false
       }
     },
     "home": {

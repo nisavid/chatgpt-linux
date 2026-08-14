@@ -131,7 +131,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
 
   if (
     iconPathExpression != null &&
-    !patchedSource.includes("let __chatgptLinuxTrayFallbackIcon=")
+    !patchedSource.includes("/*chatgpt-linux-project-tray-icon*/")
   ) {
     const linuxTrayIconPattern =
       /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\.nativeImage\.createFromPath\(([^;]+)\);if\(\1\.isEmpty\(\)\)throw Error\(`Linux tray application icon is unavailable`\)/;
@@ -143,7 +143,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     const [iconLoader, imageVar, electronVar, upstreamIconPath] = match;
     patchedSource = patchedSource.replace(
       iconLoader,
-      `${imageVar}=${electronVar}.nativeImage.createFromPath(${upstreamIconPath});if(${imageVar}.isEmpty()){let __chatgptLinuxTrayFallbackIcon=${electronVar}.nativeImage.createFromPath(${iconPathExpression});if(!__chatgptLinuxTrayFallbackIcon.isEmpty())${imageVar}=__chatgptLinuxTrayFallbackIcon}if(${imageVar}.isEmpty())throw Error(\`Linux tray application icon is unavailable\`)`,
+      `${imageVar}=/*chatgpt-linux-project-tray-icon*/process.platform===\`linux\`?${electronVar}.nativeImage.createFromPath(${iconPathExpression}):${electronVar}.nativeImage.createFromPath(${upstreamIconPath});if(${imageVar}.isEmpty()&&process.platform===\`linux\`)${imageVar}=${electronVar}.nativeImage.createFromPath(${upstreamIconPath});if(${imageVar}.isEmpty())throw Error(\`Linux tray application icon is unavailable\`)`,
     );
   }
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/chatgpt.png" alt="ChatGPT logo" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT for Linux project logo" width="128" height="128">
   <h1>ChatGPT for Linux</h1>
   <p><strong>A hardened, package-ready ChatGPT desktop build for Linux.</strong></p>
   <p>
@@ -23,14 +23,17 @@ exclusive until the source and package-ownership transition is resolved.
 
 > [!IMPORTANT]
 > **ChatGPT for Linux is an unofficial community project.** It is not affiliated
-> with, endorsed by, or supported by OpenAI. OpenAI owns ChatGPT, Codex, the
-> official app, and the OpenAI-hosted services this build uses. This repository
+> with, endorsed by, sponsored by, or supported by OpenAI. OpenAI owns ChatGPT,
+> Codex, the official app, and the OpenAI-hosted services this build uses. This repository
 > does not redistribute the official app bundle; it automates a local conversion
-> from the official OpenAI ChatGPT DMG. The committed ChatGPT logo identifies
-> the app and remains OpenAI property. The repository license covers this fork's
-> source code and packaging work, not the downloaded OpenAI app, logo, or
-> services. Your use of OpenAI software and services remains subject to OpenAI's
-> terms.
+> from the official OpenAI ChatGPT DMG. The project logo is independent community
+> artwork derived from Tux; it is not an OpenAI mark. Tux credit: Larry Ewing and
+> The GIMP, Garrett LeSage, and IFo Hancroft. The logo's provenance, construction,
+> and bounded rights assessment are documented in the
+> [project-logo rights record](docs/maintainers/project-logo-rights-research.md).
+> The repository license covers this fork's source code and packaging work, not
+> the downloaded OpenAI app or services. Your use of OpenAI software and services
+> remains subject to OpenAI's terms.
 
 ## Start Here
 
@@ -308,9 +311,11 @@ Default enablement never replaces a feature's own runtime gates. Agent Workspace
 preserves its approval and permission controls; AppShots keeps global hotkeys
 inactive until configured; wrapper update checks stay off until enabled in
 Settings; and Open Target Discovery validates desktop targets. UI Tweaks enables
-Dock-icon selection and Suggested Prompts by default. Dock-icon synchronization
-creates, updates, and removes only marker-owned ChatGPT desktop and icon files; it
-leaves unmanaged launchers and favorites untouched. Suggested Prompts requires
+Suggested Prompts by default; its official ChatGPT/Codex Dock-icon selector is
+opt-in so the project logo remains the default app identity. When enabled,
+Dock-icon synchronization creates, updates, and removes only marker-owned
+ChatGPT desktop and icon files; it leaves unmanaged launchers and favorites
+untouched. Suggested Prompts requires
 the official app's eligibility, the user's setting, and supported local
 Linux patch contracts at the same time. Main-process hardening for direct
 workspace bridge calls is tracked in

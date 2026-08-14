@@ -1,7 +1,7 @@
 Name:           __PACKAGE_NAME__
 Version:        __RPM_VERSION__
 Release:        __RPM_RELEASE__%{?dist}
-Summary:        ChatGPT for Linux
+Summary:        Unofficial ChatGPT for Linux community build
 License:        Proprietary
 ExclusiveArch:  __ARCH__
 Provides:       codex-app
@@ -30,6 +30,7 @@ Requires:       libXrandr.so.2%{chatgpt_elf_suffix}, libgbm.so.1%{chatgpt_elf_su
 Recommends:     zenity, kdialog
 
 %description
+Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.
 Community-built Linux package for ChatGPT generated from the macOS DMG.
 Requires the Codex CLI to be available in PATH or CODEX_CLI_PATH.
 __UPDATER_DESCRIPTION__

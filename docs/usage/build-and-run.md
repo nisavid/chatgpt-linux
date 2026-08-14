@@ -239,8 +239,9 @@ Record & Replay remain disabled by default.
 
 Default enablement preserves each integration's runtime controls. Agent Workspaces
 keeps its workspace approval and permission flow; AppShots keeps global hotkeys
-inactive until selected; wrapper checks stay off until enabled in Settings; Dock
-icon synchronization mutates only marker-owned ChatGPT files; and Suggested
+inactive until selected; wrapper checks stay off until enabled in Settings; the
+official ChatGPT/Codex Dock-icon selector is opt-in and mutates only marker-owned
+ChatGPT files when enabled; and Suggested
 Prompts requires official-app eligibility, the user setting, and a current local
 Linux patch contract. Main-process hardening for direct workspace bridge calls is
 tracked in [#99](https://github.com/nisavid/codex-app-linux/issues/99).

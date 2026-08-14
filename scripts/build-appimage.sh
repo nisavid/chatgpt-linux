@@ -14,7 +14,7 @@ APPIMAGE_RUNTIME_TEMPLATE="$REPO_DIR/packaging/appimage/chatgpt-appimage-runtime
 CODEX_CLI_WRAPPER_TEMPLATE="$REPO_DIR/packaging/appimage/codex-cli-wrapper.sh"
 PACKAGE_NAME="${PACKAGE_NAME:-chatgpt}"
 PACKAGE_DISPLAY_NAME="${PACKAGE_DISPLAY_NAME:-ChatGPT}"
-PACKAGE_COMMENT="${PACKAGE_COMMENT:-Run ChatGPT on Linux}"
+PACKAGE_COMMENT="${PACKAGE_COMMENT:-Unofficial community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(default_package_version)}"
 ICON_SOURCE="$(resolve_package_icon_source)"
 

@@ -140,7 +140,7 @@ validate_package_inputs() {
         error "PACKAGE_NAME must match ^[a-z0-9][a-z0-9+._-]*$: $PACKAGE_NAME"
     package_with_updater_value >/dev/null
     validate_no_newline "PACKAGE_DISPLAY_NAME" "${PACKAGE_DISPLAY_NAME:-ChatGPT}"
-    validate_no_newline "PACKAGE_COMMENT" "${PACKAGE_COMMENT:-Run ChatGPT on Linux}"
+    validate_no_newline "PACKAGE_COMMENT" "${PACKAGE_COMMENT:-Unofficial community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.}"
 }
 
 normalize_package_updater_value() {
@@ -392,7 +392,7 @@ render_desktop_entry() {
 
     package_name="$(sed_escape_replacement "$PACKAGE_NAME")"
     display_name="$(sed_escape_replacement "${PACKAGE_DISPLAY_NAME:-ChatGPT}")"
-    comment="$(sed_escape_replacement "${PACKAGE_COMMENT:-Run ChatGPT on Linux}")"
+    comment="$(sed_escape_replacement "${PACKAGE_COMMENT:-Unofficial community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.}")"
     temp_dir="$(dirname "$target")"
     temp_target="$(mktemp "$temp_dir/.${PACKAGE_NAME}.desktop.XXXXXX")" || \
         error "Failed to create temporary desktop entry"

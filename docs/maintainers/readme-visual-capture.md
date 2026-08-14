@@ -14,13 +14,25 @@ over several inline screenshots so the README remains scannable on GitHub
 desktop and mobile.
 
 Store committed README showcase assets under `docs/assets/readme/` and reference
-them with non-empty alt text. The README hero uses the actual ChatGPT logo at
-`assets/chatgpt.png`. Generated-app icon discovery prefers one valid compact
-ChatGPT icon from the official app bundle and falls back to
-`assets/chatgpt-linux.png`; an explicit build-time icon overrides that
-selection. Native-package builders default to the 256 px
-`assets/chatgpt-linux.png`, and Nix uses it for the desktop icon slot. The
-distinct Codex logo remains available at `assets/codex.png`.
+them with non-empty alt text. The README hero uses the 512 px project-logo
+export at `assets/chatgpt.png`. The canonical design source is
+`assets/chatgpt-linux-project-logo.svg`; the 256 px package export is
+`assets/chatgpt-linux.png`. Generated apps, native packages, and Nix use the
+project logo by default, while an explicit build-time icon may override it. The
+official app's ChatGPT/Codex Dock-icon selector remains an explicit opt-in port
+integration setting.
+
+Render each tracked PNG directly from the approved SVG with `rsvg-convert` so
+small sizes do not inherit a resampling pass:
+
+```bash
+rsvg-convert -w 512 -h 512 -o assets/chatgpt.png assets/chatgpt-linux-project-logo.svg
+rsvg-convert -w 256 -h 256 -o assets/chatgpt-linux.png assets/chatgpt-linux-project-logo.svg
+```
+
+The asset digests and dimensions are pinned in
+`scripts/ci/validate-readme-visuals.test.js`. Preserve the attribution and use
+controls in [Project Logo Rights and Provenance](project-logo-rights-research.md).
 
 Run the README visual reference check before committing README visual changes:
 

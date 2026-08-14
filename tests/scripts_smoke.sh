@@ -353,8 +353,8 @@ test_extract_webview_replaces_linux_icon_assets() {
     assert_contains "$output_log" "Linux app icon applied to 2 webview asset(s)"
 }
 
-test_installer_prefers_compact_official_chatgpt_icon() {
-    info "Checking installer prefers the compact official ChatGPT icon"
+test_installer_defaults_to_bundled_project_icon() {
+    info "Checking installer defaults to the bundled project icon"
     local workspace="$TMP_DIR/chatgpt-icon-selection"
     local work_dir="$workspace/work"
     local app_dir="$workspace/ChatGPT.app"
@@ -376,22 +376,23 @@ test_installer_prefers_compact_official_chatgpt_icon() {
         printf '%s\n' "$LINUX_ICON_SOURCE" > "$selection_file"
     )
 
-    [ "$(cat "$selection_file")" = "$compact_icon" ] \
-        || fail "Expected compact official ChatGPT icon to win over the full-size resource icon"
+    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/chatgpt-linux.png" ] \
+        || fail "Expected the bundled project icon to win over official app resources"
 
-    rm -f "$compact_icon"
+    mkdir -p "$(dirname "$compact_icon")"
+    cp "$REPO_DIR/assets/chatgpt.png" "$compact_icon"
     (
         export CHATGPT_INSTALLER_SOURCE_ONLY=1
         # shellcheck disable=SC1091
         source "$REPO_DIR/install.sh"
         WORK_DIR="$work_dir"
-        LINUX_ICON_SOURCE=""
+        LINUX_ICON_SOURCE="$compact_icon"
         select_linux_icon_source
         printf '%s\n' "$LINUX_ICON_SOURCE" > "$selection_file"
     )
 
-    [ "$(cat "$selection_file")" = "$REPO_DIR/assets/chatgpt-linux.png" ] \
-        || fail "Expected a missing compact ChatGPT icon to avoid the oversized upstream app icon"
+    [ "$(cat "$selection_file")" = "$compact_icon" ] \
+        || fail "Expected a valid explicit Linux icon override to win"
 
     mkdir -p "$(dirname "$compact_icon")"
     cp "$REPO_DIR/assets/chatgpt.png" "$compact_icon"
@@ -408,13 +409,13 @@ PY
         # shellcheck disable=SC1091
         source "$REPO_DIR/install.sh"
         WORK_DIR="$work_dir"
-        LINUX_ICON_SOURCE=""
+        LINUX_ICON_SOURCE="$compact_icon"
         select_linux_icon_source
         printf '%s\n' "$LINUX_ICON_SOURCE" > "$selection_file"
     )
 
     [ "$(cat "$selection_file")" = "$REPO_DIR/assets/chatgpt-linux.png" ] \
-        || fail "Expected an oversized upstream ChatGPT icon to fall back safely"
+        || fail "Expected an oversized explicit icon to fall back to the project icon"
 }
 
 test_user_local_icon_prefers_generated_app_icon() {
@@ -6113,6 +6114,11 @@ test_launcher_extra_bundled_plugin_cache_rollback() {
     (
         export HOME="$fake_home"
         export CODEX_HOME="$fake_home/.codex"
+        export XDG_CACHE_HOME="$fake_home/.cache"
+        export XDG_CONFIG_HOME="$fake_home/.config"
+        export XDG_DATA_HOME="$fake_home/.local/share"
+        export XDG_STATE_HOME="$fake_home/.local/state"
+        export XDG_RUNTIME_DIR="$fake_home/.run"
         export CHATGPT_LINUX_APP_ID="chatgpt"
         export CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"
         export CHATGPT_LINUX_WEBVIEW_PORT="5175"
@@ -6185,6 +6191,11 @@ test_launcher_extra_bundled_plugin_cache_concurrent_destination() {
     (
         export HOME="$fake_home"
         export CODEX_HOME="$fake_home/.codex"
+        export XDG_CACHE_HOME="$fake_home/.cache"
+        export XDG_CONFIG_HOME="$fake_home/.config"
+        export XDG_DATA_HOME="$fake_home/.local/share"
+        export XDG_STATE_HOME="$fake_home/.local/state"
+        export XDG_RUNTIME_DIR="$fake_home/.run"
         export CHATGPT_LINUX_APP_ID="chatgpt"
         export CHATGPT_LINUX_APP_DISPLAY_NAME="ChatGPT"
         export CHATGPT_LINUX_WEBVIEW_PORT="5175"
@@ -10072,8 +10083,8 @@ JS
     assert_contains "$extracted/.vite/build/main-test.js" 'r=chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))'
     assert_contains "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0'
     assert_contains "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0'
-    assert_contains "$extracted/.vite/build/main-test.js" 'let __chatgptLinuxTrayFallbackIcon=n.nativeImage.createFromPath(process.resourcesPath+`/../content/webview/assets/app-test.png`)'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(!__chatgptLinuxTrayFallbackIcon.isEmpty())o=__chatgptLinuxTrayFallbackIcon'
+    assert_contains "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon.*app-test.png'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if(o.isEmpty()&&process.platform===`linux`)o=n.nativeImage.createFromPath'
     assert_contains "$extracted/.vite/build/main-test.js" 'updatePersistentTrayMenu(){process.platform===`linux`'
     assert_contains "$extracted/.vite/build/main-test.js" '(E||process.platform===`linux`)&&oe();'
     assert_not_contains "$output_log" 'WARN: Could not find current Linux'
@@ -10168,7 +10179,7 @@ NODE
 
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'let __chatgptLinuxTrayFallbackIcon=' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'if(typeof t.whenReady!=`function`)return!0' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'return typeof t.isReady==`function`?t.isReady():!0' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" '!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())' '1'
@@ -13378,7 +13389,7 @@ main() {
     test_common_helper_sourcing
     test_package_icon_source_resolution
     test_extract_webview_replaces_linux_icon_assets
-    test_installer_prefers_compact_official_chatgpt_icon
+    test_installer_defaults_to_bundled_project_icon
     test_user_local_icon_prefers_generated_app_icon
     test_extract_webview_requires_entrypoint
     test_package_layout_requires_webview_entrypoint

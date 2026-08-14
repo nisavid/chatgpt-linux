@@ -19,10 +19,10 @@ function errorsFor(markdown) {
   return validateReadmeVisualsContent(markdown).errors;
 }
 
-test("accepts the ChatGPT hero logo and shields.io badges", () => {
+test("accepts the project hero logo and shields.io badges", () => {
   const markdown = `
 <div align="center">
-  <img src="assets/chatgpt.png" alt="ChatGPT logo" width="128" height="128">
+  <img src="assets/chatgpt.png" alt="ChatGPT for Linux project logo" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
     <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
@@ -33,11 +33,21 @@ test("accepts the ChatGPT hero logo and shields.io badges", () => {
   assert.deepEqual(errorsFor(markdown), []);
 });
 
-test("keeps the real README ChatGPT hero and shield set", () => {
+test("keeps the real README project hero and shield set", () => {
   assert.deepEqual(validateReadmeVisualsContent(readme).errors, []);
   assert.match(
     readme,
-    /<img src="assets\/chatgpt\.png" alt="ChatGPT logo" width="128" height="128">/,
+    /<img src="assets\/chatgpt\.png" alt="ChatGPT for Linux project logo" width="128" height="128">/,
+  );
+  assert.match(readme, /ChatGPT for Linux is an unofficial community project/);
+  assert.match(
+    readme,
+    /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,
+  );
+  assert.match(readme, /Larry Ewing and\s*> The GIMP, Garrett LeSage, and IFo Hancroft/);
+  assert.match(
+    readme,
+    /\[project-logo rights record\]\(docs\/maintainers\/project-logo-rights-research\.md\)/,
   );
   const shields = [...readme.matchAll(/<img alt="([^"]+)" src="(https:\/\/img\.shields\.io\/[^"]+)">/g)]
     .map((match) => [match[1], match[2]]);
@@ -48,13 +58,20 @@ test("keeps the real README ChatGPT hero and shield set", () => {
   ]);
 });
 
-test("keeps the ChatGPT and Codex logo assets distinct", () => {
+test("keeps the approved project SVG and raster logo assets distinct", () => {
   const assetsDir = path.resolve(__dirname, "../../assets");
+  const approvedSvg = fs.readFileSync(
+    path.join(assetsDir, "chatgpt-linux-project-logo.svg"),
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(approvedSvg).digest("hex"),
+    "0af87e4126277df510b84d9df858e68446ee119384ed740d1617363a66f585ae",
+    "approved project SVG",
+  );
+
   const expected = new Map([
-    ["chatgpt.png", { digest: "8eb72477f95b272ee76882e327adf4b35e83c714016b3f35191466509d673848", size: 240 }],
-    ["chatgpt-linux.png", { digest: "4c74881519a65dcea79a4ffcd4c6ce26049d318d42220258c36f0257cf6ef2ce", size: 256 }],
-    ["codex.png", { digest: "94ea17cab28c8a721cb05d10cbaae68d8859647d4a52354106025cbee4da32fe", size: 256 }],
-    ["codex-linux.png", { digest: "3ee05fced6e526e248085a9a7146acbb0afd2f3a15ee8388dc35e0d466e22c62", size: 256 }],
+    ["chatgpt.png", { digest: "7c99c9d3f6a4360a50704f18b1839feb96f053b1a4bca7292b6fdcfa992a65e8", size: 512 }],
+    ["chatgpt-linux.png", { digest: "09f991eabe8c688431dae22de21a8b2c9fe66df49439b5734286f2613f69c19b", size: 256 }],
   ]);
 
   for (const [name, { digest, size }] of expected) {
@@ -63,6 +80,14 @@ test("keeps the ChatGPT and Codex logo assets distinct", () => {
     assert.equal(logo.readUInt32BE(16), size, `${name} width`);
     assert.equal(logo.readUInt32BE(20), size, `${name} height`);
     assert.equal(crypto.createHash("sha256").update(logo).digest("hex"), digest, name);
+  }
+
+  for (const retiredOpenAiAsset of ["codex.png", "codex-linux.png"]) {
+    assert.equal(
+      fs.existsSync(path.join(assetsDir, retiredOpenAiAsset)),
+      false,
+      `${retiredOpenAiAsset} is not committed as project branding`,
+    );
   }
 });
 

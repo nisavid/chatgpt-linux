@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=ChatGPT
-Comment=Run ChatGPT on Linux
+Comment=Unofficial community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.
 # Workaround: desktop launches can inherit malformed Lmod BASH_FUNC_* exports
 # left by Codex CLI shell snapshot replay. Bash imports those variables before
 # the launcher starts and prints warnings. The real fix belongs in Codex CLI

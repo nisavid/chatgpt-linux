@@ -1,5 +1,5 @@
 {
-  description = "ChatGPT for Linux installer";
+  description = "Unofficial ChatGPT for Linux community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -1298,9 +1298,9 @@ PY
                 integrationIds = enabledIntegrationIds integrationArgs;
               in
               if integrationIds == [ ] then
-                "ChatGPT for Linux"
+                "Unofficial ChatGPT for Linux community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI."
               else
-                "ChatGPT for Linux with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled";
+                "Unofficial ChatGPT for Linux community build with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.";
             homepage = "https://github.com/nisavid/codex-app-linux";
             license = pkgs.lib.licenses.mit;
             platforms = pkgs.lib.platforms.linux;

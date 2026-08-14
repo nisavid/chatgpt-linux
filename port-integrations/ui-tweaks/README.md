@@ -67,8 +67,9 @@ runtime desktop hint or the standard `XDG_DATA_DIRS` application paths. The
 source launcher must match the active app id before it can be copied, so a
 side-by-side identity cannot inherit the default package's launch commands.
 
-This tweak is enabled by default with `ui-tweaks`. Disable only the Dock
-icon behavior while keeping the other UI tweaks enabled:
+This tweak is disabled by default so the ChatGPT for Linux project logo remains
+the default window, tray, and launcher identity. Enable the official app's
+ChatGPT/Codex selector without changing the other UI Tweaks:
 
 ```json
 {
@@ -79,7 +80,7 @@ icon behavior while keeping the other UI tweaks enabled:
       "tweaks": {
         "appearance": {
           "dockIcon": {
-            "enabled": false
+            "enabled": true
           }
         }
       }
@@ -90,11 +91,13 @@ icon behavior while keeping the other UI tweaks enabled:
 
 Config keys:
 
-- `enabled`: `true` applies the three Dock icon descriptors and stages their
-  resources. `false` skips Dock-specific asset checks and removes any staged
-  Dock icon payload without disabling other UI tweaks. On the next cold start,
-  a prelaunch hook also removes a marker-owned user-local launcher and its
-  managed icon files. Unmanaged or symlinked desktop artifacts are preserved.
+- `enabled`: `true` applies the three Dock icon descriptors, stages the official
+  app resources, and allows the selected official ChatGPT or Codex icon to
+  replace the project logo on supported runtime surfaces. The default `false`
+  skips Dock-specific asset checks and removes any staged Dock icon payload
+  without disabling other UI tweaks. On the next cold start, a prelaunch hook
+  also removes a marker-owned user-local launcher and its managed icon files.
+  Unmanaged or symlinked desktop artifacts are preserved.
 
 ### `home.suggestedPrompts`
 

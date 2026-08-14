@@ -34,6 +34,9 @@ Use this index to choose the smallest document that matches your goal.
   HTTP server and what would need to change before replacing it.
 - [Product and Visual Design](../DESIGN.md) defines the visual language,
   product identity, screenshot policy, and fork-authored UI constraints.
+- [Project Logo Rights and Provenance](maintainers/project-logo-rights-research.md)
+  records the approved asset digest, construction history, Tux attribution,
+  rights screen, use controls, and residual risk.
 
 ## Maintain The Fork And Project Record
 
