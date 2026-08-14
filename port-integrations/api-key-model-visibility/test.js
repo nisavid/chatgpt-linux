@@ -46,7 +46,13 @@ function serviceTierCompatibleFixture() {
   ].join("");
 }
 
-function evaluateCatalog(source, authMethod, useHiddenModels = true, additionalAvailableModels) {
+function evaluateCatalog(
+  source,
+  authMethod,
+  useHiddenModels = true,
+  additionalAvailableModels,
+  isCustomModelProvider = false,
+) {
   const catalog = Function(`${source};return iti;`)();
   return catalog({
     additionalAvailableModels,
@@ -55,7 +61,7 @@ function evaluateCatalog(source, authMethod, useHiddenModels = true, additionalA
     defaultModel: "gpt-5.5",
     enabledReasoningEfforts: new Set(),
     includeUltraReasoningEffort: true,
-    isCustomModelProvider: false,
+    isCustomModelProvider,
     models: [
       { model: "gpt-5.6-sol", hidden: false, isDefault: true },
       { model: "gpt-5.6-terra", hidden: false, isDefault: false },
@@ -211,6 +217,18 @@ test("explicit additional models retain the official helper override", () => {
   );
 
   assert.deepEqual(modelNames(catalog), ["gpt-5.5", "codex-auto-review"]);
+});
+
+test("custom providers keep the official no-allowlist behavior", () => {
+  const patched = applyApiKeyModelVisibilityPatch(modelCatalogFixture());
+  const catalog = evaluateCatalog(patched, "chatgpt", true, undefined, true);
+
+  assert.deepEqual(modelNames(catalog), [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+  ]);
 });
 
 test("ChatGPT and existing no-allowlist paths keep their upstream behavior", () => {
