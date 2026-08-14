@@ -1505,6 +1505,14 @@ stage_native_package_payload() {
     esac
 
     ensure_package_source_date_epoch
+    if [ "$package_format" = "deb" ]; then
+        ensure_file_exists \
+            "$REPO_DIR/packaging/linux/debian-copyright" \
+            "Debian copyright source"
+        install -Dm0644 \
+            "$REPO_DIR/packaging/linux/debian-copyright" \
+            "$root/usr/share/doc/$PACKAGE_NAME/copyright"
+    fi
     stage_common_package_files "$root"
     if ! package_with_updater_enabled; then
         info "Skipping update-builder bundle (PACKAGE_WITH_UPDATER=0)"
