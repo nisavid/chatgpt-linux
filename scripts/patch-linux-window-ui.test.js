@@ -212,6 +212,8 @@ const obsoleteTerminalEnvBundle =
 const currentOpaqueWindowSurfaceBackgroundHelper =
   "var W4=`#00000000`,G4=`#000000`,K4=`#f9f9f9`;function g3(e){return e===`avatarOverlay`||e===`browserCommentPopup`||e===`globalDictation`||e===`hotkeyWindowHome`||e===`hotkeyWindowThread`||e===`hud`}function v3({appearance:e,opaqueWindowsEnabled:t,platform:n}){return t&&!g3(e)&&(n===`darwin`||n===`win32`)}function S3({platform:e,appearance:t,opaqueWindowSurfaceEnabled:n,prefersDarkColors:r}){return n?{backgroundColor:r?G4:K4,backgroundMaterial:e===`win32`?`none`:null}:e===`win32`&&!g3(t)?{backgroundColor:W4,backgroundMaterial:`mica`}:{backgroundColor:W4,backgroundMaterial:null}}";
 const currentOpaqueWindowSurfaceBackgroundBundle =
+  `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!BA()&&!g3(e)}}`;
+const currentNamespacedOpaqueWindowSurfaceBackgroundBundle =
   `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!r.w()&&!g3(e)}}`;
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1447,6 +1449,14 @@ function currentTrayLifecycleBundleFixture() {
     "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
     "var H9=null,U9=null,G9=!1;async function fae(e){return G9=!0,U9??H9??(U9=(async()=>{let t={defaultIcon:e},r=new c.Tray(t.defaultIcon,process.platform===`win32`&&c.app.isPackaged?dEe(e.buildFlavor):void 0);if(!G9)return r.destroy(),null;r.setToolTip(c.app.getName());let i=new pb(r);return H9=i,!await i.waitForReady()||H9!==i?(H9===i&&(H9=null,i.destroy()),null):i})().finally(()=>{U9=null}),U9)}",
     "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
+  ].join("");
+}
+
+function importedTrayReadinessBundleFixture() {
+  return [
+    "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
+    "var V9=null,H9=null,W9=!1,G9=!1;async function GAe(e){return W9=!0,H9??V9??(H9=(async()=>{let n={defaultIcon:e},i=new l.Tray(n.defaultIcon,process.platform===`win32`&&l.app.isPackaged?RAe(e):void 0);if(!W9)return i.destroy(),null;i.setToolTip(l.app.getName());let o=new qTe(i);return V9=o,!await o.waitForReady()||V9!==o?(V9===o&&(V9=null,o.destroy()),null):(G9=!0,o)})().finally(()=>{H9=null}),H9)}",
+    "var qTe=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return r.S(this.tray)}waitForReady(){return r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(l.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
   ].join("");
 }
 
@@ -2861,6 +2871,54 @@ test("retains the current native Linux tray when quit-state helpers already exis
   assert.doesNotThrow(() => new Function(patched));
 });
 
+test("accepts current imported tray readiness helpers on Linux", async () => {
+  const patched = applyPatchTwice(
+    applyLinuxTrayPatch,
+    importedTrayReadinessBundleFixture(),
+    null,
+  );
+
+  assert.match(
+    patched,
+    /isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\);let e=this\.tray;return typeof e\.isReady==`function`\?e\.isReady\(\):!0\}/,
+  );
+  assert.match(
+    patched,
+    /async waitForReady\(\)\{if\(process\.platform!==`linux`\)return r\.W\(this\.tray\);let e=this\.tray;if\(typeof e\.whenReady!=`function`\)return!0;try\{return await e\.whenReady\(\),!0\}catch\{return!1\}\}/,
+  );
+  assert.match(
+    patched,
+    /i=chatgptLinuxRegisterTray\(new l\.Tray\(/,
+  );
+
+  const context = {
+    l: { Menu: { buildFromTemplate: () => ({}) } },
+    process: { platform: "linux" },
+    r: {
+      S: () => { throw new Error("delegated isReady must not run on Linux"); },
+      W: () => { throw new Error("delegated waitForReady must not run on Linux"); },
+    },
+    result: null,
+  };
+  const classSource = patched.slice(patched.indexOf("var qTe=class"));
+  vm.runInNewContext(`${classSource};result=qTe`, context);
+  const create = (tray) => new context.result({
+    on() {},
+    setContextMenu() {},
+    ...tray,
+  });
+  const stock = create({});
+  const native = create({ isReady: () => false, whenReady: async () => {} });
+  const rejected = create({ whenReady: async () => { throw new Error("not ready"); } });
+  const thrown = create({ whenReady: () => { throw new Error("not ready"); } });
+  assert.equal(stock.isReady(), true);
+  assert.equal(await stock.waitForReady(), true);
+  assert.equal(native.isReady(), false);
+  assert.equal(await native.waitForReady(), true);
+  assert.equal(await rejected.waitForReady(), false);
+  assert.equal(await thrown.waitForReady(), false);
+});
+
 test("bypasses the upstream before-quit confirmation after a Linux explicit quit", () => {
   const source = `${currentMainBundlePrefix}${beforeQuitConfirmationBundleFixture()}`;
   const patched = applyPatchTwice(
@@ -3780,6 +3838,40 @@ test("patches current opaque window surface background helper shape for Linux", 
     /shouldAlwaysUseOpaqueWindowSurface\(e\)\{return process\.platform===`linux`&&!g3\(e\)\|\|v3\(\{appearance:e,opaqueWindowsEnabled:this\.isOpaqueWindowsEnabled\(\),platform:process\.platform\}\)\|\|!r\.w\(\)&&!g3\(e\)\}/,
   );
   assert.match(patched, /opaqueWindowSurfaceEnabled:n/);
+});
+
+test("patches the current namespaced opaque surface capability contract", () => {
+  const { value: patched, warnings } = captureWarns(() =>
+    applyPatchTwice(
+      applyLinuxOpaqueBackgroundPatch,
+      currentNamespacedOpaqueWindowSurfaceBackgroundBundle,
+    ),
+  );
+
+  assert.match(
+    patched,
+    /shouldAlwaysUseOpaqueWindowSurface\(e\)\{return process\.platform===`linux`&&!g3\(e\)\|\|v3\(\{[^}]+\}\)\|\|!r\.w\(\)&&!g3\(e\)\}/,
+  );
+  assert.match(
+    patched,
+    /:e===`linux`&&!g3\(t\)\?\{backgroundColor:r\?G4:K4,backgroundMaterial:null\}:e===`win32`&&!g3\(t\)\?/,
+  );
+  assert.deepEqual(warnings, []);
+});
+
+test("rejects computed opaque surface capability expressions", () => {
+  const source = currentNamespacedOpaqueWindowSurfaceBackgroundBundle.replace(
+    "!r.w()",
+    "!r[`w`]()",
+  );
+  const { value, warnings } = captureWarns(() =>
+    applyLinuxOpaqueBackgroundPatch(source),
+  );
+
+  assert.equal(value, source);
+  assert.deepEqual(warnings, [
+    "WARN: Could not find opaque surface mode predicate — skipping Linux opaque surface patch",
+  ]);
 });
 
 test("keeps the opaque background patch idempotent after pet overlay composition", () => {
