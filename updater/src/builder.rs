@@ -54,9 +54,10 @@ const PREBUILT_HELPER_ENV_MAPPINGS: [(&str, &str); 5] = [
     ),
 ];
 
-const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
+const REQUIRED_BUNDLE_FILES: [(&str, &str); 25] = [
     ("Cargo.toml", "Cargo.toml"),
     ("Cargo.lock", "Cargo.lock"),
+    ("LICENSE", "LICENSE"),
     ("computer-use-linux", "computer-use-linux"),
     (
         "generated-app-mutation-broker",
@@ -90,6 +91,7 @@ const REQUIRED_BUNDLE_FILES: [(&str, &str); 23] = [
         "scripts/validate-upstream-dmg.js",
     ),
     ("packaging/linux", "packaging/linux"),
+    ("packaging/OPENAI-NOTICE", "packaging/OPENAI-NOTICE"),
     ("assets/chatgpt.png", "assets/chatgpt.png"),
     ("assets/chatgpt-linux.png", "assets/chatgpt-linux.png"),
     ("port-integrations", "port-integrations"),
@@ -1700,6 +1702,11 @@ touch "${DIST_DIR_OVERRIDE}/chatgpt-${VER}-1-x86_64.pkg.tar.zst"
             bundle_root.join(GENERATION_RECEIPT_HELPER),
         )?;
         fs::write(bundle_root.join("CHANGELOG.md"), b"# Changelog\n")?;
+        fs::write(bundle_root.join("LICENSE"), b"MIT license\n")?;
+        fs::write(
+            bundle_root.join("packaging/OPENAI-NOTICE"),
+            b"OpenAI terms notice\n",
+        )?;
         fs::write(
             bundle_root.join("launcher/start.sh.template"),
             b"# fake launcher template\n",
@@ -2506,6 +2513,11 @@ python3 scripts/lib/package-provenance.py write-generation-receipt \
             source_root.join("packaging/linux/chatgpt-updater.service"),
             b"[Unit]\nDescription=ChatGPT Update Manager\n",
         )?;
+        fs::write(source_root.join("LICENSE"), b"MIT license\n")?;
+        fs::write(
+            source_root.join("packaging/OPENAI-NOTICE"),
+            b"OpenAI terms notice\n",
+        )?;
         fs::write(source_root.join("assets/chatgpt.png"), b"png")?;
         fs::write(source_root.join("assets/chatgpt-linux.png"), b"linux png")?;
 
@@ -2529,6 +2541,14 @@ python3 scripts/lib/package-provenance.py write-generation-receipt \
         assert!(destination_root.join("record-replay-linux").exists());
         assert!(destination_root.join("updater").exists());
         assert!(destination_root.join("assets/chatgpt-linux.png").exists());
+        assert_eq!(
+            fs::read_to_string(destination_root.join("LICENSE"))?,
+            "MIT license\n"
+        );
+        assert_eq!(
+            fs::read_to_string(destination_root.join("packaging/OPENAI-NOTICE"))?,
+            "OpenAI terms notice\n"
+        );
         assert!(destination_root
             .join("plugins/openai-bundled/plugins/computer-use/.mcp.json")
             .exists());
