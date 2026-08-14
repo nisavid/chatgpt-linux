@@ -3,7 +3,14 @@
     "computer-use": {
       "command": "./bin/chatgpt-computer-use-linux",
       "args": ["mcp"],
-      "cwd": "."
+      "cwd": ".",
+      "env_vars": [
+        "CODEX_HOME",
+        "XDG_RUNTIME_DIR",
+        "CHATGPT_LINUX_APP_ID",
+        "CHATGPT_APP_ID",
+        "CHATGPT_LINUX_INSTANCE_ID"
+      ]
     }
   }
 }

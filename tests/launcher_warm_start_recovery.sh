@@ -9,11 +9,14 @@ HOME_DIR="$TMP_DIR/home"
 RUNTIME_DIR="$TMP_DIR/runtime"
 STATE_DIR="$HOME_DIR/.local/state/chatgpt"
 SOCKET_PATH="$RUNTIME_DIR/chatgpt/launch-action.sock"
+COMPUTER_USE_AUTHORITY_SOCKET="$RUNTIME_DIR/chatgpt/computer-use-authority.sock"
+COMPUTER_USE_CURSOR_SOCKET="$RUNTIME_DIR/chatgpt/computer-use-cursor.sock"
 FIRST_LOG="$TMP_DIR/first-launch.log"
 SECOND_LOG="$TMP_DIR/second-launch.log"
 APP_LOG="$HOME_DIR/.cache/chatgpt/launcher.log"
 LAUNCHER_PID=""
 SOCKET_PID=""
+COMPUTER_USE_SOCKET_PID=""
 HOOK_PID=""
 
 cleanup() {
@@ -24,6 +27,7 @@ cleanup() {
     fi
     [ -z "$LAUNCHER_PID" ] || kill "$LAUNCHER_PID" 2>/dev/null || true
     [ -z "$SOCKET_PID" ] || kill "$SOCKET_PID" 2>/dev/null || true
+    [ -z "$COMPUTER_USE_SOCKET_PID" ] || kill "$COMPUTER_USE_SOCKET_PID" 2>/dev/null || true
     [ -z "$HOOK_PID" ] || kill "$HOOK_PID" 2>/dev/null || true
     for cmdline in /proc/[0-9]*/cmdline; do
         [ -r "$cmdline" ] || continue
@@ -96,6 +100,7 @@ mkdir -p \
     "$HOME_DIR/.config/chatgpt" \
     "$HOME_DIR" \
     "$RUNTIME_DIR/chatgpt"
+chmod 700 "$RUNTIME_DIR" "$RUNTIME_DIR/chatgpt"
 
 if [ "${CHATGPT_TEST_DISABLE_PIDFD:-0}" = "1" ]; then
     mkdir -p "$TMP_DIR/python-site"
@@ -194,6 +199,50 @@ PY
 SOCKET_PID=$!
 wait_for "launch-action socket" test -S "$SOCKET_PATH"
 
+python3 - "$COMPUTER_USE_AUTHORITY_SOCKET" <<'PY'
+import os
+import socket
+import sys
+
+for path in sys.argv[1:]:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+        server.bind(path)
+    os.chmod(path, 0o600)
+PY
+
+if [ "${CHATGPT_TEST_UNTRUSTED_COMPUTER_USE_ENDPOINT:-0}" = "1" ]; then
+    printf '%s\n' "do not remove" > "$COMPUTER_USE_CURSOR_SOCKET"
+    chmod 600 "$COMPUTER_USE_CURSOR_SOCKET"
+elif [ "${CHATGPT_TEST_LIVE_COMPUTER_USE_SOCKET:-0}" = "1" ]; then
+    python3 - "$COMPUTER_USE_CURSOR_SOCKET" <<'PY' &
+import os
+import socket
+import sys
+
+path = sys.argv[1]
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+    server.bind(path)
+    os.chmod(path, 0o600)
+    server.listen()
+    while True:
+        client, _ = server.accept()
+        client.close()
+PY
+    COMPUTER_USE_SOCKET_PID=$!
+    wait_for "live Computer Use cursor socket" test -S "$COMPUTER_USE_CURSOR_SOCKET"
+else
+    python3 - "$COMPUTER_USE_CURSOR_SOCKET" <<'PY'
+import os
+import socket
+import sys
+
+path = sys.argv[1]
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+    server.bind(path)
+os.chmod(path, 0o600)
+PY
+fi
+
 COMMON_ENV=(
     env -i
     "PATH=$PATH"
@@ -247,6 +296,26 @@ if [ "${CHATGPT_TEST_NORMAL_LOCK_ONLY:-0}" = "1" ]; then
         || fail "launcher lock should be released after app.pid publication"
     if grep -q "launcher lock helper did not exit" "$FIRST_LOG"; then
         fail "normal launcher lock release should not require pidfd escalation"
+    fi
+    [ ! -e "$COMPUTER_USE_AUTHORITY_SOCKET" ] \
+        || fail "cold start did not remove the stale Computer Use authority socket"
+    grep -q "Removed stale Computer Use socket: computer-use-authority.sock" "$APP_LOG" \
+        || fail "launcher did not report stale Computer Use authority socket recovery"
+    if [ "${CHATGPT_TEST_UNTRUSTED_COMPUTER_USE_ENDPOINT:-0}" = "1" ]; then
+        [ -f "$COMPUTER_USE_CURSOR_SOCKET" ] \
+            || fail "cold start removed an untrusted Computer Use endpoint"
+        grep -q "preserving untrusted Computer Use endpoint: computer-use-cursor.sock" "$APP_LOG" \
+            || fail "launcher did not report preserving the untrusted Computer Use endpoint"
+    elif [ "${CHATGPT_TEST_LIVE_COMPUTER_USE_SOCKET:-0}" = "1" ]; then
+        [ -S "$COMPUTER_USE_CURSOR_SOCKET" ] \
+            || fail "cold start removed an active Computer Use cursor socket"
+        grep -q "Preserving active Computer Use socket: computer-use-cursor.sock" "$APP_LOG" \
+            || fail "launcher did not report preserving the active Computer Use cursor socket"
+    else
+        [ ! -e "$COMPUTER_USE_CURSOR_SOCKET" ] \
+            || fail "cold start did not remove the stale Computer Use cursor socket"
+        grep -q "Removed stale Computer Use socket: computer-use-cursor.sock" "$APP_LOG" \
+            || fail "launcher did not report stale Computer Use cursor socket recovery"
     fi
     kill "$FIRST_ELECTRON_PID"
     wait "$LAUNCHER_PID"
