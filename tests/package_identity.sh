@@ -97,6 +97,8 @@ def parse_stanza(raw):
     fields = {}
     current = None
     for line in raw.splitlines():
+        if line.startswith("#"):
+            continue
         if line.startswith((" ", "\t")):
             if current is None:
                 raise SystemExit("Debian copyright has an orphan continuation line")
@@ -108,6 +110,11 @@ def parse_stanza(raw):
         current = name
         fields[current] = value.lstrip()
     return fields
+
+
+comment_fixture = parse_stanza("# machine-readable copyright comment\nFormat: example")
+if comment_fixture != {"Format": "example"}:
+    raise SystemExit("Debian copyright comments must not become fields")
 
 
 stanzas = [parse_stanza(raw) for raw in Path(sys.argv[1]).read_text(encoding="utf-8").strip().split("\n\n")]
