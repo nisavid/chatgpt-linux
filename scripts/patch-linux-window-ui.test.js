@@ -2819,6 +2819,20 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
   ]);
 });
 
+test("Linux tray patch preserves dollar sequences from the current bundle", () => {
+  const source = `${currentMainBundlePrefix}${trayBundleFixture()
+    .replace("r.S", () => "r.$$S")
+    .replace("r.W", () => "r.$$W")
+    .replace("`electron`", () => "`electron-$&`")}`;
+  const iconPathExpression = "process.resourcesPath+`/../content/webview/assets/app-test.png`";
+
+  const patched = applyLinuxTrayPatch(source, iconPathExpression);
+
+  assert.ok(patched.includes("r.$$S(this.tray)"));
+  assert.ok(patched.includes("r.$$W(this.tray)"));
+  assert.ok(patched.includes("`electron-$&`"));
+});
+
 test("retains the current native Linux tray when quit-state helpers already exist", () => {
   const patched = applyPatchTwice(
     applyLinuxTrayPatch,

@@ -207,7 +207,8 @@ function applyLinuxAppshotSettingsHotkeyPatch(currentSource) {
 
   const patchedSource = currentSource.replace(
     selectionPattern,
-    `let ${optionsLocalVar}=chatgptLinuxAppshotHotkeyOptions(${stateDataVar},${platformVar},${windowsOptions}),${selectedOptionVar}=${optionsLocalVar}.find(`,
+    () =>
+      `let ${optionsLocalVar}=chatgptLinuxAppshotHotkeyOptions(${stateDataVar},${platformVar},${windowsOptions}),${selectedOptionVar}=${optionsLocalVar}.find(`,
   );
   const helper =
     `function chatgptLinuxAppshotHotkeyOptions(e,t,n){return typeof navigator!=\`undefined\`&&navigator.userAgent.includes(\`Linux\`)?e?.linuxWayland?${linuxWaylandOptions}:${linuxX11Options}:t===\`windows\`?n:${optionsVarName}}`;
