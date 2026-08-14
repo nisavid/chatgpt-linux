@@ -58,9 +58,12 @@ ChatGPT app shell, not like a separate Linux control panel pasted over it.
 Current visual evidence is scoped to source, committed assets, and
 privacy-safe inspection:
 
-- The root README uses the committed ChatGPT logo at `assets/chatgpt.png` and
-  retains the distinct Codex logo at `assets/codex.png`. Shields and concise
-  user/maintainer routing remain part of the landing page.
+- The root README uses the original Tux-derived ChatGPT for Linux project logo
+  exported from `assets/chatgpt-linux-project-logo.svg`. Official ChatGPT and
+  Codex icons are not committed as project branding; the official app's icon
+  selector can expose them only when a user explicitly enables that port
+  integration setting. Shields and concise user/maintainer routing remain part
+  of the landing page.
 - Privacy-safe local inspection of the live ChatGPT app showed a dark,
   task-focused app shell with a compact left navigation rail, pinned/project
   chat sections, dense conversation rows, subdued dividers, right-side document

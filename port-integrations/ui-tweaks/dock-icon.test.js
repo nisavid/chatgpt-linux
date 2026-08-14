@@ -85,14 +85,14 @@ function withIntegrationConfig(config, fn) {
   }
 }
 
-test("Dock icon descriptors are default-on and can be disabled by nested settings", () => {
+test("Dock icon descriptors are default-off and can be enabled by nested settings", () => {
   const integrationsRoot = path.resolve(__dirname, "..");
   withIntegrationConfig({ enabled: ["ui-tweaks"] }, () => {
     const dockDescriptors = loadPortIntegrationPatchDescriptors({ integrationsRoot }).filter(
       (descriptor) => descriptor.id.includes(":appearance-dock-icon-"),
     );
     assert.equal(dockDescriptors.length, 3);
-    assert.equal(dockDescriptors.every((descriptor) => descriptor.enabled({}) === true), true);
+    assert.equal(dockDescriptors.every((descriptor) => descriptor.enabled({}) === false), true);
   });
   withIntegrationConfig(
     {
@@ -101,7 +101,7 @@ test("Dock icon descriptors are default-on and can be disabled by nested setting
         "ui-tweaks": {
           tweaks: {
             appearance: {
-              dockIcon: { enabled: false },
+              dockIcon: { enabled: true },
             },
           },
         },
@@ -112,7 +112,7 @@ test("Dock icon descriptors are default-on and can be disabled by nested setting
         (descriptor) => descriptor.id.includes(":appearance-dock-icon-"),
       );
       assert.equal(dockDescriptors.length, 3);
-      assert.equal(dockDescriptors.every((descriptor) => descriptor.enabled({}) === false), true);
+      assert.equal(dockDescriptors.every((descriptor) => descriptor.enabled({}) === true), true);
     },
   );
   assert.equal(dockIconEnabled({}), false);

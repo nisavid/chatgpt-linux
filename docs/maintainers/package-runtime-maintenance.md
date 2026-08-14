@@ -230,10 +230,12 @@ The ASAR patch step currently:
   theme, persistent status, Pet Overlay, project sorting, shared app-server
   socket support, SSH command wrapping, and UI Tweaks. Authenticated proxy,
   Codex Micro, directory-only and shallow repository watches, MCP helper reaping,
-  and Record & Replay remain disabled by default. Dock-icon selection changes
-  and cleans up only marker-owned ChatGPT files. Suggested Prompts requires the
-  official app's eligibility, the user setting, and a current local Linux patch
-  contract. Checkout builds use `port-integrations/integrations.json` or an
+  and Record & Replay remain disabled by default. The official ChatGPT/Codex
+  Dock-icon selector is opt-in so the project logo remains the default app
+  identity; when enabled, it changes and cleans up only marker-owned ChatGPT
+  files. Suggested Prompts requires the official app's eligibility, the user
+  setting, and a current local Linux patch contract. Checkout builds use
+  `port-integrations/integrations.json` or an
   explicit `CHATGPT_PORT_INTEGRATIONS_CONFIG` file. Native packages stage the
   exact resolved build selection at
   `update-builder/.chatgpt-linux/port-integrations.json`. Updater rebuilds

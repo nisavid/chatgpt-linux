@@ -2710,7 +2710,7 @@ test("destroys the registered Linux tray before the app exits", () => {
   assert.equal(runDestroy({ platform: "linux" }), 1);
 });
 
-test("accepts stock Electron tray readiness and falls back to the Linux app icon", async () => {
+test("accepts stock Electron tray readiness and prefers the Linux project icon", async () => {
   const iconPathExpression = "process.resourcesPath+`/../content/webview/assets/app-test.png`";
   const source = `${currentMainBundlePrefix}${trayBundleFixture()}`;
   const patched = applyPatchTwice(applyLinuxTrayPatch, source, iconPathExpression);
@@ -2726,12 +2726,12 @@ test("accepts stock Electron tray readiness and falls back to the Linux app icon
   assert.match(
     patched,
     new RegExp(
-      `let __chatgptLinuxTrayFallbackIcon=c\\.nativeImage\\.createFromPath\\(${escapeRegExp(iconPathExpression)}\\)`,
+      `i=/\\*chatgpt-linux-project-tray-icon\\*/process\\.platform===\`linux\`\\?c\\.nativeImage\\.createFromPath\\(${escapeRegExp(iconPathExpression)}\\):c\\.nativeImage\\.createFromPath`,
     ),
   );
   assert.match(
     patched,
-    /if\(!__chatgptLinuxTrayFallbackIcon\.isEmpty\(\)\)i=__chatgptLinuxTrayFallbackIcon/,
+    /if\(i\.isEmpty\(\)&&process\.platform===`linux`\)i=c\.nativeImage\.createFromPath/,
   );
 
   const readinessHelpers = patched.match(
@@ -2762,17 +2762,18 @@ test("accepts stock Electron tray readiness and falls back to the Linux app icon
   const iconCalls = [];
   const iconContext = {
     process: { platform: "linux", resourcesPath: "/resources" },
-    upstreamEmpty: true,
+    projectEmpty: false,
+    upstreamEmpty: false,
     iconCalls,
     c: {
       app: { isPackaged: true },
       nativeImage: {
         createFromPath(iconPath) {
           iconCalls.push(iconPath);
-          const fallback = iconPath.includes("content/webview/assets/app-test.png");
+          const project = iconPath.includes("content/webview/assets/app-test.png");
           return {
-            isEmpty: () => fallback ? false : iconContext.upstreamEmpty,
-            resize: () => ({ source: fallback ? "fallback" : "upstream" }),
+            isEmpty: () => project ? iconContext.projectEmpty : iconContext.upstreamEmpty,
+            resize: () => ({ source: project ? "project" : "upstream" }),
           };
         },
       },
@@ -2787,15 +2788,14 @@ test("accepts stock Electron tray readiness and falls back to the Linux app icon
     iconContext,
   );
   assert.deepEqual(JSON.parse(JSON.stringify(await iconContext.result)), {
-    defaultIcon: { source: "fallback" },
+    defaultIcon: { source: "project" },
     chronicleRunningIcon: null,
   });
   assert.deepEqual(iconCalls, [
-    "/resources/icon-chatgpt.png",
     "/resources/../content/webview/assets/app-test.png",
   ]);
 
-  iconContext.upstreamEmpty = false;
+  iconContext.projectEmpty = true;
   iconCalls.length = 0;
   await vm.runInNewContext(
     `${iconLoaderSource};result=pae(\`prod\`,\`chatgpt\`,\`/repo\`)`,
@@ -2805,7 +2805,10 @@ test("accepts stock Electron tray readiness and falls back to the Linux app icon
     defaultIcon: { source: "upstream" },
     chronicleRunningIcon: null,
   });
-  assert.deepEqual(iconCalls, ["/resources/icon-chatgpt.png"]);
+  assert.deepEqual(iconCalls, [
+    "/resources/../content/webview/assets/app-test.png",
+    "/resources/icon-chatgpt.png",
+  ]);
 });
 
 test("retains the current native Linux tray when quit-state helpers already exist", () => {

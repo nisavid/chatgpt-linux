@@ -33,6 +33,23 @@ for path in \
     [ -f "$REPO_DIR/$path" ] || fail "missing canonical source: $path"
 done
 
+unofficial_notice='Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.'
+for package_metadata in \
+    packaging/linux/control \
+    packaging/linux/chatgpt.spec \
+    packaging/linux/PKGBUILD.template; do
+    assert_contains "$package_metadata" 'Unofficial ChatGPT for Linux community build'
+    assert_contains "$package_metadata" "$unofficial_notice"
+done
+assert_contains packaging/linux/chatgpt.desktop \
+    "Comment=Unofficial community build. $unofficial_notice"
+assert_contains scripts/lib/package-common.sh \
+    "PACKAGE_COMMENT:-Unofficial community build. $unofficial_notice"
+assert_contains scripts/build-appimage.sh \
+    "PACKAGE_COMMENT:-Unofficial community build. $unofficial_notice"
+assert_contains flake.nix \
+    "Unofficial ChatGPT for Linux community build. $unofficial_notice"
+
 assert_contains packaging/linux/control 'Provides: codex-app, codex-desktop'
 assert_contains packaging/linux/control 'Conflicts: codex-app, codex-desktop'
 assert_contains packaging/linux/control 'Replaces: codex-app, codex-desktop'
@@ -100,7 +117,7 @@ assert_contains scripts/lib/package-common.sh 'com.github.nisavid.chatgpt.update
 assert_contains scripts/lib/package-common.sh 'app_root/.chatgpt-linux'
 assert_not_contains scripts/lib/package-common.sh 'root/usr/bin/codex-app'
 assert_contains scripts/build-appimage.sh 'PACKAGE_DISPLAY_NAME:-ChatGPT'
-assert_contains scripts/build-appimage.sh 'PACKAGE_COMMENT:-Run ChatGPT on Linux'
+assert_not_contains scripts/build-appimage.sh 'PACKAGE_COMMENT:-Run ChatGPT on Linux'
 
 assert_contains packaging/linux/chatgpt.desktop 'X-ChatGPT-Linux-Managed=true'
 assert_contains packaging/linux/chatgpt-desktop-entry-doctor.sh \
@@ -124,7 +141,8 @@ for lifecycle_path in \
 done
 assert_not_contains scripts/build-rpm.sh 'chatgpt_repair_system_package_shadow_entries'
 
-assert_contains flake.nix 'description = "ChatGPT for Linux installer";'
+assert_contains flake.nix \
+    'description = "Unofficial ChatGPT for Linux community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.";'
 assert_contains flake.nix 'packages = {'
 assert_contains flake.nix 'chatgpt = chatgpt;'
 assert_contains flake.nix '/opt/chatgpt'

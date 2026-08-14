@@ -9,7 +9,8 @@ Provides: codex-app, codex-desktop
 Conflicts: codex-app, codex-desktop
 Replaces: codex-app, codex-desktop
 Recommends: zenity, kdialog
-Description: ChatGPT for Linux
+Description: Unofficial ChatGPT for Linux community build
+ Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.
  Community-built Linux package for ChatGPT generated from the macOS DMG.
  Requires the Codex CLI to be available in PATH or CODEX_CLI_PATH.
 __UPDATER_DESCRIPTION__

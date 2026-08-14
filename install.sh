@@ -298,34 +298,12 @@ select_linux_icon_source() {
         if is_x11_safe_png_icon "$LINUX_ICON_SOURCE"; then
             return 0
         fi
-        warn "Configured Linux icon is missing, invalid, or larger than 512x512; using automatic icon selection"
+        warn "Configured Linux icon is missing, invalid, or larger than 512x512; using the bundled project icon"
         LINUX_ICON_SOURCE=""
     fi
 
-    local assets_dir="$WORK_DIR/app-extracted/webview/assets"
-    local -a chatgpt_icon_candidates=()
-    if [ -d "$assets_dir" ]; then
-        mapfile -t chatgpt_icon_candidates < <(
-            find "$assets_dir" -maxdepth 1 -type f \
-                -name 'referral-modal-chatgpt-blossom-*.png' -print | LC_ALL=C sort
-        )
-    fi
-
-    if [ "${#chatgpt_icon_candidates[@]}" -eq 1 ] &&
-       is_x11_safe_png_icon "${chatgpt_icon_candidates[0]}"; then
-        LINUX_ICON_SOURCE="${chatgpt_icon_candidates[0]}"
-        info "Using upstream ChatGPT icon"
-        return 0
-    fi
-
     LINUX_ICON_SOURCE="$SCRIPT_DIR/assets/chatgpt-linux.png"
-    if [ "${#chatgpt_icon_candidates[@]}" -gt 1 ]; then
-        warn "Found multiple compact upstream ChatGPT icons; using the bundled Linux icon"
-    elif [ "${#chatgpt_icon_candidates[@]}" -eq 1 ]; then
-        warn "Upstream ChatGPT icon is invalid or larger than 512x512; using the bundled Linux icon"
-    else
-        warn "Compact upstream ChatGPT icon not found; using the bundled Linux icon"
-    fi
+    info "Using bundled ChatGPT for Linux project icon"
 }
 
 is_x11_safe_png_icon() {
