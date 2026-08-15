@@ -111,11 +111,13 @@ fallback updater, removes the fallback and verifies its owned surfaces absent,
 then installs the validated native repackage and verifies signature, repository
 origin, command, desktop, shared profile, pacman update authority, launch, and
 CLI continuity. The reverse switch snapshots newer shared state, removes the
-native repackage, installs and verifies the designated retained fallback
-artifact, and enables `chatgpt-updater` only after acceptance. Failure removes
-the rejected installation where necessary, restores the exact retained
-fallback package, preserves shared state, and restores snapshot data only for
-demonstrated corruption. Product parity is evaluated after switch acceptance.
+native repackage, masks `chatgpt-updater.service` before installing the
+designated retained fallback artifact so its package-time activation cannot
+run, and verifies the fallback while the unit remains masked. It unmasks and
+enables `chatgpt-updater` only after acceptance. Failure removes the rejected
+installation where necessary, restores the exact retained fallback package,
+preserves shared state, and restores snapshot data only for demonstrated
+corruption. Product parity is evaluated after switch acceptance.
 _Avoid_: in-place package upgrade, parity decision as installation failure
 
 **Maintenance fallback**:
