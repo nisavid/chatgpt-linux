@@ -368,6 +368,60 @@ State handling matters:
 - `artifact_paths.package_path` is still serialized as `deb_path` for
   compatibility with existing state files.
 
+## Official-App Evaluation Switch
+
+The finishing-fork `chatgpt` package and CachyOS's validated
+`chatgpt-desktop-bin` repackage are mutually exclusive. Treat either direction
+as two package transactions, not an in-place upgrade. Preserve the shared
+operational state named in `CONTEXT.md`; package rollback never rewinds it.
+
+Before either switch:
+
+1. Quiesce every writer of a captured path or use that store's atomic or
+   online-backup interface. Capture and verify the complete transition recovery
+   set.
+2. Verify the designated retained fallback artifact, including its package
+   digest, tagged source revision, payload manifest, and verification record.
+3. Prove the active task can resume through `codex resume <task-id>`. Abort and
+   keep or restore the accepted fallback if continuity fails.
+
+To switch to the validated native repackage:
+
+1. Stop and disable `chatgpt-updater`, quit ChatGPT, and verify the profile lock
+   is absent.
+2. Remove the finishing-fork package in its own pacman transaction. Verify its
+   command, desktop entry, service, policy, and install roots are absent.
+3. Install the already validated `chatgpt-desktop-bin` candidate in a second
+   pacman transaction.
+4. Verify the CachyOS signature and repository origin, the exact candidate and
+   payload-manifest digests, the `chatgpt` command owner and target, desktop and
+   URI handling, preserved profile, launch, and `codex resume` continuity.
+   Confirm the finishing-fork updater is absent and pacman is the only update
+   authority. Pin the installed version until the next candidate passes the
+   same validation gate.
+
+To switch back to the retained fallback:
+
+1. Preserve the newer shared state in a fresh recovery snapshot, quit ChatGPT,
+   and verify its locks are absent.
+2. Remove `chatgpt-desktop-bin` in its own pacman transaction and verify its
+   owned surfaces are absent.
+3. Mask `chatgpt-updater.service` before installing the exact retained fallback
+   package. Its pacman post-install hook may attempt to enable the service; the
+   mask must remain in place through fallback verification.
+4. Verify the package digest and identity, command and desktop surfaces,
+   preserved profile, migrations, launch, and `codex resume` continuity. Only
+   then unmask and enable `chatgpt-updater` as the sole update authority.
+
+Any failed forward transaction, failed reverse transaction, or failure
+restoration that reinstalls the fallback follows the same mask-through-
+verification rule. Remove the rejected installation where necessary, preserve
+the current shared state, install the exact retained fallback, and keep the
+updater masked until fallback acceptance. Restore snapshot data only to repair
+demonstrated corruption or incompatibility, and preserve the newer live state
+before doing so. Product-parity disappointment is evaluation evidence, not a
+mechanical switch failure.
+
 ## Crate Versioning Policy
 
 The updater crate version is in `updater/Cargo.toml`. The current version is

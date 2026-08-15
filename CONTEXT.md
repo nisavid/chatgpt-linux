@@ -105,19 +105,12 @@ until each replacement candidate passes the Validated native repackage gate.
 _Avoid_: concurrent update authorities, package inference from version alone
 
 **Accepted package switch**:
-A two-transaction package replacement performed only after snapshot,
-fallback-artifact, and `codex resume` preflight. The forward switch stops the
-fallback updater, removes the fallback and verifies its owned surfaces absent,
-then installs the validated native repackage and verifies signature, repository
-origin, command, desktop, shared profile, pacman update authority, launch, and
-CLI continuity. The reverse switch snapshots newer shared state, removes the
-native repackage, masks `chatgpt-updater.service` before installing the
-designated retained fallback artifact so its package-time activation cannot
-run, and verifies the fallback while the unit remains masked. It unmasks and
-enables `chatgpt-updater` only after acceptance. Failure removes the rejected
-installation where necessary, restores the exact retained fallback package,
-preserves shared state, and restores snapshot data only for demonstrated
-corruption. Product parity is evaluated after switch acceptance.
+A two-transaction package replacement that follows the preflight, ordering,
+masking, verification, and failure-recovery procedure in
+`docs/maintainers/package-runtime-maintenance.md`. It preserves Shared
+operational state and reaches a verified package, command, desktop, update
+authority, profile, and Codex CLI state before acceptance. Product parity is
+evaluated after switch acceptance.
 _Avoid_: in-place package upgrade, parity decision as installation failure
 
 **Maintenance fallback**:
