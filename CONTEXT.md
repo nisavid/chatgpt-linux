@@ -50,6 +50,30 @@ sunsetting decisions, but does not establish vendor support for the host
 distribution.
 _Avoid_: Arch support certification, unmodified vendor package
 
+**Shared operational state**:
+The live `Codex` application profile and inherited Codex home that continue to
+evolve while either mutually exclusive ChatGPT producer is installed. A package
+switch preserves this state; rollback does not rewind it automatically.
+_Avoid_: producer-owned profile, disposable evaluation state
+
+**Recovery snapshot**:
+An integrity-checked pre-switch copy of shared and fallback state used only to
+recover from corruption or incompatibility. Before any restore, preserve the
+newer live state and reconcile or restore only what recovery requires.
+_Avoid_: automatic rollback image, routine profile reset
+
+**Active update authority**:
+The sole mechanism permitted to replace the installed ChatGPT producer. The
+fallback uses `chatgpt-updater`; the validated native repackage uses the
+CachyOS package repository through pacman.
+_Avoid_: concurrent update authorities, producer inference from version alone
+
+**Accepted package switch**:
+A two-transaction producer change that preserves shared state and reaches a
+verified package, command, desktop, updater-authority, profile, and Codex CLI
+state. Product parity is evaluated after switch acceptance.
+_Avoid_: in-place package upgrade, parity decision as installation failure
+
 **Maintenance fallback**:
 The fallback baseline's interim posture: latest-DMG compatibility, security,
 packaging, and essential parity repairs without discretionary feature growth.
