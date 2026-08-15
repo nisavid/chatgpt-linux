@@ -13,6 +13,17 @@ License: MIT and LicenseRef-OpenAI-Proprietary
 Files: *
 Copyright: 2025 ilysenko
 License: MIT
+Comment: Repository-maintained source and packaging inputs used to construct
+ the Linux port. The more-specific official app stanza below overrides this
+ general stanza under DEP-5 matching rules.
+
+Files: ChatGPT.dmg
+ chatgpt/*
+Copyright: OpenAI
+License: LicenseRef-OpenAI-Proprietary
+Comment: The generated chatgpt/* app tree is staged in the binary package at
+ /opt/chatgpt/. Open-source components within the official app bundle remain
+ governed by their own embedded notices.
 
 License: MIT
  MIT License

@@ -89,6 +89,7 @@ assert_contains scripts/lib/package-common.sh \
 assert_contains scripts/lib/package-common.sh \
     'cp "$REPO_DIR/packaging/linux/debian-copyright" "$update_builder_root/packaging/linux/debian-copyright"'
 python3 - "$REPO_DIR/packaging/linux/debian-copyright" <<'PY'
+from fnmatch import fnmatchcase
 from pathlib import Path
 import sys
 
@@ -124,12 +125,39 @@ if header.get("License") != "MIT and LicenseRef-OpenAI-Proprietary":
 if "not part of the Debian distribution" not in header.get("Disclaimer", ""):
     raise SystemExit("Debian copyright header must carry the non-free disclaimer")
 files_stanzas = [stanza for stanza in stanzas[1:] if "Files" in stanza]
-if len(files_stanzas) != 1 or files_stanzas[0].get("Files") != "*":
-    raise SystemExit("Debian copyright must have one repository source Files stanza")
-if files_stanzas[0].get("License") != "MIT":
-    raise SystemExit("Repository source Files stanza must remain MIT-only")
-if "OpenAI" in files_stanzas[0].get("Copyright", ""):
-    raise SystemExit("Repository source Files stanza must not attribute the fetched app bundle")
+if len(files_stanzas) != 2:
+    raise SystemExit("Debian copyright must separate project and official app scopes")
+project, official_app = files_stanzas
+if project.get("Files") != "*" or project.get("License") != "MIT":
+    raise SystemExit("General repository source stanza must remain MIT-only")
+if "OpenAI" in project.get("Copyright", ""):
+    raise SystemExit("Repository source stanza must not attribute the fetched app bundle")
+if official_app.get("Files", "").split() != ["ChatGPT.dmg", "chatgpt/*"]:
+    raise SystemExit("Official app stanza must cover the DMG and generated app source tree")
+if official_app.get("License") != "LicenseRef-OpenAI-Proprietary":
+    raise SystemExit("Official app stanza must use the proprietary license reference")
+if "OpenAI" not in official_app.get("Copyright", ""):
+    raise SystemExit("Official app stanza must attribute OpenAI")
+if "/opt/chatgpt/" not in official_app.get("Comment", ""):
+    raise SystemExit("Official app stanza must identify the installed binary payload path")
+
+
+def effective_license(path):
+    license_name = None
+    for stanza in files_stanzas:
+        if any(fnmatchcase(path, pattern) for pattern in stanza["Files"].split()):
+            license_name = stanza["License"]
+    return license_name
+
+
+if effective_license("packaging/linux/control") != "MIT":
+    raise SystemExit("Repository package sources must resolve to MIT")
+if effective_license("docs/maintainers/readme-visual-capture.md") != "MIT":
+    raise SystemExit("Repository documentation must resolve to MIT")
+if effective_license("ChatGPT.dmg") != "LicenseRef-OpenAI-Proprietary":
+    raise SystemExit("Official app input must resolve to the proprietary license")
+if effective_license("chatgpt/resources/app.asar") != "LicenseRef-OpenAI-Proprietary":
+    raise SystemExit("Generated official app payload must resolve to the proprietary license")
 license_names = {
     stanza.get("License", "").splitlines()[0]
     for stanza in stanzas[1:]
