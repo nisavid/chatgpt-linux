@@ -62,6 +62,26 @@ recover from corruption or incompatibility. Before any restore, preserve the
 newer live state and reconcile or restore only what recovery requires.
 _Avoid_: automatic rollback image, routine profile reset
 
+**Selective quiescence**:
+Stopping the ChatGPT desktop process and its active updater authority, then
+confirming that the current task can resume through the inherited `codex` CLI,
+without requiring unrelated Codex tasks on the host to stop.
+_Avoid_: whole-host Codex shutdown, live desktop package replacement
+
+**Transition recovery set**:
+The durable shared profile, Codex task state, and fallback configuration and
+state captured before a package switch. Reproducible worktrees, caches,
+temporary files, IPC, and writer locks remain outside the snapshot and are
+audited separately when relevant.
+_Avoid_: entire-home archive, cache backup, worktree migration
+
+**Retained fallback artifact**:
+The exact verified finishing-fork package, digest, source revision, payload
+manifest, and verification record kept outside the package-manager cache until
+the sunsetting decision. Rollback installs this artifact rather than rebuilding
+or selecting a nominally equivalent version.
+_Avoid_: pacman-cache-only fallback, version-only rollback
+
 **Active update authority**:
 The sole mechanism permitted to replace the installed ChatGPT producer. The
 fallback uses `chatgpt-updater`; the validated native repackage uses the
