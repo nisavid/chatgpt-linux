@@ -35,6 +35,21 @@ official and finishing-fork `chatgpt` installations while the inherited
 `codex` CLI remains available as a continuity harness.
 _Avoid_: co-installation, dual ChatGPT installation
 
+**Validated native repackage**:
+A community-maintained Arch package whose source recipe and built payload have
+been independently checked against OpenAI's signed official Linux package,
+with every distribution-specific change identified. It is acceptable evidence
+for evaluating official-app behavior on CachyOS, but it is not an
+OpenAI-supported Arch package lifecycle.
+_Avoid_: official Arch release, vendor-supported Arch package
+
+**Official-app evaluation evidence**:
+Observed behavior of the OpenAI application payload installed from an official
+OpenAI package or a validated native repackage. It supports feature-parity and
+sunsetting decisions, but does not establish vendor support for the host
+distribution.
+_Avoid_: Arch support certification, unmodified vendor package
+
 **Maintenance fallback**:
 The fallback baseline's interim posture: latest-DMG compatibility, security,
 packaging, and essential parity repairs without discretionary feature growth.
