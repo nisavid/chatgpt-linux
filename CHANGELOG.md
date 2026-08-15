@@ -50,7 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- Official DMG compatibility now covers ChatGPT 26.810.41047 across core
+- Official DMG compatibility now covers ChatGPT 26.810.50856 across core
   window, tray, Computer Use, and Codex Micro behavior plus AppShots, Global
   Dictation, remote mobile control, Suggested Prompts, SSH command wrapping,
   Conversation Mode, API-key model visibility, Copilot reasoning, and project
