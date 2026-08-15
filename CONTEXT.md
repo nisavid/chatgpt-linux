@@ -47,9 +47,12 @@ _Avoid_: co-installation, dual ChatGPT installation
 **Validated native repackage**:
 The CachyOS-signed `chatgpt-desktop-bin` package after its source recipe and
 built payload have been independently checked against OpenAI's signed official
-Linux package, with every distribution-specific change identified. It is
-acceptable evidence for evaluating official-app behavior on CachyOS, but it is
-not an OpenAI-supported Arch package lifecycle.
+Linux package, with every distribution-specific change identified. Acceptance
+requires a trusted OpenAI package-repository signature plus recorded SHA-256
+digests for the official package, repackage, and compared payload manifests.
+Missing or mismatched evidence rejects the candidate. An accepted candidate is
+evidence for evaluating official-app behavior on CachyOS, but it is not an
+OpenAI-supported Arch package lifecycle.
 _Avoid_: official Arch release, vendor-supported Arch package
 
 **Official-app evaluation evidence**:
@@ -67,8 +70,11 @@ _Avoid_: installation-owned profile, disposable evaluation state
 
 **Recovery snapshot**:
 An integrity-checked pre-switch copy of shared and fallback state used only to
-recover from corruption or incompatibility. Before any restore, preserve the
-newer live state and reconcile or restore only what recovery requires.
+recover from corruption or incompatibility. It captures the complete Transition
+recovery set after every writer of a captured path is quiesced, or through that
+store's atomic or online-backup interface when its unrelated writer must remain
+live. Before any restore, preserve the newer live state and reconcile or
+restore only what recovery requires.
 _Avoid_: automatic rollback image, routine profile reset
 
 **Selective quiescence**:
@@ -98,14 +104,28 @@ CachyOS package repository through pacman.
 _Avoid_: concurrent update authorities, package inference from version alone
 
 **Accepted package switch**:
-A two-transaction package replacement that preserves shared state and reaches a
-verified package, command, desktop, active update authority, profile, and Codex
-CLI state. Product parity is evaluated after switch acceptance.
+A two-transaction package replacement performed only after snapshot,
+fallback-artifact, and `codex resume` preflight. The forward switch stops the
+fallback updater, removes the fallback and verifies its owned surfaces absent,
+then installs the validated native repackage and verifies signature, repository
+origin, command, desktop, shared profile, pacman update authority, launch, and
+CLI continuity. The reverse switch snapshots newer shared state, removes the
+native repackage, installs and verifies the designated retained fallback
+artifact, and enables `chatgpt-updater` only after acceptance. Failure removes
+the rejected installation where necessary, restores the exact retained
+fallback package, preserves shared state, and restores snapshot data only for
+demonstrated corruption. Product parity is evaluated after switch acceptance.
 _Avoid_: in-place package upgrade, parity decision as installation failure
 
 **Maintenance fallback**:
 The fallback baseline's interim posture: latest-DMG compatibility, security,
 packaging, and essential parity repairs without discretionary feature growth.
+The rename-completion package remains the designated rollback artifact until a
+later repair produces its own tagged, fully verified package, digest, source
+revision, payload manifest, and verification record and is explicitly promoted
+as the new rollback target. “Latest-DMG” identifies the verified official DMG
+used to build that maintenance candidate; it does not change the retained
+artifact by itself.
 _Avoid_: feature expansion, frozen archive
 
 **Sunsetting decision**:
