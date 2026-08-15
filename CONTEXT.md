@@ -14,6 +14,11 @@ _Avoid_: Codex, Codex App, ChatGPT Desktop
 The prose name for this unofficial hardening and finishing fork.
 _Avoid_: Codex App for Linux, ChatGPT Desktop for Linux, the Linux fork
 
+**Canonical project identity**:
+`nisavid/chatgpt-linux` for the GitHub repository and `chatgpt-linux` for the
+local project and checkout. Runtime and package identities remain `chatgpt`.
+_Avoid_: `nisavid/codex-app-linux`, using `chatgpt-linux` as the app name
+
 **Codex**:
 The coding subsystem, CLI, and OpenAI-owned compatibility interfaces retained
 inside ChatGPT.
@@ -25,8 +30,9 @@ the Linux-port upstream.
 _Avoid_: Linux fork, primary Linux port
 
 **Fallback baseline**:
-The renamed and fully verified finishing fork retained as a reinstallable
-alternative while OpenAI's official Linux app is evaluated.
+The finishing fork at its tagged, fully verified rename-completion commit,
+retained with exact package evidence as a reinstallable alternative while
+OpenAI's official Linux app is evaluated.
 _Avoid_: co-installed fallback, permanent parallel distribution
 
 **Evaluation transition**:
@@ -36,11 +42,11 @@ official and finishing-fork `chatgpt` installations while the inherited
 _Avoid_: co-installation, dual ChatGPT installation
 
 **Validated native repackage**:
-A community-maintained Arch package whose source recipe and built payload have
-been independently checked against OpenAI's signed official Linux package,
-with every distribution-specific change identified. It is acceptable evidence
-for evaluating official-app behavior on CachyOS, but it is not an
-OpenAI-supported Arch package lifecycle.
+The CachyOS-signed `chatgpt-desktop-bin` package after its source recipe and
+built payload have been independently checked against OpenAI's signed official
+Linux package, with every distribution-specific change identified. It is
+acceptable evidence for evaluating official-app behavior on CachyOS, but it is
+not an OpenAI-supported Arch package lifecycle.
 _Avoid_: official Arch release, vendor-supported Arch package
 
 **Official-app evaluation evidence**:
@@ -52,9 +58,9 @@ _Avoid_: Arch support certification, unmodified vendor package
 
 **Shared operational state**:
 The live `Codex` application profile and inherited Codex home that continue to
-evolve while either mutually exclusive ChatGPT producer is installed. A package
-switch preserves this state; rollback does not rewind it automatically.
-_Avoid_: producer-owned profile, disposable evaluation state
+evolve while either mutually exclusive ChatGPT installation is active. A
+package switch preserves this state; rollback does not rewind it automatically.
+_Avoid_: installation-owned profile, disposable evaluation state
 
 **Recovery snapshot**:
 An integrity-checked pre-switch copy of shared and fallback state used only to
@@ -83,15 +89,15 @@ or selecting a nominally equivalent version.
 _Avoid_: pacman-cache-only fallback, version-only rollback
 
 **Active update authority**:
-The sole mechanism permitted to replace the installed ChatGPT producer. The
+The sole mechanism permitted to replace the installed ChatGPT package. The
 fallback uses `chatgpt-updater`; the validated native repackage uses the
 CachyOS package repository through pacman.
-_Avoid_: concurrent update authorities, producer inference from version alone
+_Avoid_: concurrent update authorities, package inference from version alone
 
 **Accepted package switch**:
-A two-transaction producer change that preserves shared state and reaches a
-verified package, command, desktop, updater-authority, profile, and Codex CLI
-state. Product parity is evaluated after switch acceptance.
+A two-transaction package replacement that preserves shared state and reaches a
+verified package, command, desktop, active update authority, profile, and Codex
+CLI state. Product parity is evaluated after switch acceptance.
 _Avoid_: in-place package upgrade, parity decision as installation failure
 
 **Maintenance fallback**:
