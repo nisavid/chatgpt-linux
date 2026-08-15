@@ -24,6 +24,27 @@ This repository's hardening, packaging, policy, and runtime-polish layer over
 the Linux-port upstream.
 _Avoid_: Linux fork, primary Linux port
 
+**Fallback baseline**:
+The renamed and fully verified finishing fork retained as a reinstallable
+alternative while OpenAI's official Linux app is evaluated.
+_Avoid_: co-installed fallback, permanent parallel distribution
+
+**Evaluation transition**:
+The period in which one Linux host may alternate between mutually exclusive
+official and finishing-fork `chatgpt` installations while the inherited
+`codex` CLI remains available as a continuity harness.
+_Avoid_: co-installation, dual ChatGPT installation
+
+**Maintenance fallback**:
+The fallback baseline's interim posture: latest-DMG compatibility, security,
+packaging, and essential parity repairs without discretionary feature growth.
+_Avoid_: feature expansion, frozen archive
+
+**Sunsetting decision**:
+The later owner decision to retire or retain the finishing fork after the
+official Linux app has been evaluated against the project's essential goals.
+_Avoid_: automatic retirement, rename-completion decision
+
 **Linux-port upstream**:
 `ilysenko/codex-desktop-linux`, the direct upstream whose synced baseline
 performs the DMG-based Linux conversion used here. Its current development has
