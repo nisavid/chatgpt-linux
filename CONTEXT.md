@@ -100,7 +100,8 @@ _Avoid_: pacman-cache-only fallback, version-only rollback
 **Active update authority**:
 The sole mechanism permitted to replace the installed ChatGPT package. The
 fallback uses `chatgpt-updater`; the validated native repackage uses the
-CachyOS package repository through pacman.
+CachyOS package repository through pacman, with the installed version pinned
+until each replacement candidate passes the Validated native repackage gate.
 _Avoid_: concurrent update authorities, package inference from version alone
 
 **Accepted package switch**:
