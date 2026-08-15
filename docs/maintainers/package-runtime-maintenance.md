@@ -387,8 +387,10 @@ Before either switch:
 
 To switch to the validated native repackage:
 
-1. Stop and disable `chatgpt-updater`, quit ChatGPT, and verify the profile lock
-   is absent.
+1. Through the target user's `systemctl --user` manager, stop, disable, and mask
+   `chatgpt-updater.service`. Verify that it is inactive and reports `masked`,
+   quit ChatGPT, and verify the profile lock is absent. Keep the unit masked
+   through both package transactions and official-app acceptance.
 2. Remove the finishing-fork package in its own pacman transaction. Verify its
    command, desktop entry, service, policy, and install roots are absent.
 3. Install the already validated `chatgpt-desktop-bin` candidate in a second
@@ -397,7 +399,9 @@ To switch to the validated native repackage:
    payload-manifest digests, the `chatgpt` command owner and target, desktop and
    URI handling, preserved profile, launch, and `codex resume` continuity.
    Confirm the finishing-fork updater is absent and pacman is the only update
-   authority. Pin the installed version until the next candidate passes the
+   authority. Add `IgnorePkg = chatgpt-desktop-bin` under `[options]` in
+   `/etc/pacman.conf`, verify that the active configuration contains the entry,
+   and do not remove, change, or override it until the next candidate passes the
    same validation gate.
 
 To switch back to the retained fallback:
@@ -406,12 +410,16 @@ To switch back to the retained fallback:
    state in a fresh recovery snapshot.
 2. Remove `chatgpt-desktop-bin` in its own pacman transaction and verify its
    owned surfaces are absent.
-3. Mask `chatgpt-updater.service` before installing the exact retained fallback
-   package. Its pacman post-install hook may attempt to enable the service; the
-   mask must remain in place through fallback verification.
+3. Confirm through the target user's `systemctl --user` manager that
+   `chatgpt-updater.service` is inactive and reports `masked` before installing
+   the exact retained fallback package. Its pacman post-install hook may attempt
+   to enable the service; the mask must remain in place through fallback
+   verification.
 4. Verify the package digest and identity, command and desktop surfaces,
-   preserved profile, migrations, launch, and `codex resume` continuity. Only
-   then unmask and enable `chatgpt-updater` as the sole update authority.
+   preserved profile, migrations, absent profile lock, launch, and `codex resume`
+   continuity. Only then use the target user's `systemctl --user` manager to
+   unmask and enable `chatgpt-updater.service` as the sole update authority, and
+   verify that the unit reports both enabled and active.
 
 Any failed forward transaction, failed reverse transaction, or failure
 restoration that reinstalls the fallback follows the same mask-through-
