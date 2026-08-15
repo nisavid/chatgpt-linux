@@ -12287,6 +12287,19 @@ test_stage_native_package_payload_stages_debian_copyright() {
     assert_contains \
         "$root/usr/share/doc/chatgpt/copyright" \
         "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
+    assert_contains \
+        "$root/usr/share/doc/chatgpt/copyright" \
+        "Files: ChatGPT.dmg"
+    assert_contains \
+        "$root/usr/share/doc/chatgpt/copyright" \
+        " chatgpt/*"
+    assert_contains \
+        "$root/usr/share/doc/chatgpt/copyright" \
+        "/opt/chatgpt/"
+    cmp -s \
+        "$REPO_DIR/packaging/linux/debian-copyright" \
+        "$root/usr/share/doc/chatgpt/copyright" || \
+        fail "Expected staged Debian copyright to preserve the reviewed source"
 }
 
 test_update_builder_omits_build_time_port_integrations_config() {
