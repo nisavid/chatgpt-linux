@@ -50,11 +50,14 @@ const mainFixture = [
   "let config={sshPort:e.sshPort,identity:e.identity,codexCliCommand:[]}",
 ].join(";");
 
+const currentWebviewSettingsFieldTarget =
+  "let N;t[47]!==k||t[48]!==j||t[49]!==M?(N=(0,q.jsx)(ln,{children:(0,q.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[k,j,M]})}),t[47]=k,t[48]=j,t[49]=M,t[50]=N):N=t[50];";
+
 const webviewFixture = [
   "function qi(){return{displayName:``,targetKind:`hostname`,sshHost:``,sshPort:``,authMode:`none`,identity:``}}",
   "function Ji(e){return{displayName:e.displayName,targetKind:e.sshAlias?.trim()?`alias`:`hostname`,sshHost:e.sshAlias?.trim()||e.sshHost,sshPort:e.sshPort==null?``:String(e.sshPort),authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
   "function Yi(e,{connectionAnalyticsId:t}={}){let n=e.displayName.trim(),r=e.sshHost.trim(),i=e.targetKind===`alias`?r:null;return i==null?{hostId:d(n),connectionAnalyticsId:t,displayName:n,source:`codex-managed`,alias:null,hostname:r,sshPort:Zi(e.sshPort),identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:ze(i),connectionAnalyticsId:t,displayName:n,source:`discovered`,alias:i,hostname:null,sshPort:null,identity:null}}function Xi({draft:e,editingHostId:t,existingConnections:n}){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
-  "function $i(e){let _,D,k,j,M,l,q,ra,G;M=(0,q.jsx)(Mn,{children:(0,q.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[D,k,j]})});return M}",
+  `function $i(e){let t=[],v,q,ln,k,j,M,ra,o,u;${currentWebviewSettingsFieldTarget}return N}`,
   "function ia(e){switch(e){case`displayNameRequired`:return null}}",
 ].join("");
 
@@ -286,13 +289,27 @@ test("main-process helper-only partial state is reported as integration drift", 
   });
 });
 
-test("patches the SSH connection editor for manual hosts and aliases", () => {
+test("patches the current compiler-memoized SSH connection editor for manual hosts and aliases", () => {
   const patched = applyWebviewPatch(webviewFixture);
   assert.notEqual(patched, webviewFixture);
   assert.equal(applyWebviewPatch(patched), patched);
+  assert.equal(patched.includes(currentWebviewSettingsFieldTarget), false);
+  const fieldStart = patched.indexOf("let N=(0,q.jsx)(ln");
+  const fieldEnd = patched.indexOf("return N", fieldStart);
+  assert.notEqual(fieldStart, -1);
+  assert.notEqual(fieldEnd, -1);
+  const injectedField = patched.slice(fieldStart, fieldEnd);
+  assert.match(injectedField, /v\.Field/u);
+  assert.match(injectedField, /name:`chatgptLinuxSshCommandWrapperText`/u);
+  assert.match(injectedField, /disabled:u/u);
+  assert.doesNotMatch(injectedField, /disabled:l/u);
   assert.match(patched, /Remote command wrapper/u);
   assert.match(patched, /ssh -T target-host --/u);
   assert.match(patched, /invalidSshCommandWrapper/u);
+  assert.match(
+    patched,
+    /case`invalidSshCommandWrapper`:return\(0,q\.jsx\)\(o,\{id:`settings\.remoteConnections\.dialog\.field\.commandWrapper\.error`/u,
+  );
   assert.match(patched, /chatgptLinuxSshCommandWrapper:chatgptLinuxParseSshCommandWrapper/u);
 });
 
@@ -306,8 +323,8 @@ test("webview patch rejects a damaged injected helper implementation", () => {
   assert.match(warnings.join("\n"), /helperSource=0/u);
 });
 
-test("webview patch rejects duplicate owned editor targets", () => {
-  const duplicateTarget = `${webviewFixture}function duplicate(){return{authMode:\`none\`,identity:\`\`}}`;
+test("webview patch rejects duplicate current settings layout targets", () => {
+  const duplicateTarget = `${webviewFixture}function duplicate(){${currentWebviewSettingsFieldTarget}}`;
   const { value, warnings } = withCapturedWarnings(() => applyWebviewPatch(duplicateTarget));
   assert.equal(value, duplicateTarget);
   assert.match(warnings.join("\n"), /partial, ambiguous, or drifted/u);

@@ -381,13 +381,15 @@ function applyWebviewPatch(source) {
       "wrapper validation",
     ],
     [
-      "children:[D,k,j]})",
-      `children:[D,k,j,(0,q.jsx)(_.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,q.jsx)(ra,{label:(0,q.jsxs)(q.Fragment,{children:[(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,q.jsx)(\`span\`,{className:\`font-normal text-secondary\`,children:(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.optional\`,defaultMessage:\`(optional)\`,description:\`Marker shown next to optional fields in the remote connection editor dialog\`})})]}),description:(0,q.jsx)(G,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:l})})]})`,
+      // The official cache block tracks only k, j, and M. Replace it whole so
+      // the injected field reads the current saving state from u on every render.
+      "let N;t[47]!==k||t[48]!==j||t[49]!==M?(N=(0,q.jsx)(ln,{children:(0,q.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[k,j,M]})}),t[47]=k,t[48]=j,t[49]=M,t[50]=N):N=t[50];",
+      `let N=(0,q.jsx)(ln,{children:(0,q.jsxs)(\`div\`,{className:\`grid grid-cols-1 gap-4\`,children:[k,j,M,(0,q.jsx)(v.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,q.jsx)(ra,{label:(0,q.jsxs)(q.Fragment,{children:[(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,q.jsx)(\`span\`,{className:\`font-normal text-secondary\`,children:(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.optional\`,defaultMessage:\`(optional)\`,description:\`Marker shown next to optional fields in the remote connection editor dialog\`})})]}),description:(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:u})})]})});`,
       "wrapper settings field",
     ],
     [
       "function ia(e){switch(e){case`displayNameRequired`:",
-      "function ia(e){switch(e){case`invalidSshCommandWrapper`:return(0,q.jsx)(G,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
+      "function ia(e){switch(e){case`invalidSshCommandWrapper`:return(0,q.jsx)(o,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
       "wrapper validation message",
     ],
   ];
