@@ -402,8 +402,8 @@ To switch to the validated native repackage:
 
 To switch back to the retained fallback:
 
-1. Preserve the newer shared state in a fresh recovery snapshot, quit ChatGPT,
-   and verify its locks are absent.
+1. Quit ChatGPT, verify its locks are absent, then preserve the newer shared
+   state in a fresh recovery snapshot.
 2. Remove `chatgpt-desktop-bin` in its own pacman transaction and verify its
    owned surfaces are absent.
 3. Mask `chatgpt-updater.service` before installing the exact retained fallback
