@@ -22,15 +22,20 @@ project logo by default, while an explicit build-time icon may override it. The
 official app's ChatGPT/Codex Dock-icon selector remains an explicit opt-in port
 integration setting.
 
-Render each tracked PNG directly from the approved SVG with `rsvg-convert` so
-small sizes do not inherit a resampling pass:
+Render each tracked PNG directly from the approved SVG with `rsvg-convert`
+2.62.3 so small sizes do not inherit a resampling pass. The approved PNG
+digests were produced with that renderer version. Verify it before exporting:
 
 ```bash
+test "$(rsvg-convert --version | sed -n '1s/^rsvg-convert version //p')" = "2.62.3"
 rsvg-convert -w 512 -h 512 -o assets/chatgpt.png assets/chatgpt-linux-project-logo.svg
 rsvg-convert -w 256 -h 256 -o assets/chatgpt-linux.png assets/chatgpt-linux-project-logo.svg
 ```
 
-The asset digests and dimensions are pinned in
+If the version check fails, use a pinned package or container that supplies
+2.62.3; do not regenerate the tracked PNGs with a different renderer version.
+The version match is a required reproduction condition, while the pinned asset
+digests remain the acceptance check. The asset digests and dimensions are in
 `scripts/ci/validate-readme-visuals.test.js`. Preserve the attribution and use
 controls in [Project Logo Rights and Provenance](project-logo-rights-research.md).
 
