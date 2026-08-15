@@ -1,5 +1,7 @@
 "use strict";
 
+const { escapeRegExp } = require("../../scripts/patches/lib/minified-js.js");
+
 const APPSHOT_HELPER_MARKER = "chatgptLinuxAppshotStartCapture";
 const LINUX_APPSHOT_X11_HOTKEYS = [
   { hotkey: "DoubleOption", label: "Alt + Alt" },
@@ -176,8 +178,10 @@ function applyLinuxAppshotSettingsHotkeyPatch(currentSource) {
   }
 
   const optionsVarName = optionsMatches[0][2];
+  const macOptions = optionsMatches[0][3];
+  const optionsVarPattern = escapeRegExp(optionsVarName);
   const selectionPattern = new RegExp(
-    `let ([A-Za-z_$][\\w$]*)=([A-Za-z_$][\\w$]*)===\`windows\`\\?(\\[\\{hotkey:\`DoubleAlt\`,label:[^{}]+\\},\\{hotkey:\`DoubleShift\`,label:[^{}]+\\}\\]):${optionsVarName},([A-Za-z_$][\\w$]*)=\\1\\.find\\(`,
+    `let ([A-Za-z_$][\\w$]*)=([A-Za-z_$][\\w$]*)===\`windows\`\\?(\\[\\{hotkey:\`DoubleAlt\`,label:[^{}]+\\},\\{hotkey:\`DoubleShift\`,label:[^{}]+\\}\\]):${optionsVarPattern},([A-Za-z_$][\\w$]*)=\\1\\.find\\(`,
     "g",
   );
   const selectionMatches = [...currentSource.matchAll(selectionPattern)];
@@ -211,7 +215,7 @@ function applyLinuxAppshotSettingsHotkeyPatch(currentSource) {
       `let ${optionsLocalVar}=chatgptLinuxAppshotHotkeyOptions(${stateDataVar},${platformVar},${windowsOptions}),${selectedOptionVar}=${optionsLocalVar}.find(`,
   );
   const helper =
-    `function chatgptLinuxAppshotHotkeyOptions(e,t,n){return typeof navigator!=\`undefined\`&&navigator.userAgent.includes(\`Linux\`)?e?.linuxWayland?${linuxWaylandOptions}:${linuxX11Options}:t===\`windows\`?n:${optionsVarName}}`;
+    `function chatgptLinuxAppshotHotkeyOptions(e,t,n){return typeof navigator!=\`undefined\`&&navigator.userAgent.includes(\`Linux\`)?e?.linuxWayland?${linuxWaylandOptions}:${linuxX11Options}:t===\`windows\`?n:${macOptions}}`;
   const sourceMapIndex = patchedSource.lastIndexOf("\n//# sourceMappingURL=");
   if (sourceMapIndex >= 0) {
     return `${patchedSource.slice(0, sourceMapIndex)};${helper}${patchedSource.slice(sourceMapIndex)}`;

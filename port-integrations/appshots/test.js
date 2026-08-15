@@ -93,6 +93,15 @@ function currentAppshotSettingsRuntimeFixture() {
   ].join("");
 }
 
+function functionLocalAppshotSettingsRuntimeFixture() {
+  return [
+    "let d={configuredHotkey:`DoubleOption`,linuxWayland:!1},i=`macOS`,n={formatMessage:e=>e};",
+    "function render(){var Y=[{hotkey:`DoubleCommand`,label:`Command`},{hotkey:`DoubleOption`,label:`Option`},{hotkey:`DoubleShift`,label:`Shift`}];let v=d?.configuredHotkey??null;if(v!==void 0){let t=i===`windows`?[{hotkey:`DoubleAlt`,label:n.formatMessage(`Alt + Alt`)},{hotkey:`DoubleShift`,label:n.formatMessage(`Shift + Shift`)}]:Y,r=t.find(e=>e.hotkey===v)??null;return{selected:r,labels:t.map(e=>e.label)}}}",
+    "globalThis.result=render();",
+    "\n//# sourceMappingURL=fixture.js.map",
+  ].join("");
+}
+
 test("appshots can be disabled in integrations.json", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "appshots-integration-"));
   const configPath = path.join(tempDir, "integrations.json");
@@ -561,6 +570,38 @@ test("AppShots settings patch preserves dollar sequences from the current bundle
     patched.includes(
       "let t=chatgptLinuxAppshotHotkeyOptions(d,i,[{hotkey:`DoubleAlt`,label:n.formatMessage(`$& + Alt`)},{hotkey:`DoubleShift`,label:n.formatMessage(`Shift + Shift`)}]),r=t.find(",
     ),
+  );
+});
+
+test("AppShots settings patch accepts a dollar-bearing options identifier", () => {
+  const source = currentAppshotSettingsRuntimeFixture()
+    .replace("var Y=", "var Y$=")
+    .replace(":Y,r=t.find(", ":Y$,r=t.find(");
+
+  const patched = applyPatchTwice(applyLinuxAppshotSettingsHotkeyPatch, source);
+
+  assert.match(
+    patched,
+    /let t=chatgptLinuxAppshotHotkeyOptions\(d,i,\[\{hotkey:`DoubleAlt`/,
+  );
+});
+
+test("AppShots settings helper preserves function-local macOS options", () => {
+  const patched = applyPatchTwice(
+    applyLinuxAppshotSettingsHotkeyPatch,
+    functionLocalAppshotSettingsRuntimeFixture(),
+  );
+  const context = {
+    globalThis: {},
+    navigator: { userAgent: "macOS" },
+  };
+
+  vm.runInNewContext(`"use strict";${patched}`, context);
+
+  assert.equal(context.globalThis.result.selected.hotkey, "DoubleOption");
+  assert.deepEqual(
+    Array.from(context.globalThis.result.labels),
+    ["Command", "Option", "Shift"],
   );
 });
 
