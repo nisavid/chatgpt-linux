@@ -15,9 +15,12 @@ The prose name for this unofficial hardening and finishing fork.
 _Avoid_: Codex App for Linux, ChatGPT Desktop for Linux, the Linux fork
 
 **Canonical project identity**:
-`nisavid/chatgpt-linux` for the GitHub repository and `chatgpt-linux` for the
-local project and checkout. Runtime and package identities remain `chatgpt`.
-_Avoid_: `nisavid/codex-app-linux`, using `chatgpt-linux` as the app name
+Until the in-place rename completes, the live GitHub repository remains
+`nisavid/codex-app-linux`. After rename verification, its canonical identity is
+`nisavid/chatgpt-linux`, with `chatgpt-linux` as the local project and checkout
+name. Runtime and package identities remain `chatgpt`.
+_Avoid_: using the planned slug before the rename, using `chatgpt-linux` as the
+app name
 
 **Codex**:
 The coding subsystem, CLI, and OpenAI-owned compatibility interfaces retained
