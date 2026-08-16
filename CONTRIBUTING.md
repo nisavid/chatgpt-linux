@@ -82,7 +82,7 @@ Good issue reports usually include:
 The recommended local setup is:
 
 ```bash
-git clone https://github.com/nisavid/codex-app-linux.git chatgpt-linux
+git clone https://github.com/nisavid/chatgpt-linux.git chatgpt-linux
 cd chatgpt-linux
 bash scripts/install-deps.sh
 ```

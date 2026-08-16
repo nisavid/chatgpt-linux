@@ -92,12 +92,10 @@ This is a single-context repo. See `docs/agents/domain.md`.
 - The first time a task branch is pushed, create a draft PR in the same workflow
   turn. Mark it ready only after local readiness gates pass and the PR body
   records verification evidence.
-- Until issue #119 completes the in-place repository rename, use
-  `--repo nisavid/codex-app-linux` on every `gh pr` command in this checkout,
-  including `create`, `view`, `ready`, `checks`, `merge`, and `status`. After
-  the rename, use `--repo nisavid/chatgpt-linux`. Do not rely on GitHub CLI's
-  inferred repository; it can target the wrong repository in this fork
-  checkout.
+- Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this checkout,
+  including `create`, `view`, `ready`, `checks`, `merge`, and `status`. Do not
+  rely on GitHub CLI's inferred repository; it can target the wrong repository
+  in this fork checkout.
 - Commit completed work before handoff. For long tasks, also commit at staged,
   functional cutoff points. Each commit must pass the normal checks for the
   changed surface before it is created.

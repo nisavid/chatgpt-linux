@@ -17,7 +17,7 @@ during triage. Describe the facts and scope; do not self-classify.
 ## Checklist
 
 - [ ] This pull request is ready for review and is no longer a draft.
-- [ ] I followed [CONTRIBUTING.md](https://github.com/nisavid/codex-app-linux/blob/main/CONTRIBUTING.md), kept the change focused, edited source files rather than generated output, and removed unrelated changes.
+- [ ] I followed [CONTRIBUTING.md](https://github.com/nisavid/chatgpt-linux/blob/main/CONTRIBUTING.md), kept the change focused, edited source files rather than generated output, and removed unrelated changes.
 - [ ] If this fixes official-app drift, it targets only the latest `ChatGPT.dmg` and removes obsolete fallback code and tests from the affected area.
 - [ ] I added or updated relevant tests, ran the validation listed above, and confirmed that required CI checks pass.
 - [ ] I reviewed the final diff with my coding agent using maximum reasoning effort, addressed all findings, and reran the relevant tests.

@@ -35,14 +35,14 @@ precedence over generated output.
 ## Post-Baseline Source Decision
 
 After this baseline, the Linux-port upstream switched its app input to OpenAI's
-signed Linux APT package. This fork still builds from the official OpenAI
-ChatGPT DMG and ships a native package named `chatgpt`, which collides with the
-official Linux package identity. Do not import the source transition or claim
-co-installation until the source, package ownership, conflict, upgrade, and
-updater contracts are decided together. Treat that decision as a prerequisite
-to completing the remaining repository-rename work in issue #119. Open and
-resolve a dedicated Wayfinder decision ticket before advancing that issue; its
-current decision record does not cover this new source and package frontier.
+signed Linux APT package. This fork intentionally remains a DMG-based
+maintenance fallback while that official Linux app is evaluated. Both native
+packages own the `chatgpt` identity and are mutually exclusive on one host;
+follow the accepted switch and rollback procedure in
+[Package and Runtime Maintenance](package-runtime-maintenance.md#official-app-evaluation-switch).
+Do not import the source transition or claim co-installation without a new
+explicit decision covering source, package ownership, conflicts, upgrades, and
+update authority together.
 
 ## Sync Review Rule
 
@@ -77,7 +77,7 @@ old target from the merge result.
 
 | Old target or token | Current local target or token | Source and sync relevance |
 | --- | --- | --- |
-| Repository `nisavid/codex-app-linux` | Planned canonical slug `nisavid/chatgpt-linux` | The product migration is merged, but the in-place repository rename remains open in issue #119. Before that rename, use the live repository identity for GitHub operations; after it, preserve the old-to-new mapping and redirects. |
+| Former repository slug `nisavid/codex-app-linux` | Canonical repository `nisavid/chatgpt-linux` | The in-place rename preserved repository and fork identity. GitHub redirects the former web and Git endpoints; use only the canonical slug for new operations and durable links. |
 | Local package, command, desktop, and app/XDG identity `codex-app` | `chatgpt` | Native package metadata replaces/conflicts with the old package, but no executable, desktop, service, or filesystem shim is installed. Wrapper-owned XDG directories move through the journaled state migration. |
 | Local updater crate, command, service, and XDG identity `codex-app-updater` | `chatgpt-updater` | Package lifecycle hooks disable the old service and enable the canonical service when policy permits. Updater config, state, and cache move through the same migration; no service alias is installed. |
 | Generated metadata root `.codex-linux/` and local setting keys beginning `codex-linux-` | `.chatgpt-linux/` and `chatgpt-linux-` | The migration rewrites known wrapper-owned text files and moves the CLI quarantine directory. Generated output uses only canonical names. |

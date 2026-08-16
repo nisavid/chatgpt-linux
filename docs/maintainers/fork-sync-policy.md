@@ -51,11 +51,9 @@ behavior into the user-global `syncing-forks-with-upstream` skill.
    changes covered by [Local Gates](#local-gates).
 13. On the first push of any task branch, create a draft PR in the same
    workflow turn.
-14. Until issue #119 completes the in-place rename, use
-   `--repo nisavid/codex-app-linux` on every `gh pr` command in this checkout.
-   After the rename, use `--repo nisavid/chatgpt-linux`. Do not rely on GitHub
-   CLI's inferred repository; it can target the wrong repository in this fork
-   checkout.
+14. Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
+   checkout. Do not rely on GitHub CLI's inferred repository; it can target the
+   wrong repository in this fork checkout.
 15. Keep the PR in draft until local gates pass and the PR body records
    verification evidence. For code-changing branches, the required lifecycle is:
    local gates, first push, draft PR, PR verification notes, ready for review.

@@ -76,8 +76,8 @@ the app, and installs the resulting native package. The expanded flow below is
 useful when you want to inspect the package before installing it.
 
 ```bash
-git clone https://github.com/nisavid/codex-app-linux.git codex-app-linux
-cd codex-app-linux
+git clone https://github.com/nisavid/chatgpt-linux.git chatgpt-linux
+cd chatgpt-linux
 bash scripts/install-deps.sh
 make clean build-app package
 ```
@@ -331,7 +331,7 @@ untouched. Suggested Prompts requires
 the official app's eligibility, the user's setting, and supported local
 Linux patch contracts at the same time. Main-process hardening for direct
 workspace bridge calls is tracked in
-[`#99`](https://github.com/nisavid/codex-app-linux/issues/99).
+[`#99`](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 To disable default integrations, enable still-optional integrations, or set
 integration-specific options, copy
@@ -495,7 +495,7 @@ The flake handles dependencies and Electron patching under the local
 `chatgpt` identity:
 
 ```bash
-nix run github:nisavid/codex-app-linux
+nix run github:nisavid/chatgpt-linux
 ```
 
 This builds the flake's default ChatGPT package in the Nix store and launches
@@ -503,7 +503,7 @@ it. Use the `#installer` app below when you specifically want a generated
 `chatgpt/` directory in the current checkout. For a development shell:
 
 ```bash
-nix develop github:nisavid/codex-app-linux
+nix develop github:nisavid/chatgpt-linux
 ```
 
 The remote-mobile output is retained as a compatibility alias for the
@@ -512,8 +512,8 @@ manifest-default-enabled mobile integration. The installer output generates
 selection:
 
 ```bash
-nix run github:nisavid/codex-app-linux#chatgpt-remote-mobile-control
-nix run github:nisavid/codex-app-linux#installer
+nix run github:nisavid/chatgpt-linux#chatgpt-remote-mobile-control
+nix run github:nisavid/chatgpt-linux#installer
 ```
 
 For a declarative NixOS or Home Manager install with the mobile remote-control

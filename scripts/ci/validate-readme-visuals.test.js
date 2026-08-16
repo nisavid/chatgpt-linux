@@ -25,7 +25,7 @@ test("accepts the project hero logo and shields.io badges", () => {
   <img src="assets/chatgpt.png" alt="ChatGPT for Linux project logo" width="128" height="128">
   <p>
     <a href="#quick-start"><img alt="Packages" src="https://img.shields.io/badge/packages-deb-2f81f7?style=flat-square"></a>
-    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/codex-app-linux"></a>
+    <a href="#releases"><img alt="Release" src="https://img.shields.io/github/v/release/nisavid/chatgpt-linux"></a>
   </p>
 </div>
 `;
@@ -51,6 +51,11 @@ test("keeps the real README project hero and shield set", () => {
     /\[official-app evaluation switch procedure\]\(docs\/maintainers\/package-runtime-maintenance\.md#official-app-evaluation-switch\)/,
   );
   assert.match(readme, /OpenAI's official Linux package is\s*not this fork's\s*current build source/);
+  assert.match(
+    readme,
+    /git clone https:\/\/github\.com\/nisavid\/chatgpt-linux\.git chatgpt-linux\ncd chatgpt-linux/,
+  );
+  assert.doesNotMatch(readme, /nisavid\/codex-app-linux/);
   assert.match(
     readme,
     /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,

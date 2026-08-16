@@ -135,17 +135,17 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Run the flake:
 
 ```bash
-nix run github:nisavid/codex-app-linux
+nix run github:nisavid/chatgpt-linux
 ```
 
 The default app runs the Nix-store build directly. Use
-`nix run github:nisavid/codex-app-linux#installer` only when you want the
+`nix run github:nisavid/chatgpt-linux#installer` only when you want the
 installer to generate `chatgpt/` in the current checkout.
 
 Or enter a development shell:
 
 ```bash
-nix develop github:nisavid/codex-app-linux
+nix develop github:nisavid/chatgpt-linux
 ```
 
 The flake pins the SRI hash of the official OpenAI `ChatGPT.dmg`. OpenAI
@@ -244,7 +244,7 @@ official ChatGPT/Codex Dock-icon selector is opt-in and mutates only marker-owne
 ChatGPT files when enabled; and Suggested
 Prompts requires official-app eligibility, the user setting, and a current local
 Linux patch contract. Main-process hardening for direct workspace bridge calls is
-tracked in [#99](https://github.com/nisavid/codex-app-linux/issues/99).
+tracked in [#99](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 To disable default integrations or enable still-optional integrations, copy
 `port-integrations/integrations.example.json` to the git-ignored

@@ -165,7 +165,7 @@ Apply the contract to each feature independently:
   selected command, permission file, profile JSON, browser-session copy source,
   mount list, and hidden-workspace acknowledgement state. Main-process hardening
   for command selection and acknowledgement binding is tracked in
-  [issue #99](https://github.com/nisavid/codex-app-linux/issues/99).
+  [issue #99](https://github.com/nisavid/chatgpt-linux/issues/99).
 - **AppShots:** preserve the official app's availability flag, keep global
   hotkeys opt-in, fail closed when focused-window inputs are unavailable, and
   use private per-capture temporary directories for screenshot intermediates.
@@ -175,7 +175,7 @@ Apply the contract to each feature independently:
 - **Copilot reasoning effort:** treat generated setting defaults as preference
   hints only. Hosted request handling remains authoritative for entitlement,
   quota, and request normalization; validation is tracked in
-  [issue #100](https://github.com/nisavid/codex-app-linux/issues/100).
+  [issue #100](https://github.com/nisavid/chatgpt-linux/issues/100).
 - **Remote-control and mobile host integrations:** do not fabricate connected
   clients, MFA, enrollment, host identity, app-server reachability, host network
   exposure, or remote environment state. Use
