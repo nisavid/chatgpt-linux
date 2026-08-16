@@ -35,7 +35,7 @@ If installing manually, copy the files to:
 
 The preferred git checkout location is:
 
-- `~/workspace/codex-app-linux`
+- `~/workspace/chatgpt-linux`
 
 The installed maintenance scripts record the repo path in user state and use
 that checkout for `git pull`, while rebuilding runtime assets into

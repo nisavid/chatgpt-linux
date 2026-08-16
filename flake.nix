@@ -69,7 +69,7 @@
           else
             { };
         flakeSourceCommit = self.rev or (self.dirtyRev or (stagedSourceInfo.commit or ""));
-        flakeSourceRemote = "https://github.com/nisavid/codex-app-linux.git";
+        flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";
         flakeSourceDateEpoch = toString (stagedSourceInfo.sourceDateEpoch or (self.lastModified or 1));
         flakeSourceDirty =
           if self ? rev then false
@@ -1313,7 +1313,7 @@ PY
                 "Unofficial ChatGPT for Linux community build. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI."
               else
                 "Unofficial ChatGPT for Linux community build with ${pkgs.lib.concatStringsSep ", " integrationIds} enabled. Not affiliated with, endorsed by, sponsored by, or supported by OpenAI.";
-            homepage = "https://github.com/nisavid/codex-app-linux";
+            homepage = "https://github.com/nisavid/chatgpt-linux";
             license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.unfree ];
             sourceProvenance = [ pkgs.lib.sourceTypes.binaryNativeCode ];
             platforms = pkgs.lib.platforms.linux;

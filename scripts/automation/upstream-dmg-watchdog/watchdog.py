@@ -24,7 +24,7 @@ import uuid
 
 DEFAULT_URL = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg"
 DEFAULT_TTL_SECONDS = 7200
-DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/codex-app-linux")
+DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/chatgpt-linux")
 NIX_REFRESH_BRANCH = "chatgpt/nix-upstream-refresh"
 NIX_REFRESH_WORKFLOW = "update-chatgpt-hash.yml"
 NIX_ALLOWED_PATHS = {

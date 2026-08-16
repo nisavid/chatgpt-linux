@@ -712,7 +712,7 @@ profile handling, viewer spawning, settings UI, and prelaunch skill staging.
 **Gaps:** the main process still needs hardening for executable selection and
 hidden-workspace approval before the settings UI can be treated as the security
 boundary; tracked in
-[issue #99](https://github.com/nisavid/codex-app-linux/issues/99).
+[issue #99](https://github.com/nisavid/chatgpt-linux/issues/99).
 
 **Priority:** High when changing Agent Workspaces bridge behavior; Medium
 otherwise.
@@ -770,7 +770,7 @@ hooks, and Copilot settings patching.
 
 **Gaps:** fork-side tests cannot prove OpenAI-hosted Copilot entitlement
 semantics; tracked in
-[issue #100](https://github.com/nisavid/codex-app-linux/issues/100). Wrapper
+[issue #100](https://github.com/nisavid/chatgpt-linux/issues/100). Wrapper
 update UI changes still need review for misleading status and privilege-boundary
 confusion.
 

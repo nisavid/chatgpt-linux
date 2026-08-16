@@ -86,8 +86,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - The project identity is now **ChatGPT for Linux**. The app, native package,
   command, and XDG identity are `chatgpt`; the updater identity is
-  `chatgpt-updater`. The live repository remains `nisavid/codex-app-linux`
-  until issue #119 completes its in-place rename to `nisavid/chatgpt-linux`.
+  `chatgpt-updater`. The repository is now `nisavid/chatgpt-linux`; GitHub
+  redirects the former `nisavid/codex-app-linux` slug to it.
   Native packages replace the former `codex-app` and `codex-desktop` packages
   without shipping compatibility launchers or service aliases.
 - First launch moves wrapper-owned XDG config, state, cache, data, and CLI

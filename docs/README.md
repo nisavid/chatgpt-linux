@@ -49,6 +49,9 @@ Use this index to choose the smallest document that matches your goal.
   gates, and uncertainty triage.
 - [Fork Sync Ledger](maintainers/fork-sync-ledger/) records durable summaries,
   special-handling notes, and follow-up decisions for broad upstream syncs.
+- [Repository Rename Verification](maintainers/repository-rename-verification.md)
+  records the transactional `codex-app-linux` to `chatgpt-linux` cutover and
+  the preserved GitHub identity, redirects, automation, and trust boundaries.
 - [Changelog](../CHANGELOG.md) tracks user-visible releases and packaging
   behavior changes.
 

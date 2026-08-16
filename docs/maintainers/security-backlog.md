@@ -3,10 +3,10 @@
 Open security follow-up now lives in GitHub Issues. Use this file as the
 repository-local index and review workflow pointer.
 
-- [All open security backlog issues](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog)
-- [Highest-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fhigh%22)
-- [Medium-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fmedium%22)
-- [Lower-priority security backlog](https://github.com/nisavid/codex-app-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Flow%22)
+- [All open security backlog issues](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog)
+- [Highest-priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fhigh%22)
+- [Medium-priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Fmedium%22)
+- [Lower-priority security backlog](https://github.com/nisavid/chatgpt-linux/issues?q=is%3Aissue%20is%3Aopen%20label%3Asecurity%20label%3Abacklog%20label%3A%22priority%2Flow%22)
 
 These links use the migrated queue's governed compatibility labels. `security`
 marks public security work, `backlog` marks durable follow-up work, and at most

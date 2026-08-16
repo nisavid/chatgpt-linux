@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ChatGPT for Linux
-Upstream-Contact: https://github.com/nisavid/codex-app-linux/issues
-Source: https://github.com/nisavid/codex-app-linux
+Upstream-Contact: https://github.com/nisavid/chatgpt-linux/issues
+Source: https://github.com/nisavid/chatgpt-linux
  Official OpenAI app input:
  https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg
 Disclaimer: This package is not part of the Debian distribution because it

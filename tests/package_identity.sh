@@ -179,13 +179,21 @@ assert_contains packaging/linux/chatgpt.spec 'Obsoletes:      codex-desktop'
 assert_contains packaging/linux/PKGBUILD.template "provides=('codex-app' 'codex-desktop')"
 assert_contains packaging/linux/PKGBUILD.template "conflicts=('codex-app' 'codex-desktop')"
 assert_contains packaging/linux/PKGBUILD.template "replaces=('codex-app' 'codex-desktop')"
-assert_contains packaging/linux/PKGBUILD.template 'url="https://github.com/nisavid/codex-app-linux"'
+assert_contains packaging/linux/PKGBUILD.template 'url="https://github.com/nisavid/chatgpt-linux"'
 assert_contains packaging/linux/com.github.nisavid.chatgpt.update.policy \
-    '<vendor_url>https://github.com/nisavid/codex-app-linux</vendor_url>'
+    '<vendor_url>https://github.com/nisavid/chatgpt-linux</vendor_url>'
 assert_contains scripts/lib/build-info.js \
-    'notes: "nix run github:nisavid/codex-app-linux"'
+    'notes: "nix run github:nisavid/chatgpt-linux"'
+assert_contains flake.nix \
+    'flakeSourceRemote = "https://github.com/nisavid/chatgpt-linux.git";'
+assert_contains flake.nix \
+    'homepage = "https://github.com/nisavid/chatgpt-linux";'
+assert_contains packaging/linux/debian-copyright \
+    'Upstream-Contact: https://github.com/nisavid/chatgpt-linux/issues'
+assert_contains packaging/linux/debian-copyright \
+    'Source: https://github.com/nisavid/chatgpt-linux'
 assert_contains scripts/ci/hash-refresh-evidence.sh \
-    'DEFAULT_REPO="nisavid/codex-app-linux"'
+    'DEFAULT_REPO="nisavid/chatgpt-linux"'
 assert_contains scripts/ci/container-entrypoint.sh \
     'export CHATGPT_PORT_INTEGRATIONS_ROOT="$integrations_root"'
 assert_contains scripts/ci/container-entrypoint.sh \
@@ -195,15 +203,17 @@ assert_contains scripts/ci/container-entrypoint.sh \
 assert_not_contains scripts/ci/container-entrypoint.sh \
     'codex-micro-integrations.json'
 assert_contains scripts/automation/upstream-dmg-watchdog/watchdog.py \
-    'DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/codex-app-linux")'
+    'DEFAULT_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "nisavid/chatgpt-linux")'
 assert_contains .agents/fork-sync-policy.toml \
-    'github_pr_repo = "nisavid/codex-app-linux"'
+    'github_pr_repo = "nisavid/chatgpt-linux"'
+assert_contains contrib/user-local-install/files/share/common.sh \
+    'REPO_DIR_DEFAULT="${HOME}/workspace/chatgpt-linux"'
 assert_contains plugins/openai-bundled/plugins/read-aloud/.codex-plugin/plugin.json \
-    '"homepage": "https://github.com/nisavid/codex-app-linux"'
+    '"homepage": "https://github.com/nisavid/chatgpt-linux"'
 assert_contains port-integrations/record-and-replay/plugin-template/.codex-plugin/plugin.json \
-    '"homepage": "https://github.com/nisavid/codex-app-linux"'
+    '"homepage": "https://github.com/nisavid/chatgpt-linux"'
 assert_contains port-integrations/record-and-replay/plugin-template/.codex-plugin/plugin.json \
-    '"websiteURL": "https://github.com/nisavid/codex-app-linux"'
+    '"websiteURL": "https://github.com/nisavid/chatgpt-linux"'
 
 assert_contains packaging/linux/chatgpt-updater.service \
     'ExecStartPre=/opt/chatgpt/.chatgpt-linux/state-migration.py --forward'

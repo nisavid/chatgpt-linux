@@ -45,7 +45,7 @@ to the shared Linux conversion layer that this fork inherits.
 > for the full mapping.
 
 Report an issue to
-[`nisavid/codex-app-linux`](https://github.com/nisavid/codex-app-linux) when it
+[`nisavid/chatgpt-linux`](https://github.com/nisavid/chatgpt-linux) when it
 is specific to this fork's package identity, distro-shaped install layout,
 updater policy, hardening, supported default integrations, docs, or local
 maintenance workflow. Also report here if you cannot reasonably try an
@@ -77,6 +77,6 @@ state, audio availability, or remote-control enrollment, installing this fork
 does not change those requirements. Local control surfaces keep their own
 runtime gates: Agent Workspaces uses settings-page approval and permission rules
 for the normal UI flow, with main-process bridge hardening tracked in
-[#99](https://github.com/nisavid/codex-app-linux/issues/99); AppShots keeps
+[#99](https://github.com/nisavid/chatgpt-linux/issues/99); AppShots keeps
 global hotkeys inactive until selected; and wrapper update checks stay off until
 enabled in Settings.
