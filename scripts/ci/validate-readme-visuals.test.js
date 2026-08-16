@@ -45,11 +45,12 @@ test("keeps the real README project hero and shield set", () => {
   assert.match(readme, /this project remains a maintained\s*> fallback/);
   assert.match(readme, /`chatgpt-desktop-bin` native repackage/);
   assert.match(readme, /both use the `chatgpt` package and command name, so they are mutually\s*exclusive/);
+  assert.match(readme, /For that CachyOS\/pacman path/);
   assert.match(
     readme,
-    /\[package-switch procedure\]\(docs\/maintainers\/package-runtime-maintenance\.md\)/,
+    /\[official-app evaluation switch procedure\]\(docs\/maintainers\/package-runtime-maintenance\.md#official-app-evaluation-switch\)/,
   );
-  assert.match(readme, /OpenAI's official Linux package is\s*not this fork's current build source/);
+  assert.match(readme, /OpenAI's official Linux package is\s*not this fork's\s*current build source/);
   assert.match(
     readme,
     /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,

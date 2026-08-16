@@ -27,11 +27,11 @@ On CachyOS, the accepted evaluation path is the signed
 `chatgpt-desktop-bin` native repackage after it passes the project's independent
 validation gate against OpenAI's package. That package and this project's native
 packages both use the `chatgpt` package and command name, so they are mutually
-exclusive on one host. The accepted
-[package-switch procedure](docs/maintainers/package-runtime-maintenance.md)
+exclusive on one host. For that CachyOS/pacman path, the accepted
+[official-app evaluation switch procedure](docs/maintainers/package-runtime-maintenance.md#official-app-evaluation-switch)
 preserves shared state and one active update authority while maintainers
-alternate between them during evaluation. OpenAI's official Linux package is
-not this fork's current build source.
+alternate between them. OpenAI's official Linux package is not this fork's
+current build source.
 
 > [!IMPORTANT]
 > **ChatGPT for Linux is an unofficial community project.** It is not affiliated
