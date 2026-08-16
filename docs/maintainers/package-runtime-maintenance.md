@@ -384,15 +384,26 @@ Before either switch:
    account and verify that none has a running ChatGPT process or an active
    updater. If the host must support concurrent ChatGPT users, do not switch
    until the package lifecycle can target one designated update authority.
-2. Quiesce every writer of a captured path or use that store's atomic or
+2. Establish an exclusive package-manager maintenance window. Stop or inhibit
+   every package-management frontend, timer, automation, and other process that
+   can invoke `pacman` or an AUR helper; verify that no transaction is active and
+   that pacman's database lock is absent. Permit only the transactions in this
+   procedure until acceptance or completed failure restoration. Treat any
+   unexpected transaction or database lock as a failed switch. `IgnorePkg` is a
+   package hold, not this exclusivity boundary.
+3. Add `IgnorePkg = chatgpt-desktop-bin` under `[options]` in
+   `/etc/pacman.conf` and verify that the active configuration contains the
+   entry before the first transaction. Do not remove, change, or override it
+   until the next candidate passes the same validation gate.
+4. Quiesce every writer of a captured path or use that store's atomic or
    online-backup interface. Capture and verify the complete transition recovery
    set.
-3. Verify the designated retained fallback artifact, including its package
+5. Verify the designated retained fallback artifact, including its package
    digest, tagged source revision, payload manifest, and verification record.
-4. Prove the active task can resume through `codex resume <task-id>`. If
+6. Prove the active task can resume through `codex resume <task-id>`. If
    continuity fails, abort and retain or relaunch the currently accepted
    installation.
-5. Inventory every active user manager under `/run/user/*` that has a usable
+7. Inventory every active user manager under `/run/user/*` that has a usable
    session bus. For every affected user, quit ChatGPT, verify its process and
    profile locks are absent, then stop, disable, and mask
    `chatgpt-updater.service` through that user's `systemctl --user` manager.
@@ -412,11 +423,9 @@ To switch to the validated native repackage:
    payload-manifest digests, the `chatgpt` command owner and target, desktop and
    URI handling, preserved profile, launch, and `codex resume` continuity.
    Confirm the finishing-fork updater is absent and pacman is the only update
-   authority. Add `IgnorePkg = chatgpt-desktop-bin` under `[options]` in
-   `/etc/pacman.conf`, verify that the active configuration contains the entry,
-   and do not remove, change, or override it until the next candidate passes the
-   same validation gate. Keep the updater masks in place and end the no-login
-   maintenance window only after every acceptance check passes.
+   authority. Reconfirm the active `IgnorePkg` entry. Keep the updater masks and
+   package-manager exclusion in place, and end both maintenance windows only
+   after every acceptance check passes.
 
 To switch back to the retained fallback:
 
@@ -435,8 +444,8 @@ To switch back to the retained fallback:
    continuity. Only then use the designated update authority's `systemctl
    --user` manager to unmask `chatgpt-updater.service`, then enable it with
    `--now`, and verify that the unit reports both enabled and active. Keep the
-   unit masked and inactive for every other local interactive account, end the
-   no-login maintenance window, and do not admit another ChatGPT user until the
+   unit masked and inactive for every other local interactive account, end both
+   maintenance windows, and do not admit another ChatGPT user until the
    lifecycle supports a single designated update authority across multiple
    accounts.
 
@@ -452,7 +461,7 @@ mechanical switch failure.
 After an accepted restoration, unmask the updater only for the designated update
 authority, enable it with `--now`, verify it is enabled and active, keep it
 masked and inactive for every other local interactive account, and only then end
-the maintenance window.
+the no-login and exclusive package-manager maintenance windows.
 
 ## Crate Versioning Policy
 
