@@ -16,10 +16,18 @@ over the Linux conversion work from
 aimed at users who want a polished local app and maintainers who want auditable
 native packages.
 
-OpenAI also publishes an official Linux package named `chatgpt`. That package
-is not this fork's current build source. Because this fork's native packages
-use the same package and command name, treat the two distributions as mutually
-exclusive until the source and package-ownership transition is resolved.
+> [!NOTE]
+> OpenAI has released an official ChatGPT app for Linux. We are evaluating
+> whether it meets this project's essential feature-parity and operating needs.
+> If the official release is acceptable, ChatGPT for Linux will be sunset.
+> Until that decision, this project remains a maintained fallback.
+
+OpenAI's official Linux package and this project's native packages both use the
+`chatgpt` package and command name, so they are mutually exclusive on one host.
+The accepted [package-switch procedure](docs/maintainers/package-runtime-maintenance.md)
+preserves shared state and one active update authority while maintainers
+alternate between them during evaluation. The official Linux package is not
+this fork's current build source.
 
 > [!IMPORTANT]
 > **ChatGPT for Linux is an unofficial community project.** It is not affiliated

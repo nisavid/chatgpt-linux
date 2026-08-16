@@ -40,6 +40,9 @@ test("keeps the real README project hero and shield set", () => {
     /<img src="assets\/chatgpt\.png" alt="ChatGPT for Linux project logo" width="128" height="128">/,
   );
   assert.match(readme, /ChatGPT for Linux is an unofficial community project/);
+  assert.match(readme, /OpenAI has released an official ChatGPT app for Linux/);
+  assert.match(readme, /If the official release is acceptable, ChatGPT for Linux will be sunset/);
+  assert.match(readme, /this project remains a maintained fallback/);
   assert.match(
     readme,
     /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,
