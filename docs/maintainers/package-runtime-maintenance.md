@@ -377,58 +377,81 @@ operational state named in `CONTEXT.md`; package rollback never rewinds it.
 
 Before either switch:
 
-1. Quiesce every writer of a captured path or use that store's atomic or
+1. Use this procedure only while one designated local account is permitted to
+   run ChatGPT or `chatgpt-updater`. Establish a maintenance window that blocks
+   new logins and user-manager creation for other accounts until acceptance.
+   Persistently mask `chatgpt-updater.service` for every other local interactive
+   account and verify that none has a running ChatGPT process or an active
+   updater. If the host must support concurrent ChatGPT users, do not switch
+   until the package lifecycle can target one designated update authority.
+2. Quiesce every writer of a captured path or use that store's atomic or
    online-backup interface. Capture and verify the complete transition recovery
    set.
-2. Verify the designated retained fallback artifact, including its package
+3. Verify the designated retained fallback artifact, including its package
    digest, tagged source revision, payload manifest, and verification record.
-3. Prove the active task can resume through `codex resume <task-id>`. Abort and
-   keep or restore the accepted fallback if continuity fails.
+4. Prove the active task can resume through `codex resume <task-id>`. If
+   continuity fails, abort and retain or relaunch the currently accepted
+   installation.
+5. Inventory every active user manager under `/run/user/*` that has a usable
+   session bus. For every affected user, quit ChatGPT, verify its process and
+   profile locks are absent, then stop, disable, and mask
+   `chatgpt-updater.service` through that user's `systemctl --user` manager.
+   Verify every inventoried unit is inactive and reports `masked`. Keep every
+   mask in place through both package transactions and acceptance. Re-inventory
+   immediately before and after each transaction. If an unexpected user manager
+   appears, stop and mask its updater, quiesce its ChatGPT process, and treat the
+   switch as failed before acceptance.
 
 To switch to the validated native repackage:
 
-1. Through the target user's `systemctl --user` manager, stop, disable, and mask
-   `chatgpt-updater.service`. Verify that it is inactive and reports `masked`,
-   quit ChatGPT, and verify the profile lock is absent. Keep the unit masked
-   through both package transactions and official-app acceptance.
-2. Remove the finishing-fork package in its own pacman transaction. Verify its
+1. Remove the finishing-fork package in its own pacman transaction. Verify its
    command, desktop entry, service, policy, and install roots are absent.
-3. Install the already validated `chatgpt-desktop-bin` candidate in a second
+2. Install the already validated `chatgpt-desktop-bin` candidate in a second
    pacman transaction.
-4. Verify the CachyOS signature and repository origin, the exact candidate and
+3. Verify the CachyOS signature and repository origin, the exact candidate and
    payload-manifest digests, the `chatgpt` command owner and target, desktop and
    URI handling, preserved profile, launch, and `codex resume` continuity.
    Confirm the finishing-fork updater is absent and pacman is the only update
    authority. Add `IgnorePkg = chatgpt-desktop-bin` under `[options]` in
    `/etc/pacman.conf`, verify that the active configuration contains the entry,
    and do not remove, change, or override it until the next candidate passes the
-   same validation gate.
+   same validation gate. Keep the updater masks in place and end the no-login
+   maintenance window only after every acceptance check passes.
 
 To switch back to the retained fallback:
 
-1. Quit ChatGPT, verify its locks are absent, then preserve the newer shared
-   state in a fresh recovery snapshot.
+1. With every affected ChatGPT session and updater manager still quiesced as
+   required by the preflight, preserve the newer shared state in a fresh
+   recovery snapshot.
 2. Remove `chatgpt-desktop-bin` in its own pacman transaction and verify its
    owned surfaces are absent.
-3. Confirm through the target user's `systemctl --user` manager that
-   `chatgpt-updater.service` is inactive and reports `masked` before installing
-   the exact retained fallback package. Its pacman post-install hook may attempt
-   to enable the service; the mask must remain in place through fallback
-   verification.
+3. Reconfirm that `chatgpt-updater.service` is inactive and reports `masked` in
+   every inventoried user manager before installing the exact retained fallback
+   package. Its pacman post-install hook visits every active user manager and may
+   attempt to enable the service; every mask must remain in place through
+   fallback verification.
 4. Verify the package digest and identity, command and desktop surfaces,
    preserved profile, migrations, absent profile lock, launch, and `codex resume`
-   continuity. Only then use the target user's `systemctl --user` manager to
-   unmask and enable `chatgpt-updater.service` as the sole update authority, and
-   verify that the unit reports both enabled and active.
+   continuity. Only then use the designated update authority's `systemctl
+   --user` manager to unmask and enable `chatgpt-updater.service`, and verify
+   that the unit reports both enabled and active. Keep the unit masked and
+   inactive for every other local interactive account, end the no-login
+   maintenance window, and do not admit another ChatGPT user until the lifecycle
+   supports a single designated update authority across multiple accounts.
 
 Any failed forward transaction, failed reverse transaction, or failure
 restoration that reinstalls the fallback follows the same mask-through-
 verification rule. Remove the rejected installation where necessary, preserve
 the current shared state, install the exact retained fallback, and keep the
-updater masked until fallback acceptance. Restore snapshot data only to repair
+updater masked in every affected user manager and every other local interactive
+account until fallback acceptance. Restore snapshot data only to repair
 demonstrated corruption or incompatibility, and preserve the newer live state
 before doing so. Product-parity disappointment is evaluation evidence, not a
 mechanical switch failure.
+After an accepted restoration, unmask and enable the updater only for the
+designated update authority, verify it is enabled and active, keep it masked and
+inactive for every other local interactive account, and only then end the
+maintenance window.
 
 ## Crate Versioning Policy
 
