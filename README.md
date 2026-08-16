@@ -17,17 +17,21 @@ aimed at users who want a polished local app and maintainers who want auditable
 native packages.
 
 > [!NOTE]
-> OpenAI has released an official ChatGPT app for Linux. We are evaluating
-> whether it meets this project's essential feature-parity and operating needs.
-> If the official release is acceptable, ChatGPT for Linux will be sunset.
-> Until that decision, this project remains a maintained fallback.
+> OpenAI has released its official ChatGPT app for Linux in preview. We are
+> evaluating whether it meets this project's essential feature-parity and
+> operating needs. If the official release is acceptable, ChatGPT for Linux
+> will be sunset. Until that decision, this project remains a maintained
+> fallback.
 
-OpenAI's official Linux package and this project's native packages both use the
-`chatgpt` package and command name, so they are mutually exclusive on one host.
-The accepted [package-switch procedure](docs/maintainers/package-runtime-maintenance.md)
+On CachyOS, the accepted evaluation path is the signed
+`chatgpt-desktop-bin` native repackage after it passes the project's independent
+validation gate against OpenAI's package. That package and this project's native
+packages both use the `chatgpt` package and command name, so they are mutually
+exclusive on one host. The accepted
+[package-switch procedure](docs/maintainers/package-runtime-maintenance.md)
 preserves shared state and one active update authority while maintainers
-alternate between them during evaluation. The official Linux package is not
-this fork's current build source.
+alternate between them during evaluation. OpenAI's official Linux package is
+not this fork's current build source.
 
 > [!IMPORTANT]
 > **ChatGPT for Linux is an unofficial community project.** It is not affiliated
