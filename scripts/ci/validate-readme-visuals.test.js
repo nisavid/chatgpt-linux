@@ -40,9 +40,16 @@ test("keeps the real README project hero and shield set", () => {
     /<img src="assets\/chatgpt\.png" alt="ChatGPT for Linux project logo" width="128" height="128">/,
   );
   assert.match(readme, /ChatGPT for Linux is an unofficial community project/);
-  assert.match(readme, /OpenAI has released an official ChatGPT app for Linux/);
-  assert.match(readme, /If the official release is acceptable, ChatGPT for Linux will be sunset/);
-  assert.match(readme, /this project remains a maintained fallback/);
+  assert.match(readme, /OpenAI has released its official ChatGPT app for Linux in preview/);
+  assert.match(readme, /If the official release is acceptable, ChatGPT for Linux\s*> will be sunset/);
+  assert.match(readme, /this project remains a maintained\s*> fallback/);
+  assert.match(readme, /`chatgpt-desktop-bin` native repackage/);
+  assert.match(readme, /both use the `chatgpt` package and command name, so they are mutually\s*exclusive/);
+  assert.match(
+    readme,
+    /\[package-switch procedure\]\(docs\/maintainers\/package-runtime-maintenance\.md\)/,
+  );
+  assert.match(readme, /OpenAI's official Linux package is\s*not this fork's current build source/);
   assert.match(
     readme,
     /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,
