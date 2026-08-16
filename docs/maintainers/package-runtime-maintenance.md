@@ -433,11 +433,12 @@ To switch back to the retained fallback:
 4. Verify the package digest and identity, command and desktop surfaces,
    preserved profile, migrations, absent profile lock, launch, and `codex resume`
    continuity. Only then use the designated update authority's `systemctl
-   --user` manager to unmask and enable `chatgpt-updater.service`, and verify
-   that the unit reports both enabled and active. Keep the unit masked and
-   inactive for every other local interactive account, end the no-login
-   maintenance window, and do not admit another ChatGPT user until the lifecycle
-   supports a single designated update authority across multiple accounts.
+   --user` manager to unmask `chatgpt-updater.service`, then enable it with
+   `--now`, and verify that the unit reports both enabled and active. Keep the
+   unit masked and inactive for every other local interactive account, end the
+   no-login maintenance window, and do not admit another ChatGPT user until the
+   lifecycle supports a single designated update authority across multiple
+   accounts.
 
 Any failed forward transaction, failed reverse transaction, or failure
 restoration that reinstalls the fallback follows the same mask-through-
@@ -448,10 +449,10 @@ account until fallback acceptance. Restore snapshot data only to repair
 demonstrated corruption or incompatibility, and preserve the newer live state
 before doing so. Product-parity disappointment is evaluation evidence, not a
 mechanical switch failure.
-After an accepted restoration, unmask and enable the updater only for the
-designated update authority, verify it is enabled and active, keep it masked and
-inactive for every other local interactive account, and only then end the
-maintenance window.
+After an accepted restoration, unmask the updater only for the designated update
+authority, enable it with `--now`, verify it is enabled and active, keep it
+masked and inactive for every other local interactive account, and only then end
+the maintenance window.
 
 ## Crate Versioning Policy
 
