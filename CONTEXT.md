@@ -78,9 +78,10 @@ restore only what recovery requires.
 _Avoid_: automatic rollback image, routine profile reset
 
 **Selective quiescence**:
-Stopping the ChatGPT desktop process and its active updater authority, then
-confirming that the current task can resume through the inherited `codex` CLI,
-without requiring unrelated Codex tasks on the host to stop.
+Stopping every active ChatGPT desktop process and masking the updater in every
+active user manager that the package lifecycle can reach, then confirming that
+the current task can resume through the inherited `codex` CLI, without
+requiring unrelated Codex tasks on the host to stop.
 _Avoid_: whole-host Codex shutdown, live desktop package replacement
 
 **Transition recovery set**:
