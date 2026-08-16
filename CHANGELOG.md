@@ -52,9 +52,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - The README now prominently records the evaluation of OpenAI's official
   ChatGPT app for Linux, currently in preview, through the validated CachyOS
-  `chatgpt-desktop-bin` repackage and accepted package-switch procedure. It also
-  records this project's maintained-fallback role and the intent to sunset the
-  project if the official release is acceptable.
+  `chatgpt-desktop-bin` repackage and accepted CachyOS/pacman switch procedure.
+  It also records this project's maintained-fallback role and the intent to
+  sunset the project if the official release is acceptable.
 
 - Official DMG compatibility now covers ChatGPT 26.810.50856 across core
   window, tray, Computer Use, and Codex Micro behavior plus AppShots, Global
