@@ -50,6 +50,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The README now prominently records the evaluation of OpenAI's official
+  ChatGPT app for Linux, this project's maintained-fallback role during that
+  evaluation, and the intent to sunset the project if the official release is
+  acceptable.
+
 - Official DMG compatibility now covers ChatGPT 26.810.50856 across core
   window, tray, Computer Use, and Codex Micro behavior plus AppShots, Global
   Dictation, remote mobile control, Suggested Prompts, SSH command wrapping,
