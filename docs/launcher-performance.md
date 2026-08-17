@@ -31,6 +31,11 @@ launcher log, and repository history rather than synthetic benchmarks.
   ppid-guarded watchdog pattern capped at 0.5 s, so a broken session bus
   counts as "not detected" instead of delaying launch.
   Override: `CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1|0`.
+- Warm webview starts reuse the process-bound integrity attestation only for
+  non-writable packaged app trees. The cache is keyed by the webview server
+  PID/start time plus manifest and entrypoint digests, so the warm path does not
+  re-hash every startup asset. Writable checkout and user-local trees keep the
+  full manifest verification path instead of weakening the tamper check.
 
 Both decisions are visible at runtime in the `Electron launch mode:` line of
 `~/.cache/chatgpt/launcher.log` (`dev_shm_usage_disabled=`,

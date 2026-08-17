@@ -52,7 +52,7 @@ if [ "$pidfd_probe_status" -ne 0 ]; then
 fi
 
 TMP_DIR="$(mktemp -d)"
-APP_DIR="$TMP_DIR/app"
+APP_DIR="$TMP_DIR/immutable-parent/app"
 HOME_DIR="$TMP_DIR/home"
 RUNTIME_DIR="$TMP_DIR/runtime"
 STATE_DIR="$HOME_DIR/.local/state/chatgpt"
@@ -206,6 +206,7 @@ cleanup() {
         arg0=""
         revalidated_arg0=""
     done
+    chmod -R u+rwX "$TMP_DIR" 2>/dev/null || cleanup_failed=1
     rm -rf "$TMP_DIR" || cleanup_failed=1
     if [ "$cleanup_failed" -ne 0 ]; then
         printf '%s\n' 'launcher window-reopen behavior cleanup failed' >&2
@@ -232,6 +233,11 @@ fail() {
     sed -n '1,300p' "$APP_LOG" >&2 2>/dev/null || true
     exit 1
 }
+
+if grep -q '^webview_integrity_asset_snapshot_digest()' \
+    "$REPO_DIR/launcher/start.sh.template"; then
+    fail "warm integrity cache still defines a full asset snapshot"
+fi
 
 mutation_detected() {
     FINAL_ELECTRON_PID="$(read_live_app_pid 2>/dev/null || true)"
@@ -413,6 +419,8 @@ int main(int argc, char **argv) {
 }
 CPP
 cp "$APP_DIR/electron" "$TMP_DIR/decoy-electron"
+chmod -R a-w "$APP_DIR"
+chmod a-w "$(dirname "$APP_DIR")"
 "$TMP_DIR/decoy-electron" --app-id=chatgpt &
 DECOY_PID=$!
 
@@ -434,6 +442,8 @@ wait_for "first Electron environment scrub" pid_environment_is_scrubbed
 wait_for "first Electron command-line rewrite" pid_cmdline_is_rewritten
 [ -s "$STATE_DIR/webview-integrity-verified" ] \
     || fail "cold start did not persist the webview integrity attestation"
+[ "$(awk 'NR == 1 { print NF }' "$STATE_DIR/webview-integrity-verified")" -eq 4 ] \
+    || fail "webview integrity attestation retained a full asset snapshot"
 
 python3 - "$SOCKET_PATH" "$HANDOFF_RESULT" <<'PY' &
 import json
@@ -531,6 +541,7 @@ grep -q "Reusing cached webview integrity verification" "$APP_LOG" \
     || fail "warm reopen did not reuse the webview integrity attestation"
 [ "$(grep -c "Webview integrity manifest verified for webview server pid=" "$APP_LOG")" -eq 1 ] \
     || fail "warm reopen repeated the full webview integrity manifest verification"
+chmod u+w "$APP_DIR/content/webview/assets/app-test.js"
 printf '%s\n' "console.log('tampered startup asset');" \
     > "$APP_DIR/content/webview/assets/app-test.js"
 set +e

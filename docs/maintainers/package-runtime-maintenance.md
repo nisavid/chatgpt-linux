@@ -67,7 +67,10 @@ merging upstream changes, keep incoming behavior aligned to these names:
 - `~/.local/state/chatgpt/webview.pid` identifies the owned local webview
   server; `webview-integrity-verified` is a short-lived attestation bound to
   that server's PID and start time, plus the generated manifest and entrypoint
-  digests. A new server or any digest change requires a full manifest check.
+  digests. The attestation is reused only when the app directory, its immediate
+  parent, manifest, entrypoint, and webview tree are not writable by the
+  launching user. Writable checkout and user-local trees rerun the full manifest
+  check, and cache recording does not perform a second asset-content scan.
 
 ### State Identity Migration
 
