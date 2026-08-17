@@ -38,7 +38,7 @@ jobs:
         .#checks.x86_64-linux.watchdog-port-integrations
         .#installer
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ inputs.expected_main_sha }}
@@ -80,7 +80,7 @@ jobs:
         with:
           node-version: 24
 
-      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
         if: steps.dedupe.outputs.skip_refresh != 'true'
 
       - name: Configure Cachix for hash refresh builds
