@@ -68,6 +68,16 @@ function findTrayConstructor(source) {
       if (shape.retained && end !== closeIndex + 2) {
         continue;
       }
+      const constructorSource = source.slice(match.index, end);
+      if (
+        findExecutableJavaScriptSubstring(
+          source,
+          constructorSource,
+          match.index,
+        ) !== match.index
+      ) {
+        continue;
+      }
       candidates.push({
         start: match.index,
         end,
