@@ -1076,17 +1076,20 @@ patch_browser_use_node_repl_process_env_import() {
         return 1
     fi
 
-    if ! python3 - "$client" <<'PY'
+    if ! python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
 from pathlib import Path
 import re
 import sys
+
+sys.path.insert(0, sys.argv[2])
+from browser_client_executable import executable_matches
 
 path = Path(sys.argv[1])
 source = path.read_text(encoding="utf-8")
 pattern = re.compile(
     r'import\{env as (?P<binding>[A-Za-z_$][\w$]*)\}from"node:process";'
 )
-matches = list(pattern.finditer(source))
+matches = executable_matches(pattern, source)
 if len(matches) != 1:
     print(
         f"WARN: Expected one Browser Use node:process env import, found {len(matches)} — leaving browser-client.mjs unchanged",
@@ -1100,14 +1103,21 @@ replacement = (
     "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl),"
     f"{binding}=chatgptLinuxBrowserUseProcessEnv;"
 )
-path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")
+patched = source[:match.start()] + replacement + source[match.end():]
+rewritten_pattern = re.compile(
+    r'var chatgptLinuxBrowserUseProcessEnv='
+    r'chatgptLinuxBrowserUseValidatedEnvironment\(globalThis\.nodeRepl\),'
+    r'(?P<binding>[A-Za-z_$][\w$]*)=chatgptLinuxBrowserUseProcessEnv;'
+)
+if executable_matches(pattern, patched) or len(executable_matches(rewritten_pattern, patched)) != 1:
+    print(
+        "WARN: Browser node:process environment rewrite did not reach its verified executable final state",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+path.write_text(patched, encoding="utf-8")
 PY
     then
-        return 1
-    fi
-    if grep -Eq 'import\{env as [A-Za-z_$][[:alnum:]_$]*\}from"node:process";' "$client" || \
-            ! grep -Fq "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl)," "$client"; then
-        warn "Browser node:process environment rewrite did not reach its verified final state"
         return 1
     fi
 }
@@ -1314,26 +1324,83 @@ patch_browser_use_node_repl_config_shim() {
         return 1
     fi
 
-    if ! python3 - "$client" <<'PY'
+    if ! python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
 from pathlib import Path
 import re
 import sys
 
+sys.path.insert(0, sys.argv[2])
+from browser_client_executable import executable_matches, executable_offsets
+
 path = Path(sys.argv[1])
 source = path.read_text(encoding="utf-8")
+
+
+def correlated_setup_paths(candidate_source, config_helper, runtime_helper):
+    direct_setup_exports = executable_matches(
+        re.compile(r'export async function setupBrowserRuntime\('),
+        candidate_source,
+    )
+    aliased_setup_exports = executable_matches(
+        re.compile(
+            r'export\{(?P<setup>[A-Za-z_$][\w$]*) as setupBrowserRuntime\};'
+        ),
+        candidate_source,
+    )
+    if len(direct_setup_exports) + len(aliased_setup_exports) != 1:
+        return []
+    setup_pattern = re.compile(
+        rf'(?P<direct_export>export )?async function (?P<setup>[A-Za-z_$][\w$]*)'
+        rf'\([^)]*\)\{{let (?P<config>[A-Za-z_$][\w$]*)={re.escape(config_helper)}\(\);'
+        rf'(?P<middle>[^{{}}]{{0,1200}}?)'
+        rf'(?P<invocation>await {re.escape(runtime_helper)}\((?P<input>[A-Za-z_$][\w$]*)\))'
+    )
+    offsets = executable_offsets(candidate_source)
+    correlated = []
+    for setup_match in setup_pattern.finditer(candidate_source):
+        if not offsets[setup_match.start()] or not offsets[setup_match.start("invocation")]:
+            continue
+        setup_name = setup_match.group("setup")
+        if setup_match.group("direct_export") is not None:
+            if setup_name != "setupBrowserRuntime" or len(direct_setup_exports) != 1:
+                continue
+        elif (
+            len(aliased_setup_exports) != 1
+            or aliased_setup_exports[0].group("setup") != setup_name
+        ):
+            continue
+        config_value = setup_match.group("config")
+        runtime_input = setup_match.group("input")
+        if runtime_input != config_value:
+            alias_pattern = re.compile(
+                rf'(?:let\s+|,\s*){re.escape(runtime_input)}={re.escape(config_value)}(?=,|;)'
+            )
+            aliases = [
+                alias
+                for alias in alias_pattern.finditer(candidate_source)
+                if setup_match.start("middle") <= alias.start() < setup_match.start("invocation")
+                and offsets[alias.start()]
+            ]
+            if len(aliases) != 1:
+                continue
+        correlated.append(setup_match)
+    return correlated
+
+
 pattern = re.compile(
     r'function (?P<helper>[A-Za-z_$][\w$]*)\(\)\{'
     r'let (?P<value>[A-Za-z_$][\w$]*)=globalThis\.nodeRepl;'
     r'return (?P=value)\?\.config==null\?void 0:(?P=value)\}'
 )
-match = pattern.search(source)
-if match is None:
+matches = executable_matches(pattern, source)
+if len(matches) != 1:
     print(
-        "WARN: Could not find Browser Use nodeRepl config shim insertion point — leaving browser-client.mjs unchanged",
+        f"WARN: Could not find Browser Use nodeRepl config shim insertion point; expected one executable anchor, found {len(matches)} — leaving browser-client.mjs unchanged",
         file=sys.stderr,
     )
     raise SystemExit(2)
 
+match = matches[0]
 helper = match.group("helper")
 value = match.group("value")
 shim = r'''
@@ -1639,11 +1706,11 @@ replacement = (
 )
 patched = source[:match.start()] + replacement + source[match.end():]
 runtime_clone_pattern = re.compile(
-    r'(?P<prefix>async function [A-Za-z_$][\w$]*\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
+    r'(?P<prefix>async function (?P<runtime_helper>[A-Za-z_$][\w$]*)\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
     r'let [A-Za-z_$][\w$]*=(?P=runtime)\.createElicitation\.bind\((?P=runtime)\),'
     r'[A-Za-z_$][\w$]*=\{\.\.\.(?P=runtime),)platform:'
 )
-runtime_clone_matches = list(runtime_clone_pattern.finditer(patched))
+runtime_clone_matches = executable_matches(runtime_clone_pattern, patched)
 if len(runtime_clone_matches) != 1:
     print(
         f"WARN: Expected one Browser Use runtime environment clone, found {len(runtime_clone_matches)} — leaving browser-client.mjs unchanged",
@@ -1652,21 +1719,58 @@ if len(runtime_clone_matches) != 1:
     raise SystemExit(2)
 
 runtime = runtime_clone_matches[0].group("runtime")
-patched = runtime_clone_pattern.sub(
+runtime_helper = runtime_clone_matches[0].group("runtime_helper")
+setup_matches = correlated_setup_paths(patched, helper, runtime_helper)
+if len(setup_matches) != 1:
+    print(
+        f"WARN: Expected one exported Browser Use setup path correlating the config and runtime helpers, found {len(setup_matches)} — leaving browser-client.mjs unchanged",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+runtime_replacement = runtime_clone_pattern.sub(
     rf'\g<prefix>env:{runtime}.env,addAfterSubmittedCodeHook:{runtime}.addAfterSubmittedCodeHook/*chatgptLinuxBrowserUseRuntimeEnv*/,platform:',
-    patched,
+    runtime_clone_matches[0].group(0),
     count=1,
 )
+patched = (
+    patched[:runtime_clone_matches[0].start()]
+    + runtime_replacement
+    + patched[runtime_clone_matches[0].end():]
+)
+required_helpers = [
+    r'function chatgptLinuxBrowserUseConfigShim\(\)',
+    r'function chatgptLinuxBrowserUseValidatedEnvironment\(repl\)',
+    r'function chatgptLinuxBrowserUseEnvironmentShim\(repl\)',
+]
+for helper_pattern in required_helpers:
+    if len(executable_matches(re.compile(helper_pattern), patched)) != 1:
+        print(
+            "WARN: Browser security-context shim did not reach its verified executable final state",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+rewritten_runtime_pattern = re.compile(
+    r'async function [A-Za-z_$][\w$]*\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
+    r'let [A-Za-z_$][\w$]*=(?P=runtime)\.createElicitation\.bind\((?P=runtime)\),'
+    r'[A-Za-z_$][\w$]*=\{\.\.\.(?P=runtime),env:(?P=runtime)\.env,'
+    r'addAfterSubmittedCodeHook:(?P=runtime)\.addAfterSubmittedCodeHook'
+    r'/\*chatgptLinuxBrowserUseRuntimeEnv\*/,platform:'
+)
+if len(executable_matches(rewritten_runtime_pattern, patched)) != 1:
+    print(
+        "WARN: Browser runtime environment clone did not reach its verified executable final state",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+if len(correlated_setup_paths(patched, helper, runtime_helper)) != 1:
+    print(
+        "WARN: Browser setup path correlation did not reach its verified executable final state",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 path.write_text(patched, encoding="utf-8")
 PY
     then
-        return 1
-    fi
-    if ! grep -Fq "function chatgptLinuxBrowserUseConfigShim()" "$client" || \
-            ! grep -Fq "function chatgptLinuxBrowserUseValidatedEnvironment(repl)" "$client" || \
-            ! grep -Fq "function chatgptLinuxBrowserUseEnvironmentShim(repl)" "$client" || \
-            ! grep -Fq "/*chatgptLinuxBrowserUseRuntimeEnv*/" "$client"; then
-        warn "Browser security-context shim did not reach its verified final state"
         return 1
     fi
     CHATGPT_BROWSER_SECURITY_CONTEXT_PATCHED_CLIENT="$client"

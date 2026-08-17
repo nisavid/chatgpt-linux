@@ -46,20 +46,23 @@ function stageFixture() {
   return { clientPath, tempDir };
 }
 
-function stageDriftedBrowserPlugin(clientSource) {
+function stageDriftedPlugin(pluginName, clientSource) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-browser-staging-drift-"));
-  const sourcePlugin = path.join(tempDir, "browser");
+  const sourcePlugin = path.join(tempDir, pluginName);
   const targetPlugins = path.join(tempDir, "staged");
   fs.mkdirSync(path.join(sourcePlugin, ".codex-plugin"), { recursive: true });
   fs.mkdirSync(path.join(sourcePlugin, "scripts"), { recursive: true });
   fs.mkdirSync(targetPlugins, { recursive: true });
   fs.writeFileSync(path.join(sourcePlugin, ".codex-plugin/plugin.json"), "{}\n");
   fs.writeFileSync(path.join(sourcePlugin, "scripts/browser-client.mjs"), clientSource);
+  if (pluginName === "chrome") {
+    fs.writeFileSync(path.join(sourcePlugin, "scripts/installManifest.mjs"), "export default {};\n");
+  }
   const result = spawnSync(
     "bash",
     [
       "-c",
-      'set -uo pipefail; warn() { printf "%s\\n" "$*" >&2; }; info() { :; }; source "$BUNDLED_PLUGINS"; stage_browser_plugin_from_official_app "$SOURCE_PLUGIN" "$TARGET_PLUGINS"',
+      "set -uo pipefail; warn() { printf \"%s\\n\" \"$*\" >&2; }; info() { :; }; source \"$BUNDLED_PLUGINS\"; patch_chrome_plugin_for_linux() { :; }; install_chrome_extension_host_resource() { :; }; if [ \"$PLUGIN_NAME\" = chrome ]; then stage_chrome_plugin_from_official_app \"$SOURCE_PLUGIN\" \"$TARGET_PLUGINS\"; else stage_browser_plugin_from_official_app \"$SOURCE_PLUGIN\" \"$TARGET_PLUGINS\"; fi",
     ],
     {
       encoding: "utf8",
@@ -67,15 +70,20 @@ function stageDriftedBrowserPlugin(clientSource) {
         ...process.env,
         BUNDLED_PLUGINS: bundledPlugins,
         SCRIPT_DIR: repoRoot,
+        PLUGIN_NAME: pluginName,
         SOURCE_PLUGIN: sourcePlugin,
         TARGET_PLUGINS: targetPlugins,
       },
     },
   );
-  const targetPlugin = path.join(targetPlugins, "browser");
+  const targetPlugin = path.join(targetPlugins, pluginName);
   const targetExists = fs.existsSync(targetPlugin);
   fs.rmSync(tempDir, { recursive: true, force: true });
   return { result, targetExists };
+}
+
+function stageDriftedBrowserPlugin(clientSource) {
+  return stageDriftedPlugin("browser", clientSource);
 }
 
 function validRuntimeContext() {
@@ -223,5 +231,64 @@ test("Browser staging rejects missing security-context shims", () => {
     assert.match(result.stderr, warning);
     assert.match(result.stderr, /Browser security-context staging failed closed/);
     assert.equal(targetExists, false);
+  }
+});
+
+test("Browser and Chrome staging correlate direct and current exported-alias setup paths", () => {
+  const exportedAliasFixture = String.raw`
+import{env as Ub}from"node:process";
+function QP(){let t=globalThis.nodeRepl;return t?.config==null?void 0:t}
+async function cJ(t){let e=t.createElicitation.bind(t),r={...t,platform:"linux",setResponseMeta:t.setResponseMeta,get requestMeta(){return t.requestMeta},async createElicitation(o){return await e(o)}};return r}
+async function I3e(t={}){let e=QP();if(e==null)throw new Error("Browser use requires privileged node_repl capabilities");let r=e,n=await cJ(r);return n}
+export{I3e as setupBrowserRuntime};
+`;
+
+  for (const pluginName of ["browser", "chrome"]) {
+    for (const source of [browserClientFixture, exportedAliasFixture]) {
+      const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+      assert.equal(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.equal(targetExists, true);
+    }
+  }
+});
+
+test("Browser and Chrome staging reject non-executable, ambiguous, and partial security anchors", () => {
+  const executableConfig = "function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}";
+  const executableRuntime = "async function cJ(t){let e=t.createElicitation.bind(t),r={...t,platform:\"linux\",setResponseMeta:t.setResponseMeta,get requestMeta(){return t.requestMeta},async createElicitation(o){return await e(o)}};return r}";
+  const processImport = 'import{env as Ub}from"node:process";';
+  const disconnectedExecutableDecoys =
+    `${processImport}${executableConfig}${executableRuntime}` +
+    "function RealConfig(){return globalThis.nodeRepl}" +
+    "async function RealRuntime(t){return{...t}}" +
+    "export async function setupBrowserRuntime(){let e=RealConfig();return RealRuntime(e)}";
+  const wrongDirectExportDecoys =
+    `${processImport}${executableConfig}${executableRuntime}` +
+    "export async function decoy(){let e=Me();return await cJ(e)}" +
+    "function RealConfig(){return globalThis.nodeRepl}" +
+    "async function RealRuntime(t){return{...t}}" +
+    "export async function setupBrowserRuntime(){let e=RealConfig();return RealRuntime(e)}";
+  const cases = [
+    `${processImport}/*${executableConfig}*/${executableRuntime}`,
+    `${processImport}const configDecoy=${JSON.stringify(executableConfig)};${executableRuntime}`,
+    `${processImport}${executableConfig}/*${executableRuntime}*/`,
+    `${processImport}${executableConfig}const runtimeDecoy=${JSON.stringify(executableRuntime)};`,
+    `/*${processImport}*/${executableConfig}${executableRuntime}`,
+    `const processDecoy=${JSON.stringify(processImport)};${executableConfig}${executableRuntime}`,
+    `${processImport}${executableConfig}${executableConfig}${executableRuntime}`,
+    `${processImport}${executableConfig}${executableRuntime}${executableRuntime}`,
+    `${processImport}${executableConfig}${executableRuntime}function chatgptLinuxBrowserUseValidatedEnvironment(repl){return{}}`,
+    `${processImport}${executableConfig}${executableRuntime.replace("platform:\"linux\"", "env:t.env,platform:\"linux\"")}`,
+    `${processImport}${processImport}${executableConfig}${executableRuntime}`,
+    disconnectedExecutableDecoys,
+    wrongDirectExportDecoys,
+  ];
+
+  for (const pluginName of ["browser", "chrome"]) {
+    for (const source of cases) {
+      const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+      assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.match(result.stderr, /security-context staging failed closed/i);
+      assert.equal(targetExists, false);
+    }
   }
 });
