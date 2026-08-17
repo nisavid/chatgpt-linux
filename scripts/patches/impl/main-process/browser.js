@@ -446,7 +446,15 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     source,
     browserUseWrappedRuntimeConfigPattern,
   );
-  if (helperMatches.length !== 1 || wrappedMatches.length !== 1) return false;
+  const unwrappedMatches = executableRegexMatches(
+    source,
+    browserUseRuntimeConfigPattern,
+  );
+  if (
+    helperMatches.length !== 1 ||
+    wrappedMatches.length !== 1 ||
+    unwrappedMatches.length !== 0
+  ) return false;
   const wrapped = wrappedMatches[0];
   return wrapped[4] === wrapped[7] && wrapped[2] === wrapped[8];
 }

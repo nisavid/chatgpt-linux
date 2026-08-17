@@ -4,12 +4,15 @@ _REGEX_PREFIX_KEYWORDS = {
     "await", "break", "case", "continue", "delete", "do", "else", "in",
     "instanceof", "new", "of", "return", "throw", "typeof", "void", "yield",
 }
+_CONTROL_PAREN_KEYWORDS = {"catch", "for", "if", "switch", "while", "with"}
 
 
 def executable_offsets(source):
     offsets = bytearray(b"\x01") * len(source)
     index = 0
     can_start_regex = True
+    pending_control_paren = False
+    paren_contexts = []
     while index < len(source):
         char = source[index]
         next_char = source[index + 1] if index + 1 < len(source) else ""
@@ -80,14 +83,34 @@ def executable_offsets(source):
             end = index + 1
             while end < len(source) and (source[end].isalnum() or source[end] in "_$"):
                 end += 1
-            can_start_regex = source[index:end] in _REGEX_PREFIX_KEYWORDS
+            token = source[index:end]
+            pending_control_paren = token in _CONTROL_PAREN_KEYWORDS
+            can_start_regex = pending_control_paren or token in _REGEX_PREFIX_KEYWORDS
             index = end
             continue
         if char.isdigit():
+            pending_control_paren = False
             index += 1
             while index < len(source) and (source[index].isalnum() or source[index] in "._"):
                 index += 1
             can_start_regex = False
+            continue
+        if char == "(":
+            paren_contexts.append("control" if pending_control_paren else "expression")
+            pending_control_paren = False
+            can_start_regex = True
+            index += 1
+            continue
+        pending_control_paren = False
+        if char == ")":
+            can_start_regex = bool(paren_contexts) and paren_contexts.pop() == "control"
+            index += 1
+            continue
+        if char == "/":
+            if next_char == "=":
+                index += 1
+            can_start_regex = True
+            index += 1
             continue
         can_start_regex = char in "([{,;:?=+!*%&|^~<>-"
         index += 1

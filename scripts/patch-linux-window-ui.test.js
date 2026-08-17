@@ -2866,6 +2866,19 @@ test("binds tray readiness to the wrapper instantiated by the tray factory", () 
   );
 });
 
+test("finds the current tray wrapper after nested template expressions", () => {
+  const nestedTemplatePrefix =
+    "let iconPath=`file://${roots.endsWith(`/`)?roots:`${roots}/`}`;";
+  const source = `${nestedTemplatePrefix}${currentMainBundlePrefix}${trayBundleFixture()}`;
+  const patched = applyPatchTwice(applyLinuxTrayPatch, source, null);
+
+  assert.notEqual(patched, source);
+  assert.match(
+    patched,
+    /var pb=class\{[^]*?isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\)/,
+  );
+});
+
 test("rejects a readiness decoy when the instantiated tray wrapper drifts", () => {
   const decoy =
     "var decoy=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}};";
@@ -2882,6 +2895,109 @@ test("rejects a readiness decoy when the instantiated tray wrapper drifts", () =
   assert.deepEqual(warnings, [
     "WARN: Could not find one unambiguous current Linux tray readiness delegate — skipping Linux tray compatibility patch",
   ]);
+});
+
+test("reports non-executable tray factory decoys as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-tray",
+  );
+  const decoyClass =
+    "var decoy=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}};";
+  const driftedTray = trayBundleFixture().replace(
+    "var pb=class{",
+    "var pb=class extends CurrentTrayWrapper{",
+  );
+  const factoryDecoys = [
+    "let factoryDecoy=\"let fake=new decoy(r);return!await fake.waitForReady()?null:fake\";",
+    "/*let fake=new decoy(r);return!await fake.waitForReady()?null:fake*/",
+  ];
+
+  for (const factoryDecoy of factoryDecoys) {
+    const source =
+      `${currentMainBundlePrefix}${decoyClass}${factoryDecoy}${driftedTray}`;
+    const report = createPatchReport();
+    const result = applyMainBundlePatchDescriptors(
+      source,
+      [descriptor],
+      {},
+      report,
+    );
+
+    assert.equal(result.patchedSource, source);
+    assert.equal(report.patches[0]?.status, "failed-required");
+    assert.equal(
+      report.patches[0]?.reason,
+      "WARN: Could not find the current tray wrapper class — skipping Linux tray compatibility patch",
+    );
+  }
+});
+
+test("reports non-executable tray wrapper class decoys as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-tray",
+  );
+  const driftedTray = trayBundleFixture().replace(
+    "var pb=class{",
+    "var pb=class extends CurrentTrayWrapper{",
+  );
+  const classDecoys = [
+    "let classDecoy=\"var pb=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}}\";",
+    "/*var pb=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}}*/",
+  ];
+
+  for (const classDecoy of classDecoys) {
+    const source = `${currentMainBundlePrefix}${classDecoy}${driftedTray}`;
+    const report = createPatchReport();
+    const result = applyMainBundlePatchDescriptors(
+      source,
+      [descriptor],
+      {},
+      report,
+    );
+
+    assert.equal(result.patchedSource, source);
+    assert.equal(report.patches[0]?.status, "failed-required");
+    assert.equal(
+      report.patches[0]?.reason,
+      "WARN: Could not find the current tray wrapper class — skipping Linux tray compatibility patch",
+    );
+  }
+});
+
+test("reports non-executable readiness decoys inside the tray wrapper as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-tray",
+  );
+  const delegatedReadiness =
+    "isReady(){return r.S(this.tray)}waitForReady(){return r.W(this.tray)}";
+  const driftedReadiness =
+    "isReady(){return drifted(this.tray)}waitForReady(){return driftedWait(this.tray)}";
+  const readinessDecoys = [
+    `readinessDecoy=${JSON.stringify(delegatedReadiness)};`,
+    `/*${delegatedReadiness}*/`,
+  ];
+
+  for (const readinessDecoy of readinessDecoys) {
+    const driftedTray = trayBundleFixture().replace(
+      delegatedReadiness,
+      `${readinessDecoy}${driftedReadiness}`,
+    );
+    const source = `${currentMainBundlePrefix}${driftedTray}`;
+    const report = createPatchReport();
+    const result = applyMainBundlePatchDescriptors(
+      source,
+      [descriptor],
+      {},
+      report,
+    );
+
+    assert.equal(result.patchedSource, source);
+    assert.equal(report.patches[0]?.status, "failed-required");
+    assert.equal(
+      report.patches[0]?.reason,
+      "WARN: Could not find one unambiguous current Linux tray readiness delegate — skipping Linux tray compatibility patch",
+    );
+  }
 });
 
 test("retains the current native Linux tray when quit-state helpers already exist", () => {
@@ -10272,6 +10388,7 @@ test("rejects non-executable and partial Browser security-context producer contr
     `${helper}${current}`,
     `${current.replace("requestMeta:g", "requestMeta:chatgptLinuxBrowserUseRequestMeta(g,b,h)")}`,
     `${current}${current}`,
+    `${patched}${current}`,
   ];
 
   for (const source of cases) {
@@ -10287,6 +10404,23 @@ test("reports malformed Browser security-context producer contracts as failed-re
     (candidate) => candidate.id === "linux-browser-use-node-repl-security-context",
   );
   const source = `${currentBrowserUseSecurityContextBuilderFixture()}${currentBrowserUseSecurityContextBuilderFixture()}`;
+  const report = createPatchReport();
+  const result = applyMainBundlePatchDescriptors(source, [descriptor], {}, report);
+
+  assert.equal(result.patchedSource, source);
+  assert.equal(report.patches[0]?.status, "failed-required");
+  assert.match(
+    report.patches[0]?.reason ?? "",
+    /Browser Use node_repl security-context producer/,
+  );
+});
+
+test("reports an extra unwrapped Browser security-context producer as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-browser-use-node-repl-security-context",
+  );
+  const current = currentBrowserUseSecurityContextBuilderFixture();
+  const source = `${applyBrowserUseNodeReplSecurityContextPatch(current)}${current}`;
   const report = createPatchReport();
   const result = applyMainBundlePatchDescriptors(source, [descriptor], {}, report);
 
