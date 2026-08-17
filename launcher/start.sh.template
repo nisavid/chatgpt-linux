@@ -3052,26 +3052,97 @@ webview_index_digest() {
     printf '%s\n' "$digest"
 }
 
+webview_integrity_asset_snapshot_digest() {
+    python3 - "$WEBVIEW_DIR" "$WEBVIEW_INTEGRITY_FILE" <<'PY'
+import hashlib
+import pathlib
+import posixpath
+import sys
+
+
+webview_dir = pathlib.Path(sys.argv[1])
+manifest_path = pathlib.Path(sys.argv[2])
+
+if not manifest_path.is_file():
+    raise SystemExit(1)
+
+try:
+    lines = manifest_path.read_text(encoding="utf-8").splitlines()
+except Exception:
+    raise SystemExit(1)
+
+snapshot = hashlib.sha256()
+validated = 0
+for line in lines:
+    if not line.strip():
+        continue
+    try:
+        expected_digest, relative_path = line.split(None, 1)
+    except ValueError:
+        raise SystemExit(1)
+    relative_path = relative_path.strip()
+    normalized = posixpath.normpath(relative_path)
+    if (
+        len(expected_digest) != 64
+        or any(ch not in "0123456789abcdefABCDEF" for ch in expected_digest)
+        or not relative_path
+        or relative_path.startswith("/")
+        or normalized in (".", "..")
+        or normalized.startswith("../")
+        or normalized != relative_path
+        or "\\" in relative_path
+        or any(ord(ch) < 32 for ch in relative_path)
+    ):
+        raise SystemExit(1)
+
+    asset_path = webview_dir / relative_path
+    if asset_path.is_symlink() or not asset_path.is_file():
+        raise SystemExit(1)
+    digest = hashlib.sha256()
+    try:
+        with asset_path.open("rb") as asset:
+            for chunk in iter(lambda: asset.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except Exception:
+        raise SystemExit(1)
+    actual_digest = digest.hexdigest()
+    if actual_digest.lower() != expected_digest.lower():
+        raise SystemExit(1)
+    snapshot.update(relative_path.encode("utf-8"))
+    snapshot.update(b"\0")
+    snapshot.update(actual_digest.encode("ascii"))
+    snapshot.update(b"\0")
+    validated += 1
+
+if validated == 0:
+    raise SystemExit(1)
+print(snapshot.hexdigest())
+PY
+}
+
 webview_integrity_cache_is_valid() {
     local cached_pid=""
     local cached_start_time=""
     local cached_manifest_digest=""
     local cached_index_digest=""
+    local cached_asset_snapshot=""
     local extra=""
     local current_start_time=""
     local current_manifest_digest=""
     local current_index_digest=""
+    local current_asset_snapshot=""
 
     [ -f "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
     [ ! -L "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
     [ -O "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
-    IFS=' ' read -r cached_pid cached_start_time cached_manifest_digest cached_index_digest extra \
+    IFS=' ' read -r cached_pid cached_start_time cached_manifest_digest cached_index_digest cached_asset_snapshot extra \
         < "$WEBVIEW_INTEGRITY_CACHE_FILE" || return 1
     [ -z "$extra" ] || return 1
     [[ "$cached_pid" =~ ^[0-9]+$ ]] || return 1
     [[ "$cached_start_time" =~ ^[0-9]+$ ]] || return 1
     [[ "$cached_manifest_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
     [[ "$cached_index_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ "$cached_asset_snapshot" =~ ^[0-9a-f]{64}$ ]] || return 1
     [ -f "$WEBVIEW_PID_FILE" ] || return 1
     [ "$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)" = "$cached_pid" ] || return 1
     pid_is_webview_server "$cached_pid" || return 1
@@ -3081,6 +3152,8 @@ webview_integrity_cache_is_valid() {
     [ "$current_manifest_digest" = "$cached_manifest_digest" ] || return 1
     current_index_digest="$(webview_index_digest || true)"
     [ "$current_index_digest" = "$cached_index_digest" ] || return 1
+    current_asset_snapshot="$(webview_integrity_asset_snapshot_digest || true)"
+    [ "$current_asset_snapshot" = "$cached_asset_snapshot" ] || return 1
 }
 
 record_webview_integrity_verification() {
@@ -3088,6 +3161,7 @@ record_webview_integrity_verification() {
     local start_time=""
     local manifest_digest=""
     local index_digest=""
+    local asset_snapshot=""
     local temporary=""
 
     pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
@@ -3097,12 +3171,18 @@ record_webview_integrity_verification() {
     [ -n "$start_time" ] || return 1
     manifest_digest="$(webview_integrity_manifest_digest)" || return 1
     index_digest="$(webview_index_digest)" || return 1
+    asset_snapshot="$(webview_integrity_asset_snapshot_digest)" || return 1
     temporary="$(mktemp "$APP_STATE_DIR/.webview-integrity-verified.XXXXXX")" || return 1
-    if ! {
-        printf '%s %s %s %s\n' "$pid" "$start_time" "$manifest_digest" "$index_digest" > "$temporary"
-        chmod 0600 "$temporary"
-        mv -fT -- "$temporary" "$WEBVIEW_INTEGRITY_CACHE_FILE"
-    }; then
+    if ! printf '%s %s %s %s %s\n' \
+        "$pid" "$start_time" "$manifest_digest" "$index_digest" "$asset_snapshot" > "$temporary"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    if ! chmod 0600 "$temporary"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    if ! mv -fT -- "$temporary" "$WEBVIEW_INTEGRITY_CACHE_FILE"; then
         rm -f "$temporary"
         return 1
     fi

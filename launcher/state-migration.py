@@ -573,7 +573,6 @@ def load_journal(path: Path) -> dict[str, Any] | None:
 def run_migration(direction: str) -> None:
     expected_operations, journal_path = migration_paths()
     journal = load_journal(journal_path)
-    journal_was_loaded = journal is not None
     if journal is None:
         preflight(expected_operations, direction)
         journal = {
@@ -620,8 +619,11 @@ def run_migration(direction: str) -> None:
     completed_this_run = 0
     operations = journal["operations"]
     replacement_pairs = rewrite_pairs(operations, direction)
-    rewrite_skipped_operations = journal_was_loaded or any(
-        operation["status"] not in ("complete", "skipped") for operation in operations
+    # A journal containing only skipped operations represents an already
+    # canonical state. Completed or in-flight operations still mean that a
+    # resumed migration may need to rewrite references in skipped roots.
+    rewrite_skipped_operations = any(
+        operation["status"] != "skipped" for operation in operations
     )
     for operation in operations:
         if operation["status"] == "complete":

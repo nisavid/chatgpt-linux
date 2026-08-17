@@ -241,6 +241,63 @@ assert (state_root / "session-1999.json").read_text(encoding="utf-8") == '{"stat
 PY
 }
 
+test_resumed_all_skipped_journal_does_not_rescan_canonical_trees() {
+    local fixture_root="$TEST_ROOT/resumed-all-skipped"
+
+    mkdir -p "$fixture_root/home" "$fixture_root/xdg/config/chatgpt" "$fixture_root/xdg/state/chatgpt"
+
+    python3 - "$REPO_ROOT/launcher/state-migration.py" "$fixture_root" <<'PY'
+import importlib.util
+import os
+import pathlib
+import sys
+
+script_path = pathlib.Path(sys.argv[1])
+fixture_root = pathlib.Path(sys.argv[2])
+os.environ.update(
+    {
+        "HOME": str(fixture_root / "home"),
+        "XDG_CONFIG_HOME": str(fixture_root / "xdg" / "config"),
+        "XDG_STATE_HOME": str(fixture_root / "xdg" / "state"),
+        "XDG_CACHE_HOME": str(fixture_root / "xdg" / "cache"),
+        "XDG_DATA_HOME": str(fixture_root / "xdg" / "data"),
+        "XDG_RUNTIME_DIR": str(fixture_root / "xdg" / "runtime"),
+    }
+)
+
+spec = importlib.util.spec_from_file_location("state_migration", script_path)
+assert spec and spec.loader
+state_migration = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(state_migration)
+
+operations, journal_path = state_migration.migration_paths()
+for operation in operations:
+    operation["status"] = "skipped"
+state_migration.write_journal(
+    journal_path,
+    {
+        "version": state_migration.JOURNAL_VERSION,
+        "direction": "forward",
+        "operations": operations,
+    },
+)
+
+rewrite_calls = []
+
+
+def fail_if_rewritten(root, pairs):
+    rewrite_calls.append(str(root))
+    raise AssertionError(f"resumed all-skipped state was recursively scanned: {root}")
+
+
+state_migration.rewrite_known_paths = fail_if_rewritten
+state_migration.run_migration("forward")
+
+assert not rewrite_calls
+assert not journal_path.exists()
+PY
+}
+
 test_repeated_launch_is_idempotent() {
     local fixture_root="$TEST_ROOT/idempotent"
     make_launcher_fixture "$fixture_root"

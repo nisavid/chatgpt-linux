@@ -376,11 +376,14 @@ cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.chatgpt-linux/cli-launch-p
 cp "$REPO_DIR/launcher/state-migration.py" "$APP_DIR/.chatgpt-linux/state-migration.py"
 chmod 0755 "$APP_DIR/.chatgpt-linux/state-migration.py"
 ln -s "$(command -v node)" "$APP_DIR/resources/node-runtime/bin/node"
+mkdir -p "$APP_DIR/content/webview/assets"
 printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader"></div>' \
     > "$APP_DIR/content/webview/index.html"
+printf '%s\n' "console.log('trusted startup asset');" \
+    > "$APP_DIR/content/webview/assets/app-test.js"
 (
     cd "$APP_DIR/content/webview"
-    sha256sum index.html > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
+    sha256sum index.html assets/app-test.js > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
 )
 
 g++ -x c++ -O2 -o "$APP_DIR/electron" - <<'CPP'
@@ -528,15 +531,15 @@ grep -q "Reusing cached webview integrity verification" "$APP_LOG" \
     || fail "warm reopen did not reuse the webview integrity attestation"
 [ "$(grep -c "Webview integrity manifest verified for webview server pid=" "$APP_LOG")" -eq 1 ] \
     || fail "warm reopen repeated the full webview integrity manifest verification"
-printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader">tampered</div>' \
-    > "$APP_DIR/content/webview/index.html"
+printf '%s\n' "console.log('tampered startup asset');" \
+    > "$APP_DIR/content/webview/assets/app-test.js"
 set +e
 timeout 8s "${COMMON_ENV[@]}" "$APP_DIR/start.sh" --new-chat > "$THIRD_LOG" 2>&1
 rc=$?
 set -e
-[ "$rc" -ne 0 ] || fail "warm reopen accepted a changed webview entrypoint"
+[ "$rc" -ne 0 ] || fail "warm reopen accepted a changed manifest-listed webview asset"
 grep -q "digest mismatch" "$APP_LOG" \
-    || fail "changed webview entrypoint did not trigger full integrity validation"
+    || fail "changed manifest-listed asset did not trigger full integrity validation"
 kill -0 "$FIRST_ELECTRON_PID" 2>/dev/null \
     || fail "integrity failure terminated the healthy resident Electron process"
 kill -0 "$DECOY_PID" 2>/dev/null \
