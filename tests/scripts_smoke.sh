@@ -11898,6 +11898,10 @@ test_launcher_warm_start_recovery() {
         bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
     CHATGPT_TEST_DISABLE_PIDFD=1 CHATGPT_TEST_KILL_DURING_PRELAUNCH=1 \
         bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
+    CHATGPT_TEST_NORMAL_LOCK_ONLY=1 CHATGPT_TEST_UNTRUSTED_COMPUTER_USE_ENDPOINT=1 \
+        bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
+    CHATGPT_TEST_NORMAL_LOCK_ONLY=1 CHATGPT_TEST_LIVE_COMPUTER_USE_SOCKET=1 \
+        bash "$REPO_DIR/tests/launcher_warm_start_recovery.sh"
 }
 
 test_launcher_window_reopen_behavior() {
