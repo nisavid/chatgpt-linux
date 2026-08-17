@@ -10257,6 +10257,47 @@ test("propagates the Browser security context through node_repl request metadata
   assert.equal(metadata["chatgpt/browser-runtime-context"].env.UNRELATED_SECRET, undefined);
 });
 
+test("rejects non-executable and partial Browser security-context producer contracts", () => {
+  const current = currentBrowserUseSecurityContextBuilderFixture();
+  const patched = applyBrowserUseNodeReplSecurityContextPatch(current);
+  const helper = patched.slice(
+    patched.indexOf("function chatgptLinuxBrowserUseRequestMeta("),
+    patched.indexOf("function fte()"),
+  );
+  const wrappedCall =
+    "Ye({codexCliPath:`codex`,codexHome:h,envVars:{},extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:chatgptLinuxBrowserUseRequestMeta(g,b,h),sentryUserId:u})";
+  const cases = [
+    `/*${helper}${wrappedCall}*/`,
+    `const decoy=${JSON.stringify(`${helper}${wrappedCall}`)};`,
+    `${helper}${current}`,
+    `${current.replace("requestMeta:g", "requestMeta:chatgptLinuxBrowserUseRequestMeta(g,b,h)")}`,
+    `${current}${current}`,
+  ];
+
+  for (const source of cases) {
+    assert.throws(
+      () => applyBrowserUseNodeReplSecurityContextPatch(source),
+      /Browser Use node_repl security-context producer/,
+    );
+  }
+});
+
+test("reports malformed Browser security-context producer contracts as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-browser-use-node-repl-security-context",
+  );
+  const source = `${currentBrowserUseSecurityContextBuilderFixture()}${currentBrowserUseSecurityContextBuilderFixture()}`;
+  const report = createPatchReport();
+  const result = applyMainBundlePatchDescriptors(source, [descriptor], {}, report);
+
+  assert.equal(result.patchedSource, source);
+  assert.equal(report.patches[0]?.status, "failed-required");
+  assert.match(
+    report.patches[0]?.reason ?? "",
+    /Browser Use node_repl security-context producer/,
+  );
+});
+
 test("refuses the local-testing Browser security mode outside a development build", () => {
   const patched = applyBrowserUseNodeReplSecurityContextPatch(
     currentBrowserUseSecurityContextBuilderFixture(),

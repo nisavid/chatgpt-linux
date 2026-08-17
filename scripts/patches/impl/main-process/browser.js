@@ -418,49 +418,88 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
   return patchedSource;
 }
 
-function applyBrowserUseNodeReplSecurityContextPatch(currentSource) {
-  const helperName = "chatgptLinuxBrowserUseRequestMeta";
-  if (currentSource.includes(`function ${helperName}(`)) {
-    return currentSource;
-  }
-
-  const runtimeConfigPattern =
-    /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{codexCliPath:[^,]+,codexHome:)([A-Za-z_$][\w$]*)(,envVars:[^,]+,extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)([A-Za-z_$][\w$]*)(,sentryUserId:)/g;
-  const matches = [...currentSource.matchAll(runtimeConfigPattern)];
-  if (matches.length !== 1) {
-    if (
-      currentSource.includes("BROWSER_USE_AVAILABLE_BACKENDS") ||
-      currentSource.includes("browser_use_setup_failed")
-    ) {
-      console.warn(
-        `WARN: Expected one Browser Use node_repl security-context producer, found ${matches.length} — leaving the main bundle unchanged`,
-      );
-    }
-    return currentSource;
-  }
-
-  const helper =
+function browserUseRequestMetaHelperSource() {
+  return (
     `function ${helperName}(__chatgptExisting,__chatgptEnv,__chatgptCodexHome){` +
     `let __chatgptMeta={};if(__chatgptExisting!=null){try{__chatgptMeta=JSON.parse(__chatgptExisting)}catch{throw Error(\`Browser node_repl request metadata is invalid\`)}if(typeof __chatgptMeta!==\`object\`||__chatgptMeta==null||Array.isArray(__chatgptMeta))throw Error(\`Browser node_repl request metadata is invalid\`)}` +
     `let __chatgptAllowed=new Set([\`BROWSER_AUTH_BROKER_SOCKET_PATH\`,\`BROWSER_USE_AVAILABLE_BACKENDS\`,\`BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED\`,\`BROWSER_USE_CODEX_APP_BUILD_FLAVOR\`,\`BROWSER_USE_CODEX_APP_VERSION\`,\`BROWSER_USE_DISABLE_AMBIENT_NETWORK\`,\`BROWSER_USE_DISABLE_API_MEMBERS\`,\`BROWSER_USE_DISABLE_BROWSER_CAPABILITIES\`,\`BROWSER_USE_DISABLE_TAB_CAPABILITIES\`,\`BROWSER_USE_SECURITY_MODE\`,\`CODEX_CHROME_USER_DATA_DIR\`,\`NODE_REPL_DISABLE_ANALYTICS\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME\`]),__chatgptContext={};` +
     `for(let[__chatgptKey,__chatgptValue]of Object.entries(__chatgptEnv??{})){if(!__chatgptAllowed.has(__chatgptKey))continue;if(typeof __chatgptValue!==\`string\`)throw Error(\`Browser node_repl security context is invalid\`);__chatgptContext[__chatgptKey]=__chatgptValue}` +
     `if(typeof __chatgptCodexHome!==\`string\`||__chatgptCodexHome.length===0)throw Error(\`Browser node_repl security context is invalid\`);__chatgptContext.CODEX_HOME=__chatgptCodexHome;` +
     `let __chatgptFlavor=__chatgptContext.BROWSER_USE_CODEX_APP_BUILD_FLAVOR,__chatgptMode=__chatgptContext.BROWSER_USE_SECURITY_MODE;if(![\`dev\`,\`internal\`,\`prod\`].includes(__chatgptFlavor))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode!=null&&![\`\`,\`disabled-for-local-testing\`,\`gaas-browser-environment\`].includes(__chatgptMode))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode===\`disabled-for-local-testing\`&&__chatgptFlavor!==\`dev\`)throw Error(\`Browser node_repl security context is invalid\`);` +
-    `return JSON.stringify({...__chatgptMeta,[\`chatgpt/browser-runtime-context\`]:{version:1,env:__chatgptContext}})}`;
+    `return JSON.stringify({...__chatgptMeta,[\`chatgpt/browser-runtime-context\`]:{version:1,env:__chatgptContext}})}`
+  );
+}
+
+const helperName = "chatgptLinuxBrowserUseRequestMeta";
+const browserUseRuntimeConfigPattern =
+  /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{codexCliPath:[^,]+,codexHome:)([A-Za-z_$][\w$]*)(,envVars:[^,]+,extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)([A-Za-z_$][\w$]*)(,sentryUserId:)/g;
+const browserUseWrappedRuntimeConfigPattern =
+  /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{codexCliPath:[^,]+,codexHome:)([A-Za-z_$][\w$]*)(,envVars:[^,]+,extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)chatgptLinuxBrowserUseRequestMeta\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)(,sentryUserId:)/g;
+
+function hasBrowserUseSecurityContextProducerContract(source) {
+  const helper = browserUseRequestMetaHelperSource();
+  const helperMatches = executableRegexMatches(
+    source,
+    new RegExp(escapeRegExp(helper), "g"),
+  );
+  const wrappedMatches = executableRegexMatches(
+    source,
+    browserUseWrappedRuntimeConfigPattern,
+  );
+  if (helperMatches.length !== 1 || wrappedMatches.length !== 1) return false;
+  const wrapped = wrappedMatches[0];
+  return wrapped[4] === wrapped[7] && wrapped[2] === wrapped[8];
+}
+
+function applyBrowserUseNodeReplSecurityContextPatch(currentSource) {
+  if (hasBrowserUseSecurityContextProducerContract(currentSource)) {
+    return currentSource;
+  }
+
+  const partialHelpers = executableRegexMatches(
+    currentSource,
+    new RegExp(`function ${helperName}\\(`, "g"),
+  );
+  const partialWrappedCalls = executableRegexMatches(
+    currentSource,
+    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(/g,
+  );
+  if (partialHelpers.length > 0 || partialWrappedCalls.length > 0) {
+    throw new Error(
+      "Required Browser Use node_repl security-context producer is only partially present",
+    );
+  }
+
+  const matches = executableRegexMatches(currentSource, browserUseRuntimeConfigPattern);
+  if (matches.length !== 1) {
+    throw new Error(
+      `Required Browser Use node_repl security-context producer expected one executable runtime builder, found ${matches.length}`,
+    );
+  }
+
+  const helper = browserUseRequestMetaHelperSource();
   const strictDirective = '"use strict";';
   const helperInsertionIndex = currentSource.startsWith(strictDirective)
     ? strictDirective.length
     : 0;
-  const patchedSource = currentSource.replace(
-    runtimeConfigPattern,
-    (_match, callPrefix, codexHome, envPrefix, extraEnv, requestPrefix, requestMeta, suffix) =>
-      `${callPrefix}${codexHome}${envPrefix}${extraEnv}${requestPrefix}${helperName}(${requestMeta},${extraEnv},${codexHome})${suffix}`,
-  );
-  return (
+  const match = matches[0];
+  const replacement =
+    `${match[1]}${match[2]}${match[3]}${match[4]}${match[5]}` +
+    `${helperName}(${match[6]},${match[4]},${match[2]})${match[7]}`;
+  const patchedSource =
+    currentSource.slice(0, match.index) + replacement +
+    currentSource.slice(match.index + match[0].length);
+  const finalSource = (
     patchedSource.slice(0, helperInsertionIndex) +
     helper +
     patchedSource.slice(helperInsertionIndex)
   );
+  if (!hasBrowserUseSecurityContextProducerContract(finalSource)) {
+    throw new Error(
+      "Required Browser Use node_repl security-context producer did not reach its verified final state",
+    );
+  }
+  return finalSource;
 }
 
 // The trusted-hash setup and node_repl config can live in different build chunks.
