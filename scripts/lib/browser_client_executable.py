@@ -22,6 +22,12 @@ def executable_offsets(source):
     while index < len(source):
         char = source[index]
         next_char = source[index + 1] if index + 1 < len(source) else ""
+        if index == 0 and char == "#" and next_char == "!":
+            while index < len(source) and source[index] not in "\r\n":
+                offsets[index] = 0
+                index += 1
+            can_start_regex = True
+            continue
         if template_contexts and not template_contexts[-1][0]:
             offsets[index] = 0
             if char == "\\":

@@ -270,6 +270,36 @@ test("Browser and Chrome staging reject a nested-template process-import decoy",
   }
 });
 
+test("Browser and Chrome staging reject a hashbang process-import decoy", () => {
+  const processImport = 'import{env as Ub}from"node:process";';
+  const source =
+    `#!/usr/bin/env -S node ${processImport}\n` +
+    'import {env as RealEnv} from "node:process";' +
+    "function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}" +
+    "async function cJ(t){let e=t.createElicitation.bind(t),r={...t,platform:\"linux\",setResponseMeta:t.setResponseMeta,get requestMeta(){return t.requestMeta},async createElicitation(o){return await e(o)}};return r}" +
+    "export async function setupBrowserRuntime(){let e=Me();return await cJ(e)}";
+
+  for (const pluginName of ["browser", "chrome"]) {
+    const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+    assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+    assert.match(result.stderr, /Expected one Browser Use node:process env import, found 0/);
+    assert.match(result.stderr, /security-context staging failed closed/i);
+    assert.equal(targetExists, false);
+  }
+});
+
+test("Browser and Chrome staging reject malformed final client syntax", () => {
+  const source = `${browserClientFixture}\nconst broken="`;
+
+  for (const pluginName of ["browser", "chrome"]) {
+    const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+    assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+    assert.match(result.stderr, /Browser client syntax validation failed/);
+    assert.match(result.stderr, /staging failed closed/i);
+    assert.equal(targetExists, false);
+  }
+});
+
 test("Browser and Chrome staging reject statement-boundary regex process-import decoys", () => {
   const processImport = 'import{env as Ub}from"node:process";';
   const prefix =

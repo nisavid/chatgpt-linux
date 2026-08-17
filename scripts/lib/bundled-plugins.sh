@@ -1136,6 +1136,17 @@ normalize_plugin_script_executable_modes() {
     done < <(find "$scripts_dir" -maxdepth 1 -type f -name '*.js' -print0)
 }
 
+validate_browser_client_module_syntax() {
+    local client="$1"
+    local output
+
+    if ! output="$(node --check "$client" 2>&1)"; then
+        warn "Browser client syntax validation failed: $client"
+        [ -z "$output" ] || printf '%s\n' "$output" >&2
+        return 1
+    fi
+}
+
 stage_chrome_plugin_from_official_app() {
     local source_plugin="$1"
     local target_plugins="$2"
@@ -1172,6 +1183,11 @@ stage_chrome_plugin_from_official_app() {
     patch_browser_use_native_pipe_import_meta_bridge "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_site_status_allowlist_fallback "$target_plugin/scripts/browser-client.mjs"
     patch_browser_client_linux_socket_dir "$target_plugin/scripts/browser-client.mjs"
+    if ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs"; then
+        warn "Chrome Browser security-context staging failed closed"
+        rm -rf "$target_plugin"
+        return 1
+    fi
     normalize_plugin_script_executable_modes "$target_plugin"
     if ! install_chrome_extension_host_resource "$target_plugin"; then
         rm -rf "$target_plugin"
@@ -1912,6 +1928,11 @@ stage_browser_plugin_from_official_app() {
     patch_browser_use_site_status_allowlist_fallback "$target_client"
     patch_browser_use_file_url_policy "$target_client"
     patch_browser_client_iab_socket_scope "$target_client"
+    if ! validate_browser_client_module_syntax "$target_client"; then
+        warn "Browser security-context staging failed closed"
+        rm -rf "$target_plugin"
+        return 1
+    fi
 
     info "Browser plugin staged from official OpenAI DMG"
     return 0
