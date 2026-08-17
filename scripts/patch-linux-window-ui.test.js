@@ -212,8 +212,6 @@ const obsoleteTerminalEnvBundle =
 const currentOpaqueWindowSurfaceBackgroundHelper =
   "var W4=`#00000000`,G4=`#000000`,K4=`#f9f9f9`;function g3(e){return e===`avatarOverlay`||e===`browserCommentPopup`||e===`globalDictation`||e===`hotkeyWindowHome`||e===`hotkeyWindowThread`||e===`hud`}function v3({appearance:e,opaqueWindowsEnabled:t,platform:n}){return t&&!g3(e)&&(n===`darwin`||n===`win32`)}function S3({platform:e,appearance:t,opaqueWindowSurfaceEnabled:n,prefersDarkColors:r}){return n?{backgroundColor:r?G4:K4,backgroundMaterial:e===`win32`?`none`:null}:e===`win32`&&!g3(t)?{backgroundColor:W4,backgroundMaterial:`mica`}:{backgroundColor:W4,backgroundMaterial:null}}";
 const currentOpaqueWindowSurfaceBackgroundBundle =
-  `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!BA()&&!g3(e)}}`;
-const currentNamespacedOpaqueWindowSurfaceBackgroundBundle =
   `${currentOpaqueWindowSurfaceBackgroundHelper}class k3{isOpaqueWindowsEnabled(){return theme?.opaqueWindows===!0}shouldUseOpaqueWindowSurface(e,t,n){return this.shouldAlwaysUseOpaqueWindowSurface(e)}shouldAlwaysUseOpaqueWindowSurface(e){return v3({appearance:e,opaqueWindowsEnabled:this.isOpaqueWindowsEnabled(),platform:process.platform})||!r.w()&&!g3(e)}}`;
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1448,15 +1446,7 @@ function currentTrayLifecycleBundleFixture() {
     "let chatgptLinuxQuitInProgress=!1,chatgptLinuxExplicitQuitApproved=!1,chatgptLinuxMarkQuitInProgress=()=>{chatgptLinuxQuitInProgress=!0},chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()},chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0,chatgptLinuxIsQuitInProgress=()=>chatgptLinuxQuitInProgress===!0;",
     "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
     "var H9=null,U9=null,G9=!1;async function fae(e){return G9=!0,U9??H9??(U9=(async()=>{let t={defaultIcon:e},r=new c.Tray(t.defaultIcon,process.platform===`win32`&&c.app.isPackaged?dEe(e.buildFlavor):void 0);if(!G9)return r.destroy(),null;r.setToolTip(c.app.getName());let i=new pb(r);return H9=i,!await i.waitForReady()||H9!==i?(H9===i&&(H9=null,i.destroy()),null):i})().finally(()=>{U9=null}),U9)}",
-    "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
-  ].join("");
-}
-
-function importedTrayReadinessBundleFixture() {
-  return [
-    "v&&k.on(`close`,e=>{let t=this.getPrimaryWindows().some(e=>e!==k);if((process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&this.options.canHideLastWindowToTray?.()===!0&&!t){e.preventDefault(),k.hide();return}});",
-    "var V9=null,H9=null,W9=!1,G9=!1;async function GAe(e){return W9=!0,H9??V9??(H9=(async()=>{let n={defaultIcon:e},i=new l.Tray(n.defaultIcon,process.platform===`win32`&&l.app.isPackaged?RAe(e):void 0);if(!W9)return i.destroy(),null;i.setToolTip(l.app.getName());let o=new qTe(i);return V9=o,!await o.waitForReady()||V9!==o?(V9===o&&(V9=null,o.destroy()),null):(G9=!0,o)})().finally(()=>{H9=null}),H9)}",
-    "var qTe=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){return r.S(this.tray)}waitForReady(){return r.W(this.tray)}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(l.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
+    "var pb=class{constructor(e){this.tray=e;if(process.platform===`linux`){this.tray.on(`click`,()=>{}),this.updatePersistentTrayMenu();return}}destroy(){this.tray.destroy()}isReady(){if(process.platform!==`linux`)return r.S(this.tray);let e=this.tray;return typeof e.isReady==`function`?e.isReady():!0}async waitForReady(){if(process.platform!==`linux`)return r.W(this.tray);let e=this.tray;if(typeof e.whenReady!=`function`)return!0;try{return await e.whenReady(),!0}catch{return!1}}getNativeTrayMenuItems(){return[]}updatePersistentTrayMenu(){process.platform===`linux`&&this.tray.setContextMenu(c.Menu.buildFromTemplate(this.getNativeTrayMenuItems()))}}",
   ].join("");
 }
 
@@ -1656,7 +1646,7 @@ const currentBrowserUseTrustedHashesInsertionRegex =
   /trustedBrowserClientSha256s:h=\[\],shouldUseWslPaths:f\}\)\{h=chatgptLinuxTrustedBrowserClientSha256s\(h\);return h/;
 
 function currentBrowserUseSecurityContextBuilderFixture() {
-  return '"use strict";function fte(){let b={BROWSER_USE_AVAILABLE_BACKENDS:`iab`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:`prod`,BROWSER_USE_CODEX_APP_VERSION:`26.803.41515`},p=`modules`,l={nodePath:`node`,nodeReplPath:`node_repl`,platform:`linux`},d=!1,n={ci:e=>e},g=void 0,u=null;return Ye({extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:g,sentryUserId:u})}';
+  return '"use strict";function fte(){let h=`/tmp/codex-home`,b={BROWSER_USE_AVAILABLE_BACKENDS:`iab`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:`prod`,BROWSER_USE_CODEX_APP_VERSION:`26.803.41515`},p=`modules`,l={nodePath:`node`,nodeReplPath:`node_repl`,platform:`linux`},d=!1,n={ci:e=>e},g=void 0,u=null;return Ye({codexCliPath:`codex`,codexHome:h,envVars:{},extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:g,sentryUserId:u})}';
 }
 
 function electron42BrowserUseRuntimeResolverBundleFixture() {
@@ -1723,8 +1713,8 @@ function currentComputerUseAuthorityMainBundleFixture() {
 function currentComputerUseDisableOrderingFixture() {
   return [
     "let dp={dispatchMessage:async()=>{}};async function chatgptLinuxFeatureDispatch(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function Tir(){return null}async function rp(){}async function Lma(){}function oLn(e){return[e]}",
-    "function Tma(e){let n=e?.hostId??`local`,i={},s=async e=>{let{pluginId:t,enabled:a}=e,c=await Tir(i,n),l=await rp(`batch-write-config-value`,{hostId:n,edits:oLn({pluginId:t,enabled:a}),filePath:c?.filePath??null,expectedVersion:c?.expectedVersion??null,reloadUserConfig:!0});return await Lma(),l};return s}",
+    "async function w_n(){return null}async function cm(){}async function ipa(){}function I2n(e){return[e]}",
+    "function Kfa(e){let n=e?.hostId??`local`,i={},r={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
   ].join("");
 }
 
@@ -2737,11 +2727,11 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
 
   assert.match(
     patched,
-    /isReady\(\)\{return process\.platform===`linux`&&typeof this\.tray\.isReady!=`function`\?!0:r\.S\(this\.tray\)\}/,
+    /async waitForReady\(\)\{if\(process\.platform!==`linux`\)return r\.W\(this\.tray\);let e=this\.tray;if\(typeof e\.whenReady!=`function`\)return!0;try\{return await e\.whenReady\(\),!0\}catch\{return!1\}\}/,
   );
   assert.match(
     patched,
-    /waitForReady\(\)\{return process\.platform===`linux`&&typeof this\.tray\.whenReady!=`function`\?Promise\.resolve\(!0\):r\.W\(this\.tray\)\}/,
+    /isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\);let e=this\.tray;return typeof e\.isReady==`function`\?e\.isReady\(\):!0\}/,
   );
   assert.match(
     patched,
@@ -2754,35 +2744,38 @@ test("accepts stock Electron tray readiness and prefers the Linux project icon",
     /if\(i\.isEmpty\(\)&&process\.platform===`linux`\)i=c\.nativeImage\.createFromPath/,
   );
 
-  const readinessMethods = patched.match(
-    /isReady\(\)\{return process\.platform===`linux`[^}]+\}waitForReady\(\)\{return process\.platform===`linux`[^}]+\}/,
-  )?.[0];
-  assert.ok(readinessMethods);
-  const evaluateReadiness = async (platform) => {
-    const context = { process: { platform }, result: null };
-    await vm.runInNewContext(
-      `let r={S:e=>typeof e.isReady==\`function\`?e.isReady():process.platform!==\`linux\`,W:async e=>{if(typeof e.whenReady!=\`function\`)return process.platform!==\`linux\`;try{return await e.whenReady(),!0}catch{return!1}}};class T{constructor(e){this.tray=e}${readinessMethods}}result=(async()=>{let stock=new T({}),native=new T({isReady:()=>!1,whenReady:async()=>{}}),failed=new T({whenReady:async()=>{throw Error(\`not ready\`)}});return{stockWait:await stock.waitForReady(),stockReady:stock.isReady(),nativeWait:await native.waitForReady(),nativeReady:native.isReady(),failedWait:await failed.waitForReady()}})()`,
-      context,
-    );
-    return JSON.parse(JSON.stringify(await context.result));
-  };
-  assert.deepEqual(
-    await evaluateReadiness("linux"),
-    {
-      stockWait: true,
-      stockReady: true,
-      nativeWait: true,
-      nativeReady: false,
-      failedWait: false,
+  const classStart = patched.indexOf("var pb=class");
+  const classEnd = patched.indexOf("v&&k.on", classStart);
+  assert.notEqual(classStart, -1);
+  assert.notEqual(classEnd, -1);
+  const readinessContext = {
+    c: { Menu: { buildFromTemplate: () => ({}) } },
+    process: { platform: "linux" },
+    r: {
+      S: () => { throw new Error("delegated isReady must not run on Linux"); },
+      W: () => { throw new Error("delegated waitForReady must not run on Linux"); },
     },
+    result: null,
+  };
+  vm.runInNewContext(
+    `${patched.slice(classStart, classEnd)};result=pb`,
+    readinessContext,
   );
-  assert.deepEqual(await evaluateReadiness("win32"), {
-    stockWait: true,
-    stockReady: true,
-    nativeWait: true,
-    nativeReady: false,
-    failedWait: false,
+  const create = (tray) => new readinessContext.result({
+    on() {},
+    setContextMenu() {},
+    ...tray,
   });
+  const stock = create({});
+  const native = create({ isReady: () => false, whenReady: async () => {} });
+  const rejected = create({ whenReady: async () => { throw new Error("not ready"); } });
+  const thrown = create({ whenReady: () => { throw new Error("not ready"); } });
+  assert.equal(stock.isReady(), true);
+  assert.equal(await stock.waitForReady(), true);
+  assert.equal(native.isReady(), false);
+  assert.equal(await native.waitForReady(), true);
+  assert.equal(await rejected.waitForReady(), false);
+  assert.equal(await thrown.waitForReady(), false);
 
   const iconLoaderStart = patched.indexOf("async function pae(");
   const iconLoaderEnd = patched.indexOf("var pb=class", iconLoaderStart);
@@ -2855,6 +2848,42 @@ test("Linux tray patch preserves dollar sequences from the current bundle", () =
   assert.ok(patched.includes("`electron-$&`"));
 });
 
+test("binds tray readiness to the wrapper instantiated by the tray factory", () => {
+  const decoy =
+    "var decoy=class{isReady(){if(process.platform!==`linux`)return x.y(this.tray);let z=this.tray;return typeof z.isReady==`function`?z.isReady():!0}async waitForReady(){if(process.platform!==`linux`)return x.w(this.tray);let q=this.tray;if(typeof q.whenReady!=`function`)return!0;try{return await q.whenReady(),!0}catch{return!1}}};";
+  const source = `${currentMainBundlePrefix}${decoy}${trayBundleFixture()}`;
+  const patched = applyPatchTwice(
+    applyLinuxTrayPatch,
+    source,
+    null,
+  );
+
+  assert.notEqual(patched, source);
+  assert.ok(patched.includes(decoy), "must leave the unrelated compatible class unchanged");
+  assert.match(
+    patched,
+    /var pb=class\{[^]*?isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\)/,
+  );
+});
+
+test("rejects a readiness decoy when the instantiated tray wrapper drifts", () => {
+  const decoy =
+    "var decoy=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}};";
+  const driftedTray = trayBundleFixture().replace(
+    "isReady(){return r.S(this.tray)}",
+    "isReady(){return drifted(this.tray)}",
+  );
+  const source = `${currentMainBundlePrefix}${decoy}${driftedTray}`;
+  const { value: patched, warnings } = captureWarns(() =>
+    applyLinuxTrayPatch(source, null),
+  );
+
+  assert.equal(patched, source);
+  assert.deepEqual(warnings, [
+    "WARN: Could not find one unambiguous current Linux tray readiness delegate — skipping Linux tray compatibility patch",
+  ]);
+});
+
 test("retains the current native Linux tray when quit-state helpers already exist", () => {
   const patched = applyPatchTwice(
     applyLinuxTrayPatch,
@@ -2869,54 +2898,6 @@ test("retains the current native Linux tray when quit-state helpers already exis
     /r=chatgptLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon,process\.platform===`win32`&&c\.app\.isPackaged\?dEe\(e\.buildFlavor\):void 0\)\)/,
   );
   assert.doesNotThrow(() => new Function(patched));
-});
-
-test("accepts current imported tray readiness helpers on Linux", async () => {
-  const patched = applyPatchTwice(
-    applyLinuxTrayPatch,
-    importedTrayReadinessBundleFixture(),
-    null,
-  );
-
-  assert.match(
-    patched,
-    /isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\);let e=this\.tray;return typeof e\.isReady==`function`\?e\.isReady\(\):!0\}/,
-  );
-  assert.match(
-    patched,
-    /async waitForReady\(\)\{if\(process\.platform!==`linux`\)return r\.W\(this\.tray\);let e=this\.tray;if\(typeof e\.whenReady!=`function`\)return!0;try\{return await e\.whenReady\(\),!0\}catch\{return!1\}\}/,
-  );
-  assert.match(
-    patched,
-    /i=chatgptLinuxRegisterTray\(new l\.Tray\(/,
-  );
-
-  const context = {
-    l: { Menu: { buildFromTemplate: () => ({}) } },
-    process: { platform: "linux" },
-    r: {
-      S: () => { throw new Error("delegated isReady must not run on Linux"); },
-      W: () => { throw new Error("delegated waitForReady must not run on Linux"); },
-    },
-    result: null,
-  };
-  const classSource = patched.slice(patched.indexOf("var qTe=class"));
-  vm.runInNewContext(`${classSource};result=qTe`, context);
-  const create = (tray) => new context.result({
-    on() {},
-    setContextMenu() {},
-    ...tray,
-  });
-  const stock = create({});
-  const native = create({ isReady: () => false, whenReady: async () => {} });
-  const rejected = create({ whenReady: async () => { throw new Error("not ready"); } });
-  const thrown = create({ whenReady: () => { throw new Error("not ready"); } });
-  assert.equal(stock.isReady(), true);
-  assert.equal(await stock.waitForReady(), true);
-  assert.equal(native.isReady(), false);
-  assert.equal(await native.waitForReady(), true);
-  assert.equal(await rejected.waitForReady(), false);
-  assert.equal(await thrown.waitForReady(), false);
 });
 
 test("bypasses the upstream before-quit confirmation after a Linux explicit quit", () => {
@@ -3840,27 +3821,8 @@ test("patches current opaque window surface background helper shape for Linux", 
   assert.match(patched, /opaqueWindowSurfaceEnabled:n/);
 });
 
-test("patches the current namespaced opaque surface capability contract", () => {
-  const { value: patched, warnings } = captureWarns(() =>
-    applyPatchTwice(
-      applyLinuxOpaqueBackgroundPatch,
-      currentNamespacedOpaqueWindowSurfaceBackgroundBundle,
-    ),
-  );
-
-  assert.match(
-    patched,
-    /shouldAlwaysUseOpaqueWindowSurface\(e\)\{return process\.platform===`linux`&&!g3\(e\)\|\|v3\(\{[^}]+\}\)\|\|!r\.w\(\)&&!g3\(e\)\}/,
-  );
-  assert.match(
-    patched,
-    /:e===`linux`&&!g3\(t\)\?\{backgroundColor:r\?G4:K4,backgroundMaterial:null\}:e===`win32`&&!g3\(t\)\?/,
-  );
-  assert.deepEqual(warnings, []);
-});
-
 test("rejects computed opaque surface capability expressions", () => {
-  const source = currentNamespacedOpaqueWindowSurfaceBackgroundBundle.replace(
+  const source = currentOpaqueWindowSurfaceBackgroundBundle.replace(
     "!r.w()",
     "!r[`w`]()",
   );
@@ -9808,9 +9770,9 @@ test("reuses current bundled-plugin metadata for the synthetic Computer Use card
     "let order=[];" +
     currentComputerUseDisableOrderingFixture()
       .replace("dispatchMessage:async()=>{}", "dispatchMessage:async e=>{order.push(e)}")
-      .replace("async function rp(){}", "async function rp(){order.push(`persist`)}");
+      .replace("async function cm(){}", "async function cm(){order.push(`persist`)}");
   const mutationPatch = applyLinuxComputerUseDisableOrderingPatch(mutationSource);
-  const mutation = vm.runInNewContext(`${mutationPatch};({mutate:Tma({}),order})`);
+  const mutation = vm.runInNewContext(`${mutationPatch};({mutate:Kfa({}),order})`);
   await mutation.mutate({ pluginId: plugins[1].plugin.id, enabled: false });
   assert.deepEqual(Array.from(mutation.order), [
     "chatgpt-linux-computer-use-disable-requested",
@@ -10271,12 +10233,12 @@ test("propagates the Browser security context through node_repl request metadata
   assert.match(patched, /function chatgptLinuxBrowserUseRequestMeta/);
   assert.match(
     patched,
-    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(g,b\),sentryUserId:u/,
+    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(g,b,h\),sentryUserId:u/,
   );
 
   const metadata = JSON.parse(
     vm.runInNewContext(
-      `${patched};chatgptLinuxBrowserUseRequestMeta(JSON.stringify({existing:\`kept\`}),{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,UNRELATED_SECRET:\`drop-me\`})`,
+      `${patched};chatgptLinuxBrowserUseRequestMeta(JSON.stringify({existing:\`kept\`}),{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,UNRELATED_SECRET:\`drop-me\`},\`/tmp/codex-home\`)`,
     ),
   );
   assert.equal(metadata.existing, "kept");
@@ -10288,6 +10250,7 @@ test("propagates the Browser security context through node_repl request metadata
         BROWSER_USE_AVAILABLE_BACKENDS: "iab",
         BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
         BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+        CODEX_HOME: "/tmp/codex-home",
       },
     },
   );
@@ -10302,7 +10265,7 @@ test("refuses the local-testing Browser security mode outside a development buil
   assert.throws(
     () =>
       vm.runInNewContext(
-        `${patched};chatgptLinuxBrowserUseRequestMeta(null,{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,BROWSER_USE_SECURITY_MODE:\`disabled-for-local-testing\`})`,
+        `${patched};chatgptLinuxBrowserUseRequestMeta(null,{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,BROWSER_USE_SECURITY_MODE:\`disabled-for-local-testing\`},\`/tmp/codex-home\`)`,
       ),
     /Browser node_repl security context is invalid/,
   );

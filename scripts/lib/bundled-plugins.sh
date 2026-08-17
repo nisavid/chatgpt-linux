@@ -1071,11 +1071,12 @@ patch_browser_client_linux_socket_dir() {
 patch_browser_use_node_repl_process_env_import() {
     local client="$1"
 
-    if grep -q "chatgptLinuxBrowserUseProcessEnv" "$client"; then
-        return 0
+    if [ "${CHATGPT_BROWSER_SECURITY_CONTEXT_PATCHED_CLIENT:-}" != "$client" ]; then
+        warn "Browser security-context validator was not installed by this staging pass"
+        return 1
     fi
 
-    python3 - "$client" <<'PY'
+    if ! python3 - "$client" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -1085,22 +1086,30 @@ source = path.read_text(encoding="utf-8")
 pattern = re.compile(
     r'import\{env as (?P<binding>[A-Za-z_$][\w$]*)\}from"node:process";'
 )
-match = pattern.search(source)
-if match is None:
-    if '"node:process"' in source:
-        print(
-            "WARN: Could not find Browser Use node:process env import — leaving browser-client.mjs unchanged",
-            file=sys.stderr,
-        )
-    raise SystemExit(0)
+matches = list(pattern.finditer(source))
+if len(matches) != 1:
+    print(
+        f"WARN: Expected one Browser Use node:process env import, found {len(matches)} — leaving browser-client.mjs unchanged",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
+match = matches[0]
 binding = match.group("binding")
 replacement = (
-    "var chatgptLinuxBrowserUseProcessEnv=globalThis.nodeRepl?.env??{},"
+    "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl),"
     f"{binding}=chatgptLinuxBrowserUseProcessEnv;"
 )
 path.write_text(source[:match.start()] + replacement + source[match.end():], encoding="utf-8")
 PY
+    then
+        return 1
+    fi
+    if grep -Eq 'import\{env as [A-Za-z_$][[:alnum:]_$]*\}from"node:process";' "$client" || \
+            ! grep -Fq "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl)," "$client"; then
+        warn "Browser node:process environment rewrite did not reach its verified final state"
+        return 1
+    fi
 }
 
 normalize_plugin_script_executable_modes() {
@@ -1144,8 +1153,12 @@ stage_chrome_plugin_from_official_app() {
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
     patch_chrome_plugin_for_linux "$target_plugin"
-    patch_browser_use_node_repl_process_env_import "$target_plugin/scripts/browser-client.mjs"
-    patch_browser_use_node_repl_config_shim "$target_plugin/scripts/browser-client.mjs"
+    if ! patch_browser_use_node_repl_config_shim "$target_plugin/scripts/browser-client.mjs" || \
+            ! patch_browser_use_node_repl_process_env_import "$target_plugin/scripts/browser-client.mjs"; then
+        warn "Chrome Browser security-context staging failed closed"
+        rm -rf "$target_plugin"
+        return 1
+    fi
     patch_browser_use_native_pipe_import_meta_bridge "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_site_status_allowlist_fallback "$target_plugin/scripts/browser-client.mjs"
     patch_browser_client_linux_socket_dir "$target_plugin/scripts/browser-client.mjs"
@@ -1202,7 +1215,7 @@ if match is None:
         "WARN: Could not find Browser Use site_status allowlist fallback insertion point — leaving browser-client.mjs unchanged",
         file=sys.stderr,
     )
-    raise SystemExit(0)
+    raise SystemExit(2)
 
 url = match.group("url")
 response = match.group("response")
@@ -1296,11 +1309,12 @@ PY
 patch_browser_use_node_repl_config_shim() {
     local client="$1"
 
-    if grep -q "chatgptLinuxBrowserUseConfigShim" "$client"; then
-        return 0
+    if grep -Eq 'chatgptLinuxBrowserUse(ConfigShim|ValidatedEnvironment|EnvironmentShim|ProcessEnv)' "$client"; then
+        warn "Browser client already contains untrusted Browser security-context markers"
+        return 1
     fi
 
-    python3 - "$client" <<'PY'
+    if ! python3 - "$client" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -1318,7 +1332,7 @@ if match is None:
         "WARN: Could not find Browser Use nodeRepl config shim insertion point — leaving browser-client.mjs unchanged",
         file=sys.stderr,
     )
-    raise SystemExit(0)
+    raise SystemExit(2)
 
 helper = match.group("helper")
 value = match.group("value")
@@ -1354,7 +1368,7 @@ function chatgptLinuxBrowserUseConfigShim() {
   } catch {}
 }
 
-function chatgptLinuxBrowserUseEnvironmentShim(repl) {
+function chatgptLinuxBrowserUseValidatedEnvironment(repl) {
   let context = repl.requestMeta?.["chatgpt/browser-runtime-context"];
   if (context == null) {
     throw new Error("Browser security context is unavailable from ChatGPT. Restart ChatGPT and retry Browser automation.");
@@ -1381,6 +1395,7 @@ function chatgptLinuxBrowserUseEnvironmentShim(repl) {
     "BROWSER_USE_DISABLE_BROWSER_CAPABILITIES",
     "BROWSER_USE_DISABLE_TAB_CAPABILITIES",
     "BROWSER_USE_SECURITY_MODE",
+    "CODEX_HOME",
     "CODEX_CHROME_USER_DATA_DIR",
     "NODE_REPL_DISABLE_ANALYTICS",
     "NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER",
@@ -1417,38 +1432,81 @@ function chatgptLinuxBrowserUseEnvironmentShim(repl) {
   }
 
   Object.freeze(env);
-  let existingEnv;
-  try {
-    existingEnv = repl.env;
-  } catch {
-    throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+  return env;
+}
+
+function chatgptLinuxBrowserUseEnvironmentShim(repl) {
+  let env = chatgptLinuxBrowserUseValidatedEnvironment(repl);
+  let attachments = chatgptLinuxBrowserUseEnvironmentShim.attachments;
+  if (attachments == null) {
+    attachments = new WeakMap();
+    Object.defineProperty(chatgptLinuxBrowserUseEnvironmentShim, "attachments", {
+      value: attachments,
+    });
   }
-  if (existingEnv != null) {
+
+  let attachment = attachments.get(repl);
+  if (attachment != null) {
+    let ownDescriptor;
+    let prototype;
+    let prototypeDescriptor;
+    let attachedEnv;
+    try {
+      ownDescriptor = Object.getOwnPropertyDescriptor(repl, "env");
+      prototype = Object.getPrototypeOf(repl);
+      prototypeDescriptor =
+        prototype === attachment.prototype
+          ? Object.getOwnPropertyDescriptor(prototype, "env")
+          : null;
+      attachedEnv = repl.env;
+    } catch {
+      throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+    }
     let expectedKeys = Object.keys(env);
-    let existingKeys =
-      typeof existingEnv == "object" && !Array.isArray(existingEnv)
-        ? Object.keys(existingEnv)
-        : [];
+    let attachedKeys = Object.keys(attachment.env);
     if (
-      existingKeys.length === expectedKeys.length &&
-      expectedKeys.every((key) => existingEnv[key] === env[key])
+      ownDescriptor == null &&
+      prototypeDescriptor?.get === attachment.getter &&
+      attachedEnv === attachment.env &&
+      attachedKeys.length === expectedKeys.length &&
+      expectedKeys.every((key) => attachment.env[key] === env[key])
     ) return;
     throw new Error("Browser security context cannot replace an untrusted Browser runtime environment. Restart ChatGPT and retry Browser automation.");
   }
 
+  let prototype;
+  let hasUntrustedEnvironment = false;
   try {
-    let prototype = Object.getPrototypeOf(repl);
-    if (prototype != null && Object.getOwnPropertyDescriptor(prototype, "env") == null) {
-      Object.defineProperty(prototype, "env", {
-        configurable: true,
-        get: () => env,
-      });
+    prototype = Object.getPrototypeOf(repl);
+    for (let current = repl; current != null; current = Object.getPrototypeOf(current)) {
+      if (Object.getOwnPropertyDescriptor(current, "env") != null) {
+        hasUntrustedEnvironment = true;
+        break;
+      }
     }
-  } catch {}
-
-  if (repl.env !== env) {
+  } catch {
+    throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+  }
+  if (hasUntrustedEnvironment) {
+    throw new Error("Browser security context cannot replace an untrusted Browser runtime environment. Restart ChatGPT and retry Browser automation.");
+  }
+  if (prototype == null) {
     throw new Error("Browser security context cannot be attached to the Browser runtime. Restart ChatGPT and retry Browser automation.");
   }
+
+  let getter = () => env;
+  try {
+    Object.defineProperty(prototype, "env", {
+      configurable: true,
+      get: getter,
+    });
+  } catch {}
+
+  let descriptor = Object.getOwnPropertyDescriptor(prototype, "env");
+  if (descriptor?.get !== getter || repl.env !== env) {
+    throw new Error("Browser security context cannot be attached to the Browser runtime. Restart ChatGPT and retry Browser automation.");
+  }
+  attachments.set(repl, { env, getter, prototype });
 }
 
 function chatgptLinuxBrowserUseNodeReplMethodShim(repl) {
@@ -1591,7 +1649,7 @@ if len(runtime_clone_matches) != 1:
         f"WARN: Expected one Browser Use runtime environment clone, found {len(runtime_clone_matches)} — leaving browser-client.mjs unchanged",
         file=sys.stderr,
     )
-    raise SystemExit(0)
+    raise SystemExit(2)
 
 runtime = runtime_clone_matches[0].group("runtime")
 patched = runtime_clone_pattern.sub(
@@ -1601,6 +1659,17 @@ patched = runtime_clone_pattern.sub(
 )
 path.write_text(patched, encoding="utf-8")
 PY
+    then
+        return 1
+    fi
+    if ! grep -Fq "function chatgptLinuxBrowserUseConfigShim()" "$client" || \
+            ! grep -Fq "function chatgptLinuxBrowserUseValidatedEnvironment(repl)" "$client" || \
+            ! grep -Fq "function chatgptLinuxBrowserUseEnvironmentShim(repl)" "$client" || \
+            ! grep -Fq "/*chatgptLinuxBrowserUseRuntimeEnv*/" "$client"; then
+        warn "Browser security-context shim did not reach its verified final state"
+        return 1
+    fi
+    CHATGPT_BROWSER_SECURITY_CONTEXT_PATCHED_CLIENT="$client"
 }
 
 patch_browser_use_native_pipe_import_meta_bridge() {
@@ -1729,8 +1798,12 @@ stage_browser_plugin_from_official_app() {
     rm -rf "$target_plugin"
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
-    patch_browser_use_node_repl_process_env_import "$target_client"
-    patch_browser_use_node_repl_config_shim "$target_client"
+    if ! patch_browser_use_node_repl_config_shim "$target_client" || \
+            ! patch_browser_use_node_repl_process_env_import "$target_client"; then
+        warn "Browser security-context staging failed closed"
+        rm -rf "$target_plugin"
+        return 1
+    fi
     patch_browser_use_native_pipe_import_meta_bridge "$target_client"
     patch_browser_use_site_status_allowlist_fallback "$target_client"
     patch_browser_use_file_url_policy "$target_client"
