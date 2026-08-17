@@ -13,10 +13,40 @@ def executable_offsets(source):
     can_start_regex = True
     pending_control_paren = False
     paren_contexts = []
+    template_contexts = []
     while index < len(source):
         char = source[index]
         next_char = source[index + 1] if index + 1 < len(source) else ""
-        if char in "'\"`":
+        if template_contexts and not template_contexts[-1][0]:
+            offsets[index] = 0
+            if char == "\\":
+                if index + 1 < len(source):
+                    offsets[index + 1] = 0
+                index += 2
+                continue
+            if char == "`":
+                template_contexts.pop()
+                pending_control_paren = False
+                can_start_regex = False
+                index += 1
+                continue
+            if char == "$" and next_char == "{":
+                offsets[index + 1] = 0
+                template_contexts[-1][0] = True
+                template_contexts[-1][1] = 0
+                pending_control_paren = False
+                can_start_regex = True
+                index += 2
+                continue
+            index += 1
+            continue
+        if char == "`":
+            offsets[index] = 0
+            template_contexts.append([False, 0])
+            pending_control_paren = False
+            index += 1
+            continue
+        if char in "'\"":
             quote = char
             offsets[index] = 0
             index += 1
@@ -114,6 +144,21 @@ def executable_offsets(source):
             if next_char == "=":
                 index += 1
             can_start_regex = True
+            index += 1
+            continue
+        if char == "{" and template_contexts and template_contexts[-1][0]:
+            template_contexts[-1][1] += 1
+            can_start_regex = True
+            index += 1
+            continue
+        if char == "}" and template_contexts and template_contexts[-1][0]:
+            if template_contexts[-1][1] == 0:
+                offsets[index] = 0
+                template_contexts[-1][0] = False
+                can_start_regex = False
+            else:
+                template_contexts[-1][1] -= 1
+                can_start_regex = True
             index += 1
             continue
         can_start_regex = char in "([{,;:?=+!*%&|^~<>-"
