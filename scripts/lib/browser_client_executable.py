@@ -13,6 +13,8 @@ def executable_offsets(source):
     can_start_regex = True
     pending_control_paren = False
     paren_contexts = []
+    brace_contexts = []
+    next_brace_is_statement = False
     template_contexts = []
     while index < len(source):
         char = source[index]
@@ -27,6 +29,7 @@ def executable_offsets(source):
             if char == "`":
                 template_contexts.pop()
                 pending_control_paren = False
+                next_brace_is_statement = False
                 can_start_regex = False
                 index += 1
                 continue
@@ -35,6 +38,7 @@ def executable_offsets(source):
                 template_contexts[-1][0] = True
                 template_contexts[-1][1] = 0
                 pending_control_paren = False
+                next_brace_is_statement = False
                 can_start_regex = True
                 index += 2
                 continue
@@ -44,6 +48,7 @@ def executable_offsets(source):
             offsets[index] = 0
             template_contexts.append([False, 0])
             pending_control_paren = False
+            next_brace_is_statement = False
             index += 1
             continue
         if char in "'\"":
@@ -62,6 +67,7 @@ def executable_offsets(source):
                     index += 1
                     break
                 index += 1
+            next_brace_is_statement = False
             can_start_regex = False
             continue
         if char == "/" and next_char in ("/", "*"):
@@ -104,6 +110,7 @@ def executable_offsets(source):
                         index += 1
                     break
                 index += 1
+            next_brace_is_statement = False
             can_start_regex = False
             continue
         if char.isspace():
@@ -118,12 +125,14 @@ def executable_offsets(source):
                 can_start_regex = True
                 index = end
                 continue
+            next_brace_is_statement = False
             pending_control_paren = token in _CONTROL_PAREN_KEYWORDS
             can_start_regex = pending_control_paren or token in _REGEX_PREFIX_KEYWORDS
             index = end
             continue
         if char.isdigit():
             pending_control_paren = False
+            next_brace_is_statement = False
             index += 1
             while index < len(source) and (source[index].isalnum() or source[index] in "._"):
                 index += 1
@@ -132,21 +141,27 @@ def executable_offsets(source):
         if char == "(":
             paren_contexts.append("control" if pending_control_paren else "expression")
             pending_control_paren = False
+            next_brace_is_statement = False
             can_start_regex = True
             index += 1
             continue
         pending_control_paren = False
         if char == ")":
-            can_start_regex = bool(paren_contexts) and paren_contexts.pop() == "control"
+            closed_control = bool(paren_contexts) and paren_contexts.pop() == "control"
+            next_brace_is_statement = closed_control
+            can_start_regex = closed_control
             index += 1
             continue
         if char == "/":
+            next_brace_is_statement = False
             if next_char == "=":
                 index += 1
             can_start_regex = True
             index += 1
             continue
         if char == "{" and template_contexts and template_contexts[-1][0]:
+            brace_contexts.append("statement" if next_brace_is_statement else "expression")
+            next_brace_is_statement = False
             template_contexts[-1][1] += 1
             can_start_regex = True
             index += 1
@@ -155,12 +170,28 @@ def executable_offsets(source):
             if template_contexts[-1][1] == 0:
                 offsets[index] = 0
                 template_contexts[-1][0] = False
+                next_brace_is_statement = False
                 can_start_regex = False
             else:
                 template_contexts[-1][1] -= 1
-                can_start_regex = True
+                closed_statement = bool(brace_contexts) and brace_contexts.pop() == "statement"
+                next_brace_is_statement = closed_statement
+                can_start_regex = closed_statement
             index += 1
             continue
+        if char == "{":
+            brace_contexts.append("statement" if next_brace_is_statement else "expression")
+            next_brace_is_statement = False
+            can_start_regex = True
+            index += 1
+            continue
+        if char == "}":
+            closed_statement = bool(brace_contexts) and brace_contexts.pop() == "statement"
+            next_brace_is_statement = closed_statement
+            can_start_regex = closed_statement
+            index += 1
+            continue
+        next_brace_is_statement = False
         can_start_regex = char in "([{,;:?=+!*%&|^~<>-"
         index += 1
     return offsets
