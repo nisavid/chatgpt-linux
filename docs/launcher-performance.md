@@ -31,10 +31,13 @@ launcher log, and repository history rather than synthetic benchmarks.
   ppid-guarded watchdog pattern capped at 0.5 s, so a broken session bus
   counts as "not detected" instead of delaying launch.
   Override: `CHATGPT_FORCE_RENDERER_ACCESSIBILITY=1|0`.
-- Warm webview starts reuse the process-bound integrity attestation only for
-  non-writable packaged app trees. The cache is keyed by the webview server
-  PID/start time plus manifest and entrypoint digests, so the warm path does not
-  re-hash every startup asset. Writable checkout and user-local trees keep the
+- Warm webview starts reuse the process-bound integrity attestation only when
+  the packaged app root, webview root, and their immediate parents are
+  non-writable. The cache is keyed by the webview server
+  PID/start time, manifest and entrypoint digests, and a per-entry metadata
+  snapshot of manifest-listed assets. The warm path does not re-hash every
+  startup asset, and a changed asset invalidates the cache even if its original
+  permissions are restored. Writable checkout and user-local trees keep the
   full manifest verification path instead of weakening the tamper check.
 
 Both decisions are visible at runtime in the `Electron launch mode:` line of

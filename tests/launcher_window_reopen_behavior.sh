@@ -236,7 +236,14 @@ fail() {
 
 if grep -q '^webview_integrity_asset_snapshot_digest()' \
     "$REPO_DIR/launcher/start.sh.template"; then
-    fail "warm integrity cache still defines a full asset snapshot"
+    fail "warm integrity cache still defines a full content snapshot"
+fi
+if ! grep -q '^webview_integrity_asset_metadata_snapshot_digest()' \
+    "$REPO_DIR/launcher/start.sh.template"; then
+    fail "warm integrity cache lost the asset metadata snapshot"
+fi
+if grep -q 'cat "\$WEBVIEW_PID_FILE"' "$REPO_DIR/launcher/start.sh.template"; then
+    fail "launcher still reads the webview pid file without a bound"
 fi
 
 mutation_detected() {
@@ -442,8 +449,8 @@ wait_for "first Electron environment scrub" pid_environment_is_scrubbed
 wait_for "first Electron command-line rewrite" pid_cmdline_is_rewritten
 [ -s "$STATE_DIR/webview-integrity-verified" ] \
     || fail "cold start did not persist the webview integrity attestation"
-[ "$(awk 'NR == 1 { print NF }' "$STATE_DIR/webview-integrity-verified")" -eq 4 ] \
-    || fail "webview integrity attestation retained a full asset snapshot"
+[ "$(awk 'NR == 1 { print NF }' "$STATE_DIR/webview-integrity-verified")" -eq 5 ] \
+    || fail "webview integrity attestation lost the asset metadata snapshot"
 
 python3 - "$SOCKET_PATH" "$HANDOFF_RESULT" <<'PY' &
 import json
@@ -544,6 +551,7 @@ grep -q "Reusing cached webview integrity verification" "$APP_LOG" \
 chmod u+w "$APP_DIR/content/webview/assets/app-test.js"
 printf '%s\n' "console.log('tampered startup asset');" \
     > "$APP_DIR/content/webview/assets/app-test.js"
+chmod a-w "$APP_DIR/content/webview/assets/app-test.js"
 set +e
 timeout 8s "${COMMON_ENV[@]}" "$APP_DIR/start.sh" --new-chat > "$THIRD_LOG" 2>&1
 rc=$?

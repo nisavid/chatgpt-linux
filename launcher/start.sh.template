@@ -3052,10 +3052,100 @@ webview_index_digest() {
     printf '%s\n' "$digest"
 }
 
+read_webview_pid_file() {
+    local pid=""
+
+    [ -f "$WEBVIEW_PID_FILE" ] || return 1
+    IFS= read -r -n 16 pid < "$WEBVIEW_PID_FILE" || return 1
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$pid"
+}
+
+webview_integrity_asset_metadata_snapshot_digest() {
+    python3 - "$WEBVIEW_DIR" "$WEBVIEW_INTEGRITY_FILE" <<'PY'
+import hashlib
+import pathlib
+import posixpath
+import stat
+import sys
+
+
+webview_dir = pathlib.Path(sys.argv[1])
+manifest_path = pathlib.Path(sys.argv[2])
+
+if not manifest_path.is_file():
+    raise SystemExit(1)
+
+try:
+    lines = manifest_path.read_text(encoding="utf-8").splitlines()
+except Exception:
+    raise SystemExit(1)
+
+snapshot = hashlib.sha256()
+validated = 0
+for line in lines:
+    if not line.strip():
+        continue
+    try:
+        expected_digest, relative_path = line.split(None, 1)
+    except ValueError:
+        raise SystemExit(1)
+    relative_path = relative_path.strip()
+    normalized = posixpath.normpath(relative_path)
+    if (
+        len(expected_digest) != 64
+        or any(ch not in "0123456789abcdefABCDEF" for ch in expected_digest)
+        or not relative_path
+        or relative_path.startswith("/")
+        or normalized in (".", "..")
+        or normalized.startswith("../")
+        or normalized != relative_path
+        or "\\" in relative_path
+        or any(ord(ch) < 32 for ch in relative_path)
+    ):
+        raise SystemExit(1)
+
+    current = webview_dir
+    parts = pathlib.PurePosixPath(relative_path).parts
+    try:
+        for part in parts:
+            current /= part
+            entry = current.lstat()
+            if stat.S_ISLNK(entry.st_mode):
+                raise SystemExit(1)
+            if part != parts[-1] and not stat.S_ISDIR(entry.st_mode):
+                raise SystemExit(1)
+        if not stat.S_ISREG(entry.st_mode):
+            raise SystemExit(1)
+    except (OSError, ValueError):
+        raise SystemExit(1)
+
+    snapshot.update(relative_path.encode("utf-8"))
+    snapshot.update(b"\0")
+    for value in (
+        entry.st_dev,
+        entry.st_ino,
+        entry.st_mode,
+        entry.st_nlink,
+        entry.st_uid,
+        entry.st_gid,
+        entry.st_size,
+        entry.st_mtime_ns,
+        entry.st_ctime_ns,
+    ):
+        snapshot.update(str(value).encode("ascii"))
+        snapshot.update(b"\0")
+    validated += 1
+
+if validated == 0:
+    raise SystemExit(1)
+print(snapshot.hexdigest())
+PY
+}
+
 webview_integrity_cache_reuse_allowed() {
     local path
     local parent
-    local unsafe_entry=""
 
     for path in "$SCRIPT_DIR" "$(dirname "$SCRIPT_DIR")"; do
         [ -d "$path" ] || return 1
@@ -3071,8 +3161,6 @@ webview_integrity_cache_reuse_allowed() {
     [ ! -w "$parent" ] || return 1
     [ -d "$WEBVIEW_DIR" ] || return 1
     [ ! -L "$WEBVIEW_DIR" ] || return 1
-    unsafe_entry="$(find "$WEBVIEW_DIR" -xdev \( -type l -o -writable \) -print -quit 2>/dev/null)" || return 1
-    [ -z "$unsafe_entry" ] || return 1
     parent="$(dirname "$WEBVIEW_DIR")"
     [ -d "$parent" ] || return 1
     [ ! -L "$parent" ] || return 1
@@ -3084,24 +3172,32 @@ webview_integrity_cache_is_valid() {
     local cached_start_time=""
     local cached_manifest_digest=""
     local cached_index_digest=""
+    local cached_asset_metadata_digest=""
     local extra=""
     local current_start_time=""
+    local current_pid=""
     local current_manifest_digest=""
     local current_index_digest=""
+    local current_asset_metadata_digest=""
+    local cache_size=""
 
     [ -f "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
     [ ! -L "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
     [ -O "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
-    IFS=' ' read -r cached_pid cached_start_time cached_manifest_digest cached_index_digest extra \
+    cache_size="$(stat -c '%s' "$WEBVIEW_INTEGRITY_CACHE_FILE" 2>/dev/null || true)"
+    [[ "$cache_size" =~ ^[0-9]+$ && "$cache_size" -le 256 ]] || return 1
+    IFS=' ' read -r cached_pid cached_start_time cached_manifest_digest cached_index_digest \
+        cached_asset_metadata_digest extra \
         < "$WEBVIEW_INTEGRITY_CACHE_FILE" || return 1
     [ -z "$extra" ] || return 1
     [[ "$cached_pid" =~ ^[0-9]+$ ]] || return 1
     [[ "$cached_start_time" =~ ^[0-9]+$ ]] || return 1
     [[ "$cached_manifest_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
     [[ "$cached_index_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ "$cached_asset_metadata_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
     webview_integrity_cache_reuse_allowed || return 1
-    [ -f "$WEBVIEW_PID_FILE" ] || return 1
-    [ "$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)" = "$cached_pid" ] || return 1
+    current_pid="$(read_webview_pid_file || true)"
+    [ "$current_pid" = "$cached_pid" ] || return 1
     pid_is_webview_server "$cached_pid" || return 1
     current_start_time="$(pid_start_time "$cached_pid" 2>/dev/null || true)"
     [ "$current_start_time" = "$cached_start_time" ] || return 1
@@ -3109,6 +3205,8 @@ webview_integrity_cache_is_valid() {
     [ "$current_manifest_digest" = "$cached_manifest_digest" ] || return 1
     current_index_digest="$(webview_index_digest || true)"
     [ "$current_index_digest" = "$cached_index_digest" ] || return 1
+    current_asset_metadata_digest="$(webview_integrity_asset_metadata_snapshot_digest || true)"
+    [ "$current_asset_metadata_digest" = "$cached_asset_metadata_digest" ] || return 1
 }
 
 record_webview_integrity_verification() {
@@ -3116,22 +3214,25 @@ record_webview_integrity_verification() {
     local start_time=""
     local manifest_digest=""
     local index_digest=""
+    local asset_metadata_digest=""
     local temporary=""
 
     if ! webview_integrity_cache_reuse_allowed; then
         rm -f "$WEBVIEW_INTEGRITY_CACHE_FILE" || return 1
         return 0
     fi
-    pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
+    pid="$(read_webview_pid_file || true)"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     pid_is_webview_server "$pid" || return 1
     start_time="$(pid_start_time "$pid" 2>/dev/null || true)"
     [ -n "$start_time" ] || return 1
     manifest_digest="$(webview_integrity_manifest_digest)" || return 1
     index_digest="$(webview_index_digest)" || return 1
+    asset_metadata_digest="$(webview_integrity_asset_metadata_snapshot_digest)" || return 1
     temporary="$(mktemp "$APP_STATE_DIR/.webview-integrity-verified.XXXXXX")" || return 1
-    if ! printf '%s %s %s %s\n' \
-        "$pid" "$start_time" "$manifest_digest" "$index_digest" > "$temporary"; then
+    if ! printf '%s %s %s %s %s\n' \
+        "$pid" "$start_time" "$manifest_digest" "$index_digest" \
+        "$asset_metadata_digest" > "$temporary"; then
         rm -f "$temporary"
         return 1
     fi
@@ -3155,9 +3256,12 @@ webview_origin_markers_are_reachable() {
 }
 
 webview_origin_is_reachable() {
+    local webview_pid=""
+
     webview_origin_markers_are_reachable || return 1
     if webview_integrity_cache_is_valid; then
-        echo "Reusing cached webview integrity verification for webview server pid=$(cat "$WEBVIEW_PID_FILE")"
+        webview_pid="$(read_webview_pid_file)" || return 1
+        echo "Reusing cached webview integrity verification for webview server pid=$webview_pid"
         return 0
     fi
 
@@ -3437,7 +3541,7 @@ pid_has_codex_webview_server_identity() {
     local argv=()
     local arg
 
-    if [ -f "$WEBVIEW_PID_FILE" ] && [ "$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)" = "$pid" ]; then
+    if [ -f "$WEBVIEW_PID_FILE" ] && [ "$(read_webview_pid_file || true)" = "$pid" ]; then
         return 0
     fi
 
@@ -3484,7 +3588,7 @@ stop_owned_webview_server() {
     local pid=""
 
     if [ -f "$WEBVIEW_PID_FILE" ]; then
-        pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
+        pid="$(read_webview_pid_file || true)"
     fi
 
     if running_app_is_active && [ -n "$pid" ] && pid_is_webview_server "$pid"; then
@@ -3508,7 +3612,7 @@ owned_webview_server_pid() {
     local pid=""
 
     if [ -f "$WEBVIEW_PID_FILE" ]; then
-        pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
+        pid="$(read_webview_pid_file || true)"
     fi
 
     if [ -n "$pid" ] && pid_is_webview_server "$pid"; then
@@ -3787,7 +3891,7 @@ reconcile_runtime_state() {
         return 0
     fi
 
-    webview_pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
+    webview_pid="$(read_webview_pid_file || true)"
     if [ -z "$webview_pid" ] || { ! pid_is_webview_server "$webview_pid" && ! pid_is_stale_webview_server "$webview_pid"; }; then
         rm -f "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE"
     fi
