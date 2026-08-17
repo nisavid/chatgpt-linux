@@ -79,6 +79,66 @@ function findTrayConstructor(source) {
   return candidates.length === 1 ? candidates[0] : null;
 }
 
+function findMatchingBrace(source, openIndex) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = openIndex; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote != null) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+
+  return -1;
+}
+
+function findTrayWrapperClass(source) {
+  const identifier = "[A-Za-z_$][\\w$]*";
+  const factoryPattern = new RegExp(
+    `let (?<wrapper>${identifier})=new (?<wrapperClass>${identifier})\\([^;]{1,512}\\);(?=[\\s\\S]{0,192}?\\k<wrapper>\\.waitForReady\\(\\))`,
+    "g",
+  );
+  const candidates = [];
+
+  for (const factoryMatch of source.matchAll(factoryPattern)) {
+    const wrapperClass = factoryMatch.groups.wrapperClass;
+    const classPattern = new RegExp(
+      `(?:var|let|const) ${wrapperClass}=class\\{`,
+      "g",
+    );
+    const classMatches = [...source.matchAll(classPattern)];
+    if (classMatches.length !== 1) continue;
+    const classMatch = classMatches[0];
+    const openIndex = classMatch.index + classMatch[0].length - 1;
+    const closeIndex = findMatchingBrace(source, openIndex);
+    if (closeIndex === -1) continue;
+    candidates.push({
+      start: classMatch.index,
+      end: closeIndex + 1,
+      wrapperClass,
+    });
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 function applyLinuxTrayPatch(currentSource, iconPathExpression) {
   let patchedSource = currentSource;
 
@@ -99,58 +159,49 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     );
   }
 
-  const trayWhenReadyFallbackPattern =
-    /if\(typeof ([A-Za-z_$][\w$]*)\.whenReady!=`function`\)return process\.platform!==`linux`;try\{return await \1\.whenReady\(\),!0\}catch\{return!1\}/;
-  const compatibleTrayWhenReadyPattern =
-    /if\(typeof ([A-Za-z_$][\w$]*)\.whenReady!=`function`\)return!0;try\{return await \1\.whenReady\(\),!0\}catch\{return!1\}/;
   const delegatedReadinessPattern =
-    /isReady\(\)\{return ([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\(this\.tray\)\}waitForReady\(\)\{return ([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\(this\.tray\)\}/;
+    /isReady\(\)\{return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\)\}waitForReady\(\)\{return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\)\}/g;
   const compatibleDelegatedReadinessPattern =
-    /isReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;return typeof \2\.isReady==`function`\?\2\.isReady\(\):!0\}async waitForReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;if\(typeof \4\.whenReady!=`function`\)return!0;try\{return await \4\.whenReady\(\),!0\}catch\{return!1\}\}/;
-  const delegatedReadinessMatch = patchedSource.match(delegatedReadinessPattern);
-  const hasCompatibleDelegatedReadiness =
-    compatibleDelegatedReadinessPattern.test(patchedSource);
-  const hasLegacyWhenReady =
-    compatibleTrayWhenReadyPattern.test(patchedSource) ||
-    trayWhenReadyFallbackPattern.test(patchedSource);
+    /isReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;return typeof \2\.isReady==`function`\?\2\.isReady\(\):!0\}async waitForReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;if\(typeof \4\.whenReady!=`function`\)return!0;try\{return await \4\.whenReady\(\),!0\}catch\{return!1\}\}/g;
+  const trayWrapperClass = findTrayWrapperClass(patchedSource);
+  if (trayWrapperClass == null) {
+    console.warn("WARN: Could not find the current tray wrapper class — skipping Linux tray compatibility patch");
+    return currentSource;
+  }
+  let trayWrapperSource = patchedSource.slice(
+    trayWrapperClass.start,
+    trayWrapperClass.end,
+  );
+  const delegatedReadinessMatches = [
+    ...trayWrapperSource.matchAll(delegatedReadinessPattern),
+  ];
+  const compatibleDelegatedReadinessMatches = [
+    ...trayWrapperSource.matchAll(compatibleDelegatedReadinessPattern),
+  ];
   if (
-    !hasLegacyWhenReady &&
-    !hasCompatibleDelegatedReadiness &&
-    delegatedReadinessMatch != null
+    delegatedReadinessMatches.length + compatibleDelegatedReadinessMatches.length !==
+    1
   ) {
+    console.warn("WARN: Could not find one unambiguous current Linux tray readiness delegate — skipping Linux tray compatibility patch");
+    return currentSource;
+  }
+  if (delegatedReadinessMatches.length === 1) {
+    const delegatedReadinessMatch = delegatedReadinessMatches[0];
     const [, isReadyDelegate, waitForReadyDelegate] = delegatedReadinessMatch;
-    patchedSource = patchedSource.replace(
+    trayWrapperSource = trayWrapperSource.replace(
       delegatedReadinessPattern,
-      `isReady(){if(process.platform!==\`linux\`)return ${isReadyDelegate}(this.tray);let e=this.tray;return typeof e.isReady==\`function\`?e.isReady():!0}async waitForReady(){if(process.platform!==\`linux\`)return ${waitForReadyDelegate}(this.tray);let e=this.tray;if(typeof e.whenReady!=\`function\`)return!0;try{return await e.whenReady(),!0}catch{return!1}}`,
-    );
-  } else if (!hasCompatibleDelegatedReadiness && !compatibleTrayWhenReadyPattern.test(patchedSource)) {
-    if (!trayWhenReadyFallbackPattern.test(patchedSource)) {
-      console.warn("WARN: Could not find current Linux tray whenReady fallback — skipping Linux tray compatibility patch");
-      return currentSource;
-    }
-    patchedSource = patchedSource.replace(
-      trayWhenReadyFallbackPattern,
-      "if(typeof $1.whenReady!=`function`)return!0;try{return await $1.whenReady(),!0}catch{return!1}",
+      () =>
+        `isReady(){if(process.platform!==\`linux\`)return ${isReadyDelegate}(this.tray);let e=this.tray;return typeof e.isReady==\`function\`?e.isReady():!0}async waitForReady(){if(process.platform!==\`linux\`)return ${waitForReadyDelegate}(this.tray);let e=this.tray;if(typeof e.whenReady!=\`function\`)return!0;try{return await e.whenReady(),!0}catch{return!1}}`,
     );
   }
-
-  const trayIsReadyFallbackPattern =
-    /return typeof ([A-Za-z_$][\w$]*)\.isReady==`function`\?\1\.isReady\(\):process\.platform!==`linux`/;
-  const compatibleTrayIsReadyPattern =
-    /return typeof ([A-Za-z_$][\w$]*)\.isReady==`function`\?\1\.isReady\(\):!0/;
-  if (
-    !compatibleDelegatedReadinessPattern.test(patchedSource) &&
-    !compatibleTrayIsReadyPattern.test(patchedSource)
-  ) {
-    if (!trayIsReadyFallbackPattern.test(patchedSource)) {
-      console.warn("WARN: Could not find current Linux tray isReady fallback — skipping Linux tray compatibility patch");
-      return currentSource;
-    }
-    patchedSource = patchedSource.replace(
-      trayIsReadyFallbackPattern,
-      "return typeof $1.isReady==`function`?$1.isReady():!0",
-    );
+  if ([...trayWrapperSource.matchAll(compatibleDelegatedReadinessPattern)].length !== 1) {
+    console.warn("WARN: Could not verify the current Linux tray readiness delegate — skipping Linux tray compatibility patch");
+    return currentSource;
   }
+  patchedSource =
+    patchedSource.slice(0, trayWrapperClass.start) +
+    trayWrapperSource +
+    patchedSource.slice(trayWrapperClass.end);
 
   if (
     iconPathExpression != null &&

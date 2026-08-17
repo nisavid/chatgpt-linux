@@ -250,11 +250,11 @@ function executableRegexMatches(currentSource, pattern) {
 }
 
 function findLinuxComputerUsePluginConfigMutations(currentSource, patched) {
-  const pattern = patched
-    ? /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)((?:,[A-Za-z_$][\w$]*:[A-Za-z_$][\w$]*)*)\}=([A-Za-z_$][\w$]*);if\(\1===`computer-use@openai-bundled`&&\2!==!0\)await ([A-Za-z_$][\w$]*)\.dispatchMessage\(`chatgpt-linux-computer-use-disable-requested`,\{\}\);\/\*chatgpt-linux-computer-use-disable-before-write\*\/let ([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\)(?:,([A-Za-z_$][\w$]*)=await |;await )([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g
-    : /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)((?:,[A-Za-z_$][\w$]*:[A-Za-z_$][\w$]*)*)\}=([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\)(?:,([A-Za-z_$][\w$]*)=await |;await )([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g;
+  const directPattern = patched
+    ? /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)([^{}]*)\}=([A-Za-z_$][\w$]*);if\(\1===`computer-use@openai-bundled`&&\2!==!0\)await ([A-Za-z_$][\w$]*)\.dispatchMessage\(`chatgpt-linux-computer-use-disable-requested`,\{\}\);\/\*chatgpt-linux-computer-use-disable-before-write\*\/let ([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\);await ([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g
+    : /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)([^{}]*)\}=([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\);await ([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g;
   const results = [];
-  for (const match of executableRegexMatches(currentSource, pattern)) {
+  for (const match of executableRegexMatches(currentSource, directPattern)) {
     if (match.index == null) continue;
     const optionsStart = match.index + match[0].length;
     if (currentSource[optionsStart] !== "{") continue;
@@ -274,18 +274,17 @@ function findLinuxComputerUsePluginConfigMutations(currentSource, patched) {
 
     results.push({
       argumentVar: match[4],
+      destructuringSuffix: match[3],
       dispatchVar: patched ? match[5] : null,
       enabledVar,
       end: optionsEnd + 2,
-      extraBindings: match[3],
       idVar,
       index: match.index,
       options,
       readArguments: patched ? match[8] : match[7],
       readFunctionVar: patched ? match[7] : match[6],
       readResultVar,
-      writeFunctionVar: patched ? match[10] : match[9],
-      writeResultVar: patched ? match[9] : match[8],
+      writeFunctionVar: patched ? match[9] : match[8],
     });
   }
   return results;
@@ -329,13 +328,14 @@ function applyLinuxComputerUseDisableOrderingPatch(currentSource) {
     throw new Error("Required Linux Computer Use disable ordering patch failed: plugin config mutation unavailable or ambiguous");
   }
   const match = matches[0];
-  const writePrefix = match.writeResultVar == null
-    ? `;await ${match.writeFunctionVar}`
-    : `,${match.writeResultVar}=await ${match.writeFunctionVar}`;
-  const replacement =
-    `let{pluginId:${match.idVar},enabled:${match.enabledVar}${match.extraBindings}}=${match.argumentVar};` +
+  const destructuring =
+    `let{pluginId:${match.idVar},enabled:${match.enabledVar}${match.destructuringSuffix ?? ""}}=${match.argumentVar};`;
+  const revoke =
     `if(${match.idVar}===\`computer-use@openai-bundled\`&&${match.enabledVar}!==!0)await ${dispatchVar}.dispatchMessage(\`chatgpt-linux-computer-use-disable-requested\`,{});` +
-    `/*${LINUX_COMPUTER_USE_DISABLE_ORDERING_MARKER}*/let ${match.readResultVar}=await ${match.readFunctionVar}(${match.readArguments})${writePrefix}(\`batch-write-config-value\`,${match.options})`;
+    `/*${LINUX_COMPUTER_USE_DISABLE_ORDERING_MARKER}*/`;
+  const mutation =
+    `let ${match.readResultVar}=await ${match.readFunctionVar}(${match.readArguments});await ${match.writeFunctionVar}(\`batch-write-config-value\`,${match.options})`;
+  const replacement = destructuring + revoke + mutation;
   const result = currentSource.slice(0, match.index) + replacement +
     currentSource.slice(match.end);
   if (!hasLinuxComputerUseDisableOrderingContract(result)) {

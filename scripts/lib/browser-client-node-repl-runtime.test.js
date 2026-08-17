@@ -2,7 +2,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -12,30 +12,30 @@ const { pathToFileURL } = require("node:url");
 
 const runtimePath = process.env.CODEX_NODE_REPL_PATH;
 const pluginsRoot = process.env.CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT;
-const repoRoot = path.resolve(__dirname, "../..");
-const bundledPlugins = path.join(repoRoot, "scripts/lib/bundled-plugins.sh");
 
 function stageBrowserClient(sourcePath) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-browser-runtime-client-"));
   const clientPath = path.join(tempDir, "browser-client.mjs");
-  fs.copyFileSync(sourcePath, clientPath);
-  const result = spawnSync(
-    "bash",
-    [
-      "-c",
-      'set -euo pipefail; warn() { printf "%s\\n" "$*" >&2; }; info() { :; }; source "$BUNDLED_PLUGINS"; patch_browser_use_node_repl_process_env_import "$CLIENT"; patch_browser_use_node_repl_config_shim "$CLIENT"',
-    ],
-    {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        BUNDLED_PLUGINS: bundledPlugins,
-        CLIENT: clientPath,
-        SCRIPT_DIR: repoRoot,
-      },
-    },
+  const source = fs.readFileSync(sourcePath, "utf8");
+  for (const marker of [
+    "function chatgptLinuxBrowserUseConfigShim()",
+    "function chatgptLinuxBrowserUseValidatedEnvironment(repl)",
+    "function chatgptLinuxBrowserUseEnvironmentShim(repl)",
+    "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl),",
+    "/*chatgptLinuxBrowserUseRuntimeEnv*/",
+  ]) {
+    assert.equal(
+      source.split(marker).length - 1,
+      1,
+      `staged Browser client must contain exactly one verified marker: ${marker}`,
+    );
+  }
+  assert.doesNotMatch(
+    source,
+    /import\{env as [A-Za-z_$][\w$]*\}from"node:process";/,
+    "staged Browser client must not retain the original process environment import",
   );
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  fs.copyFileSync(sourcePath, clientPath);
   return { clientPath, tempDir };
 }
 
@@ -138,7 +138,19 @@ function runNodeReplImport(runtime, clients) {
   const code = `${clients
     .map((client) => `await import(${JSON.stringify(pathToFileURL(client).href)});`)
     .join("")}nodeRepl.write("imports-ok")`;
-  return runNodeReplCode(runtime, code);
+  return runNodeReplCode(runtime, code, {
+    NODE_REPL_REQUEST_META: JSON.stringify({
+      "chatgpt/browser-runtime-context": {
+        version: 1,
+        env: {
+          BROWSER_USE_AVAILABLE_BACKENDS: "iab",
+          BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
+          BROWSER_USE_CODEX_APP_VERSION: "26.810.41047",
+          CODEX_HOME: "/tmp/codex-home",
+        },
+      },
+    }),
+  });
 }
 
 test(
@@ -151,6 +163,7 @@ test(
         BROWSER_USE_AVAILABLE_BACKENDS: "iab",
         BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
         BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+        CODEX_HOME: "/tmp/codex-home",
       },
     };
     const output = await runNodeReplCode(
@@ -215,6 +228,7 @@ test(
           BROWSER_USE_AVAILABLE_BACKENDS: "iab",
           BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
           BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
+          CODEX_HOME: "/tmp/codex-home",
         },
       };
       const code =

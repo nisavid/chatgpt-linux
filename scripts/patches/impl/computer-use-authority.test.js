@@ -711,43 +711,6 @@ test("support matching rejects partially stale authority and cursor patches", ()
   );
 });
 
-test("revokes the official Computer Use plugin before its persisted config write", async () => {
-  const source = [
-    "let order=[];let dp={dispatchMessage:async e=>{order.push(e)}};",
-    "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function Tir(){return null}async function rp(){order.push(`persist`)}async function Lma(){}function oLn(e){return[e]}",
-    "function Tma(e){let n=e?.hostId??`local`,i={},o={},r={},s=async e=>{let{pluginId:t,enabled:a}=e,c=await Tir(i,n),l=await rp(`batch-write-config-value`,{hostId:n,edits:oLn({pluginId:t,enabled:a}),filePath:c?.filePath??null,expectedVersion:c?.expectedVersion??null,reloadUserConfig:!0});return await Lma(),l};return s}",
-  ].join("");
-  const patched = applyLinuxComputerUseDisableOrderingPatch(source);
-  const api = vm.runInNewContext(`${patched};({mutate:Tma({}),order})`);
-
-  await api.mutate({ pluginId: "computer-use@openai-bundled", enabled: false });
-  assert.deepEqual(Array.from(api.order), [
-    "chatgpt-linux-computer-use-disable-requested",
-    "persist",
-  ]);
-  api.order.length = 0;
-  await api.mutate({ pluginId: "computer-use@openai-bundled", enabled: true });
-  assert.deepEqual(Array.from(api.order), ["persist"]);
-});
-
-test("patches the current nested Computer Use plugin edit contract", () => {
-  const source = [
-    "let dp={dispatchMessage:async()=>{}};",
-    "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function W6n(){}async function dm(){}async function Qea(){}function oLn(e){return[e]}",
-    "function Bea(e){let n=e?.hostId??`local`,i={},s=async e=>{let{pluginId:t,enabled:a}=e,c=await W6n(i,n),l=await dm(`batch-write-config-value`,{hostId:n,edits:oLn({pluginId:t,enabled:a}),filePath:c?.filePath??null,expectedVersion:c?.expectedVersion??null,reloadUserConfig:!0});return await Qea(),l};return s}",
-  ].join("");
-
-  const patched = applyLinuxComputerUseDisableOrderingPatch(source);
-
-  assert.equal(matchesLinuxComputerUseDisableOrderingContract(patched), true);
-  assert.match(
-    patched,
-    /chatgpt-linux-computer-use-disable-before-write/,
-  );
-});
-
 test("patches an unassigned Computer Use plugin write without dropping extra bindings", async () => {
   const source = [
     "let order=[];let dp={dispatchMessage:async e=>{order.push(e)}};",
@@ -790,8 +753,8 @@ test("disable-before-write rejects marker-only state and ignores marker decoys",
   const mutationSource = [
     "let dp={dispatchMessage:async()=>{}};",
     "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function Tir(){}async function rp(){}async function Lma(){}function oLn(e){return[e]}",
-    "function Tma(e){let n=e?.hostId??`local`,i={},s=async e=>{let{pluginId:t,enabled:a}=e,c=await Tir(i,n),l=await rp(`batch-write-config-value`,{hostId:n,edits:oLn({pluginId:t,enabled:a}),filePath:c?.filePath??null,expectedVersion:c?.expectedVersion??null,reloadUserConfig:!0});return await Lma(),l};return s}",
+    "async function w_n(){}async function cm(){}async function ipa(){}function I2n(e){return[e]}",
+    "function Kfa(e){let n=e?.hostId??`local`,i={},r={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
   ].join("");
   const markerOnly =
     "/*chatgpt-linux-computer-use-disable-before-write*/" + mutationSource;
@@ -847,8 +810,8 @@ test("disable-before-write rejects marker-only state and ignores marker decoys",
   );
 
   const persistenceCommentDecoy = mutationSource.replace(
-    "l=await rp(`batch-write-config-value`,{hostId:n,edits:oLn({pluginId:t,enabled:a}),filePath:c?.filePath??null,expectedVersion:c?.expectedVersion??null,reloadUserConfig:!0})",
-    "l=await rp(`unrelated`,{});/*`batch-write-config-value`,{reloadUserConfig:!0}*/l",
+    "await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0})",
+    "await cm(`unrelated`,{});/*`batch-write-config-value`,{reloadUserConfig:!0}*/",
   );
   assert.equal(
     matchesLinuxComputerUseDisableOrderingContract(persistenceCommentDecoy),
