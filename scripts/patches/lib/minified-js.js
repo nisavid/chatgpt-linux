@@ -132,6 +132,7 @@ function findMatchingBrace(source, openIndex) {
 function findExecutableJavaScriptSubstring(source, needle, fromIndex = 0) {
   let quote = null;
   let escaped = false;
+  const templateExpressionDepths = [];
   let canStartRegex = true;
   let pendingControlParen = false;
   let pendingBreakOrContinue = false;
@@ -145,6 +146,11 @@ function findExecutableJavaScriptSubstring(source, needle, fromIndex = 0) {
         escaped = false;
       } else if (char === "\\") {
         escaped = true;
+      } else if (quote === "`" && char === "$" && next === "{") {
+        quote = null;
+        templateExpressionDepths.push(1);
+        canStartRegex = true;
+        index += 1;
       } else if (char === quote) {
         quote = null;
         canStartRegex = false;
@@ -257,6 +263,23 @@ function findExecutableJavaScriptSubstring(source, needle, fromIndex = 0) {
       parenContexts.push(pendingControlParen ? "control" : "expression");
       pendingControlParen = false;
       canStartRegex = true;
+      continue;
+    }
+    if (char === "{" && templateExpressionDepths.length > 0) {
+      templateExpressionDepths[templateExpressionDepths.length - 1] += 1;
+      canStartRegex = true;
+      continue;
+    }
+    if (char === "}" && templateExpressionDepths.length > 0) {
+      const expressionIndex = templateExpressionDepths.length - 1;
+      templateExpressionDepths[expressionIndex] -= 1;
+      if (templateExpressionDepths[expressionIndex] === 0) {
+        templateExpressionDepths.pop();
+        quote = "`";
+        canStartRegex = false;
+      } else {
+        canStartRegex = true;
+      }
       continue;
     }
     pendingControlParen = false;

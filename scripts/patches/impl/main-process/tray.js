@@ -1,6 +1,9 @@
 "use strict";
 
-const { requireName } = require("../../lib/minified-js.js");
+const {
+  findExecutableJavaScriptSubstring,
+  requireName,
+} = require("../../lib/minified-js.js");
 
 function findMatchingParenthesis(source, openIndex) {
   let depth = 0;
@@ -112,18 +115,43 @@ function findMatchingBrace(source, openIndex) {
 function findTrayWrapperClass(source) {
   const identifier = "[A-Za-z_$][\\w$]*";
   const factoryPattern = new RegExp(
-    `let (?<wrapper>${identifier})=new (?<wrapperClass>${identifier})\\([^;]{1,512}\\);(?=[\\s\\S]{0,192}?\\k<wrapper>\\.waitForReady\\(\\))`,
+    `let (?<wrapper>${identifier})=new (?<wrapperClass>${identifier})\\([^;]{1,512}\\);[\\s\\S]{0,192}?(?<readiness>\\k<wrapper>\\.waitForReady\\(\\))`,
     "g",
   );
   const candidates = [];
 
   for (const factoryMatch of source.matchAll(factoryPattern)) {
+    const factoryEnd = factoryMatch[0].indexOf(";") + 1;
+    const factorySource = factoryMatch[0].slice(0, factoryEnd);
+    const readinessIndex =
+      factoryMatch.index + factoryMatch[0].lastIndexOf(factoryMatch.groups.readiness);
+    if (
+      findExecutableJavaScriptSubstring(
+        source,
+        factorySource,
+        factoryMatch.index,
+      ) !== factoryMatch.index ||
+      findExecutableJavaScriptSubstring(
+        source,
+        factoryMatch.groups.readiness,
+        readinessIndex,
+      ) !== readinessIndex
+    ) {
+      continue;
+    }
     const wrapperClass = factoryMatch.groups.wrapperClass;
     const classPattern = new RegExp(
       `(?:var|let|const) ${wrapperClass}=class\\{`,
       "g",
     );
-    const classMatches = [...source.matchAll(classPattern)];
+    const classMatches = [...source.matchAll(classPattern)].filter(
+      (classMatch) =>
+        findExecutableJavaScriptSubstring(
+          source,
+          classMatch[0],
+          classMatch.index,
+        ) === classMatch.index,
+    );
     if (classMatches.length !== 1) continue;
     const classMatch = classMatches[0];
     const openIndex = classMatch.index + classMatch[0].length - 1;
@@ -137,6 +165,14 @@ function findTrayWrapperClass(source) {
   }
 
   return candidates.length === 1 ? candidates[0] : null;
+}
+
+function executableMatches(source, pattern) {
+  return [...source.matchAll(pattern)].filter(
+    (match) =>
+      findExecutableJavaScriptSubstring(source, match[0], match.index) ===
+      match.index,
+  );
 }
 
 function applyLinuxTrayPatch(currentSource, iconPathExpression) {
@@ -172,12 +208,14 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     trayWrapperClass.start,
     trayWrapperClass.end,
   );
-  const delegatedReadinessMatches = [
-    ...trayWrapperSource.matchAll(delegatedReadinessPattern),
-  ];
-  const compatibleDelegatedReadinessMatches = [
-    ...trayWrapperSource.matchAll(compatibleDelegatedReadinessPattern),
-  ];
+  const delegatedReadinessMatches = executableMatches(
+    trayWrapperSource,
+    delegatedReadinessPattern,
+  );
+  const compatibleDelegatedReadinessMatches = executableMatches(
+    trayWrapperSource,
+    compatibleDelegatedReadinessPattern,
+  );
   if (
     delegatedReadinessMatches.length + compatibleDelegatedReadinessMatches.length !==
     1
@@ -194,7 +232,10 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
         `isReady(){if(process.platform!==\`linux\`)return ${isReadyDelegate}(this.tray);let e=this.tray;return typeof e.isReady==\`function\`?e.isReady():!0}async waitForReady(){if(process.platform!==\`linux\`)return ${waitForReadyDelegate}(this.tray);let e=this.tray;if(typeof e.whenReady!=\`function\`)return!0;try{return await e.whenReady(),!0}catch{return!1}}`,
     );
   }
-  if ([...trayWrapperSource.matchAll(compatibleDelegatedReadinessPattern)].length !== 1) {
+  if (
+    executableMatches(trayWrapperSource, compatibleDelegatedReadinessPattern)
+      .length !== 1
+  ) {
     console.warn("WARN: Could not verify the current Linux tray readiness delegate — skipping Linux tray compatibility patch");
     return currentSource;
   }
