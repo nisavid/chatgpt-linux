@@ -183,6 +183,7 @@ configure_runtime_tmpdir() {
 configure_runtime_tmpdir
 APP_PID_FILE="$APP_STATE_DIR/app.pid"
 WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
+WEBVIEW_INTEGRITY_CACHE_FILE="$APP_STATE_DIR/webview-integrity-verified"
 if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
     LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID"
 else
@@ -215,6 +216,7 @@ refresh_runtime_paths() {
     APP_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$CHATGPT_LINUX_APP_ID"
     APP_PID_FILE="$APP_STATE_DIR/app.pid"
     WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
+    WEBVIEW_INTEGRITY_CACHE_FILE="$APP_STATE_DIR/webview-integrity-verified"
     if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
         LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID"
     else
@@ -389,6 +391,7 @@ configure_multi_launch_instance() {
     APP_STATE_DIR="$base_state_dir/instances/$CHATGPT_LINUX_INSTANCE_ID"
     APP_PID_FILE="$APP_STATE_DIR/app.pid"
     WEBVIEW_PID_FILE="$APP_STATE_DIR/webview.pid"
+    WEBVIEW_INTEGRITY_CACHE_FILE="$APP_STATE_DIR/webview-integrity-verified"
     if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
         LAUNCH_ACTION_RUNTIME_DIR="$XDG_RUNTIME_DIR/$CHATGPT_LINUX_APP_ID/instances/$CHATGPT_LINUX_INSTANCE_ID"
     else
@@ -2996,7 +2999,7 @@ recover_unhealthy_running_app() {
     echo "Stopped identity-verified stale Electron pid=$RUNNING_APP_PID; continuing with a cold start"
     WARM_START=0
     RUNNING_APP_PID=""
-    rm -f "$APP_PID_FILE" "$WEBVIEW_PID_FILE" "$LAUNCH_ACTION_SOCKET"
+    rm -f "$APP_PID_FILE" "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE" "$LAUNCH_ACTION_SOCKET"
 }
 
 send_warm_start_launch_action() {
@@ -3033,8 +3036,100 @@ finally:
 PY
 }
 
+webview_integrity_manifest_digest() {
+    local digest
+
+    digest="$(sha256sum "$WEBVIEW_INTEGRITY_FILE" 2>/dev/null | awk '{print $1}')" || return 1
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s\n' "$digest"
+}
+
+webview_index_digest() {
+    local digest
+
+    digest="$(sha256sum "$WEBVIEW_DIR/index.html" 2>/dev/null | awk '{print $1}')" || return 1
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s\n' "$digest"
+}
+
+webview_integrity_cache_is_valid() {
+    local cached_pid=""
+    local cached_start_time=""
+    local cached_manifest_digest=""
+    local cached_index_digest=""
+    local extra=""
+    local current_start_time=""
+    local current_manifest_digest=""
+    local current_index_digest=""
+
+    [ -f "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
+    [ ! -L "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
+    [ -O "$WEBVIEW_INTEGRITY_CACHE_FILE" ] || return 1
+    IFS=' ' read -r cached_pid cached_start_time cached_manifest_digest cached_index_digest extra \
+        < "$WEBVIEW_INTEGRITY_CACHE_FILE" || return 1
+    [ -z "$extra" ] || return 1
+    [[ "$cached_pid" =~ ^[0-9]+$ ]] || return 1
+    [[ "$cached_start_time" =~ ^[0-9]+$ ]] || return 1
+    [[ "$cached_manifest_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ "$cached_index_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    [ -f "$WEBVIEW_PID_FILE" ] || return 1
+    [ "$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)" = "$cached_pid" ] || return 1
+    pid_is_webview_server "$cached_pid" || return 1
+    current_start_time="$(pid_start_time "$cached_pid" 2>/dev/null || true)"
+    [ "$current_start_time" = "$cached_start_time" ] || return 1
+    current_manifest_digest="$(webview_integrity_manifest_digest || true)"
+    [ "$current_manifest_digest" = "$cached_manifest_digest" ] || return 1
+    current_index_digest="$(webview_index_digest || true)"
+    [ "$current_index_digest" = "$cached_index_digest" ] || return 1
+}
+
+record_webview_integrity_verification() {
+    local pid=""
+    local start_time=""
+    local manifest_digest=""
+    local index_digest=""
+    local temporary=""
+
+    pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    pid_is_webview_server "$pid" || return 1
+    start_time="$(pid_start_time "$pid" 2>/dev/null || true)"
+    [ -n "$start_time" ] || return 1
+    manifest_digest="$(webview_integrity_manifest_digest)" || return 1
+    index_digest="$(webview_index_digest)" || return 1
+    temporary="$(mktemp "$APP_STATE_DIR/.webview-integrity-verified.XXXXXX")" || return 1
+    if ! {
+        printf '%s %s %s %s\n' "$pid" "$start_time" "$manifest_digest" "$index_digest" > "$temporary"
+        chmod 0600 "$temporary"
+        mv -fT -- "$temporary" "$WEBVIEW_INTEGRITY_CACHE_FILE"
+    }; then
+        rm -f "$temporary"
+        return 1
+    fi
+    echo "Webview integrity manifest verified for webview server pid=$pid"
+}
+
+webview_origin_markers_are_reachable() {
+    if command -v curl >/dev/null 2>&1; then
+        webview_origin_is_reachable_fast
+        return $?
+    fi
+    verify_webview_origin_with_python "$WEBVIEW_ORIGIN/index.html"
+}
+
 webview_origin_is_reachable() {
-    verify_webview_origin "$WEBVIEW_ORIGIN/index.html" >/dev/null 2>&1
+    webview_origin_markers_are_reachable || return 1
+    if webview_integrity_cache_is_valid; then
+        echo "Reusing cached webview integrity verification for webview server pid=$(cat "$WEBVIEW_PID_FILE")"
+        return 0
+    fi
+
+    rm -f "$WEBVIEW_INTEGRITY_CACHE_FILE"
+    if ! verify_webview_integrity_manifest "$WEBVIEW_ORIGIN/index.html"; then
+        return 1
+    fi
+    record_webview_integrity_verification || \
+        echo "WARN: could not persist webview integrity verification cache" >&2
 }
 
 webview_origin_is_reachable_fast() {
@@ -3242,7 +3337,9 @@ verify_webview_origin() {
 
     if ! command -v curl >/dev/null 2>&1; then
         verify_webview_origin_with_python "$url" || return $?
-        verify_webview_integrity_manifest "$url"
+        verify_webview_integrity_manifest "$url" || return $?
+        record_webview_integrity_verification || \
+            echo "WARN: could not persist webview integrity verification cache" >&2
         return $?
     fi
 
@@ -3273,7 +3370,9 @@ verify_webview_origin() {
         return 1
     fi
 
-    verify_webview_integrity_manifest "$url"
+    verify_webview_integrity_manifest "$url" || return $?
+    record_webview_integrity_verification || \
+        echo "WARN: could not persist webview integrity verification cache" >&2
 }
 
 pid_has_webview_server_cmdline() {
@@ -3365,7 +3464,7 @@ stop_owned_webview_server() {
         done
     fi
 
-    rm -f "$WEBVIEW_PID_FILE"
+    rm -f "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE"
 }
 
 owned_webview_server_pid() {
@@ -3381,7 +3480,7 @@ owned_webview_server_pid() {
     fi
 
     if [ -n "$pid" ]; then
-        rm -f "$WEBVIEW_PID_FILE"
+        rm -f "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE"
     fi
 
     return 1
@@ -3470,6 +3569,7 @@ adopt_discovered_webview_server() {
     local pid
 
     if pid="$(discover_webview_server_pid)"; then
+        rm -f "$WEBVIEW_INTEGRITY_CACHE_FILE"
         echo "$pid" > "$WEBVIEW_PID_FILE"
         if running_app_is_active; then
             ADOPTED_WEBVIEW_PID="$pid"
@@ -3646,12 +3746,13 @@ reconcile_runtime_state() {
     fi
 
     if [ ! -f "$WEBVIEW_PID_FILE" ]; then
+        rm -f "$WEBVIEW_INTEGRITY_CACHE_FILE"
         return 0
     fi
 
     webview_pid="$(cat "$WEBVIEW_PID_FILE" 2>/dev/null || true)"
     if [ -z "$webview_pid" ] || { ! pid_is_webview_server "$webview_pid" && ! pid_is_stale_webview_server "$webview_pid"; }; then
-        rm -f "$WEBVIEW_PID_FILE"
+        rm -f "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE"
     fi
 }
 
@@ -4635,7 +4736,7 @@ cleanup_launcher() {
 
     if [ -n "${STARTED_WEBVIEW_PID:-}" ] && pid_is_webview_server "$STARTED_WEBVIEW_PID"; then
         kill "$STARTED_WEBVIEW_PID" 2>/dev/null || true
-        rm -f "$WEBVIEW_PID_FILE"
+        rm -f "$WEBVIEW_PID_FILE" "$WEBVIEW_INTEGRITY_CACHE_FILE"
     fi
 }
 

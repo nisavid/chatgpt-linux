@@ -184,6 +184,63 @@ test_first_launch_migrates_known_wrapper_state() {
     assert_file_contains "$fixture_root/xdg/data/chatgpt/user-data.json" "app data"
 }
 
+test_already_canonical_state_does_not_rescan_large_trees() {
+    local fixture_root="$TEST_ROOT/already-canonical"
+
+    mkdir -p "$fixture_root/home" "$fixture_root/xdg/config/chatgpt" "$fixture_root/xdg/state/chatgpt"
+
+    python3 - "$REPO_ROOT/launcher/state-migration.py" "$fixture_root" <<'PY'
+import importlib.util
+import os
+import pathlib
+import sys
+
+script_path = pathlib.Path(sys.argv[1])
+fixture_root = pathlib.Path(sys.argv[2])
+config_root = fixture_root / "xdg" / "config" / "chatgpt"
+state_root = fixture_root / "xdg" / "state" / "chatgpt"
+for index in range(2_000):
+    (config_root / f"settings-{index}.json").write_text(
+        '{"state":"canonical"}\n', encoding="utf-8"
+    )
+    (state_root / f"session-{index}.json").write_text(
+        '{"state":"canonical"}\n', encoding="utf-8"
+    )
+
+os.environ.update(
+    {
+        "HOME": str(fixture_root / "home"),
+        "XDG_CONFIG_HOME": str(fixture_root / "xdg" / "config"),
+        "XDG_STATE_HOME": str(fixture_root / "xdg" / "state"),
+        "XDG_CACHE_HOME": str(fixture_root / "xdg" / "cache"),
+        "XDG_DATA_HOME": str(fixture_root / "xdg" / "data"),
+        "XDG_RUNTIME_DIR": str(fixture_root / "xdg" / "runtime"),
+    }
+)
+
+spec = importlib.util.spec_from_file_location("state_migration", script_path)
+assert spec and spec.loader
+state_migration = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(state_migration)
+
+rewrite_calls = []
+
+
+def fail_if_rewritten(root, pairs):
+    rewrite_calls.append(str(root))
+    raise AssertionError(f"already-canonical state was recursively scanned: {root}")
+
+
+state_migration.rewrite_known_paths = fail_if_rewritten
+state_migration.run_migration("forward")
+
+assert not rewrite_calls
+assert not (fixture_root / "xdg" / "state" / ".chatgpt-state-migration.json").exists()
+assert (config_root / "settings-1999.json").read_text(encoding="utf-8") == '{"state":"canonical"}\n'
+assert (state_root / "session-1999.json").read_text(encoding="utf-8") == '{"state":"canonical"}\n'
+PY
+}
+
 test_repeated_launch_is_idempotent() {
     local fixture_root="$TEST_ROOT/idempotent"
     make_launcher_fixture "$fixture_root"
@@ -672,6 +729,7 @@ test_user_local_installer_migrates_before_creating_canonical_state() {
 
 test_agent_workspace_permission_file_round_trips_and_rewrites_global_state
 test_first_launch_migrates_known_wrapper_state
+test_already_canonical_state_does_not_rescan_large_trees
 test_repeated_launch_is_idempotent
 test_collision_refuses_all_mutation_with_exact_recovery_command
 test_migration_discards_volatile_files_rewrites_paths_and_preserves_user_data

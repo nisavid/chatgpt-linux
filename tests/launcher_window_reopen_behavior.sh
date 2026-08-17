@@ -60,6 +60,7 @@ SOCKET_PATH="$RUNTIME_DIR/chatgpt/launch-action.sock"
 HANDOFF_RESULT="$TMP_DIR/handoff.json"
 FIRST_LOG="$TMP_DIR/first-launch.log"
 SECOND_LOG="$TMP_DIR/second-launch.log"
+THIRD_LOG="$TMP_DIR/third-launch.log"
 APP_LOG="$HOME_DIR/.cache/chatgpt/launcher.log"
 LAUNCHER_PID=""
 SECOND_LAUNCHER_PID=""
@@ -225,6 +226,8 @@ fail() {
     sed -n '1,200p' "$FIRST_LOG" >&2 2>/dev/null || true
     printf '%s\n' '--- second launch ---' >&2
     sed -n '1,240p' "$SECOND_LOG" >&2 2>/dev/null || true
+    printf '%s\n' '--- third launch ---' >&2
+    sed -n '1,240p' "$THIRD_LOG" >&2 2>/dev/null || true
     printf '%s\n' '--- app launcher log ---' >&2
     sed -n '1,300p' "$APP_LOG" >&2 2>/dev/null || true
     exit 1
@@ -426,6 +429,8 @@ wait_for "first launcher lock release" launcher_lock_is_available
 FIRST_ELECTRON_PID="$(read_live_app_pid)"
 wait_for "first Electron environment scrub" pid_environment_is_scrubbed
 wait_for "first Electron command-line rewrite" pid_cmdline_is_rewritten
+[ -s "$STATE_DIR/webview-integrity-verified" ] \
+    || fail "cold start did not persist the webview integrity attestation"
 
 python3 - "$SOCKET_PATH" "$HANDOFF_RESULT" <<'PY' &
 import json
@@ -519,6 +524,21 @@ PY
     || fail "reopen handoff left more than one controlled Electron process"
 [ -s "$STATE_DIR/webview.pid" ] \
     || fail "webview runtime marker disappeared during reopen handoff"
+grep -q "Reusing cached webview integrity verification" "$APP_LOG" \
+    || fail "warm reopen did not reuse the webview integrity attestation"
+[ "$(grep -c "Webview integrity manifest verified for webview server pid=" "$APP_LOG")" -eq 1 ] \
+    || fail "warm reopen repeated the full webview integrity manifest verification"
+printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader">tampered</div>' \
+    > "$APP_DIR/content/webview/index.html"
+set +e
+timeout 8s "${COMMON_ENV[@]}" "$APP_DIR/start.sh" --new-chat > "$THIRD_LOG" 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "warm reopen accepted a changed webview entrypoint"
+grep -q "digest mismatch" "$APP_LOG" \
+    || fail "changed webview entrypoint did not trigger full integrity validation"
+kill -0 "$FIRST_ELECTRON_PID" 2>/dev/null \
+    || fail "integrity failure terminated the healthy resident Electron process"
 kill -0 "$DECOY_PID" 2>/dev/null \
     || fail "launcher signalled a decoy process outside the isolated app identity"
 if grep -Eqi 'notify-send|zenity|could not safely|failed to' "$SECOND_LOG" "$APP_LOG" 2>/dev/null; then

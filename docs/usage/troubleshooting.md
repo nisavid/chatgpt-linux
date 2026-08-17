@@ -147,6 +147,15 @@ to the former wrapper identity, close the app and run:
 chatgpt migrate-state --reverse
 ```
 
+If you installed a temporary `chatgpt-updater.service` drop-in that removed
+the migration `ExecStartPre` while waiting for a package containing the
+large-tree migration fix, remove that drop-in after updating, then run:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart chatgpt-updater.service
+```
+
 ## Updater Recovery Notes
 
 `chatgpt-updater status` reports `cli_path` and `cli_path_source`. The source

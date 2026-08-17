@@ -64,6 +64,11 @@ merging upstream changes, keep incoming behavior aligned to these names:
 - `~/.cache/chatgpt/launcher.log` stores launcher diagnostics.
 - `~/.local/state/chatgpt/app.pid` lets the updater detect whether the
   Electron app is still running before installing an update.
+- `~/.local/state/chatgpt/webview.pid` identifies the owned local webview
+  server; `webview-integrity-verified` is a short-lived attestation bound to
+  that server's PID and start time, plus the generated manifest and entrypoint
+  digests. A new server or any digest change requires a full manifest check.
+
 ### State Identity Migration
 
 The canonical launcher and updater run `launcher/state-migration.py` before
@@ -82,6 +87,11 @@ normalizes content-addressed DMG cache filenames, and rewrites known local paths
 setting keys, integration ids, and generated metadata roots in bounded text files.
 It refuses symlinks, unexpected file types, unsafe updater cache shapes,
 cross-filesystem moves, and any source/destination collision.
+
+When no legacy source exists, preflight treats the canonical tree as already
+migrated and does not recursively scan it. Canonical trees are rewritten only
+when a real legacy move can introduce references to update or when an
+interrupted journal is being resumed.
 
 On a collision, preserve both trees and follow the exact recovery command printed
 by the helper; the forward command ends in `chatgpt`. Use
