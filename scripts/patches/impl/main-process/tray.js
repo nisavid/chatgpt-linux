@@ -185,6 +185,18 @@ function executableMatches(source, pattern) {
   );
 }
 
+function executableSubstringIndexes(source, needle) {
+  const indexes = [];
+  let fromIndex = 0;
+  while (fromIndex < source.length) {
+    const index = findExecutableJavaScriptSubstring(source, needle, fromIndex);
+    if (index === -1) break;
+    indexes.push(index);
+    fromIndex = index + Math.max(needle.length, 1);
+  }
+  return indexes;
+}
+
 function applyLinuxTrayPatch(currentSource, iconPathExpression) {
   let patchedSource = currentSource;
 
@@ -286,6 +298,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
   const { trayVar, electronVar, constructorArgs } = constructorMatch;
   const retainedConstructor =
     `${trayVar}=chatgptLinuxRegisterTray(new ${electronVar}.Tray(${constructorArgs}))`;
+  let retainedConstructorIndex = constructorMatch.start;
   if (!constructorMatch.retained) {
     patchedSource =
       patchedSource.slice(0, constructorMatch.start) +
@@ -293,19 +306,54 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
       patchedSource.slice(constructorMatch.end);
   }
 
-  if (!patchedSource.includes("chatgptLinuxRegisterTray=e=>")) {
-    const constructorIndex = patchedSource.indexOf(retainedConstructor);
-    const factoryIndex = patchedSource.lastIndexOf("async function ", constructorIndex);
-    if (constructorIndex === -1 || factoryIndex === -1) {
-      console.warn("WARN: Could not find current Linux tray helper insertion point — skipping Linux tray retention patch");
-      return currentSource;
-    }
+  const factoryIndexes = executableSubstringIndexes(
+    patchedSource.slice(0, retainedConstructorIndex),
+    "async function ",
+  );
+  const factoryIndex = factoryIndexes.at(-1) ?? -1;
+  let helperIndexes = executableSubstringIndexes(
+    patchedSource,
+    "chatgptLinuxRegisterTray=e=>",
+  );
+  if (
+    factoryIndex === -1 ||
+    helperIndexes.length > 1 ||
+    (helperIndexes.length === 1 && helperIndexes[0] >= factoryIndex)
+  ) {
+    console.warn("WARN: Could not find current Linux tray helper insertion point — skipping Linux tray retention patch");
+    return currentSource;
+  }
+  if (helperIndexes.length === 0) {
     const retentionHelper =
       "let chatgptLinuxTray=null,chatgptLinuxRegisterTray=e=>(chatgptLinuxTray=e,e);";
     patchedSource =
       patchedSource.slice(0, factoryIndex) +
       retentionHelper +
       patchedSource.slice(factoryIndex);
+    retainedConstructorIndex += retentionHelper.length;
+  }
+
+  helperIndexes = executableSubstringIndexes(
+    patchedSource,
+    "chatgptLinuxRegisterTray=e=>",
+  );
+  const finalFactoryIndex = executableSubstringIndexes(
+    patchedSource.slice(0, retainedConstructorIndex),
+    "async function ",
+  ).at(-1) ?? -1;
+  const retainedConstructorIndexes = executableSubstringIndexes(
+    patchedSource,
+    retainedConstructor,
+  );
+  if (
+    helperIndexes.length !== 1 ||
+    finalFactoryIndex === -1 ||
+    helperIndexes[0] >= finalFactoryIndex ||
+    retainedConstructorIndexes.length !== 1 ||
+    retainedConstructorIndexes[0] !== retainedConstructorIndex
+  ) {
+    console.warn("WARN: Could not verify current Linux tray retention helper — skipping Linux tray retention patch");
+    return currentSource;
   }
 
   return patchedSource;
