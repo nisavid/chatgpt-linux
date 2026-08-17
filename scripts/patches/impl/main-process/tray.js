@@ -1,6 +1,7 @@
 "use strict";
 
 const {
+  escapeRegExp,
   findExecutableJavaScriptSubstring,
   requireName,
 } = require("../../lib/minified-js.js");
@@ -122,25 +123,63 @@ function findMatchingBrace(source, openIndex) {
   return -1;
 }
 
-function findTrayWrapperClass(source) {
+function findContainingTrayFactory(source, constructorMatch) {
   const identifier = "[A-Za-z_$][\\w$]*";
   const factoryPattern = new RegExp(
-    `let (?<wrapper>${identifier})=new (?<wrapperClass>${identifier})\\([^;]{1,512}\\);[\\s\\S]{0,192}?(?<readiness>\\k<wrapper>\\.waitForReady\\(\\))`,
+    `async function (?<factory>${identifier})\\([^)]{0,512}\\)\\{`,
     "g",
   );
   const candidates = [];
 
   for (const factoryMatch of source.matchAll(factoryPattern)) {
-    const factoryEnd = factoryMatch[0].indexOf(";") + 1;
-    const factorySource = factoryMatch[0].slice(0, factoryEnd);
-    const readinessIndex =
-      factoryMatch.index + factoryMatch[0].lastIndexOf(factoryMatch.groups.readiness);
     if (
       findExecutableJavaScriptSubstring(
         source,
-        factorySource,
+        factoryMatch[0],
         factoryMatch.index,
-      ) !== factoryMatch.index ||
+      ) !== factoryMatch.index
+    ) {
+      continue;
+    }
+    const openIndex = factoryMatch.index + factoryMatch[0].length - 1;
+    const closeIndex = findMatchingBrace(source, openIndex);
+    if (
+      closeIndex !== -1 &&
+      factoryMatch.index <= constructorMatch.start &&
+      constructorMatch.end <= closeIndex
+    ) {
+      candidates.push({
+        start: factoryMatch.index,
+        end: closeIndex + 1,
+        factoryName: factoryMatch.groups.factory,
+      });
+    }
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function findTrayWrapperClass(source, trayFactory, trayVar) {
+  const identifier = "[A-Za-z_$][\\w$]*";
+  const factorySource = source.slice(trayFactory.start, trayFactory.end);
+  const factoryPattern = new RegExp(
+    `let (?<wrapper>${identifier})=new (?<wrapperClass>${identifier})\\(${escapeRegExp(trayVar)}(?:,[^;]{1,2048})?\\);[\\s\\S]{0,192}?(?<readiness>\\k<wrapper>\\.waitForReady\\(\\))`,
+    "g",
+  );
+  const candidates = [];
+
+  for (const factoryMatch of factorySource.matchAll(factoryPattern)) {
+    const factoryMatchIndex = trayFactory.start + factoryMatch.index;
+    const factoryEnd = factoryMatch[0].indexOf(";") + 1;
+    const wrapperFactorySource = factoryMatch[0].slice(0, factoryEnd);
+    const readinessIndex =
+      factoryMatchIndex + factoryMatch[0].lastIndexOf(factoryMatch.groups.readiness);
+    if (
+      findExecutableJavaScriptSubstring(
+        source,
+        wrapperFactorySource,
+        factoryMatchIndex,
+      ) !== factoryMatchIndex ||
       findExecutableJavaScriptSubstring(
         source,
         factoryMatch.groups.readiness,
@@ -170,6 +209,7 @@ function findTrayWrapperClass(source) {
     candidates.push({
       start: classMatch.index,
       end: closeIndex + 1,
+      wrapper: factoryMatch.groups.wrapper,
       wrapperClass,
     });
   }
@@ -221,7 +261,19 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     /isReady\(\)\{return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\)\}waitForReady\(\)\{return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\)\}/g;
   const compatibleDelegatedReadinessPattern =
     /isReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;return typeof \2\.isReady==`function`\?\2\.isReady\(\):!0\}async waitForReady\(\)\{if\(process\.platform!==`linux`\)return ([A-Za-z_$][\w$]*\.[A-Za-z_$][\w$]*)\(this\.tray\);let ([A-Za-z_$][\w$]*)=this\.tray;if\(typeof \4\.whenReady!=`function`\)return!0;try\{return await \4\.whenReady\(\),!0\}catch\{return!1\}\}/g;
-  const trayWrapperClass = findTrayWrapperClass(patchedSource);
+  const readinessConstructor = findTrayConstructor(patchedSource);
+  const readinessFactory = readinessConstructor == null
+    ? null
+    : findContainingTrayFactory(patchedSource, readinessConstructor);
+  if (readinessConstructor == null || readinessFactory == null) {
+    console.warn("WARN: Could not find current Linux tray factory — skipping Linux tray retention patch");
+    return currentSource;
+  }
+  const trayWrapperClass = findTrayWrapperClass(
+    patchedSource,
+    readinessFactory,
+    readinessConstructor.trayVar,
+  );
   if (trayWrapperClass == null) {
     console.warn("WARN: Could not find the current tray wrapper class — skipping Linux tray compatibility patch");
     return currentSource;
@@ -286,8 +338,21 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
   }
 
   const constructorMatch = findTrayConstructor(patchedSource);
+  const constructorFactory = constructorMatch == null
+    ? null
+    : findContainingTrayFactory(patchedSource, constructorMatch);
+  const retainedTrayWrapper =
+    constructorMatch == null || constructorFactory == null
+      ? null
+      : findTrayWrapperClass(
+        patchedSource,
+        constructorFactory,
+        constructorMatch.trayVar,
+      );
   if (
     constructorMatch == null ||
+    constructorFactory == null ||
+    retainedTrayWrapper == null ||
     !patchedSource.includes("if(process.platform===`linux`){") ||
     !patchedSource.includes("updatePersistentTrayMenu(){process.platform===`linux`")
   ) {
@@ -306,11 +371,7 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
       patchedSource.slice(constructorMatch.end);
   }
 
-  const factoryIndexes = executableSubstringIndexes(
-    patchedSource.slice(0, retainedConstructorIndex),
-    "async function ",
-  );
-  const factoryIndex = factoryIndexes.at(-1) ?? -1;
+  const factoryIndex = constructorFactory.start;
   let helperIndexes = executableSubstringIndexes(
     patchedSource,
     "chatgptLinuxRegisterTray=e=>",
@@ -337,20 +398,41 @@ function applyLinuxTrayPatch(currentSource, iconPathExpression) {
     patchedSource,
     "chatgptLinuxRegisterTray=e=>",
   );
-  const finalFactoryIndex = executableSubstringIndexes(
-    patchedSource.slice(0, retainedConstructorIndex),
-    "async function ",
-  ).at(-1) ?? -1;
   const retainedConstructorIndexes = executableSubstringIndexes(
     patchedSource,
     retainedConstructor,
   );
+  const finalConstructor = findTrayConstructor(patchedSource);
+  const finalTrayFactory = finalConstructor == null
+    ? null
+    : findContainingTrayFactory(patchedSource, finalConstructor);
+  const finalTrayWrapper = finalConstructor == null || finalTrayFactory == null
+    ? null
+    : findTrayWrapperClass(
+      patchedSource,
+      finalTrayFactory,
+      finalConstructor.trayVar,
+    );
+  const finalTrayWrapperSource = finalTrayWrapper == null
+    ? ""
+    : patchedSource.slice(finalTrayWrapper.start, finalTrayWrapper.end);
   if (
     helperIndexes.length !== 1 ||
-    finalFactoryIndex === -1 ||
-    helperIndexes[0] >= finalFactoryIndex ||
+    finalConstructor == null ||
+    finalTrayFactory == null ||
+    finalTrayWrapper == null ||
+    helperIndexes[0] >= finalTrayFactory.start ||
     retainedConstructorIndexes.length !== 1 ||
-    retainedConstructorIndexes[0] !== retainedConstructorIndex
+    retainedConstructorIndexes[0] !== retainedConstructorIndex ||
+    finalConstructor.trayVar !== trayVar ||
+    finalConstructor.electronVar !== electronVar ||
+    finalTrayFactory.factoryName !== constructorFactory.factoryName ||
+    finalTrayWrapper.wrapper !== trayWrapperClass.wrapper ||
+    finalTrayWrapper.wrapperClass !== trayWrapperClass.wrapperClass ||
+    executableMatches(
+      finalTrayWrapperSource,
+      compatibleDelegatedReadinessPattern,
+    ).length !== 1
   ) {
     console.warn("WARN: Could not verify current Linux tray retention helper — skipping Linux tray retention patch");
     return currentSource;

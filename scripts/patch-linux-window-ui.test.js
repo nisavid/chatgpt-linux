@@ -2866,10 +2866,60 @@ test("binds tray readiness to the wrapper instantiated by the tray factory", () 
   );
 });
 
+test("binds the current multi-argument tray wrapper by its first tray argument", () => {
+  const source = `${currentMainBundlePrefix}${trayBundleFixture().replace(
+    "let i=new pb(r);",
+    "let i=new pb(r,e.onOpenMainWindow,e.onTrayMenuOpenNewThread);",
+  )}`;
+  const patched = applyPatchTwice(
+    applyLinuxTrayPatch,
+    source,
+    null,
+  );
+
+  assert.notEqual(patched, source);
+  assert.match(
+    patched,
+    /var pb=class\{[^]*?isReady\(\)\{if\(process\.platform!==`linux`\)return r\.S\(this\.tray\)/,
+  );
+});
+
+test("reports a disconnected executable tray factory as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-tray",
+  );
+  const decoy = [
+    "async function disconnectedTrayFactory(e){let fake=new decoy(e);return await fake.waitForReady(),fake}",
+    "var decoy=class{isReady(){return x.y(this.tray)}waitForReady(){return x.w(this.tray)}};",
+  ].join("");
+  const driftedTray = trayBundleFixture().replace(
+    "let i=new pb(r);",
+    "const i=new pb(r);",
+  );
+  const source = `${currentMainBundlePrefix}${decoy}${driftedTray}`;
+  const report = createPatchReport();
+  const result = applyMainBundlePatchDescriptors(
+    source,
+    [descriptor],
+    {},
+    report,
+  );
+
+  assert.equal(result.patchedSource, source);
+  assert.equal(report.patches[0]?.status, "failed-required");
+  assert.equal(
+    report.patches[0]?.reason,
+    "WARN: Could not find the current tray wrapper class — skipping Linux tray compatibility patch",
+  );
+});
+
 test("finds the current tray wrapper after nested template expressions", () => {
   const nestedTemplatePrefix =
     "let iconPath=`file://${roots.endsWith(`/`)?roots:`${roots}/`}`;";
-  const source = `${nestedTemplatePrefix}${currentMainBundlePrefix}${trayBundleFixture()}`;
+  const source = `${currentMainBundlePrefix}${trayBundleFixture().replace(
+    "async function fae(e){",
+    `async function fae(e){${nestedTemplatePrefix}`,
+  )}`;
   const patched = applyPatchTwice(applyLinuxTrayPatch, source, null);
 
   assert.notEqual(patched, source);
