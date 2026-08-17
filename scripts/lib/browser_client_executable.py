@@ -84,6 +84,10 @@ def executable_offsets(source):
             while end < len(source) and (source[end].isalnum() or source[end] in "_$"):
                 end += 1
             token = source[index:end]
+            if pending_control_paren and token == "await":
+                can_start_regex = True
+                index = end
+                continue
             pending_control_paren = token in _CONTROL_PAREN_KEYWORDS
             can_start_regex = pending_control_paren or token in _REGEX_PREFIX_KEYWORDS
             index = end

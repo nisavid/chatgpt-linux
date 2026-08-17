@@ -271,6 +271,11 @@ test("Browser and Chrome staging reject non-executable, ambiguous, and partial s
     `${executableConfig}${executableRuntime}` +
     "export async function setupBrowserRuntime(){let e=Me();return await cJ(e)}" +
     `if(flag)/${processImport}/.test("")`;
+  const forAwaitRegexProcessImportDecoy =
+    'import {env as RealEnv} from "node:process";' +
+    `${executableConfig}${executableRuntime}` +
+    "export async function setupBrowserRuntime(){let e=Me();return await cJ(e)}" +
+    `async function scan(){for await(flag of flags)/${processImport}/.test("")}`;
   const cases = [
     `${processImport}/*${executableConfig}*/${executableRuntime}`,
     `${processImport}const configDecoy=${JSON.stringify(executableConfig)};${executableRuntime}`,
@@ -286,6 +291,7 @@ test("Browser and Chrome staging reject non-executable, ambiguous, and partial s
     disconnectedExecutableDecoys,
     wrongDirectExportDecoys,
     controlParenRegexProcessImportDecoy,
+    forAwaitRegexProcessImportDecoy,
   ];
 
   for (const pluginName of ["browser", "chrome"]) {
