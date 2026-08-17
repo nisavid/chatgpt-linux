@@ -2932,6 +2932,40 @@ test("reports non-executable tray factory decoys as failed-required", () => {
   }
 });
 
+test("reports non-executable tray constructor decoys as failed-required", () => {
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-tray",
+  );
+  const constructorDecoys = [
+    'let constructorDecoy="r=new c.Tray(t.defaultIcon)";',
+    "/*r=new c.Tray(t.defaultIcon)*/",
+  ];
+
+  for (const constructorDecoy of constructorDecoys) {
+    const driftedTray = trayBundleFixture()
+      .replace("r=new c.Tray(", "r=createTray(")
+      .replace(
+        "async function fae(e){",
+        `async function fae(e){${constructorDecoy}`,
+      );
+    const source = `${currentMainBundlePrefix}${driftedTray}`;
+    const report = createPatchReport();
+    const result = applyMainBundlePatchDescriptors(
+      source,
+      [descriptor],
+      {},
+      report,
+    );
+
+    assert.equal(result.patchedSource, source);
+    assert.equal(report.patches[0]?.status, "failed-required");
+    assert.equal(
+      report.patches[0]?.reason,
+      "WARN: Could not find current Linux tray factory — skipping Linux tray retention patch",
+    );
+  }
+});
+
 test("reports non-executable tray wrapper class decoys as failed-required", () => {
   const descriptor = corePatchDescriptors().find(
     (candidate) => candidate.id === "linux-tray",
