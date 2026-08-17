@@ -2966,6 +2966,33 @@ test("reports non-executable tray constructor decoys as failed-required", () => 
   }
 });
 
+test("inserts the tray retention helper outside non-executable decoys", () => {
+  const helperDecoys = [
+    'let helperDecoy="async function fake(){r=chatgptLinuxRegisterTray(new c.Tray(t.defaultIcon))}";',
+    "/*async function fake(){r=chatgptLinuxRegisterTray(new c.Tray(t.defaultIcon))}*/",
+  ];
+
+  for (const helperDecoy of helperDecoys) {
+    const source = `${currentMainBundlePrefix}${trayBundleFixture().replace(
+      "async function fae(e){",
+      `async function fae(e){${helperDecoy}`,
+    )}`;
+    const patched = applyPatchTwice(applyLinuxTrayPatch, source, null);
+
+    assert.notEqual(patched, source);
+    assert.ok(patched.includes(helperDecoy), "must not rewrite the helper decoy");
+    assert.ok(
+      patched.indexOf("chatgptLinuxRegisterTray=e=>") <
+        patched.indexOf("async function fae(e){"),
+      "must insert the executable helper before the real tray factory",
+    );
+    assert.match(
+      patched,
+      /r=chatgptLinuxRegisterTray\(new c\.Tray\(t\.defaultIcon/,
+    );
+  }
+});
+
 test("reports non-executable tray wrapper class decoys as failed-required", () => {
   const descriptor = corePatchDescriptors().find(
     (candidate) => candidate.id === "linux-tray",
