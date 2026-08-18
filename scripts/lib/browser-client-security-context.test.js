@@ -119,6 +119,34 @@ test("Browser and Chrome staging reject malformed final client syntax", () => {
   }
 });
 
+test("Browser and Chrome staging reject executable Node builtin imports", () => {
+  const privilegedClients = [
+    `import{env as Ub}from"node:process";${trustedRpcBrowserClientFixture}`,
+    `const Ub=await import("node:process");${trustedRpcBrowserClientFixture}`,
+    `const Ub=require("node:process");${trustedRpcBrowserClientFixture}`,
+  ];
+  const nonExecutableDecoys = [
+    `/* import{env as Ub}from"node:process"; */${trustedRpcBrowserClientFixture}`,
+    `const decoy='import{env as Ub}from"node:process";';${trustedRpcBrowserClientFixture}`,
+    `const decoy=\`import{env as Ub}from"node:process";\`;${trustedRpcBrowserClientFixture}`,
+  ];
+
+  for (const pluginName of ["browser", "chrome"]) {
+    for (const source of privilegedClients) {
+      const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+      assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.match(result.stderr, /privileged Node builtin import/);
+      assert.match(result.stderr, /security-context staging failed closed/i);
+      assert.equal(targetExists, false);
+    }
+    for (const source of nonExecutableDecoys) {
+      const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+      assert.equal(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.equal(targetExists, true);
+    }
+  }
+});
+
 test("Browser and Chrome staging reject non-executable trusted RPC decoys", () => {
   const decoys = [
     `/*${trustedRpcBrowserClientFixture}*/`,
