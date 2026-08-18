@@ -18,6 +18,7 @@ const retiredWorkflowFiles = [
 ];
 
 const requiredPullRequestScannerFiles = ["codeql.yml", "rust-clippy.yml"];
+const historicalExecutableFencePattern = /(?:`{3,}|~{3,})/;
 
 // actionlint validates syntax; exact digests freeze the reviewed
 // retirement-only semantics.
@@ -399,13 +400,32 @@ test("direct agent and security entry points fail closed into retirement", () =>
   );
 });
 
+test("historical entry points reject every CommonMark fence form", () => {
+  for (const fence of [
+    "   ```sh",
+    "~~~sh",
+    "  ~~~~",
+    "> ```console",
+    "  > > ~~~sh",
+    "- ```sh",
+    "1. ~~~console",
+    "> - ```sh",
+  ]) {
+    assert.equal(
+      historicalExecutableFencePattern.test(fence),
+      true,
+      `fence must be rejected: ${fence}`,
+    );
+  }
+});
+
 test("historical maintenance entry points contain no executable work route", () => {
   for (const [relativePath, forbiddenPatterns] of
     nonExecutableHistoricalEntryPoints) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
     const prose = source.replace(/^>\s?/gm, "");
     assert.match(prose, /non-executable historical (?:record|context)/i, relativePath);
-    assert.doesNotMatch(source, /^```/m, relativePath);
+    assert.doesNotMatch(source, historicalExecutableFencePattern, relativePath);
     for (const forbiddenPattern of forbiddenPatterns) {
       assert.doesNotMatch(source, forbiddenPattern, relativePath);
     }
