@@ -1181,6 +1181,17 @@ if (
     )
     raise SystemExit(2)
 
+node_builtin_import_pattern = re.compile(
+    r'\b(?:'
+    r'(?:import|export)\s*(?:[^;()\r\n]*?\s*from\s*)?["\']node:[^"\']+["\']'
+    r'|import\s*\(\s*["\']node:[^"\']+["\']\s*\)'
+    r'|require\s*\(\s*["\']node:[^"\']+["\']\s*\)'
+    r')'
+)
+if executable_matches(node_builtin_import_pattern, source):
+    print("WARN: Browser client contains a privileged Node builtin import", file=sys.stderr)
+    raise SystemExit(2)
+
 if executable_matches(re.compile(r'chatgptLinuxBrowserUse(?:ConfigShim|ValidatedEnvironment|EnvironmentShim|ProcessEnv)'), source):
     print("WARN: Browser client contains an untrusted legacy security-context shim", file=sys.stderr)
     raise SystemExit(2)
