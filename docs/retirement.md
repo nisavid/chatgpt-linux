@@ -76,6 +76,7 @@ create maintenance work:
 | Producer | Retirement disposition |
 | --- | --- |
 | Dependabot version updates | `.github/dependabot.yml` is removed. Automated Dependabot security-update pull requests are disabled in repository settings; vulnerability alerts remain visible as historical risk. |
+| Private vulnerability reports | Private vulnerability reporting is disabled because the retired repository has no triage or remediation program. Public vulnerability alerts remain enabled as historical risk evidence. |
 | Official DMG acceptance | The workflow remains only as read-only pull-request validation. Its hourly schedule, manual dispatch, main-branch trigger, and drift-issue reconciliation job are removed. |
 | Nix DMG hash refresh | The write-capable dispatch workflow is removed. The historical refresh scripts remain source evidence, not an active campaign. |
 | Cachix population | The cache-writing workflow is removed. Existing cache and workflow-run history are not deleted. |

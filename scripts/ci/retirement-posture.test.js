@@ -16,6 +16,70 @@ const retiredWorkflowFiles = [
 
 const requiredPullRequestScannerFiles = ["codeql.yml", "rust-clippy.yml"];
 
+function collectWorkflowWritePermissions(source) {
+  const writeAll = source
+    .split("\n")
+    .some((line) => /^\s*permissions\s*:\s*write-all\s*(?:#.*)?$/.test(line));
+  const writeKeys = new Set();
+  const writePermission =
+    /(?:^\s*|[{,]\s*)(["']?)([a-z][a-z0-9-]*)\1\s*:\s*write(?=\s*(?:[,}]|#|$))/gi;
+
+  for (const line of source.split("\n")) {
+    for (const match of line.matchAll(writePermission)) {
+      writeKeys.add(match[2]);
+    }
+  }
+
+  return { writeAll, writeKeys: [...writeKeys].sort() };
+}
+
+function assertRetirementWorkflowPermissions(workflow, source) {
+  const { writeAll, writeKeys } = collectWorkflowWritePermissions(source);
+  assert.equal(writeAll, false, `${workflow} must reject permissions: write-all`);
+
+  const expectedWriteKeys = requiredPullRequestScannerFiles.includes(workflow)
+    ? ["security-events"]
+    : [];
+  assert.deepEqual(
+    writeKeys,
+    expectedWriteKeys,
+    `${workflow} has unapproved write permissions: ${writeKeys.join(", ")}`,
+  );
+}
+
+test("retirement permission audit rejects every unapproved write scope", () => {
+  assert.doesNotThrow(() =>
+    assertRetirementWorkflowPermissions(
+      "codeql.yml",
+      "permissions:\n  contents: read\n  security-events: write\n",
+    ),
+  );
+  assert.throws(
+    () =>
+      assertRetirementWorkflowPermissions(
+        "ci.yml",
+        "permissions: write-all\n",
+      ),
+    /write-all/,
+  );
+  assert.throws(
+    () =>
+      assertRetirementWorkflowPermissions(
+        "ci.yml",
+        "permissions:\n  checks: write\n",
+      ),
+    /checks/,
+  );
+  assert.throws(
+    () =>
+      assertRetirementWorkflowPermissions(
+        "rust-clippy.yml",
+        "permissions:\n  security-events: write\n  packages: write\n",
+      ),
+    /packages/,
+  );
+});
+
 test("retirement posture replaces install and support entry points", () => {
   const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
   const contributing = fs.readFileSync(
@@ -102,11 +166,6 @@ test("retirement posture disables dependency and maintenance producers", () => {
       /^\s*(push|schedule|workflow_dispatch):/m,
       workflow,
     );
-    assert.doesNotMatch(
-      source,
-      /^\s*(contents|issues|pull-requests):\s*write\s*$/m,
-      workflow,
-    );
     assert.match(source, /^\s*security-events:\s*write\s*$/m, workflow);
   }
 });
@@ -120,18 +179,7 @@ test("remaining workflows cannot schedule or mutate repository maintenance state
   for (const workflow of workflows) {
     const source = fs.readFileSync(path.join(workflowRoot, workflow), "utf8");
     assert.doesNotMatch(source, /^\s*schedule:\s*$/m, workflow);
-    assert.doesNotMatch(
-      source,
-      /^\s*(actions|contents|issues|pull-requests):\s*write\s*$/m,
-      workflow,
-    );
-    if (!requiredPullRequestScannerFiles.includes(workflow)) {
-      assert.doesNotMatch(
-        source,
-        /^\s*security-events:\s*write\s*$/m,
-        workflow,
-      );
-    }
+    assertRetirementWorkflowPermissions(workflow, source);
   }
 
   const officialDmg = fs.readFileSync(
