@@ -1,5 +1,10 @@
 # Package and Runtime Maintenance
 
+> [!WARNING]
+> This is the historical maintenance contract for the final fork build. Do not
+> rebuild, publish, install, update, or restore a producer from these procedures.
+> The current boundary is [Repository Retirement](../retirement.md).
+
 This reference is for maintainers changing the Linux packaging, generated
 launcher, packaged runtime helper, or `chatgpt-updater`.
 

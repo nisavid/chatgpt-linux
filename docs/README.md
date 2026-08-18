@@ -1,102 +1,63 @@
 # Documentation Index
 
-Use this index to choose the smallest document that matches your goal.
+ChatGPT for Linux is retired and unsupported. Start with the
+[repository retirement record](retirement.md) for the current producer,
+support, security-risk, automation, and delayed-cleanup boundaries.
 
-## Run Or Install ChatGPT
+The remaining documents describe the final maintained source state. They are
+historical references, not supported install, update, troubleshooting, or
+maintenance instructions.
 
-- [Project README](../README.md) is the landing page for users and potential
-  users.
-- [Build and Run Guide](usage/build-and-run.md) covers prerequisites, local app
-  generation, native package builds, package installation, NixOS, and service
-  commands.
-- [Troubleshooting](usage/troubleshooting.md) lists common launch, CLI, webview,
-  package, and updater symptoms.
-- [Support and Issue Routing](usage/support-routing.md) explains whether a
-  behavior belongs with OpenAI, the Linux-port upstream, or this fork.
-- [User-Local App Integration](../contrib/user-local-install/README.md)
-  describes the experimental rootless install layout under XDG user paths.
+## Decision record
 
-## Configure Or Extend The Port
+- [Official-app parity](maintainers/research/official-app-parity-2026-08.md)
+  records why the validated native repackage became the settled producer.
+- [Rollback-evidence retention](maintainers/research/rollback-evidence-retention-boundary-2026-08.md)
+  records the M3/M4 boundary for private fallback and recovery evidence.
+- [Repository rename verification](maintainers/repository-rename-verification.md)
+  records the completed `codex-app-linux` to `chatgpt-linux` cutover.
+- [Project logo rights and provenance](maintainers/project-logo-rights-research.md)
+  records the approved artwork, attribution, and bounded rights assessment.
 
-- [Port Integrations](../port-integrations/README.md) is the catalog and user
-  configuration reference for modules under `port-integrations/`.
-- [Port Integration Architecture](port-integrations-architecture.md) is the
-  authoring reference for manifests, settings, descriptors, hooks, resources,
-  config resolution, and updater delivery.
+## Historical user and package references
 
-## Understand The Design
+- [Build and run](usage/build-and-run.md)
+- [Troubleshooting](usage/troubleshooting.md)
+- [Former support routing](usage/support-routing.md)
+- [Package and runtime maintenance](maintainers/package-runtime-maintenance.md)
+- [User-local app integration](../contrib/user-local-install/README.md)
+- [Port integrations](../port-integrations/README.md)
 
-- [Port Architecture](port-architecture.md) explains how the official OpenAI
-  ChatGPT DMG becomes a Linux Electron app and where replacement, patching, and
-  launcher orchestration fit.
-- [Webview Server Evaluation](webview-server-evaluation.md) explains why the
-  launcher currently serves the extracted webview bundle with a local Python
-  HTTP server and what would need to change before replacing it.
-- [Product and Visual Design](../DESIGN.md) defines the visual language,
-  product identity, screenshot policy, and fork-authored UI constraints.
-- [Project Logo Rights and Provenance](maintainers/project-logo-rights-research.md)
-  records the approved asset digest, construction history, Tux attribution,
-  rights screen, use controls, and residual risk.
+These pages may help inspect or reproduce old source. They do not restore
+support, establish current compatibility, or authorize a new package or updater
+producer.
 
-## Maintain The Fork And Project Record
+## Historical architecture and maintenance references
 
-- [Fork Divergences](maintainers/fork-divergences.md) is the canonical
-  inventory of intentional differences from the Linux-port upstream, including
-  names, paths, versioning, updater boundaries, Computer Use compatibility, and
-  rename-aware sync checks.
-- [Fork Sync Policy](maintainers/fork-sync-policy.md) defines the current
-  upstream sync workflow, renamed-path reconciliation, sync ledger, local
-  gates, and uncertainty triage.
-- [Fork Sync Ledger](maintainers/fork-sync-ledger/) records durable summaries,
-  special-handling notes, and follow-up decisions for broad upstream syncs.
-- [Repository Rename Verification](maintainers/repository-rename-verification.md)
-  records the transactional `codex-app-linux` to `chatgpt-linux` cutover and
-  the preserved GitHub identity, redirects, automation, and trust boundaries.
-- [Changelog](../CHANGELOG.md) tracks user-visible releases and packaging
-  behavior changes.
+- [Port architecture](port-architecture.md)
+- [Port integration architecture](port-integrations-architecture.md)
+- [Fork divergences](maintainers/fork-divergences.md)
+- [Fork sync policy](maintainers/fork-sync-policy.md)
+- [Fork sync ledger](maintainers/fork-sync-ledger/)
+- [Official DMG acceptance](upstream-dmg-acceptance.md)
+- [Official DMG intelligence](upstream-dmg-intelligence.md)
+- [Official DMG watchdog](upstream-dmg-watchdog.md)
+- [Webview server evaluation](webview-server-evaluation.md)
+- [Launcher performance](launcher-performance.md)
+- [Threat model](maintainers/threat-model.md)
+- [Security best practices](maintainers/security-best-practices.md)
+- [Security backlog](maintainers/security-backlog.md)
 
-## Maintain Official DMG Compatibility
+The automation described in the DMG, hash-refresh, upstream-sync, issue, and
+dependency-maintenance documents is retired. Do not reinstall, dispatch, or
+recreate it from these historical instructions.
 
-- [Official DMG Acceptance](upstream-dmg-acceptance.md) explains the policy
-  gate for accepting a newly observed official app bundle.
-- [Official DMG Intelligence](upstream-dmg-intelligence.md) explains what the
-  local inspection tooling records about official releases and drift.
-- [Official DMG Watchdog](upstream-dmg-watchdog.md) explains the scheduled
-  automation that refreshes and verifies official DMG metadata.
+## Historical agent references
 
-## Maintain Packaging Or Runtime Behavior
-
-- [Package and Runtime Maintenance](maintainers/package-runtime-maintenance.md)
-  is the reference for source files, generated artifacts, package payloads,
-  launcher behavior, updater state, privileged install boundaries, versioning,
-  and validation.
-- [README Visual Capture](maintainers/readme-visual-capture.md) defines the
-  maintainer process for reproducible, non-sensitive README showcase assets.
-- [Launcher Performance](launcher-performance.md) explains launcher timing,
-  profiling, and performance acceptance.
-- [Threat Model](maintainers/threat-model.md) is the repository-scoped security
-  model for scans and reviews.
-- [Security Best Practices](maintainers/security-best-practices.md) lists
-  secure-by-default expectations for generated app patching, local helper
-  bridges, desktop capture, and hosted-service gates.
-- [Security Backlog](maintainers/security-backlog.md) points to security
-  backlog issues and routes supply-chain review through `@codex-security`.
-- [Remote Mobile Host Boundary Review](maintainers/remote-mobile-host-boundary-review.md)
-  records the host-state matrix for remote-control and Codex mobile review.
-- [Agentic Maintenance Policy](policies/agentic-maintenance.md) explains what
-  belongs in tracked docs, what belongs in agent policy, and what should remain
-  local session evidence.
-
-## Pick Up Agent Work
-
-- Read [AGENTS.md](../AGENTS.md) first. It is the always-loaded policy surface.
-- [Repository Map](agents/repository-map.md) routes source, generated, package,
-  updater, integration, and documentation work to the current paths.
-- [Generated and Runtime Notes](agents/generated-and-runtime-notes.md)
-  distinguishes source-owned behavior from generated app and XDG state.
-- [Backlog](backlog.md) points to open GitHub Issues for non-security and
-  security follow-up.
-- Use the package maintenance reference for details that are too large or too
-  situational for `AGENTS.md`.
-- Use repo-local skills under `.agents/skills/` when the task touches package
-  metadata, launcher behavior, updater behavior, or generated install payloads.
+- [AGENTS.md](../AGENTS.md) is the current archival policy and overrides old
+  maintenance recipes.
+- [Repository map](agents/repository-map.md) describes the preserved source
+  layout.
+- [Generated and runtime notes](agents/generated-and-runtime-notes.md)
+  distinguish source from generated and user-owned state.
+- [Changelog](../CHANGELOG.md) preserves user-visible release history.

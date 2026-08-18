@@ -12578,7 +12578,7 @@ SCRIPT
 }
 
 test_official_dmg_build_app_workflow_tracks_dmg_metadata() {
-    info "Checking official DMG build-app workflow metadata and cache behavior"
+    info "Checking retired official DMG pull-request validation metadata"
     local workflow="$REPO_DIR/.github/workflows/official-dmg-build-app.yml"
 
     assert_file_exists "$workflow"
@@ -12596,7 +12596,10 @@ test_official_dmg_build_app_workflow_tracks_dmg_metadata() {
     assert_contains "$workflow" 'make build-app DMG="$OFFICIAL_DMG_PATH"'
     assert_contains "$workflow" 'official-dmg-decision.json'
     assert_contains "$workflow" 'accepted|accepted_with_warnings'
-    assert_contains "$workflow" 'reconcileUpstreamDmgIssue'
+    assert_not_contains "$workflow" 'schedule:'
+    assert_not_contains "$workflow" 'workflow_dispatch:'
+    assert_not_contains "$workflow" 'issues: write'
+    assert_not_contains "$workflow" 'reconcileUpstreamDmgIssue'
 }
 
 test_installer_writes_package_version_from_app_plist() {

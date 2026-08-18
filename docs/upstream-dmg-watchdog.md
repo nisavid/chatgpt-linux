@@ -1,5 +1,10 @@
 # Official DMG watchdog
 
+> [!WARNING]
+> The watchdog campaign is retired. Do not install, invoke, requeue, or recreate
+> its schedule from this historical procedure. Its write-capable GitHub
+> workflow endpoints have been removed. See [Repository Retirement](retirement.md).
+
 The local watchdog turns each official OpenAI ChatGPT DMG SHA-256 into one persistent campaign:
 
 ```text
