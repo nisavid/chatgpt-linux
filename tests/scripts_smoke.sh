@@ -231,7 +231,10 @@ JSON
 {"name":"browser","version":"0.1.0-alpha2","interface":{"category":"Engineering"}}
 JSON
     cat > "$resources_dir/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" <<'JS'
-function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
+
+function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}
+const Wu=async t=>{let e=globalThis.display;if(typeof e=="function"){await e(t);return}console.log(t)};
+async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
 JS
 }
 
@@ -9715,9 +9718,10 @@ MD
 {"extensionId":"hehggadaopoacecdllhhajmbjkdcmajg","extensionHostName":"com.openai.codexextension"}
 JSON
     cat > "$chrome_dir/scripts/browser-client.mjs" <<'JS'
-const browserPreference={};function preferredWindowIdFor(){}function getForUrl(){}const extensionInstanceId=null;
-var kE=t=>t==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use";var Cb=kE(hV.platform()),EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>wP.resolve(Cb,e)),TV=async()=>[];
-function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
+
+function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}
+const Wu=async t=>{let e=globalThis.display;if(typeof e=="function"){await e(t);return}console.log(t)};
+async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
 JS
     cat > "$chrome_dir/scripts/check-native-host-manifest.js" <<'JS'
 #!/usr/bin/env node
@@ -9894,9 +9898,6 @@ test_chrome_plugin_staging() {
     assert_contains "$chrome_dir/scripts/open-chrome-window.js" "defaultBrowser ==="
     assert_contains "$chrome_dir/scripts/open-chrome-window.js" "resolveChromeProfileDirectoryFromRunningProcess"
     assert_contains "$chrome_dir/scripts/open-chrome-window.js" "defaultLinuxUserDataDirectoryForCommand"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "browserPreference"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "preferredWindowIdFor"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "getForUrl"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "globalThis.nodeRepl"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" 'typeof e.rpc!="function"'
     assert_contains "$chrome_dir/scripts/browser-client.mjs" 'o("browser",{method:"setup"'
@@ -9906,10 +9907,9 @@ test_chrome_plugin_staging() {
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseEnvironmentShim"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "node:process"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxPerUserBrowserSocketDir"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "process.env.CODEX_BROWSER_USE_SOCKET_DIR"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"/tmp/codex-browser-use"'
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxIabSocketScope"
+    [ "$(sha256sum "$chrome_dir/scripts/browser-client.mjs" | awk '{print $1}')" = \
+        "2727f25c61bb0250b4143cc4149e768ee79874e6fc18dee11c712aa0a0fbd71b" ] \
+        || fail "Expected Chrome client to remain the exact trusted RPC test vector"
     assert_contains "$chrome_dir/skills/control-chrome/SKILL.md" "agent.browsers.list()"
     assert_contains "$chrome_dir/skills/control-chrome/SKILL.md" "browser.tabs.new()"
     assert_contains "$install_dir/resources/plugins/openai-bundled/.agents/plugins/marketplace.json" '"name": "chrome"'
