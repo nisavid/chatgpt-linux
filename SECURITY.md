@@ -1,73 +1,26 @@
 # Security Policy
 
-This repository is an unofficial community fork that layers hardening,
-packaging, and runtime polish over the Linux-port upstream's synced
-DMG-conversion baseline. The Linux-port upstream now develops against OpenAI's
-signed Linux package; this fork remains on the official OpenAI ChatGPT DMG
-until that source transition is decided explicitly. It is not affiliated with,
-endorsed by, or supported by OpenAI. Security reports for this fork should
-focus on the DMG conversion, package builders, generated launcher, native
-packages, updater, bundled runtime helpers, local desktop integration, and
-repository release workflows.
+ChatGPT for Linux is retired and unsupported. This repository has no supported
+versions, no maintained packages or releases, and no security-remediation
+program. It does not accept vulnerability reports or promise triage, fixes,
+advisories, releases, or disclosure coordination.
 
-Security guarantees made by OpenAI services, OpenAI accounts, and the official
-OpenAI app bundle outside this local conversion path are outside this
-repository's scope.
+Do not submit secrets, credentials, private exploit details, or personal data
+to this repository's public issue or pull-request tracker. Report a problem to
+the owner that currently maintains the affected software:
 
-## Supported Versions
+- use OpenAI's published security-reporting route for an issue in OpenAI's
+  official ChatGPT app, Codex, account, or hosted services;
+- use the Linux-port upstream's reporting policy for an issue that reproduces
+  in [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux);
+  or
+- use the relevant distribution package maintainer's security route for a
+  package-specific issue.
 
-Security work targets the current `main` branch and the latest package or
-release artifacts published from this fork. Older package versions are not
-maintained as separate security-support lines.
+The historical source, open alerts, threat model, and security backlog remain
+available as evidence. They must not be interpreted as supported software or
+as a commitment to remediate. See [Repository Retirement](docs/retirement.md)
+for the current boundary.
 
-If you are using an older package build, update to the newest available package
-or rebuild from current `main` before reporting an issue that may already be
-fixed.
-
-## Reporting a Vulnerability
-
-Use GitHub's private vulnerability reporting flow for anything that may expose
-users or package consumers. On the repository page, open **Security** and choose
-**Report a vulnerability**.
-
-Use private reporting for issues involving:
-
-- updater downloads, rebuilds, state, cache, or privileged install boundaries;
-- package builder inputs, package payloads, release checks, signing, or
-  provenance;
-- generated launcher behavior, local webview serving, desktop automation, or
-  bundled runtime helpers;
-- local file access, credentials, token handling, log redaction, or secret
-  exposure;
-- exploitable behavior in this fork's Linux packaging or conversion workflow.
-
-Do not open a public issue for a suspected vulnerability before maintainers have
-had a chance to triage it privately. Public issues are appropriate for ordinary
-bugs, packaging failures, compatibility reports, documentation fixes, and
-already-public hardening work.
-
-## What to Include
-
-Please include enough detail for maintainers to reproduce and scope the issue:
-
-- affected commit, package version, or artifact name;
-- Linux distribution, package format, and desktop environment when relevant;
-- exact commands or user actions that trigger the behavior;
-- relevant logs or command output with secrets removed;
-- expected impact, affected trust boundary, and any known workaround.
-
-## Maintainer Response
-
-Maintainers triage private reports on a best-effort basis through GitHub
-Security Advisories. When a report is valid, maintainers coordinate the fix,
-local validation, and disclosure path before public details are published when
-that is practical.
-
-Depending on the issue, the outcome may include a private advisory, a patched
-commit, updated package artifacts, release notes, maintainer documentation, or
-a tracked public hardening task after sensitive details are no longer useful to
-withhold.
-
-For maintainer-facing security workflow and current open hardening work, see
-[Security Backlog](docs/maintainers/security-backlog.md). For the repository
-trust-boundary model, see [Threat Model](docs/maintainers/threat-model.md).
+This was an unofficial community project. It is not affiliated with, endorsed
+by, sponsored by, or supported by OpenAI.
