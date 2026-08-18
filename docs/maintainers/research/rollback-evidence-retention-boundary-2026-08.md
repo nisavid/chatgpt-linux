@@ -1,6 +1,6 @@
 # Rollback Evidence Retention Boundary
 
-Checked: 2026-08-17
+Checked: 2026-08-18
 
 ## Scope
 
@@ -260,7 +260,8 @@ intentionally does not wait for them.
 4. After M3, execute the category-by-category M4 cleanup with freshly verified
    targets and explicit deletion authority. Delete the private executable
    fallback bytes and large snapshot, then remove fork-only updater, migration,
-   mask, override, credential, and operational residue in dependency order.
+   override, stale enablement, mask, credential, and operational residue in
+   dependency order.
    Preserve all shared profile and Codex state.
 5. Retain compact evidence indefinitely: the archived repository and annotated tag,
    path-free baseline JSON, sanitized provenance, issue resolutions, CI links,
