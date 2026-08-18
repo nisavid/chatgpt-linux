@@ -8773,12 +8773,16 @@ test_browser_use_node_repl_fallback_runtime() {
     local app_dir="$workspace/ChatGPT.app"
     local install_dir="$workspace/install"
     local archive_root="$workspace/archive-root"
-    local archive="$workspace/runtime.tar.xz"
+    local archive="$workspace/chatgpt-runtime.deb"
+    local data_archive="$workspace/data.tar.xz"
+    local control_archive="$workspace/control.tar.xz"
+    local debian_binary="$workspace/debian-binary"
+    local fallback_node_repl="$archive_root/usr/lib/chatgpt/resources/cua_node/bin/node_repl"
     local output_log="$workspace/output.log"
     local archive_sha
     local true_bin
 
-    mkdir -p "$workspace" "$install_dir/resources" "$archive_root/codex-primary-runtime/dependencies/bin"
+    mkdir -p "$workspace" "$install_dir/resources" "$(dirname "$fallback_node_repl")"
     make_fake_browser_official_app "$app_dir"
 
     # Simulate the current upstream DMG shape: node_repl is under cua_node/bin,
@@ -8788,9 +8792,13 @@ test_browser_use_node_repl_fallback_runtime() {
     chmod +x "$app_dir/Contents/Resources/cua_node/bin/node_repl"
 
     true_bin="$(type -P true)"
-    cp "$true_bin" "$archive_root/codex-primary-runtime/dependencies/bin/node_repl"
-    chmod 0755 "$archive_root/codex-primary-runtime/dependencies/bin/node_repl"
-    tar -cJf "$archive" -C "$archive_root" codex-primary-runtime
+    cp "$true_bin" "$fallback_node_repl"
+    printf '%s\n' 'NODE_REPL_TRUSTED_SERVICES' 'NODE_REPL_TRUSTED_RPC_ENABLED' 'nodeRepl.rpc = function rpc' >> "$fallback_node_repl"
+    chmod 0755 "$fallback_node_repl"
+    tar -cJf "$data_archive" -C "$archive_root" usr
+    tar -cJf "$control_archive" --files-from /dev/null
+    printf '2.0\n' > "$debian_binary"
+    ar rcs "$archive" "$debian_binary" "$control_archive" "$data_archive"
     archive_sha="$(sha256sum "$archive" | awk '{print $1}')"
 
     (
@@ -8802,7 +8810,7 @@ test_browser_use_node_repl_fallback_runtime() {
         CHATGPT_APP_ID="chatgpt"
         XDG_CACHE_HOME="$workspace/xdg-cache"
         CODEX_NODE_REPL_PATH=
-        CHATGPT_LINUX_NODE_REPL_SOURCE=
+        CHATGPT_LINUX_NODE_REPL_SOURCE="$true_bin"
         CHATGPT_BROWSER_USE_RUNTIME_CACHE_DIR="$workspace/cache"
         CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL="file://$archive"
         CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256="$archive_sha"
@@ -8823,12 +8831,13 @@ test_browser_use_node_repl_fallback_runtime() {
 
     assert_file_exists "$install_dir/resources/node_repl"
     assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs"
-    cmp -s "$true_bin" "$install_dir/resources/node_repl" || fail "Expected fallback node_repl to come from the runtime archive"
+    cmp -s "$fallback_node_repl" "$install_dir/resources/node_repl" || fail "Expected fallback node_repl to come from the official Linux package"
     assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "globalThis.nodeRepl"
     assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'o("browser",{method:"setup"'
     assert_contains "$output_log" "Browser Use node_repl runtime is not a Linux executable for x86_64; skipping"
     assert_not_contains "$output_log" "WARN.*Browser Use node_repl runtime is not a Linux executable"
-    assert_contains "$output_log" "Downloading Browser Use node_repl fallback runtime"
+    assert_contains "$output_log" "does not implement the trusted Browser RPC contract; skipping"
+    assert_contains "$output_log" "Downloading Browser Use node_repl fallback package"
 }
 
 test_browser_use_file_url_policy_patch_behavior() {

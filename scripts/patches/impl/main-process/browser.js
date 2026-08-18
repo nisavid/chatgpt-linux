@@ -418,96 +418,219 @@ function applyBrowserUseNodeReplApprovalPatch(currentSource) {
   return patchedSource;
 }
 
-function browserUseRequestMetaHelperSource() {
-  return (
-    `function ${helperName}(__chatgptExisting,__chatgptEnv,__chatgptCodexHome){` +
-    `let __chatgptMeta={};if(__chatgptExisting!=null){try{__chatgptMeta=JSON.parse(__chatgptExisting)}catch{throw Error(\`Browser node_repl request metadata is invalid\`)}if(typeof __chatgptMeta!==\`object\`||__chatgptMeta==null||Array.isArray(__chatgptMeta))throw Error(\`Browser node_repl request metadata is invalid\`)}` +
-    `let __chatgptAllowed=new Set([\`BROWSER_AUTH_BROKER_SOCKET_PATH\`,\`BROWSER_USE_AVAILABLE_BACKENDS\`,\`BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED\`,\`BROWSER_USE_CODEX_APP_BUILD_FLAVOR\`,\`BROWSER_USE_CODEX_APP_VERSION\`,\`BROWSER_USE_DISABLE_AMBIENT_NETWORK\`,\`BROWSER_USE_DISABLE_API_MEMBERS\`,\`BROWSER_USE_DISABLE_BROWSER_CAPABILITIES\`,\`BROWSER_USE_DISABLE_TAB_CAPABILITIES\`,\`BROWSER_USE_SECURITY_MODE\`,\`CODEX_CHROME_USER_DATA_DIR\`,\`NODE_REPL_DISABLE_ANALYTICS\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER\`,\`NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME\`]),__chatgptContext={};` +
-    `for(let[__chatgptKey,__chatgptValue]of Object.entries(__chatgptEnv??{})){if(!__chatgptAllowed.has(__chatgptKey))continue;if(typeof __chatgptValue!==\`string\`)throw Error(\`Browser node_repl security context is invalid\`);__chatgptContext[__chatgptKey]=__chatgptValue}` +
-    `if(typeof __chatgptCodexHome!==\`string\`||__chatgptCodexHome.length===0)throw Error(\`Browser node_repl security context is invalid\`);__chatgptContext.CODEX_HOME=__chatgptCodexHome;` +
-    `let __chatgptFlavor=__chatgptContext.BROWSER_USE_CODEX_APP_BUILD_FLAVOR,__chatgptMode=__chatgptContext.BROWSER_USE_SECURITY_MODE;if(![\`dev\`,\`internal\`,\`prod\`].includes(__chatgptFlavor))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode!=null&&![\`\`,\`disabled-for-local-testing\`,\`gaas-browser-environment\`].includes(__chatgptMode))throw Error(\`Browser node_repl security context is invalid\`);if(__chatgptMode===\`disabled-for-local-testing\`&&__chatgptFlavor!==\`dev\`)throw Error(\`Browser node_repl security context is invalid\`);` +
-    `return JSON.stringify({...__chatgptMeta,[\`chatgpt/browser-runtime-context\`]:{version:1,env:__chatgptContext}})}`
+const identifierPattern = "[A-Za-z_$][\\w$]*";
+
+function executableStringBinding(source, value) {
+  const matches = executableRegexMatches(
+    source,
+    new RegExp(`(${identifierPattern})=\\\`${escapeRegExp(value)}\\\``, "g"),
   );
+  return matches.length === 1 ? matches[0][1] : null;
 }
 
-const helperName = "chatgptLinuxBrowserUseRequestMeta";
-const browserUseRuntimeConfigPattern =
-  /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{codexCliPath:[^,]+,codexHome:)([A-Za-z_$][\w$]*)(,envVars:[^,]+,extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)([A-Za-z_$][\w$]*)(,sentryUserId:)/g;
-const browserUseWrappedRuntimeConfigPattern =
-  /(?<![A-Za-z0-9_$])(?<!function )([A-Za-z_$][\w$]*\(\{codexCliPath:[^,]+,codexHome:)([A-Za-z_$][\w$]*)(,envVars:[^,]+,extraEnv:)([A-Za-z_$][\w$]*)(,nodeModuleDirs:[^,]+,nodePath:[^,]+,nodeReplPath:[^,]+,platform:[^,]+,requestMeta:)chatgptLinuxBrowserUseRequestMeta\(([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)\)(,sentryUserId:)/g;
+function executableFunctionMatches(source, pattern) {
+  return executableRegexMatches(source, pattern).map((match) => {
+    const openIndex = match.index + match[0].length - 1;
+    return { closeIndex: findMatchingBrace(source, openIndex), match, openIndex };
+  }).filter(({ closeIndex, openIndex }) => closeIndex > openIndex);
+}
+
+function executableMatchesInside(source, pattern, range) {
+  const bodyStart = range.openIndex + 1;
+  const body = source.slice(bodyStart, range.closeIndex);
+  return executableRegexMatches(body, pattern).map((match) => {
+    match.index += bodyStart;
+    return match;
+  });
+}
+
+function enclosingObjectAssignment(source, index, range) {
+  const assignments = executableMatchesInside(
+    source,
+    new RegExp(`(?:let |,)(${identifierPattern})=\\{`, "g"),
+    range,
+  ).map((match) => {
+    const openIndex = match.index + match[0].length - 1;
+    return {
+      closeIndex: findMatchingBrace(source, openIndex),
+      match,
+      openIndex,
+    };
+  }).filter(({ closeIndex, openIndex }) => openIndex < index && closeIndex >= index);
+  return assignments.length === 1 ? assignments[0] : null;
+}
 
 function hasBrowserUseSecurityContextProducerContract(source) {
-  const helper = browserUseRequestMetaHelperSource();
-  const helperMatches = executableRegexMatches(
+  const trustedCodePathsKey = executableStringBinding(
     source,
-    new RegExp(escapeRegExp(helper), "g"),
+    "NODE_REPL_TRUSTED_CODE_PATHS",
   );
-  const wrappedMatches = executableRegexMatches(
+  const trustedServicesKey = executableStringBinding(source, "NODE_REPL_TRUSTED_SERVICES");
+  const nodeReplServerKey = executableStringBinding(source, "node_repl");
+  const backendsKey = executableStringBinding(source, "BROWSER_USE_AVAILABLE_BACKENDS");
+  const buildFlavorKey = executableStringBinding(
     source,
-    browserUseWrappedRuntimeConfigPattern,
+    "BROWSER_USE_CODEX_APP_BUILD_FLAVOR",
   );
-  const unwrappedMatches = executableRegexMatches(
-    source,
-    browserUseRuntimeConfigPattern,
-  );
+  const appVersionKey = executableStringBinding(source, "BROWSER_USE_CODEX_APP_VERSION");
+  const securityModeKey = executableStringBinding(source, "BROWSER_USE_SECURITY_MODE");
   if (
-    helperMatches.length !== 1 ||
-    wrappedMatches.length !== 1 ||
-    unwrappedMatches.length !== 0
+    [
+      trustedCodePathsKey,
+      trustedServicesKey,
+      nodeReplServerKey,
+      backendsKey,
+      buildFlavorKey,
+      appVersionKey,
+      securityModeKey,
+    ].some((value) => value == null)
   ) return false;
-  const wrapped = wrappedMatches[0];
-  return wrapped[4] === wrapped[7] && wrapped[2] === wrapped[8];
+
+  const runtimeBuilders = executableFunctionMatches(
+    source,
+    new RegExp(
+      `function (${identifierPattern})\\(\\{codexCliPath:(${identifierPattern}),codexHome:(${identifierPattern}),envVars:(${identifierPattern})=\\[\\],extraEnv:(${identifierPattern}),nodeModuleDirs:(${identifierPattern})=\\\`\\\`,nodePath:(${identifierPattern}),nodeReplPath:(${identifierPattern}),platform:(${identifierPattern}),requestMeta:(${identifierPattern}),sentryUserId:(${identifierPattern}),traceMeta:(${identifierPattern})=!1,shouldUseWslPaths:(${identifierPattern})\\}\\)\\{`,
+      "g",
+    ),
+  );
+  if (runtimeBuilders.length !== 1) return false;
+  const runtimeBuilder = runtimeBuilders[0];
+  const [
+    ,
+    runtimeBuilderName,
+    codexCliArg,
+    codexHomeArg,
+    envVarsArg,
+    extraEnvArg,
+    moduleDirsArg,
+    nodePathArg,
+    nodeReplPathArg,
+    platformArg,
+  ] = runtimeBuilder.match;
+  const trustedPathMatches = executableMatchesInside(
+    source,
+    new RegExp(
+      `\\[${escapeRegExp(trustedCodePathsKey)}\\]:(${identifierPattern})\\(\\[${escapeRegExp(codexHomeArg)},${escapeRegExp(moduleDirsArg)}\\],${escapeRegExp(platformArg)}\\),CODEX_HOME:${escapeRegExp(codexHomeArg)}(?=[,}])`,
+      "g",
+    ),
+    runtimeBuilder,
+  );
+  if (trustedPathMatches.length !== 1) return false;
+  const runtimeEnvAssignment = enclosingObjectAssignment(
+    source,
+    trustedPathMatches[0].index,
+    runtimeBuilder,
+  );
+  if (runtimeEnvAssignment == null) return false;
+  const runtimeEnvVar = runtimeEnvAssignment.match[1];
+  const extraEnvCopies = executableMatchesInside(
+    source,
+    new RegExp(
+      `Object\\.assign\\(${escapeRegExp(runtimeEnvVar)},${identifierPattern}\\(${escapeRegExp(extraEnvArg)}\\)\\)`,
+      "g",
+    ),
+    runtimeBuilder,
+  );
+  const nodeReplConfigs = executableMatchesInside(
+    source,
+    new RegExp(
+      `\\{\\[\\\`mcp_servers\\.\\$\\{${escapeRegExp(nodeReplServerKey)}\\}\\\`\\]:\\{args:\\[\\],command:${escapeRegExp(nodeReplPathArg)},env:${escapeRegExp(runtimeEnvVar)},`,
+      "g",
+    ),
+    runtimeBuilder,
+  );
+  if (extraEnvCopies.length !== 1 || nodeReplConfigs.length !== 1) return false;
+
+  const producers = executableFunctionMatches(
+    source,
+    new RegExp(
+      `function (${identifierPattern})\\(\\{appVersion:(${identifierPattern}),availableBrowserUseBackends:(${identifierPattern}),computerUse:(${identifierPattern}),enforceModelCheck:(${identifierPattern}),computerUseNativePipePath:${identifierPattern},computerUsePaths:${identifierPattern},hostServicesPipePath:${identifierPattern},includePrivateProcessEnv:${identifierPattern},runtimePaths:(${identifierPattern}),sentryUserId:${identifierPattern},shouldUseWslPaths:(${identifierPattern})\\}\\)\\{`,
+      "g",
+    ),
+  );
+  if (producers.length !== 1) return false;
+  const producer = producers[0];
+  const [, , appVersionArg, backendsArg, computerUseArg, , runtimePathsArg, wslArg] =
+    producer.match;
+  const serviceMatches = executableMatchesInside(
+    source,
+    new RegExp(
+      `let (${identifierPattern})=${identifierPattern}\\(${escapeRegExp(runtimePathsArg)}\\.nodeModuleDirs,${escapeRegExp(runtimePathsArg)}\\.platform\\),(${identifierPattern})=${identifierPattern}(?:\\.${identifierPattern})*\\(\\),(${identifierPattern})=${identifierPattern}(?:\\.${identifierPattern})*\\.resolve\\(\\),(${identifierPattern})=${escapeRegExp(backendsArg)}\\.length===0\\?void 0:\\\`\\$\\{(${identifierPattern})\\.${identifierPattern}\\(\\{codexHome:\\2,localVersion:${escapeRegExp(appVersionArg)},marketplaceName:\\5\\.${identifierPattern}\\(\\3\\),pluginName:\\5\\.${identifierPattern}\\}\\)\\}\\/scripts\\/browser-service\\.mjs\\\``,
+      "g",
+    ),
+    producer,
+  );
+  if (serviceMatches.length !== 1) return false;
+  const [, moduleDirsVar, codexHomeVar, buildFlavorVar, serviceVar] = serviceMatches[0];
+
+  const boundaryParts = [
+    new RegExp(`\\[${escapeRegExp(backendsKey)}\\]:${escapeRegExp(backendsArg)}\\.join\\(\\\`,\\\`\\)`, "g"),
+    new RegExp(`\\[${escapeRegExp(buildFlavorKey)}\\]:${escapeRegExp(buildFlavorVar)}(?=[,}])`, "g"),
+    new RegExp(`\\[${escapeRegExp(appVersionKey)}\\]:${escapeRegExp(appVersionArg)}(?=[,}])`, "g"),
+    new RegExp(
+      `\\[${escapeRegExp(trustedServicesKey)}\\]:${escapeRegExp(serviceVar)}==null&&!${escapeRegExp(computerUseArg)}\\?void 0:JSON\\.stringify\\(\\{\\.\\.\\.${escapeRegExp(serviceVar)}==null\\?\\{\\}:\\{browser:${escapeRegExp(serviceVar)}\\},\\.\\.\\.${escapeRegExp(computerUseArg)}\\?\\{sky:\\\`@oai/sky/service\\\`\\}:\\{\\}\\}\\)`,
+      "g",
+    ),
+  ].map((pattern) => executableMatchesInside(source, pattern, producer));
+  if (boundaryParts.some((matches) => matches.length !== 1)) return false;
+  const extraEnvAssignment = enclosingObjectAssignment(
+    source,
+    boundaryParts[0][0].index,
+    producer,
+  );
+  if (extraEnvAssignment == null) return false;
+  const extraEnvVar = extraEnvAssignment.match[1];
+  if (
+    boundaryParts.some(
+      ([match]) => match.index < extraEnvAssignment.openIndex ||
+        match.index > extraEnvAssignment.closeIndex,
+    )
+  ) return false;
+
+  const devForwarding = executableMatchesInside(
+    source,
+    new RegExp(
+      `\\.\\.\\.(${identifierPattern})\\((${identifierPattern})\\),\\.\\.\\.${escapeRegExp(buildFlavorVar)}===(${identifierPattern}(?:\\.${identifierPattern})*)\\.Dev\\?\\1\\((${identifierPattern})\\):\\{\\}`,
+      "g",
+    ),
+    producer,
+  ).filter(
+    (match) => match.index > extraEnvAssignment.openIndex &&
+      match.index < extraEnvAssignment.closeIndex,
+  );
+  if (devForwarding.length !== 1) return false;
+  const [, , commonEnvKeys, , devEnvKeys] = devForwarding[0];
+  if (commonEnvKeys === devEnvKeys) return false;
+
+  const securityModeArrays = executableRegexMatches(
+    source,
+    new RegExp(
+      `(?:var |,)(${identifierPattern})=\\[((?:${identifierPattern},)*)${escapeRegExp(securityModeKey)}((?:,${identifierPattern})*)\\]`,
+      "g",
+    ),
+  );
+  if (securityModeArrays.length !== 1 || securityModeArrays[0][1] !== devEnvKeys) {
+    return false;
+  }
+
+  const runtimeCalls = executableMatchesInside(
+    source,
+    new RegExp(
+      `return ${escapeRegExp(runtimeBuilderName)}\\(\\{codexCliPath:${escapeRegExp(runtimePathsArg)}\\.codexCliPath,codexHome:${escapeRegExp(codexHomeVar)},envVars:${identifierPattern},extraEnv:${escapeRegExp(extraEnvVar)},nodeModuleDirs:${escapeRegExp(moduleDirsVar)},nodePath:${escapeRegExp(runtimePathsArg)}\\.nodePath,nodeReplPath:${escapeRegExp(wslArg)}\\?${identifierPattern}(?:\\.${identifierPattern})*\\(${escapeRegExp(runtimePathsArg)}\\.nodeReplPath\\):${escapeRegExp(runtimePathsArg)}\\.nodeReplPath,platform:${escapeRegExp(runtimePathsArg)}\\.platform,requestMeta:${identifierPattern},sentryUserId:${identifierPattern},traceMeta:${identifierPattern},shouldUseWslPaths:${escapeRegExp(wslArg)}\\}\\)`,
+      "g",
+    ),
+    producer,
+  );
+  return runtimeCalls.length === 1;
 }
 
 function applyBrowserUseNodeReplSecurityContextPatch(currentSource) {
-  if (hasBrowserUseSecurityContextProducerContract(currentSource)) {
-    return currentSource;
-  }
-
-  const partialHelpers = executableRegexMatches(
-    currentSource,
-    new RegExp(`function ${helperName}\\(`, "g"),
-  );
-  const partialWrappedCalls = executableRegexMatches(
-    currentSource,
-    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(/g,
-  );
-  if (partialHelpers.length > 0 || partialWrappedCalls.length > 0) {
+  if (!hasBrowserUseSecurityContextProducerContract(currentSource)) {
     throw new Error(
-      "Required Browser Use node_repl security-context producer is only partially present",
+      "Required Browser Use node_repl trusted-service producer contract was not found exactly once",
     );
   }
-
-  const matches = executableRegexMatches(currentSource, browserUseRuntimeConfigPattern);
-  if (matches.length !== 1) {
-    throw new Error(
-      `Required Browser Use node_repl security-context producer expected one executable runtime builder, found ${matches.length}`,
-    );
-  }
-
-  const helper = browserUseRequestMetaHelperSource();
-  const strictDirective = '"use strict";';
-  const helperInsertionIndex = currentSource.startsWith(strictDirective)
-    ? strictDirective.length
-    : 0;
-  const match = matches[0];
-  const replacement =
-    `${match[1]}${match[2]}${match[3]}${match[4]}${match[5]}` +
-    `${helperName}(${match[6]},${match[4]},${match[2]})${match[7]}`;
-  const patchedSource =
-    currentSource.slice(0, match.index) + replacement +
-    currentSource.slice(match.index + match[0].length);
-  const finalSource = (
-    patchedSource.slice(0, helperInsertionIndex) +
-    helper +
-    patchedSource.slice(helperInsertionIndex)
-  );
-  if (!hasBrowserUseSecurityContextProducerContract(finalSource)) {
-    throw new Error(
-      "Required Browser Use node_repl security-context producer did not reach its verified final state",
-    );
-  }
-  return finalSource;
+  return currentSource;
 }
 
 // The trusted-hash setup and node_repl config can live in different build chunks.

@@ -1649,7 +1649,14 @@ const currentBrowserUseTrustedHashesInsertionRegex =
   /trustedBrowserClientSha256s:h=\[\],shouldUseWslPaths:f\}\)\{h=chatgptLinuxTrustedBrowserClientSha256s\(h\);return h/;
 
 function currentBrowserUseSecurityContextBuilderFixture() {
-  return '"use strict";function fte(){let h=`/tmp/codex-home`,b={BROWSER_USE_AVAILABLE_BACKENDS:`iab`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:`prod`,BROWSER_USE_CODEX_APP_VERSION:`26.803.41515`},p=`modules`,l={nodePath:`node`,nodeReplPath:`node_repl`,platform:`linux`},d=!1,n={ci:e=>e},g=void 0,u=null;return Ye({codexCliPath:`codex`,codexHome:h,envVars:{},extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:g,sentryUserId:u})}';
+  return [
+    '"use strict";',
+    'var Re=`CODEX_CLI_PATH`,ze=`NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS`,Be=`NODE_REPL_NODE_MODULE_DIRS`,Ve=`NODE_REPL_NODE_PATH`,He=`NODE_REPL_REQUEST_META`,Ue=`node_repl`,We=`NODE_REPL_SENTRY_USER_ID`,Ge=`NODE_REPL_TRACE_META`,Ke=`NODE_REPL_TRUSTED_CODE_PATHS`,qe=`NODE_REPL_TRUSTED_SERVICES`;',
+    'function Je({codexCliPath:e,codexHome:t,envVars:n=[],extraEnv:r,nodeModuleDirs:i=``,nodePath:a,nodeReplPath:o,platform:s,requestMeta:c,sentryUserId:l,traceMeta:u=!1,shouldUseWslPaths:d}){if(a==null||o==null)return null;let f={[ze]:`1000`,[Be]:i,[Ve]:a,[Ke]:Ye([t,i],s),CODEX_HOME:t};return c!=null&&(f[He]=c),l!=null&&(f[We]=l),u&&(f[Ge]=`1`),Object.assign(f,Ze(r)),e!=null&&Xe(s)&&(f[Re]=e),d&&(f.WSLENV=Object.keys(f).map(e=>`${e}/w`).join(`:`)),{[`mcp_servers.${Ue}`]:{args:[],command:o,env:f,...n.length===0?{}:{env_vars:Array.from(n)},startup_timeout_sec:120}}}',
+    'var tn=`BROWSER_USE_AVAILABLE_BACKENDS`,iee=`BROWSER_USE_CODEX_APP_BUILD_FLAVOR`,aee=`BROWSER_USE_CODEX_APP_VERSION`,oee=`BROWSER_USE_DISABLE_AMBIENT_NETWORK`,see=`BROWSER_USE_DISABLE_API_MEMBERS`,cee=`BROWSER_USE_DISABLE_BROWSER_CAPABILITIES`,lee=`BROWSER_USE_DISABLE_TAB_CAPABILITIES`,uee=`BROWSER_USE_SECURITY_MODE`;',
+    'var nte=[jr,oee,see,cee,lee],rte=[Mr,uee,Nr];',
+    'function dte({appVersion:e,availableBrowserUseBackends:t,computerUse:r,enforceModelCheck:i,computerUseNativePipePath:o,computerUsePaths:s,hostServicesPipePath:c,includePrivateProcessEnv:l,runtimePaths:u,sentryUserId:d,shouldUseWslPaths:f}){let p=mte(u.nodeModuleDirs,u.platform),m=n.ei(),h=a.a.resolve(),g=t.length===0?void 0:`${n.Fs({codexHome:m,localVersion:e,marketplaceName:n.js(h),pluginName:n.ys})}/scripts/browser-service.mjs`,_=h===a.a.Dev?S.default.env[He]:void 0,v=a.a.isInternal(h)||S.default.env.NODE_REPL_TRACE_META===`1`,y=S.default.env[Ir]?.trim(),b={[tn]:t.join(`,`),...i?{NODE_REPL_ENFORCE_MODEL_CHECK:`1`}:{},[iee]:h,[aee]:e,[qe]:g==null&&!r?void 0:JSON.stringify({...g==null?{}:{browser:g},...r?{sky:`@oai/sky/service`}:{}}),...ea(nte),...h===a.a.Dev?ea(rte):{},...y?{[Ir]:y}:{}},x=[];return Je({codexCliPath:u.codexCliPath,codexHome:m,envVars:x,extraEnv:b,nodeModuleDirs:p,nodePath:u.nodePath,nodeReplPath:f?n.di(u.nodeReplPath):u.nodeReplPath,platform:u.platform,requestMeta:_,sentryUserId:d,traceMeta:v,shouldUseWslPaths:f})}',
+  ].join("");
 }
 
 function electron42BrowserUseRuntimeResolverBundleFixture() {
@@ -10448,61 +10455,58 @@ test("uses xdg-open path when CHATGPT_LINUX_DISABLE_EXTERNAL_OPEN_PATCH is not 1
   assert.equal(spawnCalls[0].command, "xdg-open");
 });
 
-test("propagates the Browser security context through node_repl request metadata", () => {
-  const patched = applyPatchTwice(
-    applyBrowserUseNodeReplSecurityContextPatch,
-    currentBrowserUseSecurityContextBuilderFixture(),
+test("accepts the current Browser trusted-service producer unchanged", () => {
+  const source = currentBrowserUseSecurityContextBuilderFixture();
+  const patched = applyPatchTwice(applyBrowserUseNodeReplSecurityContextPatch, source);
+  const descriptor = corePatchDescriptors().find(
+    (candidate) => candidate.id === "linux-browser-use-node-repl-security-context",
   );
+  const report = createPatchReport();
+  const result = applyMainBundlePatchDescriptors(source, [descriptor], {}, report);
 
-  assert.match(patched, /function chatgptLinuxBrowserUseRequestMeta/);
-  assert.match(
-    patched,
-    /requestMeta:chatgptLinuxBrowserUseRequestMeta\(g,b,h\),sentryUserId:u/,
-  );
-
-  const metadata = JSON.parse(
-    vm.runInNewContext(
-      `${patched};chatgptLinuxBrowserUseRequestMeta(JSON.stringify({existing:\`kept\`}),{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,UNRELATED_SECRET:\`drop-me\`},\`/tmp/codex-home\`)`,
-    ),
-  );
-  assert.equal(metadata.existing, "kept");
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(metadata["chatgpt/browser-runtime-context"])),
-    {
-      version: 1,
-      env: {
-        BROWSER_USE_AVAILABLE_BACKENDS: "iab",
-        BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
-        BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
-        CODEX_HOME: "/tmp/codex-home",
-      },
-    },
-  );
-  assert.equal(metadata["chatgpt/browser-runtime-context"].env.UNRELATED_SECRET, undefined);
+  assert.equal(patched, source);
+  assert.equal(result.patchedSource, source);
+  assert.equal(report.patches[0]?.status, "already-applied");
+  assert.match(patched, /NODE_REPL_TRUSTED_SERVICES/);
+  assert.match(patched, /NODE_REPL_TRUSTED_CODE_PATHS/);
+  assert.doesNotMatch(patched, /chatgptLinuxBrowserUseRequestMeta|chatgpt\/browser-runtime-context/);
 });
 
-test("rejects non-executable and partial Browser security-context producer contracts", () => {
+test("rejects non-executable and ambiguous Browser trusted-service producers", () => {
   const current = currentBrowserUseSecurityContextBuilderFixture();
-  const patched = applyBrowserUseNodeReplSecurityContextPatch(current);
-  const helper = patched.slice(
-    patched.indexOf("function chatgptLinuxBrowserUseRequestMeta("),
-    patched.indexOf("function fte()"),
-  );
-  const wrappedCall =
-    "Ye({codexCliPath:`codex`,codexHome:h,envVars:{},extraEnv:b,nodeModuleDirs:p,nodePath:l.nodePath,nodeReplPath:d?n.ci(l.nodeReplPath):l.nodeReplPath,platform:l.platform,requestMeta:chatgptLinuxBrowserUseRequestMeta(g,b,h),sentryUserId:u})";
   const cases = [
-    `/*${helper}${wrappedCall}*/`,
-    `const decoy=${JSON.stringify(`${helper}${wrappedCall}`)};`,
-    `${helper}${current}`,
-    `${current.replace("requestMeta:g", "requestMeta:chatgptLinuxBrowserUseRequestMeta(g,b,h)")}`,
+    `/*${current}*/`,
+    `const decoy=${JSON.stringify(current)};`,
+    `const decoy=\`outer \${\`${current}\`} tail\`;`,
     `${current}${current}`,
-    `${patched}${current}`,
   ];
 
   for (const source of cases) {
     assert.throws(
       () => applyBrowserUseNodeReplSecurityContextPatch(source),
-      /Browser Use node_repl security-context producer/,
+      /Browser Use node_repl trusted-service producer/,
+    );
+  }
+});
+
+test("rejects drift in each Browser trusted-service security boundary", () => {
+  const current = currentBrowserUseSecurityContextBuilderFixture();
+  const cases = [
+    current.replace("/scripts/browser-service.mjs", "/scripts/browser-client.mjs"),
+    current.replace("Ye([t,i],s)", "Ye([t],s)"),
+    current.replace("...h===a.a.Dev?ea(rte):{}", "...ea(rte)"),
+    current.replace("nte=[jr,oee,see,cee,lee]", "nte=[jr,oee,see,cee,lee,uee]"),
+    current.replace("[aee]:e", "[aee]:`unknown`"),
+    current.replace("extraEnv:b,nodeModuleDirs:p", "extraEnv:{},nodeModuleDirs:p"),
+    current.replace("nodeModuleDirs:p,nodePath:u.nodePath", "nodeModuleDirs:`other`,nodePath:u.nodePath"),
+    current.replace("nodePath:u.nodePath", "nodePath:`node`"),
+  ];
+
+  for (const source of cases) {
+    assert.notEqual(source, current);
+    assert.throws(
+      () => applyBrowserUseNodeReplSecurityContextPatch(source),
+      /Browser Use node_repl trusted-service producer/,
     );
   }
 });
@@ -10519,38 +10523,7 @@ test("reports malformed Browser security-context producer contracts as failed-re
   assert.equal(report.patches[0]?.status, "failed-required");
   assert.match(
     report.patches[0]?.reason ?? "",
-    /Browser Use node_repl security-context producer/,
-  );
-});
-
-test("reports an extra unwrapped Browser security-context producer as failed-required", () => {
-  const descriptor = corePatchDescriptors().find(
-    (candidate) => candidate.id === "linux-browser-use-node-repl-security-context",
-  );
-  const current = currentBrowserUseSecurityContextBuilderFixture();
-  const source = `${applyBrowserUseNodeReplSecurityContextPatch(current)}${current}`;
-  const report = createPatchReport();
-  const result = applyMainBundlePatchDescriptors(source, [descriptor], {}, report);
-
-  assert.equal(result.patchedSource, source);
-  assert.equal(report.patches[0]?.status, "failed-required");
-  assert.match(
-    report.patches[0]?.reason ?? "",
-    /Browser Use node_repl security-context producer/,
-  );
-});
-
-test("refuses the local-testing Browser security mode outside a development build", () => {
-  const patched = applyBrowserUseNodeReplSecurityContextPatch(
-    currentBrowserUseSecurityContextBuilderFixture(),
-  );
-
-  assert.throws(
-    () =>
-      vm.runInNewContext(
-        `${patched};chatgptLinuxBrowserUseRequestMeta(null,{BROWSER_USE_AVAILABLE_BACKENDS:\`iab\`,BROWSER_USE_CODEX_APP_BUILD_FLAVOR:\`prod\`,BROWSER_USE_CODEX_APP_VERSION:\`26.803.41515\`,BROWSER_USE_SECURITY_MODE:\`disabled-for-local-testing\`},\`/tmp/codex-home\`)`,
-      ),
-    /Browser node_repl security context is invalid/,
+    /Browser Use node_repl trusted-service producer/,
   );
 });
 

@@ -13,27 +13,43 @@ const { pathToFileURL } = require("node:url");
 const runtimePath = process.env.CODEX_NODE_REPL_PATH;
 const pluginsRoot = process.env.CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT;
 
+function trustedBrowserRuntimeEnvironment() {
+  assert.ok(runtimePath, "CODEX_NODE_REPL_PATH is required");
+  assert.ok(pluginsRoot, "CHATGPT_STAGED_BUNDLED_PLUGINS_ROOT is required");
+  const resourcesRoot = path.resolve(pluginsRoot, "../../..");
+  const browserRoot = path.join(pluginsRoot, "browser");
+  const browserService = path.join(browserRoot, "scripts", "browser-service.mjs");
+  const nodePath = path.join(resourcesRoot, "node-runtime", "bin", "node");
+  assert.ok(fs.existsSync(browserService), `Browser service not found: ${browserService}`);
+  assert.ok(fs.existsSync(nodePath), `managed Node runtime not found: ${nodePath}`);
+  return {
+    BROWSER_USE_AVAILABLE_BACKENDS: "iab",
+    BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
+    BROWSER_USE_CODEX_APP_VERSION: "26.814.41407",
+    NODE_REPL_NODE_MODULE_DIRS: browserRoot,
+    NODE_REPL_NODE_PATH: nodePath,
+    NODE_REPL_TRUSTED_CODE_PATHS: browserRoot,
+    NODE_REPL_TRUSTED_SERVICES: JSON.stringify({ browser: browserService }),
+  };
+}
+
 function stageBrowserClient(sourcePath) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-browser-runtime-client-"));
   const clientPath = path.join(tempDir, "browser-client.mjs");
   const source = fs.readFileSync(sourcePath, "utf8");
-  for (const marker of [
-    "function chatgptLinuxBrowserUseConfigShim()",
-    "function chatgptLinuxBrowserUseValidatedEnvironment(repl)",
-    "function chatgptLinuxBrowserUseEnvironmentShim(repl)",
-    "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl),",
-    "/*chatgptLinuxBrowserUseRuntimeEnv*/",
+  for (const contract of [
+    /globalThis\.nodeRepl/u,
+    /typeof [A-Za-z_$][\w$]*\.rpc!="function"/u,
+    /[A-Za-z_$][\w$]*\("browser",\{method:"setup",params:[A-Za-z_$][\w$]*\}\)/u,
+    /[A-Za-z_$][\w$]*\("browser",\{method:"execute",params:[A-Za-z_$][\w$]*\}\)/u,
+    /export\{[A-Za-z_$][\w$]* as setupBrowserRuntime\};/u,
   ]) {
-    assert.equal(
-      source.split(marker).length - 1,
-      1,
-      `staged Browser client must contain exactly one verified marker: ${marker}`,
-    );
+    assert.equal(source.match(new RegExp(contract.source, contract.flags + "g"))?.length, 1);
   }
   assert.doesNotMatch(
     source,
-    /import\{env as [A-Za-z_$][\w$]*\}from"node:process";/,
-    "staged Browser client must not retain the original process environment import",
+    /chatgptLinuxBrowserUse|node:process/u,
+    "staged Browser client must not contain legacy environment shims",
   );
   fs.copyFileSync(sourcePath, clientPath);
   return { clientPath, tempDir };
@@ -138,45 +154,20 @@ function runNodeReplImport(runtime, clients) {
   const code = `${clients
     .map((client) => `await import(${JSON.stringify(pathToFileURL(client).href)});`)
     .join("")}nodeRepl.write("imports-ok")`;
-  return runNodeReplCode(runtime, code, {
-    NODE_REPL_REQUEST_META: JSON.stringify({
-      "chatgpt/browser-runtime-context": {
-        version: 1,
-        env: {
-          BROWSER_USE_AVAILABLE_BACKENDS: "iab",
-          BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
-          BROWSER_USE_CODEX_APP_VERSION: "26.810.41047",
-          CODEX_HOME: "/tmp/codex-home",
-        },
-      },
-    }),
-  });
+  return runNodeReplCode(runtime, code, trustedBrowserRuntimeEnvironment());
 }
 
 test(
-  "real node_repl transports the versioned Browser security context",
-  { skip: !runtimePath },
+  "real node_repl keeps the trusted Browser environment out of untrusted code",
+  { skip: !runtimePath || !pluginsRoot },
   async () => {
-    const context = {
-      version: 1,
-      env: {
-        BROWSER_USE_AVAILABLE_BACKENDS: "iab",
-        BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
-        BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
-        CODEX_HOME: "/tmp/codex-home",
-      },
-    };
     const output = await runNodeReplCode(
       runtimePath,
-      'nodeRepl.write(JSON.stringify(nodeRepl.requestMeta?.["chatgpt/browser-runtime-context"]));',
-      {
-        NODE_REPL_REQUEST_META: JSON.stringify({
-          "chatgpt/browser-runtime-context": context,
-        }),
-      },
+      'let blocked=!1;try{await import("node:process")}catch{blocked=!0}nodeRepl.write(JSON.stringify({blocked,env:nodeRepl.env.BROWSER_USE_CODEX_APP_BUILD_FLAVOR??null,rpc:typeof nodeRepl.rpc}));',
+      trustedBrowserRuntimeEnvironment(),
     );
 
-    assert.deepEqual(JSON.parse(output), context);
+    assert.deepEqual(JSON.parse(output), { blocked: true, env: null, rpc: "function" });
   },
 );
 
@@ -210,7 +201,7 @@ test(
 );
 
 test(
-  "staged Browser client initializes through the real node_repl security context",
+  "staged Browser client initializes through the real trusted node_repl service",
   { skip: !runtimePath || !pluginsRoot },
   async () => {
     const sourcePath = path.join(
@@ -222,23 +213,14 @@ test(
     assert.ok(fs.existsSync(sourcePath), `Browser client not found: ${sourcePath}`);
     const { clientPath, tempDir } = stageBrowserClient(sourcePath);
     try {
-      const context = {
-        version: 1,
-        env: {
-          BROWSER_USE_AVAILABLE_BACKENDS: "iab",
-          BROWSER_USE_CODEX_APP_BUILD_FLAVOR: "prod",
-          BROWSER_USE_CODEX_APP_VERSION: "26.803.41515",
-          CODEX_HOME: "/tmp/codex-home",
-        },
-      };
       const code =
         `const {setupBrowserRuntime}=await import(${JSON.stringify(pathToFileURL(clientPath).href)});` +
         'await setupBrowserRuntime();nodeRepl.write("setup-ok")';
-      const output = await runNodeReplCode(runtimePath, code, {
-        NODE_REPL_REQUEST_META: JSON.stringify({
-          "chatgpt/browser-runtime-context": context,
-        }),
-      });
+      const output = await runNodeReplCode(
+        runtimePath,
+        code,
+        trustedBrowserRuntimeEnvironment(),
+      );
 
       assert.equal(output, "setup-ok");
     } finally {

@@ -683,6 +683,16 @@ install_browser_use_node_repl_executable_resource() {
         info "Patched Browser Use $label for glibc 2.34+ compatibility"
     fi
 
+    if ! is_browser_use_node_repl_trusted_rpc_capable "$destination"; then
+        if [ "$log_level" = "info" ]; then
+            info "Browser Use $label does not implement the trusted Browser RPC contract; skipping"
+        else
+            warn "Browser Use $label does not implement the trusted Browser RPC contract; skipping"
+        fi
+        rm -f "$destination"
+        return 1
+    fi
+
     if ! is_browser_use_node_repl_elf_compatible "$destination"; then
         if [ "$log_level" = "info" ]; then
             info "Browser Use $label is not compatible with this host runtime; skipping"
@@ -694,10 +704,23 @@ install_browser_use_node_repl_executable_resource() {
     fi
 }
 
+is_browser_use_node_repl_trusted_rpc_capable() {
+    local file="$1"
+    local marker
+
+    for marker in \
+        'NODE_REPL_TRUSTED_SERVICES' \
+        'NODE_REPL_TRUSTED_RPC_ENABLED' \
+        'nodeRepl.rpc = function rpc'
+    do
+        grep -aFq "$marker" "$file" || return 1
+    done
+}
+
 browser_use_node_repl_runtime_url() {
     case "$ARCH" in
         x86_64)
-            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL:-https://persistent.oaistatic.com/codex-primary-runtime/26.426.12240/codex-primary-runtime-linux-x64-26.426.12240.tar.xz}"
+            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_URL:-https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_26.814.41407_amd64.deb}"
             ;;
         *)
             return 1
@@ -708,7 +731,7 @@ browser_use_node_repl_runtime_url() {
 browser_use_node_repl_runtime_sha256() {
     case "$ARCH" in
         x86_64)
-            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-db5624eb6efa36b66ec6f6dd0488cefb966e49636862aab6209a4336c1ca90c4}"
+            echo "${CHATGPT_BROWSER_USE_NODE_REPL_RUNTIME_SHA256:-053d5ace91c48a17146aef02ca4abb00a2b1e94ffd15ca01891fd84a8227ca80}"
             ;;
         *)
             return 1
@@ -716,17 +739,20 @@ browser_use_node_repl_runtime_sha256() {
     esac
 }
 
-install_node_repl_from_primary_runtime_archive() {
+install_node_repl_from_official_linux_package() {
     local destination="$1"
     local url
     local expected_sha
     local cache_dir
     local archive
     local extract_dir
+    local data_archive
+    local runtime_member
+    local runtime_members
     local source
 
     if ! url="$(browser_use_node_repl_runtime_url)"; then
-        warn "Browser Use node_repl primary-runtime fallback is unavailable for $ARCH"
+        warn "Browser Use node_repl official Linux fallback is unavailable for $ARCH"
         return 1
     fi
     expected_sha="$(browser_use_node_repl_runtime_sha256)"
@@ -734,29 +760,44 @@ install_node_repl_from_primary_runtime_archive() {
     cache_dir="${CHATGPT_BROWSER_USE_RUNTIME_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/chatgpt/browser-use}"
     archive="$cache_dir/$(basename "$url")"
     extract_dir="$WORK_DIR/browser-use-node-repl-runtime"
-    source="$extract_dir/codex-primary-runtime/dependencies/bin/node_repl"
+    data_archive="$extract_dir/data.tar.xz"
+    source="$extract_dir/usr/lib/chatgpt/resources/cua_node/bin/node_repl"
 
     mkdir -p "$cache_dir" "$extract_dir"
     if [ ! -f "$archive" ]; then
-        info "Downloading Browser Use node_repl fallback runtime..."
+        info "Downloading Browser Use node_repl fallback package..."
         if ! curl -L --fail --connect-timeout 10 --max-time 300 --retry 3 --retry-all-errors --progress-bar -o "$archive.part" "$url"; then
             rm -f "$archive.part"
-            warn "Failed to download Browser Use node_repl fallback runtime"
+            warn "Failed to download Browser Use node_repl fallback package"
             return 1
         fi
         mv "$archive.part" "$archive"
     else
-        info "Using cached Browser Use node_repl fallback runtime: $archive"
+        info "Using cached Browser Use node_repl fallback package: $archive"
     fi
 
     if ! printf '%s  %s\n' "$expected_sha" "$archive" | sha256sum -c - >/dev/null 2>&1; then
         rm -f "$archive"
-        warn "Browser Use node_repl fallback runtime checksum mismatch; removed cached archive"
+        warn "Browser Use node_repl fallback package checksum mismatch; removed cached package"
         return 1
     fi
 
-    if ! tar -xJf "$archive" -C "$extract_dir" codex-primary-runtime/dependencies/bin/node_repl; then
-        warn "Failed to extract Browser Use node_repl from fallback runtime"
+    if ! command -v ar >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+        warn "Browser Use node_repl fallback requires ar and tar"
+        return 1
+    fi
+    if ! ar p "$archive" data.tar.xz > "$data_archive"; then
+        warn "Failed to read Browser Use node_repl fallback package payload"
+        return 1
+    fi
+    runtime_members="$(tar -tJf "$data_archive" | grep -Ex '(\./)?usr/lib/chatgpt/resources/cua_node/bin/node_repl' || true)"
+    if [ "$(printf '%s\n' "$runtime_members" | sed '/^$/d' | wc -l)" -ne 1 ]; then
+        warn "Browser Use node_repl fallback package must contain exactly one runtime"
+        return 1
+    fi
+    runtime_member="$runtime_members"
+    if ! tar -xJf "$data_archive" -C "$extract_dir" -- "$runtime_member"; then
+        warn "Failed to extract Browser Use node_repl from fallback package"
         return 1
     fi
 
@@ -793,7 +834,7 @@ install_browser_use_node_repl_resource() {
         fi
     done
 
-    install_node_repl_from_primary_runtime_archive "$destination"
+    install_node_repl_from_official_linux_package "$destination"
 }
 
 remove_macos_sidecar_files() {

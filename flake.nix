@@ -137,7 +137,7 @@
           hash = "sha256-7P+2/AIXozb8zrh1jwpUzDoGSBFWGKhr3czByxj7SKQ=";
         };
 
-        chatgptVersion = "26.810.52044";
+        chatgptVersion = "26.814.41407";
         electronVersion = "42.3.0";
         electronPlatform =
           {
@@ -248,14 +248,16 @@
         };
 
         browserUseNodeReplRuntime = pkgs.fetchurl {
-          url = "https://persistent.oaistatic.com/codex-primary-runtime/26.426.12240/codex-primary-runtime-linux-x64-26.426.12240.tar.xz";
-          hash = "sha256-21Yk6276NrZuxvbdBIjO+5ZuSWNoYqq2IJpDNsHKkMQ=";
+          url = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_26.814.41407_amd64.deb";
+          hash = "sha256-BT1azpHEihcUau8Cykq7AKKx6U/9FcoBiR/YSoInyoA=";
         };
 
         browserUseNodeRepl = if system == "x86_64-linux" then pkgs.stdenv.mkDerivation {
           pname = "codex-browser-use-node-repl";
-          version = "26.426.12240";
+          version = "26.814.41407";
           src = browserUseNodeReplRuntime;
+
+          nativeBuildInputs = [ pkgs.binutils pkgs.xz ];
 
           dontConfigure = true;
           dontBuild = true;
@@ -263,8 +265,12 @@
           installPhase = ''
             runHook preInstall
             mkdir -p "$out/bin"
-            tar -xJf "$src" -C "$TMPDIR" codex-primary-runtime/dependencies/bin/node_repl
-            install -m 0755 "$TMPDIR/codex-primary-runtime/dependencies/bin/node_repl" "$out/bin/node_repl"
+            ar p "$src" data.tar.xz > "$TMPDIR/chatgpt-data.tar.xz"
+            tar -xJf "$TMPDIR/chatgpt-data.tar.xz" -C "$TMPDIR" ./usr/lib/chatgpt/resources/cua_node/bin/node_repl
+            grep -aFq 'NODE_REPL_TRUSTED_SERVICES' "$TMPDIR/usr/lib/chatgpt/resources/cua_node/bin/node_repl"
+            grep -aFq 'NODE_REPL_TRUSTED_RPC_ENABLED' "$TMPDIR/usr/lib/chatgpt/resources/cua_node/bin/node_repl"
+            grep -aFq 'nodeRepl.rpc = function rpc' "$TMPDIR/usr/lib/chatgpt/resources/cua_node/bin/node_repl"
+            install -m 0755 "$TMPDIR/usr/lib/chatgpt/resources/cua_node/bin/node_repl" "$out/bin/node_repl"
             runHook postInstall
           '';
         } else null;
