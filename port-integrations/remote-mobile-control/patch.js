@@ -11,9 +11,9 @@ function requireName(source, moduleName) {
 
 const DEVICE_KEY_CLIENT_MARKER = "chatgptLinuxRemoteControlDeviceKeyClient";
 const DEVICE_KEY_GUARD =
-  "if(process.platform!==`darwin`)throw Error(`Remote control device keys are only available on macOS`);";
+  "if(process.platform!==`darwin`&&process.platform!==`win32`)throw Error(`Remote control device keys are only available on macOS and Windows`);";
 const DEVICE_KEY_GUARD_REPLACEMENT =
-  "if(process.platform===`linux`)return chatgptLinuxRemoteControlDeviceKeyClient();if(process.platform!==`darwin`)throw Error(`Remote control device keys are only available on macOS`);";
+  "if(process.platform===`linux`)return chatgptLinuxRemoteControlDeviceKeyClient();if(process.platform!==`darwin`&&process.platform!==`win32`)throw Error(`Remote control device keys are only available on macOS and Windows`);";
 const DEVICE_KEY_REQUIRE_NEEDLE =
   /(?:var|let|const)\s+[A-Za-z_$][\w$]*=\(0,[A-Za-z_$][\w$]*\.createRequire\)\(__filename\),[A-Za-z_$][\w$]*=`remote-control-device-key\.node`/u;
 const REMOTE_CONTROL_SETTINGS_VISIBILITY_NEEDLE =
@@ -28,7 +28,6 @@ const REMOTE_CONTROL_LOAD_GATE_MARKER = "chatgptLinuxRemoteControlLoadGateEnable
 const REMOTE_CONTROL_FEATURE_SYNC_MARKER = "chatgptLinuxRemoteControlIntegrationSyncEnabled";
 const REMOTE_CONTROL_LOAD_GATE_NEEDLE =
   /function ([A-Za-z_$][\w$]*)\(\)\{return ([A-Za-z_$][\w$]*)\(`1042620455`\)\}/u;
-const REMOTE_MOBILE_THREAD_RUNTIME_MARKER = "chatgptLinuxRemoteMobileThreadRuntimeStatus";
 const REMOTE_MOBILE_UNKNOWN_TURN_MARKER = "chatgptLinuxRemoteMobileHydrateUnknownTurn";
 const REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER = "chatgptLinuxRemoteMobileNotificationQueue";
 const REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER = "chatgptLinuxRemoteMobileHydrationInFlight";
@@ -637,106 +636,99 @@ function browserClientHasNativeChromeBackendPreferenceRouting(source) {
   );
 }
 
-function buildLateUnknownConversationHydrationReplacement(
-  eventName,
+function buildCurrentUnknownConversationHydrationReplacement({
+  contextVar,
   conversationIdVar,
-  loggerVar,
-  unknownConversationPrelude = "",
-) {
-  const pendingMapVar = "chatgptLinuxRemoteMobilePendingMap";
-  const queueVar = "chatgptLinuxRemoteMobileQueue";
-  const inFlightVar = "chatgptLinuxRemoteMobileInFlight";
-  const readVar = "chatgptLinuxRemoteMobileRead";
+  eventName,
+  loggerExpression,
+  managerVar,
+  notificationVar,
+  prelude = "",
+}) {
   return (
-    `if(!this.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_LATE_EVENT_HYDRATION_MARKER}*/${unknownConversationPrelude}${unknownConversationPrelude.length > 0 ? ";" : ""}` +
-    `let ${pendingMapVar}=this.chatgptLinuxRemoteMobilePendingNotifications??=new Map,${queueVar}=${pendingMapVar}.get(${conversationIdVar});` +
-    `${queueVar}||(${queueVar}=[],${pendingMapVar}.set(${conversationIdVar},${queueVar})),${queueVar}.push(n);` +
-    `let ${inFlightVar}=this.chatgptLinuxRemoteMobileInFlightHydrations??=new Set;` +
-    `if(${inFlightVar}.has(${conversationIdVar})){${loggerVar}.warning(\`Queueing ${eventName} for hydrating conversation\`,{safe:{queuedNotificationCount:${queueVar}.length},sensitive:{conversationId:${conversationIdVar}}});break}` +
-    `${loggerVar}.warning(\`Hydrating conversation for ${eventName}\`,{safe:{queuedNotificationCount:${queueVar}.length},sensitive:{conversationId:${conversationIdVar}}});` +
-    `let ${readVar}=(s=0)=>this.readThread(${conversationIdVar},{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.chatgptLinuxRemoteMobilePendingNotifications?.get(${conversationIdVar})??[],chatgptLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;` +
-    `if(!t||!Array.isArray(chatgptLinuxRemoteMobileTurns)||chatgptLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:${conversationIdVar}}}),setTimeout(()=>${readVar}(s+1),250);return}` +
-    `this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:${conversationIdVar}}});return}` +
-    `this.upsertConversationFromThread(t),this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar});for(let e of c)this.onNotification(e.method,e.params)})` +
-    `.catch(e=>{if(s<12){${loggerVar}.warning(\`Retrying hydration for ${eventName}\`,{safe:{attempt:s+1},sensitive:{conversationId:${conversationIdVar},error:e}}),setTimeout(()=>${readVar}(s+1),250);return}` +
-    `this.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerVar}.error(\`Failed to hydrate conversation for ${eventName}\`,{safe:{},sensitive:{conversationId:${conversationIdVar},error:e}})});` +
-    `${inFlightVar}.add(${conversationIdVar}),${readVar}();break}`
+    `if(!${contextVar}.threadStore.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_LATE_EVENT_HYDRATION_MARKER}*/${prelude}${prelude.length > 0 ? ";" : ""}` +
+    `let chatgptLinuxRemoteMobilePendingMap=${managerVar}.chatgptLinuxRemoteMobilePendingNotifications??=new Map,chatgptLinuxRemoteMobileQueue=chatgptLinuxRemoteMobilePendingMap.get(${conversationIdVar});` +
+    `chatgptLinuxRemoteMobileQueue||(chatgptLinuxRemoteMobileQueue=[],chatgptLinuxRemoteMobilePendingMap.set(${conversationIdVar},chatgptLinuxRemoteMobileQueue));` +
+    `let chatgptLinuxRemoteMobileInFlight=${managerVar}.chatgptLinuxRemoteMobileInFlightHydrations??=new Set;` +
+    `if(chatgptLinuxRemoteMobileQueue.length>=512){${loggerExpression}.warning(\`Dropping ${eventName} while hydrating conversation\`,{safe:{queuedNotificationCount:chatgptLinuxRemoteMobileQueue.length,droppedNotification:!0},sensitive:{conversationId:${conversationIdVar}}});if(chatgptLinuxRemoteMobileInFlight.has(${conversationIdVar}))break}else chatgptLinuxRemoteMobileQueue.push(${notificationVar});` +
+    `if(chatgptLinuxRemoteMobileInFlight.has(${conversationIdVar})){${loggerExpression}.warning(\`Queueing ${eventName} for hydrating conversation\`,{safe:{queuedNotificationCount:chatgptLinuxRemoteMobileQueue.length},sensitive:{conversationId:${conversationIdVar}}});break}` +
+    `${loggerExpression}.warning(\`Hydrating conversation for ${eventName}\`,{safe:{queuedNotificationCount:chatgptLinuxRemoteMobileQueue.length},sensitive:{conversationId:${conversationIdVar}}});` +
+    `let chatgptLinuxRemoteMobileRead=(chatgptLinuxRemoteMobileAttempt=0)=>${managerVar}.readThread(${conversationIdVar},{includeTurns:!0}).then(chatgptLinuxRemoteMobileResult=>{let chatgptLinuxRemoteMobileThread=chatgptLinuxRemoteMobileResult?.thread??chatgptLinuxRemoteMobileResult,chatgptLinuxRemoteMobileQueued=${managerVar}.chatgptLinuxRemoteMobilePendingNotifications?.get(${conversationIdVar})??[],chatgptLinuxRemoteMobileTurns=Array.isArray(chatgptLinuxRemoteMobileResult?.turns)?chatgptLinuxRemoteMobileResult.turns:Array.isArray(chatgptLinuxRemoteMobileThread?.turns)?chatgptLinuxRemoteMobileThread.turns:null;` +
+    `if(!chatgptLinuxRemoteMobileThread||!Array.isArray(chatgptLinuxRemoteMobileTurns)||chatgptLinuxRemoteMobileTurns.length===0){if(chatgptLinuxRemoteMobileAttempt<12){${loggerExpression}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:chatgptLinuxRemoteMobileQueued.length,attempt:chatgptLinuxRemoteMobileAttempt+1},sensitive:{conversationId:${conversationIdVar}}}),setTimeout(()=>chatgptLinuxRemoteMobileRead(chatgptLinuxRemoteMobileAttempt+1),250);return}` +
+    `${managerVar}.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),${managerVar}.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerExpression}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:chatgptLinuxRemoteMobileQueued.length},sensitive:{conversationId:${conversationIdVar}}});return}` +
+    `${contextVar}.upsertConversationFromThread(chatgptLinuxRemoteMobileThread),${managerVar}.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),${managerVar}.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar});for(let chatgptLinuxRemoteMobileEvent of chatgptLinuxRemoteMobileQueued)${managerVar}.onNotification(chatgptLinuxRemoteMobileEvent.method,chatgptLinuxRemoteMobileEvent.params)},` +
+    `chatgptLinuxRemoteMobileError=>{if(chatgptLinuxRemoteMobileAttempt<12){${loggerExpression}.warning(\`Retrying hydration for ${eventName}\`,{safe:{attempt:chatgptLinuxRemoteMobileAttempt+1},sensitive:{conversationId:${conversationIdVar},error:chatgptLinuxRemoteMobileError}}),setTimeout(()=>chatgptLinuxRemoteMobileRead(chatgptLinuxRemoteMobileAttempt+1),250);return}` +
+    `${managerVar}.chatgptLinuxRemoteMobilePendingNotifications?.delete(${conversationIdVar}),${managerVar}.chatgptLinuxRemoteMobileInFlightHydrations?.delete(${conversationIdVar}),${loggerExpression}.error(\`Failed to hydrate conversation for ${eventName}\`,{safe:{},sensitive:{conversationId:${conversationIdVar},error:chatgptLinuxRemoteMobileError}})});` +
+    `chatgptLinuxRemoteMobileInFlight.add(${conversationIdVar}),chatgptLinuxRemoteMobileRead();break}`
   );
 }
 
 function applyLinuxRemoteMobileConversationHydrationPatch(source) {
   let patched = source;
 
-  if (!patched.includes(REMOTE_MOBILE_THREAD_RUNTIME_MARKER)) {
-    const runtimeReplacement =
-      (_needle, conversationVar, runtimeVar) =>
-        `/*${REMOTE_MOBILE_THREAD_RUNTIME_MARKER}*/(${conversationVar}.resumeState===\`needs_resume\`||${runtimeVar}?.type===\`active\`||${runtimeVar}?.type===\`idle\`)&&(${conversationVar}.threadRuntimeStatus=${runtimeVar})`;
-    const runtimeNeedle =
-      /([A-Za-z_$][\w$]*)\.resumeState===`needs_resume`&&\(\1\.threadRuntimeStatus=([A-Za-z_$][\w$]*)\)/u;
-    if (runtimeNeedle.test(patched)) {
-      patched = patched.replace(runtimeNeedle, runtimeReplacement);
-    } else if (
-      patched.includes("threadRuntimeStatus:e.threadRuntimeStatus") &&
-      patched.includes("t===`needs_resume`?n?.type===`active`")
-    ) {
-      // Current upstream preserves threadRuntimeStatus on thread summaries and
-      // already treats active needs-resume threads as live in the sidebar model.
-    } else if (patched.includes("threadRuntimeStatus") && patched.includes("resumeState")) {
-      console.warn("WARN: Could not find thread/list runtime-status needle - skipping remote mobile runtime-status patch");
-    }
+  if (
+    patched.includes("threadRuntimeStatus:e.threadRuntimeStatus") &&
+    patched.includes("t===`needs_resume`?n?.type===`active`")
+  ) {
+    // Current upstream preserves threadRuntimeStatus on thread summaries and
+    // already treats active needs-resume threads as live in the sidebar model.
+  } else if (patched.includes("threadRuntimeStatus") && patched.includes("resumeState")) {
+    console.warn("WARN: Could not find thread/list runtime-status needle - skipping remote mobile runtime-status patch");
   }
 
   // Hydrate on turn/started and queue later events while that read is in flight.
   if (!patched.includes(REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER)) {
-    const unknownTurnNeedle =
-      /(let\{threadId:([A-Za-z_$][\w$]*),turn:[A-Za-z_$][\w$]*\}=([A-Za-z_$][\w$]*)\.params,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\2\);)if\(!this\.conversations\.get\(\4\)\)\{([A-Za-z_$][\w$]*)\.error\(`Received turn\/started for unknown conversation`,\{safe:\{conversationId:\4\},sensitive:\{\}\}\);break\}/u;
-    const unknownTurnReplacement =
-      (_needle, prefix, _threadIdParamVar, notificationVar, conversationIdVar, normalizerFn, loggerVar) =>
-        `${prefix}if(!this.conversations.get(${conversationIdVar})){/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*//*${REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER}*//*${REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER}*/let l=${notificationVar}.params?.turn?.threadId??${notificationVar}.params?.thread?.id,d=l!=null?${normalizerFn}(l):null,u=${notificationVar}.params?.turn?.id??${notificationVar}.params?.turnId;if(d==null||u!=null&&d===${normalizerFn}(u)){${loggerVar}.warning(\`Skipping hydration for ambiguous turn/started\`,{safe:{},sensitive:{conversationId:${conversationIdVar},resolvedConversationId:d,turnId:u??null}});break}${notificationVar}={...${notificationVar},params:{...${notificationVar}.params,threadId:l}};if(this.conversations.get(d)){this.onNotification(${notificationVar}.method,${notificationVar}.params);break}let i=this.chatgptLinuxRemoteMobilePendingNotifications??=new Map,a=i.get(d);a||(a=[],i.set(d,a));let p=u!=null?a.findIndex(e=>{let t=e.params?.turn?.id??e.params?.turnId;return e.method===${notificationVar}.method&&t!=null&&${normalizerFn}(t)===${normalizerFn}(u)}):-1;p>=0?a[p]=${notificationVar}:a.push(${notificationVar});let h=this.chatgptLinuxRemoteMobileInFlightHydrations??=new Set;if(h.has(d)){${loggerVar}.warning(\`Queueing turn/started for hydrating conversation\`,{safe:{queuedNotificationCount:a.length,dedupedNotification:p>=0},sensitive:{conversationId:d}});break}${loggerVar}.warning(\`Hydrating conversation for turn/started\`,{safe:{queuedNotificationCount:a.length},sensitive:{conversationId:d}});let o=(s=0)=>this.readThread(d,{includeTurns:!0}).then(e=>{let t=e?.thread??e,c=this.chatgptLinuxRemoteMobilePendingNotifications?.get(d)??[],chatgptLinuxRemoteMobileTurns=Array.isArray(e?.turns)?e.turns:Array.isArray(t?.turns)?t.turns:null;if(!t||!Array.isArray(chatgptLinuxRemoteMobileTurns)||chatgptLinuxRemoteMobileTurns.length===0){if(s<12){${loggerVar}.warning(\`Retrying hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length,attempt:s+1},sensitive:{conversationId:d}}),setTimeout(()=>o(s+1),250);return}this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.warning(\`Skipping hydration for missing conversation\`,{safe:{queuedNotificationCount:c.length},sensitive:{conversationId:d}});return}this.upsertConversationFromThread(t),this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d);for(let e of c)this.onNotification(e.method,e.params)}).catch(e=>{if(s<12){${loggerVar}.warning(\`Retrying hydration for turn/started\`,{safe:{attempt:s+1},sensitive:{conversationId:d,error:e}}),setTimeout(()=>o(s+1),250);return}this.chatgptLinuxRemoteMobilePendingNotifications?.delete(d),this.chatgptLinuxRemoteMobileInFlightHydrations?.delete(d),${loggerVar}.error(\`Failed to hydrate conversation for turn/started\`,{safe:{},sensitive:{conversationId:d,error:e}})});h.add(d),o();break}`;
-    if (unknownTurnNeedle.test(patched)) {
-      patched = patched.replace(unknownTurnNeedle, unknownTurnReplacement);
-    } else if (patched.includes("Received turn/started for unknown conversation")) {
-      console.warn("WARN: Could not find unknown turn/started needle - skipping remote mobile hydration patch");
-    }
-
-    const itemStartedNeedle =
-      /if\(!this\.conversations\.get\(([A-Za-z_$][\w$]*)\)\)\{([A-Za-z_$][\w$]*)\.error\(`Received item\/started for unknown conversation`,\{safe:\{conversationId:\1\},sensitive:\{\}\}\);break\}/u;
-    if (itemStartedNeedle.test(patched)) {
+    const currentUnknownTurnNeedle =
+      /(let\{threadId:([A-Za-z_$][\w$]*),turn:[A-Za-z_$][\w$]*\}=([A-Za-z_$][\w$]*)\.params,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\2\);)if\(!([A-Za-z_$][\w$]*)\.threadStore\.conversations\.get\(\4\)\)\{([A-Za-z_$][\w$]*)\.logger\.error\(`Received turn\/started for unknown conversation`,\{safe:\{conversationId:\4\},sensitive:\{\}\}\);break\}/u;
+    if (currentUnknownTurnNeedle.test(patched)) {
       patched = patched.replace(
-        itemStartedNeedle,
-        (_needle, conversationIdVar, loggerVar) =>
-          buildLateUnknownConversationHydrationReplacement("item/started", conversationIdVar, loggerVar),
+        currentUnknownTurnNeedle,
+        (_needle, prefix, _threadIdVar, notificationVar, conversationIdVar, _normalizerFn, contextVar, managerVar) =>
+          `${prefix}/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*/${buildCurrentUnknownConversationHydrationReplacement({ contextVar, conversationIdVar, eventName: "turn/started", loggerExpression: `${managerVar}.logger`, managerVar, notificationVar })}`,
       );
-    } else if (patched.includes("Received item/started for unknown conversation")) {
-      console.warn("WARN: Could not find unknown item/started needle - skipping remote mobile item queue patch");
     }
 
-    const itemCompletedNeedle =
-      /if\(([^{};]*clearItemTerminalInputBuffer\([^{};]*\)),!this\.conversations\.get\(([A-Za-z_$][\w$]*)\)\)\{([A-Za-z_$][\w$]*)\.error\(`Received item\/completed for unknown conversation`,\{safe:\{conversationId:\2\},sensitive:\{\}\}\);break\}/u;
-    if (itemCompletedNeedle.test(patched)) {
+    const currentItemStartedNeedle =
+      /(let\{item:([A-Za-z_$][\w$]*),threadId:([A-Za-z_$][\w$]*)(?:,[^{}]*)?\}=([A-Za-z_$][\w$]*)\.params,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\3\);)if\(!([A-Za-z_$][\w$]*)\.threadStore\.conversations\.get\(\5\)\)\{([A-Za-z_$][\w$]*)\.logger\.error\(`Received item\/started for unknown conversation`,\{safe:\{conversationId:\5\},sensitive:\{\}\}\);break\}/u;
+    if (currentItemStartedNeedle.test(patched)) {
+      patched = patched.replace(currentItemStartedNeedle, (_needle, prefix, _itemVar, _threadIdVar, notificationVar, conversationIdVar, _normalizerFn, contextVar, managerVar) =>
+        `${prefix}${buildCurrentUnknownConversationHydrationReplacement({ contextVar, conversationIdVar, eventName: "item/started", loggerExpression: `${managerVar}.logger`, managerVar, notificationVar })}`,
+      );
+    }
+
+    const currentItemCompletedNeedle =
+      /(let\{item:([A-Za-z_$][\w$]*),threadId:([A-Za-z_$][\w$]*)(?:,[^{}]*)?\}=([A-Za-z_$][\w$]*)\.params(?:,|;[\s\S]*?let )([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\3\);)if\(([^{};]*clearItemTerminalInputBuffer\([^{};]*\)),!([A-Za-z_$][\w$]*)\.threadStore\.conversations\.get\(\5\)\)\{([A-Za-z_$][\w$]*)\.logger\.error\(`Received item\/completed for unknown conversation`,\{safe:\{conversationId:\5\},sensitive:\{\}\}\);break\}/u;
+    if (currentItemCompletedNeedle.test(patched)) {
+      patched = patched.replace(currentItemCompletedNeedle, (_needle, prefix, _itemVar, _threadIdVar, notificationVar, conversationIdVar, _normalizerFn, prelude, contextVar, managerVar) =>
+        `${prefix}${prelude};${buildCurrentUnknownConversationHydrationReplacement({ contextVar, conversationIdVar, eventName: "item/completed", loggerExpression: `${managerVar}.logger`, managerVar, notificationVar })}`,
+      );
+    }
+
+    const currentTurnCompletedNeedle =
+      /(let\{threadId:([A-Za-z_$][\w$]*),turn:([A-Za-z_$][\w$]*)\}=([A-Za-z_$][\w$]*)\.params,([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(\2\);)if\(!([A-Za-z_$][\w$]*)\.threadStore\.conversations\.get\(\5\)\)\{((?:[^{};]*),\7\.unread\.discardTurn\([^{};]*\)),([A-Za-z_$][\w$]*)\.logger\.error\(`Received turn\/completed for unknown conversation`,\{safe:\{conversationId:\5\},sensitive:\{\}\}\);break\}/u;
+    if (currentTurnCompletedNeedle.test(patched)) {
+      patched = patched.replace(currentTurnCompletedNeedle, (_needle, prefix, _threadIdVar, _turnVar, notificationVar, conversationIdVar, _normalizerFn, contextVar, prelude, managerVar) =>
+        `${prefix}${buildCurrentUnknownConversationHydrationReplacement({ contextVar, conversationIdVar, eventName: "turn/completed", loggerExpression: `${managerVar}.logger`, managerVar, notificationVar, prelude })}`,
+      );
+    }
+
+    let hydrationComplete = true;
+    for (const [eventName, message] of [
+      ["turn/started", "unknown turn/started needle"],
+      ["item/started", "unknown item/started needle"],
+      ["item/completed", "unknown item/completed needle"],
+      ["turn/completed", "unknown turn/completed needle"],
+    ]) {
+      if (patched.includes(`Received ${eventName} for unknown conversation`)) {
+        hydrationComplete = false;
+        console.warn(`WARN: Could not find ${message} - skipping remote mobile hydration patch`);
+      }
+    }
+    if (hydrationComplete && patched.includes(REMOTE_MOBILE_UNKNOWN_TURN_MARKER)) {
       patched = patched.replace(
-        itemCompletedNeedle,
-        (_needle, completionPrelude, conversationIdVar, loggerVar) =>
-          `${completionPrelude};${buildLateUnknownConversationHydrationReplacement("item/completed", conversationIdVar, loggerVar)}`,
+        `/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*/`,
+        `/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*//*${REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER}*//*${REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER}*/`,
       );
-    } else if (patched.includes("Received item/completed for unknown conversation")) {
-      console.warn("WARN: Could not find unknown item/completed needle - skipping remote mobile item queue patch");
-    }
-
-    const turnCompletedNeedle =
-      /if\(!this\.conversations\.get\(([A-Za-z_$][\w$]*)\)\)\{([^{};]*),([A-Za-z_$][\w$]*)\.error\(`Received turn\/completed for unknown conversation`,\{safe:\{conversationId:\1\},sensitive:\{\}\}\);break\}/u;
-    const turnCompletedReplacement =
-      (_needle, conversationIdVar, completionPrelude, loggerVar) =>
-        buildLateUnknownConversationHydrationReplacement(
-          "turn/completed",
-          conversationIdVar,
-          loggerVar,
-          completionPrelude,
-        );
-    if (turnCompletedNeedle.test(patched)) {
-      patched = patched.replace(turnCompletedNeedle, turnCompletedReplacement);
-    } else if (patched.includes("Received turn/completed for unknown conversation")) {
-      console.warn("WARN: Could not find unknown turn/completed needle - skipping remote mobile turn queue patch");
     }
   }
 
@@ -748,23 +740,13 @@ function applyLinuxRemoteMobileCompletedItemRecoveryPatch(source) {
     return source;
   }
 
-  const completedItemDropPattern =
-    /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)&&\(([A-Za-z_$][\w$]*)\.firstTurnWorkItemStartedAtMs=\3\.firstTurnWorkItemStartedAtMs\?\?Date\.now\(\)\),!\(\2\.type!==`subAgentActivity`&&\(\2\.type!==`sleep`\|\|([A-Za-z_$][\w$]*)\.mode!==`durable`\)&&!([A-Za-z_$][\w$]*)\(\3,\2\.id,\2\.type\)\)&&\(\2\.type,([A-Za-z_$][\w$]*)\(\3,([A-Za-z_$][\w$]*)\)\)/u;
-
-  if (completedItemDropPattern.test(source)) {
+  const currentCompletedItemDropPattern =
+    /([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)&&\(([A-Za-z_$][\w$]*)\.firstTurnWorkItemStartedAtMs=\3\.firstTurnWorkItemStartedAtMs\?\?Date\.now\(\)\),!\(\2\.type!==`subAgentActivity`&&\(\2\.type!==`sleep`\|\|([A-Za-z_$][\w$]*)\.mode!==`durable`\)&&!([A-Za-z_$][\w$]*)\(\3,\2\.id,\2\.type,([A-Za-z_$][\w$]*\.logger)\)\)&&\(\2\.type,([A-Za-z_$][\w$]*)\(\3,([A-Za-z_$][\w$]*)\)\)/u;
+  if (currentCompletedItemDropPattern.test(source)) {
     return source.replace(
-      completedItemDropPattern,
-      (
-        _match,
-        workItemPredicate,
-        completedItemVar,
-        turnVar,
-        conversationVar,
-        findItemFn,
-        upsertItemFn,
-        viewItemVar,
-      ) =>
-        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let chatgptLinuxCompletedItemExists=${turnVar}.items.some(e=>e.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&(${completedItemVar}.type!==\`sleep\`||${conversationVar}.mode!==\`durable\`)&&chatgptLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
+      currentCompletedItemDropPattern,
+      (_match, workItemPredicate, completedItemVar, turnVar, conversationVar, findItemFn, loggerExpression, upsertItemFn, viewItemVar) =>
+        `${workItemPredicate}(${completedItemVar})&&(${turnVar}.firstTurnWorkItemStartedAtMs=${turnVar}.firstTurnWorkItemStartedAtMs??Date.now());let chatgptLinuxCompletedItemExists=${turnVar}.items.some(chatgptLinuxCompletedItemCandidate=>chatgptLinuxCompletedItemCandidate.id===${viewItemVar}.id);if(${completedItemVar}.type!==\`subAgentActivity\`&&(${completedItemVar}.type!==\`sleep\`||${conversationVar}.mode!==\`durable\`)&&chatgptLinuxCompletedItemExists&&!${findItemFn}(${turnVar},${completedItemVar}.id,${completedItemVar}.type,${loggerExpression}))return;${upsertItemFn}(${turnVar},${viewItemVar})`,
     );
   }
 

@@ -14,6 +14,9 @@ const vm = require("node:vm");
 const {
   applyPetOverlayPatch,
 } = require("../port-integrations/pet-overlay/patch.js");
+const {
+  currentComputerUseInstallFlowFixture,
+} = require("./patches/impl/computer-use-test-fixtures.js");
 
 // Pin the integration config so a developer's local gitignored integrations.json// cannot change which patch descriptors these core tests exercise.
 process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(
@@ -1191,7 +1194,7 @@ test("default core patch descriptors are grouped and unique", () => {
   );
   assert.equal(computerUseInstallFlow.pattern.test("computer-use-settings-BzkBOuLk.js"), false);
   assert.equal(
-    computerUseInstallFlow.assetMatch(currentComputerUseInstallFlow26803Fixture()),
+    computerUseInstallFlow.assetMatch(currentComputerUseInstallFlowFixture()),
     true,
   );
   assert.equal(computerUseInstallFlow.assetMatch("function unrelatedAppInitial(){}"), false);
@@ -1204,7 +1207,7 @@ test("default core patch descriptors are grouped and unique", () => {
   );
   assert.equal(computerUseHostPlatform.pattern.test("computer-use-settings-BzkBOuLk.js"), false);
   assert.equal(
-    computerUseHostPlatform.assetMatch(currentComputerUseHostPlatform26803Fixture()),
+    computerUseHostPlatform.assetMatch(currentComputerUseHostPlatformFixture()),
     true,
   );
   assert.equal(computerUseHostPlatform.assetMatch("function unrelatedAppInitial(){}"), false);
@@ -1466,7 +1469,7 @@ function singleInstanceBundleFixture() {
 function explicitQuitBundleFixture() {
   return [
     "var pb=class{getNativeTrayMenuItems(){return[{label:this.systemQuitMenuItemLabel,click:()=>{n.app.quit()}}]}};",
-    "if(o.type===`quit-app`){n.app.quit();return}",
+    "if(o.type===`quit-app`){o.relaunch===!0&&(e.quitState?.allowQuitTemporarily(),n.app.relaunch()),n.app.quit();return}",
   ].join("");
 }
 
@@ -1713,12 +1716,12 @@ function currentComputerUseAuthorityMainBundleFixture() {
 function currentComputerUseDisableOrderingFixture() {
   return [
     "let dp={dispatchMessage:async()=>{}};async function chatgptLinuxFeatureDispatch(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function w_n(){return null}async function cm(){}async function ipa(){}function I2n(e){return[e]}",
-    "function Kfa(e){let n=e?.hostId??`local`,i={},r={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
+    "async function q2t(){return null}function KHn(e){return[e]}let Hv={safePost:async()=>{}};function Qg(){return{sendRequest:async()=>{}}}async function Rzr(){}",
+    "function Tzr(e){let r={},i={},n=e?.hostId??`local`,s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=c??s?.plugin;if(l?.source.type===`remote`)await Hv.safePost(`/remote`,{});else{let e=await q2t(r,i,n);await Qg(r,n).sendRequest(`config/batchWrite`,{edits:KHn({pluginId:t,enabled:a}),filePath:e?.filePath??null,expectedVersion:e?.expectedVersion??null,reloadUserConfig:!0})}await Rzr({scope:r,hostId:n,queryClient:i})};return s}",
   ].join("");
 }
 
-function currentComputerUseSettings26803Fixture() {
+function currentComputerUseSettingsFixture() {
   return "let computerUsePluginName=`computer-use`,messagesPluginName=`messages`;function Fn(e){let t=cache(41),{computerUseAvailability:n,platform:r}=e,{selectedHostId:u}=host(),b=[];" +
     "let x=usePlugins(u,b),S=useMarketplacePath(u),C=flag(firstFlag),w=flag(secondFlag);" +
     "let{data:te}=query(L),ne=state(Ee),re;" +
@@ -3425,18 +3428,18 @@ test("marks Linux quit-in-progress for the quit-app IPC path", () => {
 
   assert.match(
     patched,
-    /if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/,
+    /if\(o\.type===`quit-app`\)\{o\.relaunch===!0&&\(e\.quitState\?\.allowQuitTemporarily\(\),n\.app\.relaunch\(\)\),typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/,
   );
 });
 
-test("supports explicit IPC quit patching when minified aliases drift", () => {
+test("preserves current relaunch behavior when minified aliases drift", () => {
   const source =
-    "let x=require(`electron`);if(m.type===`quit-app`){x.app.quit();return}";
+    "let x=require(`electron`);if(m.type===`quit-app`){m.relaunch===!0&&(c.quitState?.allowQuitTemporarily(),x.app.relaunch()),x.app.quit();return}";
   const patched = applyPatchTwice(applyLinuxExplicitIpcQuitPatch, source);
 
   assert.match(
     patched,
-    /if\(m\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),x\.app\.quit\(\);return\}/,
+    /if\(m\.type===`quit-app`\)\{m\.relaunch===!0&&\(c\.quitState\?\.allowQuitTemporarily\(\),x\.app\.relaunch\(\)\),typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),x\.app\.quit\(\);return\}/,
   );
 });
 
@@ -3445,8 +3448,8 @@ test("patches remaining explicit quit handlers when another copy is already patc
     "typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),";
   const patchedTrayQuit = `{label:this.systemQuitMenuItemLabel,click:()=>{${quitMarkerExpression}n.app.quit()}}`;
   const unpatchedTrayQuit = "{label:this.systemQuitMenuItemLabel,click:()=>{n.app.quit()}}";
-  const patchedIpcQuit = `if(o.type===\`quit-app\`){${quitMarkerExpression}n.app.quit();return}`;
-  const unpatchedIpcQuit = "if(o.type===`quit-app`){n.app.quit();return}";
+  const patchedIpcQuit = `if(o.type===\`quit-app\`){o.relaunch===!0&&(e.quitState?.allowQuitTemporarily(),n.app.relaunch()),${quitMarkerExpression}n.app.quit();return}`;
+  const unpatchedIpcQuit = "if(o.type===`quit-app`){o.relaunch===!0&&(e.quitState?.allowQuitTemporarily(),n.app.relaunch()),n.app.quit();return}";
 
   const patchedTray = applyPatchTwice(
     applyLinuxExplicitTrayQuitPatch,
@@ -3465,7 +3468,7 @@ test("patches remaining explicit quit handlers when another copy is already patc
   assert.equal((patchedIpc.match(/chatgptLinuxPrepareForExplicitQuit\(\)/g) ?? []).length, 2);
   assert.match(
     patchedIpc,
-    /function createSecondIpc\(\)\{if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}\}/,
+    /function createSecondIpc\(\)\{if\(o\.type===`quit-app`\)\{o\.relaunch===!0&&\(e\.quitState\?\.allowQuitTemporarily\(\),n\.app\.relaunch\(\)\),typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}\}/,
   );
 });
 
@@ -9735,8 +9738,8 @@ test("Computer Use availability descriptor matches the current settings bundle n
   assert.doesNotMatch("use-native-apps.electron-DhuUEit1.js", descriptor.pattern);
 });
 
-test("adapts the exact 26.803 Computer Use settings contract without inventing grant state", () => {
-  const source = currentComputerUseSettings26803Fixture();
+test("adapts the current Computer Use settings contract without inventing grant state", () => {
+  const source = currentComputerUseSettingsFixture();
   const patched = applyPatchTwice(applyLinuxComputerUseRendererAvailabilityPatch, source);
 
   assert.match(patched, /BundledMarketplaceDonor/);
@@ -9792,7 +9795,7 @@ test("does not reinterpret legacy generated Computer Use output as current", () 
 });
 
 test("reuses current bundled-plugin metadata for the synthetic Computer Use card", async () => {
-  const source = currentComputerUseSettings26803Fixture();
+  const source = currentComputerUseSettingsFixture();
   const patched = applyPatchTwice(applyLinuxComputerUseRendererAvailabilityPatch, source);
   const testHomeDirectory = "/home/test-user";
   const bundledMarketplaceRoot = "/tmp/codex-test/openai-bundled";
@@ -9997,10 +10000,18 @@ test("reuses current bundled-plugin metadata for the synthetic Computer Use card
     "let order=[];" +
     currentComputerUseDisableOrderingFixture()
       .replace("dispatchMessage:async()=>{}", "dispatchMessage:async e=>{order.push(e)}")
-      .replace("async function cm(){}", "async function cm(){order.push(`persist`)}");
+      .replace(
+        "function Qg(){return{sendRequest:async()=>{}}}",
+        "function Qg(){return{sendRequest:async()=>{order.push(`persist`)}}}",
+      );
   const mutationPatch = applyLinuxComputerUseDisableOrderingPatch(mutationSource);
-  const mutation = vm.runInNewContext(`${mutationPatch};({mutate:Kfa({}),order})`);
-  await mutation.mutate({ pluginId: plugins[1].plugin.id, enabled: false });
+  const mutation = vm.runInNewContext(`${mutationPatch};({mutate:Tzr({}),order})`);
+  await mutation.mutate({
+    pluginId: plugins[1].plugin.id,
+    enabled: false,
+    marketplaceAnalytics: {},
+    plugin: { source: { type: "local" } },
+  });
   assert.deepEqual(Array.from(mutation.order), [
     "chatgpt-linux-computer-use-disable-requested",
     "persist",
@@ -10041,7 +10052,7 @@ test("does not mistake legacy synthetic Computer Use card paths for the current 
 test("does not treat an unrelated marketplace manifest suffix as patch evidence", () => {
   const source =
     "const unrelated=`/.agents/plugins/marketplace.json`;" +
-    currentComputerUseSettings26803Fixture();
+    currentComputerUseSettingsFixture();
 
   const patched = applyLinuxComputerUseRendererAvailabilityPatch(source);
 
@@ -10076,7 +10087,7 @@ test("does not report partial current Computer Use settings patches as applied",
   ]);
 });
 
-function currentComputerUseHostPlatform26803Fixture() {
+function currentComputerUseHostPlatformFixture() {
   return (
     "function K3r(e){return e===`macOS`||e===`windows`}" +
     "function q3r(e){let t=cache(16),{enabled:n,hostId:r}=e,i=n===void 0?!0:n,{isLoading:a,platform:o}=usePlatform(),s=flag(`1506311413`),c;" +
@@ -10089,23 +10100,10 @@ function currentComputerUseHostPlatform26803Fixture() {
   );
 }
 
-function currentComputerUseInstallFlow26803Fixture() {
-  return (
-    "function i4i(e){let t=cache(31),{hostId:n,marketplacePath:r,pluginName:i,remoteMarketplaceName:a,enabled:o}=e," +
-    "s=o===void 0?!0:o,c=n??`local`,l;t[0]===c?l=t[1]:(l={hostId:c},t[0]=c,t[1]=l);" +
-    "let u=hostReady(l),d=environment(),f;t[2]===i?f=t[3]:(f=i!=null&&isAvailabilityGated(i),t[2]=i,t[3]=f);" +
-    "let p=f,m;t[4]!==c||t[5]!==p?(m={enabled:p,hostId:c},t[4]=c,t[5]=p,t[6]=m):m=t[6];" +
-    "let h=useComputerUseAvailability(m),g=(r!=null||a!=null)&&i!=null,v=u&&s&&g&&(!p||h.available);" +
-    "let b=async()=>{if(i==null)throw Error(`plugin detail query requires pluginName`);" +
-    "return read(`read-plugin`,{hostId:c,...pluginLocation({marketplacePath:r,remoteMarketplaceName:a}),pluginName:i})};" +
-    "return useQuery({queryFn:b,enabled:v})}"
-  );
-}
-
-test("allows the exact 26.803 Computer Use host platform contract on Linux", () => {
+test("allows the current Computer Use host platform contract on Linux", () => {
   const patched = applyPatchTwice(
     applyLinuxComputerUseHostPlatformPatch,
-    currentComputerUseHostPlatform26803Fixture(),
+    currentComputerUseHostPlatformFixture(),
   );
 
   assert.match(
@@ -10147,7 +10145,7 @@ test("rejects current Computer Use host-platform drift byte-identically", () => 
 });
 
 test("rejects a one-argument Computer Use platform predicate with changed semantics", () => {
-  const source = currentComputerUseHostPlatform26803Fixture().replace(
+  const source = currentComputerUseHostPlatformFixture().replace(
     "function K3r(e){return e===`macOS`||e===`windows`}",
     "function K3r(e){return accountEligible(e)}",
   );
@@ -10162,36 +10160,36 @@ test("rejects a one-argument Computer Use platform predicate with changed semant
   ]);
 });
 
-test("loads the exact 26.803 Computer Use plugin detail contract on Linux", async () => {
+test("loads the current Computer Use plugin detail contract on Linux", async () => {
   const patched = applyPatchTwice(
     applyLinuxComputerUseInstallFlowPatch,
-    currentComputerUseInstallFlow26803Fixture(),
+    currentComputerUseInstallFlowFixture(),
   );
 
-  assert.match(patched, /let p=f&&i!==`computer-use`,m;/);
-  assert.doesNotMatch(patched, /let p=f,m;/);
+  assert.match(patched, /let m=p&&i!==`computer-use`,h;/);
+  assert.doesNotMatch(patched, /let m=p,h;/);
 
   const marketplacePath =
     "/tmp/codex-test/openai-bundled/.agents/plugins/marketplace.json";
   let pluginRead = null;
   const query = vm.runInNewContext(
-    `${patched};i4i(${JSON.stringify({
+    `${patched};currentPluginDetail(${JSON.stringify({
       hostId: "local",
       marketplacePath,
       pluginName: "computer-use",
     })})`,
     {
       cache: (size) => new Array(size),
-      environment: () => "desktop",
-      hostReady: () => true,
-      isAvailabilityGated: () => true,
-      pluginLocation: ({ marketplacePath: selectedMarketplacePath }) => ({
-        marketplacePath: selectedMarketplacePath,
+      client: () => ({
+        sendRequest: async (method, params) => {
+          pluginRead = { method, params };
+          return { plugin: { name: "computer-use" } };
+        },
       }),
-      read: async (method, params) => {
-        pluginRead = { method, params };
-        return { plugin: { name: "computer-use" } };
-      },
+      getScope: () => ({}),
+      hostReady: () => true,
+      pluginBaseName: (name) => name,
+      queryClient: () => ({}),
       useComputerUseAvailability: () => ({ available: false }),
       useQuery: (options) => options,
     },
@@ -10202,9 +10200,8 @@ test("loads the exact 26.803 Computer Use plugin detail contract on Linux", asyn
   assert.deepEqual(
     JSON.parse(JSON.stringify(pluginRead)),
     {
-      method: "read-plugin",
+      method: "plugin/read",
       params: {
-        hostId: "local",
         marketplacePath,
         pluginName: "computer-use",
       },
@@ -10939,10 +10936,10 @@ test("authority drift fails required generation without exposing partial Compute
       computerUseGateBundleFixture(),
       "let cp=require(`node:child_process`),cuOs=require(`node:os`);var cuHandlers={handlers:{\"native-desktop-apps\":async()=>({apps:[]})}};",
     ].join("");
-    const settingsSource = currentComputerUseSettings26803Fixture();
-    const appInitialSource = currentComputerUseHostPlatform26803Fixture() +
+    const settingsSource = currentComputerUseSettingsFixture();
+    const appInitialSource = currentComputerUseHostPlatformFixture() +
       currentComputerUseDisableOrderingFixture() +
-      currentComputerUseInstallFlow26803Fixture();
+      currentComputerUseInstallFlowFixture();
     fs.writeFileSync(path.join(buildDir, "main.js"), mainSource);
     fs.writeFileSync(path.join(assetsDir, "computer-use-settings-test.js"), settingsSource);
     fs.writeFileSync(path.join(assetsDir, "app-initial-test.js"), appInitialSource);
@@ -10993,10 +10990,10 @@ test("avatar cursor drift fails required generation without exposing partial Com
       computerUseGateBundleFixture(),
       "let cp=require(`node:child_process`),cuOs=require(`node:os`);var cuHandlers={handlers:{\"native-desktop-apps\":async()=>({apps:[]})}};",
     ].join("");
-    const settingsSource = currentComputerUseSettings26803Fixture();
-    const appInitialSource = currentComputerUseHostPlatform26803Fixture() +
+    const settingsSource = currentComputerUseSettingsFixture();
+    const appInitialSource = currentComputerUseHostPlatformFixture() +
       currentComputerUseDisableOrderingFixture() +
-      currentComputerUseInstallFlow26803Fixture();
+      currentComputerUseInstallFlowFixture();
     fs.writeFileSync(path.join(buildDir, "main.js"), mainSource);
     fs.writeFileSync(path.join(assetsDir, "computer-use-settings-test.js"), settingsSource);
     fs.writeFileSync(path.join(assetsDir, "app-initial-test.js"), appInitialSource);
@@ -11028,7 +11025,7 @@ test("avatar cursor drift fails required generation without exposing partial Com
   }
 });
 
-test("patchExtractedApp selects the exact 26.803 Computer Use app-initial contract", async () => {
+test("patchExtractedApp selects the current Computer Use app-initial contract", async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-computer-use-apps-assets-test-"));
   try {
       const buildDir = path.join(tempRoot, ".vite", "build");
@@ -11053,12 +11050,12 @@ test("patchExtractedApp selects the exact 26.803 Computer Use app-initial contra
       );
       fs.writeFileSync(
         path.join(assetsDir, "computer-use-settings-BzkBOuLk.js"),
-        currentComputerUseSettings26803Fixture(),
+        currentComputerUseSettingsFixture(),
       );
       const appInitialSource =
-        currentComputerUseHostPlatform26803Fixture() +
+        currentComputerUseHostPlatformFixture() +
         currentComputerUseDisableOrderingFixture() +
-        currentComputerUseInstallFlow26803Fixture();
+        currentComputerUseInstallFlowFixture();
       fs.writeFileSync(
         path.join(assetsDir, "app-initial-BHB6SClA.js"),
         appInitialSource,
@@ -11090,7 +11087,7 @@ test("patchExtractedApp selects the exact 26.803 Computer Use app-initial contra
         /o===`linux`&&\(a=\{\.\.\.a,available:!0,isFetching:!1,isLoading:!1\}\);/,
       );
       assert.match(patchedSettings, /marketplaceName:`openai-bundled`/);
-      assert.match(patchedAppInitial, /let p=f&&i!==`computer-use`,m;/);
+      assert.match(patchedAppInitial, /let m=p&&i!==`computer-use`,h;/);
       assert.match(patchedAppInitial, /chatgpt-linux-computer-use-disable-before-write/);
       assert.match(
         patchedAppInitial,

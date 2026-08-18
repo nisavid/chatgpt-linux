@@ -1068,60 +1068,6 @@ patch_browser_client_linux_socket_dir() {
     fi
 }
 
-patch_browser_use_node_repl_process_env_import() {
-    local client="$1"
-
-    if [ "${CHATGPT_BROWSER_SECURITY_CONTEXT_PATCHED_CLIENT:-}" != "$client" ]; then
-        warn "Browser security-context validator was not installed by this staging pass"
-        return 1
-    fi
-
-    if ! python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-sys.path.insert(0, sys.argv[2])
-from browser_client_executable import executable_matches
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8")
-pattern = re.compile(
-    r'import\{env as (?P<binding>[A-Za-z_$][\w$]*)\}from"node:process";'
-)
-matches = executable_matches(pattern, source)
-if len(matches) != 1:
-    print(
-        f"WARN: Expected one Browser Use node:process env import, found {len(matches)} — leaving browser-client.mjs unchanged",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-
-match = matches[0]
-binding = match.group("binding")
-replacement = (
-    "var chatgptLinuxBrowserUseProcessEnv=chatgptLinuxBrowserUseValidatedEnvironment(globalThis.nodeRepl),"
-    f"{binding}=chatgptLinuxBrowserUseProcessEnv;"
-)
-patched = source[:match.start()] + replacement + source[match.end():]
-rewritten_pattern = re.compile(
-    r'var chatgptLinuxBrowserUseProcessEnv='
-    r'chatgptLinuxBrowserUseValidatedEnvironment\(globalThis\.nodeRepl\),'
-    r'(?P<binding>[A-Za-z_$][\w$]*)=chatgptLinuxBrowserUseProcessEnv;'
-)
-if executable_matches(pattern, patched) or len(executable_matches(rewritten_pattern, patched)) != 1:
-    print(
-        "WARN: Browser node:process environment rewrite did not reach its verified executable final state",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-path.write_text(patched, encoding="utf-8")
-PY
-    then
-        return 1
-    fi
-}
-
 normalize_plugin_script_executable_modes() {
     local target_plugin="$1"
     local scripts_dir="$target_plugin/scripts"
@@ -1145,6 +1091,59 @@ validate_browser_client_module_syntax() {
         [ -z "$output" ] || printf '%s\n' "$output" >&2
         return 1
     fi
+}
+
+validate_browser_client_trusted_rpc_contract() {
+    local client="$1"
+
+    python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+sys.path.insert(0, sys.argv[2])
+from browser_client_executable import executable_matches
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+contract_pattern = re.compile(
+    r'async function (?P<setup>[A-Za-z_$][\w$]*)\((?P<options>[A-Za-z_$][\w$]*)=\{\}\)\{'
+    r'let (?P<repl>[A-Za-z_$][\w$]*)=globalThis\.nodeRepl;'
+    r'if\((?P=repl)==null\|\|typeof (?P=repl)\.rpc!="function"\)'
+    r'throw new Error\("Browser use requires a trusted Node REPL browser service"\);'
+    r'let (?P<rpc>[A-Za-z_$][\w$]*)=(?P=repl)\.rpc,'
+    r'(?P<transport>[A-Za-z_$][\w$]*)=\{'
+    r'setup:(?P<setup_params>[A-Za-z_$][\w$]*)=>(?P=rpc)\("browser",\{method:"setup",params:(?P=setup_params)\}\),'
+    r'execute:(?P<execute_params>[A-Za-z_$][\w$]*)=>(?P=rpc)\("browser",\{method:"execute",params:(?P=execute_params)\}\)\},'
+    r'\{apiManifest:(?P<manifest>[A-Za-z_$][\w$]*),disabledMemberIds:(?P<disabled>[A-Za-z_$][\w$]*)\}'
+    r'=await (?P=transport)\.setup\((?P=options)\.environment\?\?"codex-app"\);'
+    r'return (?P<factory>[A-Za-z_$][\w$]*)\(\{apiManifest:(?P=manifest),'
+    r'disabledMemberIds:new Set\((?P=disabled)\),'
+    r'displayBridge:\{displayImage:(?P<image>[A-Za-z_$][\w$]*)=>(?P=repl)\.emitImage\((?P=image)\),'
+    r'displayValue:(?P<value>[A-Za-z_$][\w$]*)=>console\.log\((?P=value)\)\},'
+    r'executeAgentCommand:(?P=transport)\.execute\}\)\}'
+)
+contract_matches = executable_matches(contract_pattern, source)
+export_matches = executable_matches(
+    re.compile(r'export\{(?P<setup>[A-Za-z_$][\w$]*) as setupBrowserRuntime\};'),
+    source,
+)
+if (
+    len(contract_matches) != 1
+    or len(export_matches) != 1
+    or contract_matches[0].group("setup") != export_matches[0].group("setup")
+):
+    print(
+        "WARN: Expected one exported Browser trusted RPC setup contract "
+        f"(runtime={len(contract_matches)}, export={len(export_matches)})",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+if executable_matches(re.compile(r'chatgptLinuxBrowserUse(?:ConfigShim|ValidatedEnvironment|EnvironmentShim|ProcessEnv)'), source):
+    print("WARN: Browser client contains an untrusted legacy security-context shim", file=sys.stderr)
+    raise SystemExit(2)
+PY
 }
 
 stage_chrome_plugin_from_official_app() {
@@ -1174,8 +1173,7 @@ stage_chrome_plugin_from_official_app() {
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
     patch_chrome_plugin_for_linux "$target_plugin"
-    if ! patch_browser_use_node_repl_config_shim "$target_plugin/scripts/browser-client.mjs" || \
-            ! patch_browser_use_node_repl_process_env_import "$target_plugin/scripts/browser-client.mjs"; then
+    if ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs"; then
         warn "Chrome Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
@@ -1183,7 +1181,8 @@ stage_chrome_plugin_from_official_app() {
     patch_browser_use_native_pipe_import_meta_bridge "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_site_status_allowlist_fallback "$target_plugin/scripts/browser-client.mjs"
     patch_browser_client_linux_socket_dir "$target_plugin/scripts/browser-client.mjs"
-    if ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs"; then
+    if ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs" || \
+            ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs"; then
         warn "Chrome Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
@@ -1332,466 +1331,6 @@ print(
 PY
 }
 
-patch_browser_use_node_repl_config_shim() {
-    local client="$1"
-
-    if grep -Eq 'chatgptLinuxBrowserUse(ConfigShim|ValidatedEnvironment|EnvironmentShim|ProcessEnv)' "$client"; then
-        warn "Browser client already contains untrusted Browser security-context markers"
-        return 1
-    fi
-
-    if ! python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-sys.path.insert(0, sys.argv[2])
-from browser_client_executable import executable_matches, executable_offsets
-
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8")
-
-
-def correlated_setup_paths(candidate_source, config_helper, runtime_helper):
-    direct_setup_exports = executable_matches(
-        re.compile(r'export async function setupBrowserRuntime\('),
-        candidate_source,
-    )
-    aliased_setup_exports = executable_matches(
-        re.compile(
-            r'export\{(?P<setup>[A-Za-z_$][\w$]*) as setupBrowserRuntime\};'
-        ),
-        candidate_source,
-    )
-    if len(direct_setup_exports) + len(aliased_setup_exports) != 1:
-        return []
-    setup_pattern = re.compile(
-        rf'(?P<direct_export>export )?async function (?P<setup>[A-Za-z_$][\w$]*)'
-        rf'\([^)]*\)\{{let (?P<config>[A-Za-z_$][\w$]*)={re.escape(config_helper)}\(\);'
-        rf'(?P<middle>[^{{}}]{{0,1200}}?)'
-        rf'(?P<invocation>await {re.escape(runtime_helper)}\((?P<input>[A-Za-z_$][\w$]*)\))'
-    )
-    offsets = executable_offsets(candidate_source)
-    correlated = []
-    for setup_match in setup_pattern.finditer(candidate_source):
-        if not offsets[setup_match.start()] or not offsets[setup_match.start("invocation")]:
-            continue
-        setup_name = setup_match.group("setup")
-        if setup_match.group("direct_export") is not None:
-            if setup_name != "setupBrowserRuntime" or len(direct_setup_exports) != 1:
-                continue
-        elif (
-            len(aliased_setup_exports) != 1
-            or aliased_setup_exports[0].group("setup") != setup_name
-        ):
-            continue
-        config_value = setup_match.group("config")
-        runtime_input = setup_match.group("input")
-        if runtime_input != config_value:
-            alias_pattern = re.compile(
-                rf'(?:let\s+|,\s*){re.escape(runtime_input)}={re.escape(config_value)}(?=,|;)'
-            )
-            aliases = [
-                alias
-                for alias in alias_pattern.finditer(candidate_source)
-                if setup_match.start("middle") <= alias.start() < setup_match.start("invocation")
-                and offsets[alias.start()]
-            ]
-            if len(aliases) != 1:
-                continue
-        correlated.append(setup_match)
-    return correlated
-
-
-pattern = re.compile(
-    r'function (?P<helper>[A-Za-z_$][\w$]*)\(\)\{'
-    r'let (?P<value>[A-Za-z_$][\w$]*)=globalThis\.nodeRepl;'
-    r'return (?P=value)\?\.config==null\?void 0:(?P=value)\}'
-)
-matches = executable_matches(pattern, source)
-if len(matches) != 1:
-    print(
-        f"WARN: Could not find Browser Use nodeRepl config shim insertion point; expected one executable anchor, found {len(matches)} — leaving browser-client.mjs unchanged",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-
-match = matches[0]
-helper = match.group("helper")
-value = match.group("value")
-shim = r'''
-function chatgptLinuxBrowserUseConfigShim() {
-  let repl = globalThis.nodeRepl;
-  if (repl == null) return;
-  chatgptLinuxBrowserUseNodeReplMethodShim(repl);
-  chatgptLinuxBrowserUseEnvironmentShim(repl);
-  if (repl.config != null) return;
-  let config = {
-    read: async () => ({ config: await chatgptLinuxBrowserUseReadToml("config.toml") }),
-    readRequirements: async () => ({ requirements: null }),
-    readToml: async (filePath) => chatgptLinuxBrowserUseReadToml(filePath),
-    writeToml: chatgptLinuxBrowserUseIgnoreConfigWrite,
-    writeValue: chatgptLinuxBrowserUseIgnoreConfigWrite,
-    batchWrite: chatgptLinuxBrowserUseIgnoreConfigWrite,
-  };
-
-  try {
-    repl.config = config;
-    if (repl.config != null) return;
-  } catch {}
-
-  try {
-    let prototype = Object.getPrototypeOf(repl);
-    if (prototype != null && Object.getOwnPropertyDescriptor(prototype, "config") == null) {
-      Object.defineProperty(prototype, "config", {
-        configurable: true,
-        get: () => config,
-      });
-    }
-  } catch {}
-}
-
-function chatgptLinuxBrowserUseValidatedEnvironment(repl) {
-  let context = repl.requestMeta?.["chatgpt/browser-runtime-context"];
-  if (context == null) {
-    throw new Error("Browser security context is unavailable from ChatGPT. Restart ChatGPT and retry Browser automation.");
-  }
-  if (
-    typeof context != "object" ||
-    Array.isArray(context) ||
-    context.version !== 1 ||
-    typeof context.env != "object" ||
-    context.env == null ||
-    Array.isArray(context.env)
-  ) {
-    throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
-  }
-
-  let allowedKeys = new Set([
-    "BROWSER_AUTH_BROKER_SOCKET_PATH",
-    "BROWSER_USE_AVAILABLE_BACKENDS",
-    "BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED",
-    "BROWSER_USE_CODEX_APP_BUILD_FLAVOR",
-    "BROWSER_USE_CODEX_APP_VERSION",
-    "BROWSER_USE_DISABLE_AMBIENT_NETWORK",
-    "BROWSER_USE_DISABLE_API_MEMBERS",
-    "BROWSER_USE_DISABLE_BROWSER_CAPABILITIES",
-    "BROWSER_USE_DISABLE_TAB_CAPABILITIES",
-    "BROWSER_USE_SECURITY_MODE",
-    "CODEX_HOME",
-    "CODEX_CHROME_USER_DATA_DIR",
-    "NODE_REPL_DISABLE_ANALYTICS",
-    "NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER",
-    "NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME",
-  ]);
-  let env = {};
-  for (let [key, value] of Object.entries(context.env)) {
-    if (!allowedKeys.has(key)) continue;
-    if (typeof value != "string") {
-      throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
-    }
-    env[key] = value;
-  }
-
-  let buildFlavor = env.BROWSER_USE_CODEX_APP_BUILD_FLAVOR;
-  let availableBackends = env.BROWSER_USE_AVAILABLE_BACKENDS;
-  if (
-    !["dev", "internal", "prod"].includes(buildFlavor) ||
-    typeof availableBackends != "string" ||
-    availableBackends.split(",").some((backend) => !["cdp", "chrome", "iab"].includes(backend.trim()))
-  ) {
-    throw new Error("Browser security context from ChatGPT is invalid. Restart ChatGPT and retry Browser automation.");
-  }
-
-  let securityMode = env.BROWSER_USE_SECURITY_MODE;
-  if (
-    securityMode != null &&
-    !["", "disabled-for-local-testing", "gaas-browser-environment"].includes(securityMode)
-  ) {
-    throw new Error("Browser security context contains an invalid security mode. Restart ChatGPT and retry Browser automation.");
-  }
-  if (securityMode === "disabled-for-local-testing" && buildFlavor !== "dev") {
-    throw new Error("Browser security context contains an invalid security mode. Restart ChatGPT and retry Browser automation.");
-  }
-
-  Object.freeze(env);
-  return env;
-}
-
-function chatgptLinuxBrowserUseEnvironmentShim(repl) {
-  let env = chatgptLinuxBrowserUseValidatedEnvironment(repl);
-  let attachments = chatgptLinuxBrowserUseEnvironmentShim.attachments;
-  if (attachments == null) {
-    attachments = new WeakMap();
-    Object.defineProperty(chatgptLinuxBrowserUseEnvironmentShim, "attachments", {
-      value: attachments,
-    });
-  }
-
-  let attachment = attachments.get(repl);
-  if (attachment != null) {
-    let ownDescriptor;
-    let prototype;
-    let prototypeDescriptor;
-    let attachedEnv;
-    try {
-      ownDescriptor = Object.getOwnPropertyDescriptor(repl, "env");
-      prototype = Object.getPrototypeOf(repl);
-      prototypeDescriptor =
-        prototype === attachment.prototype
-          ? Object.getOwnPropertyDescriptor(prototype, "env")
-          : null;
-      attachedEnv = repl.env;
-    } catch {
-      throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
-    }
-    let expectedKeys = Object.keys(env);
-    let attachedKeys = Object.keys(attachment.env);
-    if (
-      ownDescriptor == null &&
-      prototypeDescriptor?.get === attachment.getter &&
-      attachedEnv === attachment.env &&
-      attachedKeys.length === expectedKeys.length &&
-      expectedKeys.every((key) => attachment.env[key] === env[key])
-    ) return;
-    throw new Error("Browser security context cannot replace an untrusted Browser runtime environment. Restart ChatGPT and retry Browser automation.");
-  }
-
-  let prototype;
-  let hasUntrustedEnvironment = false;
-  try {
-    prototype = Object.getPrototypeOf(repl);
-    for (let current = repl; current != null; current = Object.getPrototypeOf(current)) {
-      if (Object.getOwnPropertyDescriptor(current, "env") != null) {
-        hasUntrustedEnvironment = true;
-        break;
-      }
-    }
-  } catch {
-    throw new Error("Browser security context cannot inspect the Browser runtime environment. Restart ChatGPT and retry Browser automation.");
-  }
-  if (hasUntrustedEnvironment) {
-    throw new Error("Browser security context cannot replace an untrusted Browser runtime environment. Restart ChatGPT and retry Browser automation.");
-  }
-  if (prototype == null) {
-    throw new Error("Browser security context cannot be attached to the Browser runtime. Restart ChatGPT and retry Browser automation.");
-  }
-
-  let getter = () => env;
-  try {
-    Object.defineProperty(prototype, "env", {
-      configurable: true,
-      get: getter,
-    });
-  } catch {}
-
-  let descriptor = Object.getOwnPropertyDescriptor(prototype, "env");
-  if (descriptor?.get !== getter || repl.env !== env) {
-    throw new Error("Browser security context cannot be attached to the Browser runtime. Restart ChatGPT and retry Browser automation.");
-  }
-  attachments.set(repl, { env, getter, prototype });
-}
-
-function chatgptLinuxBrowserUseNodeReplMethodShim(repl) {
-  // Older Linux node_repl builds do not expose browser notification hooks.
-  chatgptLinuxBrowserUseDefineNodeReplMethod(repl, "addAfterSubmittedCodeHook", () => () => undefined);
-}
-
-function chatgptLinuxBrowserUseDefineNodeReplMethod(repl, name, value) {
-  if (typeof repl?.[name] == "function") return;
-
-  try {
-    repl[name] = value;
-    if (typeof repl[name] == "function") return;
-  } catch {}
-
-  try {
-    let prototype = Object.getPrototypeOf(repl);
-    if (prototype != null && Object.getOwnPropertyDescriptor(prototype, name) == null) {
-      Object.defineProperty(prototype, name, {
-        configurable: true,
-        value,
-      });
-    }
-  } catch {}
-}
-
-function chatgptLinuxBrowserUseCodexHome() {
-  let codexHome = globalThis.nodeRepl?.env?.CODEX_HOME;
-  if (typeof codexHome == "string" && codexHome.length > 0) {
-    return codexHome.replace(/\/+$/, "");
-  }
-
-  let homeDir = globalThis.nodeRepl?.homeDir;
-  return typeof homeDir == "string" && homeDir.length > 0
-    ? `${homeDir.replace(/\/+$/, "")}/.codex`
-    : null;
-}
-
-function chatgptLinuxBrowserUseConfigPath(filePath) {
-  let codexHome = chatgptLinuxBrowserUseCodexHome();
-  if (codexHome == null || typeof filePath != "string" || filePath.length === 0) {
-    return null;
-  }
-
-  let normalized = filePath.replaceAll("\\", "/");
-  if (normalized.startsWith("/")) {
-    return normalized === codexHome || normalized.startsWith(`${codexHome}/`)
-      ? normalized
-      : null;
-  }
-
-  normalized = normalized.replace(/^\/+/, "");
-  return normalized.split("/").includes("..") ? null : `${codexHome}/${normalized}`;
-}
-
-async function chatgptLinuxBrowserUseReadToml(filePath) {
-  let configPath = chatgptLinuxBrowserUseConfigPath(filePath);
-  if (configPath == null) return {};
-
-  try {
-    let { readFile } = await import("node:fs/promises");
-    return chatgptLinuxBrowserUseParseToml(await readFile(configPath, "utf8"));
-  } catch (error) {
-    if (error && typeof error == "object" && error.code === "ENOENT") return {};
-    throw error;
-  }
-}
-
-async function chatgptLinuxBrowserUseIgnoreConfigWrite() {
-  return undefined;
-}
-
-function chatgptLinuxBrowserUseParseToml(source) {
-  let root = {};
-  let section = root;
-
-  for (let line of String(source).split(/\r?\n/)) {
-    let trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-
-    let sectionMatch = trimmed.match(/^\[([A-Za-z0-9_.-]+)\]$/);
-    if (sectionMatch) {
-      section = root;
-      for (let part of sectionMatch[1].split(".")) {
-        section = section[part] && typeof section[part] == "object" && !Array.isArray(section[part])
-          ? section[part]
-          : (section[part] = {});
-      }
-      continue;
-    }
-
-    let separator = trimmed.indexOf("=");
-    if (separator < 0) continue;
-
-    let key = trimmed.slice(0, separator).trim();
-    let value = trimmed.slice(separator + 1).trim();
-    if (key) section[key] = chatgptLinuxBrowserUseParseTomlValue(value);
-  }
-
-  return root;
-}
-
-function chatgptLinuxBrowserUseParseTomlValue(value) {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-
-  if (value.startsWith("[") && value.endsWith("]")) {
-    let body = value.slice(1, -1).trim();
-    return body.length === 0
-      ? []
-      : body.split(",").map((item) => chatgptLinuxBrowserUseParseTomlValue(item.trim()));
-  }
-
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value.slice(1, -1);
-    }
-  }
-
-  return value;
-}
-'''
-replacement = (
-    shim
-    + f'function {helper}(){{chatgptLinuxBrowserUseConfigShim();let {value}=globalThis.nodeRepl;'
-    + f'return {value}?.config==null?void 0:{value}}}'
-)
-patched = source[:match.start()] + replacement + source[match.end():]
-runtime_clone_pattern = re.compile(
-    r'(?P<prefix>async function (?P<runtime_helper>[A-Za-z_$][\w$]*)\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
-    r'let [A-Za-z_$][\w$]*=(?P=runtime)\.createElicitation\.bind\((?P=runtime)\),'
-    r'[A-Za-z_$][\w$]*=\{\.\.\.(?P=runtime),)platform:'
-)
-runtime_clone_matches = executable_matches(runtime_clone_pattern, patched)
-if len(runtime_clone_matches) != 1:
-    print(
-        f"WARN: Expected one Browser Use runtime environment clone, found {len(runtime_clone_matches)} — leaving browser-client.mjs unchanged",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-
-runtime = runtime_clone_matches[0].group("runtime")
-runtime_helper = runtime_clone_matches[0].group("runtime_helper")
-setup_matches = correlated_setup_paths(patched, helper, runtime_helper)
-if len(setup_matches) != 1:
-    print(
-        f"WARN: Expected one exported Browser Use setup path correlating the config and runtime helpers, found {len(setup_matches)} — leaving browser-client.mjs unchanged",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-runtime_replacement = runtime_clone_pattern.sub(
-    rf'\g<prefix>env:{runtime}.env,addAfterSubmittedCodeHook:{runtime}.addAfterSubmittedCodeHook/*chatgptLinuxBrowserUseRuntimeEnv*/,platform:',
-    runtime_clone_matches[0].group(0),
-    count=1,
-)
-patched = (
-    patched[:runtime_clone_matches[0].start()]
-    + runtime_replacement
-    + patched[runtime_clone_matches[0].end():]
-)
-required_helpers = [
-    r'function chatgptLinuxBrowserUseConfigShim\(\)',
-    r'function chatgptLinuxBrowserUseValidatedEnvironment\(repl\)',
-    r'function chatgptLinuxBrowserUseEnvironmentShim\(repl\)',
-]
-for helper_pattern in required_helpers:
-    if len(executable_matches(re.compile(helper_pattern), patched)) != 1:
-        print(
-            "WARN: Browser security-context shim did not reach its verified executable final state",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
-rewritten_runtime_pattern = re.compile(
-    r'async function [A-Za-z_$][\w$]*\((?P<runtime>[A-Za-z_$][\w$]*)\)\{'
-    r'let [A-Za-z_$][\w$]*=(?P=runtime)\.createElicitation\.bind\((?P=runtime)\),'
-    r'[A-Za-z_$][\w$]*=\{\.\.\.(?P=runtime),env:(?P=runtime)\.env,'
-    r'addAfterSubmittedCodeHook:(?P=runtime)\.addAfterSubmittedCodeHook'
-    r'/\*chatgptLinuxBrowserUseRuntimeEnv\*/,platform:'
-)
-if len(executable_matches(rewritten_runtime_pattern, patched)) != 1:
-    print(
-        "WARN: Browser runtime environment clone did not reach its verified executable final state",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-if len(correlated_setup_paths(patched, helper, runtime_helper)) != 1:
-    print(
-        "WARN: Browser setup path correlation did not reach its verified executable final state",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
-path.write_text(patched, encoding="utf-8")
-PY
-    then
-        return 1
-    fi
-    CHATGPT_BROWSER_SECURITY_CONTEXT_PATCHED_CLIENT="$client"
-}
-
 patch_browser_use_native_pipe_import_meta_bridge() {
     local client="$1"
 
@@ -1918,8 +1457,7 @@ stage_browser_plugin_from_official_app() {
     rm -rf "$target_plugin"
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
-    if ! patch_browser_use_node_repl_config_shim "$target_client" || \
-            ! patch_browser_use_node_repl_process_env_import "$target_client"; then
+    if ! validate_browser_client_trusted_rpc_contract "$target_client"; then
         warn "Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
@@ -1928,7 +1466,8 @@ stage_browser_plugin_from_official_app() {
     patch_browser_use_site_status_allowlist_fallback "$target_client"
     patch_browser_use_file_url_policy "$target_client"
     patch_browser_client_iab_socket_scope "$target_client"
-    if ! validate_browser_client_module_syntax "$target_client"; then
+    if ! validate_browser_client_trusted_rpc_contract "$target_client" || \
+            ! validate_browser_client_module_syntax "$target_client"; then
         warn "Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1

@@ -274,7 +274,7 @@ function applyDictationEndpointPatch(source) {
   const recorderCreationPattern =
     /let ([A-Za-z_$][\w$]*)=new MediaRecorder\(([A-Za-z_$][\w$]*)\);([A-Za-z_$][\w$]*)\.current=\1;let ([A-Za-z_$][\w$]*)=/gu;
   const recorderStartPattern =
-    /([A-Za-z_$][\w$]*)\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},([A-Za-z_$][\w$]*)==null\?\1\.start\(\):\1\.start\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/gu;
+    /([A-Za-z_$][\w$]*)\.onstop=\(\)=>\{([A-Za-z_$][\w$]*)\(\)\},([A-Za-z_$][\w$]*)==null\?\1\.start\(\):\1\.start\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)\(!0\),([A-Za-z_$][\w$]*)\.performance\.mark\(`recording_started`\),([A-Za-z_$][\w$]*)\(!0\)/gu;
   const transcriptPattern =
     /([A-Za-z_$][\w$]*)\.length>0&&\(([A-Za-z_$][\w$]*)==null\?([A-Za-z_$][\w$]*)\.getInstance\(\)\.dispatchMessage\(`global-dictation-record-history-item`,\{text:\1\}\):\2\.setTranscript\(\1\),([A-Za-z_$][\w$]*)\.performance\.mark\(`transcript_dispatched`\),([A-Za-z_$][\w$]*)\.action===`send`\?([A-Za-z_$][\w$]*)\.onTranscriptSend\(\1\):\6\.onTranscriptInsert\(\1\)\)/gu;
   const uniqueMatch = (pattern) => {
@@ -319,7 +319,7 @@ function applyDictationEndpointPatch(source) {
   patched = patched.replace(
     recorderStartMatch[0],
     () =>
-      `${recorderVar}.onstop=()=>{${recorderStartMatch[2]}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderStartMatch[3]}==null?${recorderVar}.start():${recorderVar}.start(${recorderStartMatch[4]}),${recorderStartMatch[5]}.performance.mark(\`recording_started\`),${recorderStartMatch[6]}(!0)`,
+      `${recorderVar}.onstop=()=>{${recorderStartMatch[2]}()},${recorderVar}.chatgptLinuxConversationCleanup=globalThis.chatgptLinuxConversationEndpoint?.({stream:${streamVar},stop:()=>{${actionRef}.current=\`send\`;${recorderVar}.state!==\`inactive\`&&${recorderVar}.stop()},isActive:()=>${recorderRefVar}.current===${recorderVar}&&${recorderVar}.state!==\`inactive\`}),${recorderStartMatch[3]}==null?${recorderVar}.start():${recorderVar}.start(${recorderStartMatch[4]}),${recorderStartMatch[5]}(!0),${recorderStartMatch[6]}.performance.mark(\`recording_started\`),${recorderStartMatch[7]}(!0)`,
   );
   return patched.replace(
     transcriptMatch[0],

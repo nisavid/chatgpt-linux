@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  findExecutableJavaScriptSubstring,
+} = require("../../scripts/patches/lib/minified-js.js");
+
 const READ_ALOUD_PLUGIN_NAME = "read-aloud";
 
 function escapeRegExp(value) {
@@ -8,29 +12,20 @@ function escapeRegExp(value) {
 
 function hasReadAloudPluginGate(source) {
   const pluginGateArray = findBundledPluginGateArray(source);
-  const target = pluginGateArray?.text ?? source;
-  const nameExpression = pluginNameExpressionRegex(source, READ_ALOUD_PLUGIN_NAME);
-  return new RegExp(
-    String.raw`\{(?:[^{}]*,)?name:${nameExpression},(?:isEnabled|isAvailable):`,
-  ).test(target);
+  if (pluginGateArray == null) {
+    return false;
+  }
+  const descriptor = buildReadAloudDescriptor();
+  const matchIndex = findExecutableJavaScriptSubstring(
+    source,
+    descriptor,
+    pluginGateArray.start,
+  );
+  return matchIndex >= pluginGateArray.start && matchIndex + descriptor.length <= pluginGateArray.end;
 }
 
-function pluginNameExpressionRegex(source, pluginName) {
-  const escapedPluginName = escapeRegExp(pluginName);
-  const boundName = sourceBoundName(source, pluginName);
-  return boundName == null
-    ? String.raw`(?:\`${escapedPluginName}\`|"${escapedPluginName}"|'${escapedPluginName}')`
-    : String.raw`(?:${escapeRegExp(boundName)}|\`${escapedPluginName}\`|"${escapedPluginName}"|'${escapedPluginName}')`;
-}
-
-function sourceBoundName(source, pluginName) {
-  return source.match(
-    new RegExp(String.raw`([A-Za-z_$][\w$]*)=(?:\`${escapeRegExp(pluginName)}\`|"${escapeRegExp(pluginName)}"|'${escapeRegExp(pluginName)}')`),
-  )?.[1] ?? null;
-}
-
-function buildReadAloudDescriptor(availabilityProp) {
-  return `{installWhenMissing:!0,name:\`${READ_ALOUD_PLUGIN_NAME}\`,${availabilityProp}:({platform:e})=>e===\`linux\`}`;
+function buildReadAloudDescriptor() {
+  return `{installWhenMissing:!0,name:\`${READ_ALOUD_PLUGIN_NAME}\`,isAvailable:({platform:e})=>e===\`linux\`}`;
 }
 
 function findMatchingBracket(source, openIndex) {
@@ -66,46 +61,80 @@ function findMatchingBracket(source, openIndex) {
   return -1;
 }
 
-function findBundledPluginGateArray(source) {
-  let markerIndex = source.indexOf(".computerUse");
-  while (markerIndex !== -1) {
-    const openIndex = source.lastIndexOf("[", markerIndex);
-    if (openIndex === -1) {
-      return null;
+function executableRegexMatches(source, pattern, text = source, start = 0) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  return [...text.matchAll(new RegExp(pattern.source, flags))].filter((match) => {
+    if (match.index == null) {
+      return false;
     }
-    const closeIndex = findMatchingBracket(source, openIndex);
-    if (closeIndex !== -1 && markerIndex < closeIndex) {
+    const absoluteIndex = start + match.index;
+    return findExecutableJavaScriptSubstring(source, match[0], absoluteIndex) === absoluteIndex;
+  });
+}
+
+function findBundledPluginGateArray(source) {
+  const spreadComputerUseRegex = /\.\.\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.computerUse\b/g;
+  const candidates = new Map();
+
+  for (const marker of executableRegexMatches(source, spreadComputerUseRegex)) {
+    const registryExpression = marker[1];
+    let openIndex = source.lastIndexOf("[", marker.index);
+    let closeIndex = -1;
+    while (openIndex !== -1) {
+      closeIndex = findMatchingBracket(source, openIndex);
+      if (closeIndex !== -1 && marker.index < closeIndex) {
+        break;
+      }
+      openIndex = source.lastIndexOf("[", openIndex - 1);
+      closeIndex = -1;
+    }
+    if (openIndex !== -1 && closeIndex !== -1) {
       const text = source.slice(openIndex + 1, closeIndex);
+      const escapedRegistry = escapeRegExp(registryExpression);
+      const latexDescriptorRegex = new RegExp(
+        String.raw`\{\.\.\.${escapedRegistry}\.latex,isAvailable:\(\)=>!0\}`,
+      );
+      const computerUseDescriptorRegex = new RegExp(
+        String.raw`\{\.\.\.${escapedRegistry}\.computerUse,[^{}]*isAvailable:\(\{features:[A-Za-z_$][\w$]*,platform:[A-Za-z_$][\w$]*\}\)=>[A-Za-z_$][\w$]*===\`(darwin|win32)\`&&[A-Za-z_$][\w$]*\.computerUse(?:,[^{}]*)?\}`,
+        "g",
+      );
+      const computerUseMatches = executableRegexMatches(
+        source,
+        computerUseDescriptorRegex,
+        text,
+        openIndex + 1,
+      );
+      const computerUsePlatforms = new Set(
+        computerUseMatches.map((match) => match[1]),
+      );
+      const latexMatches = executableRegexMatches(
+        source,
+        latexDescriptorRegex,
+        text,
+        openIndex + 1,
+      );
       if (
-        text.includes("installWhenMissing") &&
-        text.includes("name:") &&
-        /(?:isEnabled|isAvailable):/.test(text)
+        latexMatches.length === 1 &&
+        computerUseMatches.length === 2 &&
+        computerUsePlatforms.size === 2 &&
+        computerUsePlatforms.has("darwin") &&
+        computerUsePlatforms.has("win32")
       ) {
-        return {
+        candidates.set(`${openIndex}:${closeIndex}`, {
           start: openIndex + 1,
           end: closeIndex,
           text,
-        };
+          registryExpression,
+          insertionOffset: latexMatches[0].index,
+        });
       }
     }
-    markerIndex = source.indexOf(".computerUse", markerIndex + ".computerUse".length);
   }
 
-  return null;
-}
-
-function findAlwaysOnBundledDescriptor(pluginGateArray) {
-  const pluginNameExpression =
-    "(?:[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)?|`[^`]+`|\"[^\"]+\"|'[^']+')";
-  const alwaysOnDescriptorRegex = new RegExp(
-    String.raw`\{name:(${pluginNameExpression}),(isEnabled|isAvailable):\(\)=>!0\}`,
-    "g",
-  );
-  let lastMatch = null;
-  for (const match of pluginGateArray.text.matchAll(alwaysOnDescriptorRegex)) {
-    lastMatch = match;
+  if (candidates.size > 1) {
+    throw new Error("Required Linux Read Aloud plugin gate patch failed: bundled plugin descriptor array is ambiguous");
   }
-  return lastMatch;
+  return candidates.values().next().value ?? null;
 }
 
 function applyLinuxReadAloudPluginGatePatch(currentSource) {
@@ -115,20 +144,14 @@ function applyLinuxReadAloudPluginGatePatch(currentSource) {
 
   const pluginGateArray = findBundledPluginGateArray(currentSource);
   if (pluginGateArray == null) {
-    if (currentSource.includes(".computerUse")) {
+    if (findExecutableJavaScriptSubstring(currentSource, ".computerUse") >= 0) {
       throw new Error("Required Linux Read Aloud plugin gate patch failed: could not find bundled plugin descriptor array");
     }
     return currentSource;
   }
 
-  const match = findAlwaysOnBundledDescriptor(pluginGateArray);
-  if (match == null) {
-    throw new Error("Required Linux Read Aloud plugin gate patch failed: could not find bundled plugin descriptor insertion point");
-  }
-
-  const [_descriptor, _pluginName, availabilityProp] = match;
-  const insertionIndex = pluginGateArray.start + match.index;
-  return `${currentSource.slice(0, insertionIndex)}${buildReadAloudDescriptor(availabilityProp)},${currentSource.slice(insertionIndex)}`;
+  const insertionIndex = pluginGateArray.start + pluginGateArray.insertionOffset;
+  return `${currentSource.slice(0, insertionIndex)}${buildReadAloudDescriptor()},${currentSource.slice(insertionIndex)}`;
 }
 
 const descriptors = [

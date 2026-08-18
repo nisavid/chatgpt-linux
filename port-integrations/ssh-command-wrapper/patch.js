@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  findExecutableJavaScriptSubstring,
+  findMatchingBrace,
+} = require("../../scripts/patches/lib/minified-js.js");
+
 const MAX_WRAPPER_TEXT_LENGTH = 4096;
 const MAX_WRAPPER_ARGS = 64;
 const WRAPPER_PROPERTY = "chatgptLinuxSshCommandWrapper";
@@ -150,11 +155,23 @@ function countOccurrences(source, needle) {
   }
 }
 
+function countExecutableOccurrences(source, needle) {
+  let count = 0;
+  let fromIndex = 0;
+  while (true) {
+    const index = findExecutableJavaScriptSubstring(source, needle, fromIndex);
+    if (index < 0) return count;
+    count += 1;
+    fromIndex = index + needle.length;
+  }
+}
+
 function replacementState(source, config) {
   const before = config.replacements.map(([needle]) => countOccurrences(source, needle));
   const after = config.replacements.map(([, replacement]) => countOccurrences(source, replacement));
   const helpers = config.helperMarkers.map((marker) => countOccurrences(source, marker));
-  const helperSource = countOccurrences(source, config.helperSource());
+  const helperText = config.helperSource();
+  const helperSource = helperText.length === 0 ? 0 : countOccurrences(source, helperText);
   const anchors = config.requiredAnchors.map((anchor) => countOccurrences(source, anchor));
   const fresh =
     helpers.every((count) => count === 0) &&
@@ -163,7 +180,7 @@ function replacementState(source, config) {
     after.every((count) => count === 0);
   const complete =
     helpers.every((count) => count === 1) &&
-    helperSource === 1 &&
+    (helperText.length === 0 || helperSource === 1) &&
     anchors.every((count) => count === 1) &&
     before.every((count) => count === 0) &&
     after.every((count) => count === 1);
@@ -196,13 +213,17 @@ function applyCompletePatch(source, config) {
     return source;
   }
 
-  let patched = replaceExactlyOnce(
-    source,
-    config.helperAnchor,
-    `${config.helperSource()}${config.helperAnchor}`,
-    `${config.label} helper insertion`,
-  );
-  if (patched == null) return source;
+  let patched = source;
+  const helperText = config.helperSource();
+  if (helperText.length > 0) {
+    patched = replaceExactlyOnce(
+      source,
+      config.helperAnchor,
+      `${helperText}${config.helperAnchor}`,
+      `${config.label} helper insertion`,
+    );
+    if (patched == null) return source;
+  }
 
   for (const [needle, replacement, label] of config.replacements) {
     patched = replaceExactlyOnce(patched, needle, replacement, label);
@@ -281,13 +302,13 @@ function applyMainBundlePatch(source) {
   if (schema == null) return source;
   const replacements = [
     [
-      "n.Rn({args:[`ssh`,...cC(c),...uC(this.options.sshConnection),GS(e,s)],spawnInsideWsl:!1})",
-      `n.Rn({args:[\`ssh\`,...cC(c),...uC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(GS(e,s),this.options.sshConnection.${WRAPPER_PROPERTY})],spawnInsideWsl:!1})`,
+      "n.Rn({args:[`ssh`,...iC(c),...oC(this.options.sshConnection),VS(e,s)],spawnInsideWsl:!1})",
+      `n.Rn({args:[\`ssh\`,...iC(c),...oC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(VS(e,s),this.options.sshConnection.${WRAPPER_PROPERTY})],spawnInsideWsl:!1})`,
       "SSH management command",
     ],
     [
-      "(0,x.spawn)(n.Wn.resolve(`ssh`)??`ssh`,[`-T`,...cC(this.options.getConnectTimeoutSeconds?.()),...uC(this.options.sshConnection),GS(r,a)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})",
-      `(0,x.spawn)(n.Wn.resolve(\`ssh\`)??\`ssh\`,[\`-T\`,...cC(this.options.getConnectTimeoutSeconds?.()),...uC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(GS(r,a),this.options.sshConnection.${WRAPPER_PROPERTY})],{env:i.t(process.env),stdio:[\`pipe\`,\`pipe\`,\`pipe\`]})`,
+      "(0,x.spawn)(n.Wn.resolve(`ssh`)??`ssh`,[`-T`,...iC(this.options.getConnectTimeoutSeconds?.()),...oC(this.options.sshConnection),VS(r,a)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})",
+      `(0,x.spawn)(n.Wn.resolve(\`ssh\`)??\`ssh\`,[\`-T\`,...iC(this.options.getConnectTimeoutSeconds?.()),...oC(this.options.sshConnection),chatgptLinuxSshWrapRemoteCommand(VS(r,a),this.options.sshConnection.${WRAPPER_PROPERTY})],{env:i.t(process.env),stdio:[\`pipe\`,\`pipe\`,\`pipe\`]})`,
       "SSH app-server proxy command",
     ],
     [
@@ -296,8 +317,8 @@ function applyMainBundlePatch(source) {
       "SSH transport host mapping",
     ],
     [
-      "function kse(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`",
-      `function kse(e){let t=e.alias?.trim(),n=JSON.stringify(chatgptLinuxSshCommandWrapperArgs(e.${WRAPPER_PROPERTY}));return t?\`alias:\${t}:\${n}\`:[\`direct\`,e.host,String(e.port??\`\`),e.identity?.trim()??\`\`,n].join(\``,
+      "function Xse(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`",
+      `function Xse(e){let t=e.alias?.trim(),n;try{n=JSON.stringify(chatgptLinuxSshCommandWrapperArgs(e.${WRAPPER_PROPERTY}))}catch{n=\`[]\`}return t?\`alias:\${t}:\${n}\`:[\`direct\`,e.host,String(e.port??\`\`),e.identity?.trim()??\`\`,n].join(\``,
       "SSH startup-gate identity",
     ],
     [
@@ -338,9 +359,9 @@ function applyMainBundlePatch(source) {
   ];
   return applyCompletePatch(source, {
     label: "main bundle",
-    helperAnchor: "function GS(",
+    helperAnchor: "function VS(",
     helperMarkers: MAIN_HELPER_MARKERS,
-    requiredAnchors: ["function GS("],
+    requiredAnchors: ["function VS("],
     helperSource: mainHelperSource,
     replacements,
   });
@@ -353,7 +374,7 @@ function webviewHelperSource() {
   ].join("");
 }
 
-function applyWebviewPatch(source) {
+function applyWebviewDataPatch(source) {
   const replacements = [
     [
       "authMode:`none`,identity:``}}",
@@ -371,8 +392,8 @@ function applyWebviewPatch(source) {
       "hostname connection save",
     ],
     [
-      "sshPort:null,identity:null}}function Xi(",
-      `sshPort:null,identity:null,${WRAPPER_PROPERTY}:chatgptLinuxParseSshCommandWrapper(e.${WRAPPER_TEXT_PROPERTY})}}function Xi(`,
+      "sshPort:null,identity:null}}function xiu(",
+      `sshPort:null,identity:null,${WRAPPER_PROPERTY}:chatgptLinuxParseSshCommandWrapper(e.${WRAPPER_TEXT_PROPERTY})}}function xiu(`,
       "alias connection save",
     ],
     [
@@ -380,25 +401,67 @@ function applyWebviewPatch(source) {
       `let r=[],i=e.displayName.trim();try{chatgptLinuxParseSshCommandWrapper(e.${WRAPPER_TEXT_PROPERTY})}catch{r.push(\`invalidSshCommandWrapper\`)}i.length===0&&`,
       "wrapper validation",
     ],
+  ];
+  return applyCompletePatch(source, {
+    label: "webview data bundle",
+    helperAnchor: "function viu(){",
+    helperMarkers: WEBVIEW_HELPER_MARKERS,
+    requiredAnchors: ["function viu(){", "function xiu("],
+    helperSource: webviewHelperSource,
+    replacements,
+  });
+}
+
+function applyWebviewSettingsPatch(source) {
+  const settingsFunction = "function Xi(e){";
+  const settingsFunctionIndex = findExecutableJavaScriptSubstring(source, settingsFunction);
+  const duplicateSettingsFunctionIndex = settingsFunctionIndex < 0
+    ? -1
+    : findExecutableJavaScriptSubstring(
+      source,
+      settingsFunction,
+      settingsFunctionIndex + settingsFunction.length,
+    );
+  const settingsFunctionEnd = settingsFunctionIndex < 0
+    ? -1
+    : findMatchingBrace(source, settingsFunctionIndex + settingsFunction.length - 1);
+  const settingsFunctionSource = settingsFunctionEnd < 0
+    ? ""
+    : source.slice(settingsFunctionIndex, settingsFunctionEnd + 1);
+  const hasCurrentAliases =
+    countExecutableOccurrences(settingsFunctionSource, "isSaving:d}=e") === 1 &&
+    countExecutableOccurrences(settingsFunctionSource, "let b=Ur(y)") === 1 &&
+    countExecutableOccurrences(settingsFunctionSource, "(0,J.jsx)(b.Field") > 0 &&
+    countExecutableOccurrences(settingsFunctionSource, "(0,J.jsx)(ea,{") > 0 &&
+    countExecutableOccurrences(settingsFunctionSource, "(0,J.jsx)(r,{") > 0 &&
+    countExecutableOccurrences(settingsFunctionSource, "disabled:d") > 0;
+  if (settingsFunctionIndex < 0 || duplicateSettingsFunctionIndex >= 0 || !hasCurrentAliases) {
+    console.warn(
+      "WARN: Could not uniquely resolve the current webview settings field and saving-state aliases " +
+      "- skipping SSH command-wrapper patch",
+    );
+    return source;
+  }
+  const replacements = [
     [
-      // The official cache block tracks only k, j, and M. Replace it whole so
-      // the injected field reads the current saving state from u on every render.
-      "let N;t[47]!==k||t[48]!==j||t[49]!==M?(N=(0,q.jsx)(ln,{children:(0,q.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[k,j,M]})}),t[47]=k,t[48]=j,t[49]=M,t[50]=N):N=t[50];",
-      `let N=(0,q.jsx)(ln,{children:(0,q.jsxs)(\`div\`,{className:\`grid grid-cols-1 gap-4\`,children:[k,j,M,(0,q.jsx)(v.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,q.jsx)(ra,{label:(0,q.jsxs)(q.Fragment,{children:[(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,q.jsx)(\`span\`,{className:\`font-normal text-secondary\`,children:(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.optional\`,defaultMessage:\`(optional)\`,description:\`Marker shown next to optional fields in the remote connection editor dialog\`})})]}),description:(0,q.jsx)(o,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:u})})]})});`,
+      // The official cache block tracks only A, M, and N. Replace it whole so
+      // the injected field reads the current saving state from d on every render.
+      "let P;t[47]!==A||t[48]!==M||t[49]!==N?(P=(0,J.jsx)(sr,{children:(0,J.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[A,M,N]})}),t[47]=A,t[48]=M,t[49]=N,t[50]=P):P=t[50];",
+      `let P=(0,J.jsx)(sr,{children:(0,J.jsxs)(\`div\`,{className:\`grid grid-cols-1 gap-4\`,children:[A,M,N,(0,J.jsx)(b.Field,{name:\`${WRAPPER_TEXT_PROPERTY}\`,children:e=>(0,J.jsx)(ea,{label:(0,J.jsxs)(J.Fragment,{children:[(0,J.jsx)(r,{id:\`settings.remoteConnections.dialog.field.commandWrapper\`,defaultMessage:\`Remote command wrapper\`,description:\`Label for the optional SSH remote command wrapper field\`}),\` \`,(0,J.jsx)(\`span\`,{className:\`font-normal text-secondary\`,children:(0,J.jsx)(r,{id:\`settings.remoteConnections.dialog.field.optional\`,defaultMessage:\`(optional)\`,description:\`Marker shown next to optional fields in the remote connection editor dialog\`})})]}),description:(0,J.jsx)(r,{id:\`settings.remoteConnections.dialog.field.commandWrapper.description\`,defaultMessage:\`Runs every Codex SSH operation through this argv command and appends the generated remote command as its final argument.\`,description:\`Description for the SSH remote command wrapper field\`}),placeholder:\`ssh -T target-host --\`,value:e.state.value,onChange:e.handleChange,onBlur:e.handleBlur,disabled:d})})]})});`,
       "wrapper settings field",
     ],
     [
-      "function ia(e){switch(e){case`displayNameRequired`:",
-      "function ia(e){switch(e){case`invalidSshCommandWrapper`:return(0,q.jsx)(o,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
+      "function ta(e){switch(e){case`displayNameRequired`:",
+      "function ta(e){switch(e){case`invalidSshCommandWrapper`:return(0,J.jsx)(r,{id:`settings.remoteConnections.dialog.field.commandWrapper.error`,defaultMessage:`Enter a valid command (quotes and escapes are supported; shell operators are not)`,description:`Error for an invalid SSH remote command wrapper`});case`displayNameRequired`:",
       "wrapper validation message",
     ],
   ];
   return applyCompletePatch(source, {
-    label: "webview bundle",
-    helperAnchor: "function qi(){",
-    helperMarkers: WEBVIEW_HELPER_MARKERS,
-    requiredAnchors: ["function qi(){", "function $i(e){"],
-    helperSource: webviewHelperSource,
+    label: "webview settings bundle",
+    helperAnchor: "function Xi(e){",
+    helperMarkers: [],
+    requiredAnchors: ["function Xi(e){", "function $i(e){"],
+    helperSource: () => "",
     replacements,
   });
 }
@@ -407,7 +470,8 @@ module.exports = {
   MAX_WRAPPER_ARGS,
   MAX_WRAPPER_TEXT_LENGTH,
   applyMainBundlePatch,
-  applyWebviewPatch,
+  applyWebviewDataPatch,
+  applyWebviewSettingsPatch,
   formatCommandWrapper,
   parseCommandWrapper,
   quoteShellArg,
@@ -422,6 +486,16 @@ module.exports = {
       apply: applyMainBundlePatch,
     },
     {
+      id: "webview-ssh-command-wrapper-data",
+      phase: "webview-asset",
+      order: 20705,
+      ciPolicy: "opt-in",
+      pattern: /^app-initial-[^.]+\.js$/u,
+      missingDescription: "app-initial SSH connection data bundle",
+      skipDescription: "SSH command-wrapper data patch",
+      apply: applyWebviewDataPatch,
+    },
+    {
       id: "webview-ssh-command-wrapper-settings",
       phase: "webview-asset",
       order: 20710,
@@ -429,7 +503,7 @@ module.exports = {
       pattern: /^remote-connections-settings-[^.]+\.js$/u,
       missingDescription: "remote-connections settings webview bundle",
       skipDescription: "SSH command-wrapper settings patch",
-      apply: applyWebviewPatch,
+      apply: applyWebviewSettingsPatch,
     },
   ],
 };
