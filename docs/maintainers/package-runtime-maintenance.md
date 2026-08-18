@@ -374,6 +374,9 @@ The finishing-fork `chatgpt` package and CachyOS's validated
 `chatgpt-desktop-bin` repackage are mutually exclusive. Treat either direction
 as two package transactions, not an in-place upgrade. Preserve the shared
 operational state named in `CONTEXT.md`; package rollback never rewinds it.
+This is a bounded transition procedure, not routine-update policy. After the
+validated native repackage is accepted, pacman and the signed CachyOS repository
+perform routine upgrades without a persistent `IgnorePkg` hold.
 
 Before either switch:
 
@@ -389,21 +392,18 @@ Before either switch:
    can invoke `pacman` or an AUR helper; verify that no transaction is active and
    that pacman's database lock is absent. Permit only the transactions in this
    procedure until acceptance or completed failure restoration. Treat any
-   unexpected transaction or database lock as a failed switch. `IgnorePkg` is a
-   package hold, not this exclusivity boundary.
-3. Add `IgnorePkg = chatgpt-desktop-bin` under `[options]` in
-   `/etc/pacman.conf` and verify that the active configuration contains the
-   entry before the first transaction. Do not remove, change, or override it
-   until the next candidate passes the same validation gate.
-4. Quiesce every writer of a captured path or use that store's atomic or
+   unexpected transaction or database lock as a failed switch. A package hold
+   is not this exclusivity boundary; do not reinstate the retired
+   transition-only `IgnorePkg` hold.
+3. Quiesce every writer of a captured path or use that store's atomic or
    online-backup interface. Capture and verify the complete transition recovery
    set.
-5. Verify the designated retained fallback artifact, including its package
+4. Verify the designated retained fallback artifact, including its package
    digest, tagged source revision, payload manifest, and verification record.
-6. Prove the active task can resume through `codex resume <task-id>`. If
+5. Prove the active task can resume through `codex resume <task-id>`. If
    continuity fails, abort and retain or relaunch the currently accepted
    installation.
-7. Inventory every active user manager under `/run/user/*` that has a usable
+6. Inventory every active user manager under `/run/user/*` that has a usable
    session bus. For every affected user, quit ChatGPT, verify its process and
    profile locks are absent, then stop, disable, and mask
    `chatgpt-updater.service` through that user's `systemctl --user` manager.
@@ -423,9 +423,9 @@ To switch to the validated native repackage:
    payload-manifest digests, the `chatgpt` command owner and target, desktop and
    URI handling, preserved profile, launch, and `codex resume` continuity.
    Confirm the finishing-fork updater is absent and pacman is the only update
-   authority. Reconfirm the active `IgnorePkg` entry. Keep the updater masks and
-   package-manager exclusion in place, and end both maintenance windows only
-   after every acceptance check passes.
+   authority. Confirm that no `IgnorePkg` entry blocks routine signed CachyOS
+   upgrades. Keep the updater masks and package-manager exclusion in place, and
+   end both maintenance windows only after every acceptance check passes.
 
 To switch back to the retained fallback:
 

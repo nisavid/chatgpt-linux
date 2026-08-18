@@ -100,11 +100,13 @@ _Avoid_: pacman-cache-only fallback, version-only rollback
 
 **Active update authority**:
 The sole mechanism permitted to replace the installed ChatGPT package. The
-fallback uses `chatgpt-updater`; the validated native repackage uses the
-CachyOS package repository through pacman, with `chatgpt-desktop-bin` held by
-pacman's persistent `IgnorePkg` setting until each replacement candidate passes
-the Validated native repackage gate.
-_Avoid_: concurrent update authorities, package inference from version alone
+active validated native repackage uses the signed CachyOS package repository
+through pacman, including routine repository upgrades. It has no persistent
+`IgnorePkg` hold. The retained fallback has no active update authority while it
+is uninstalled; an explicitly authorized and accepted rollback designates
+`chatgpt-updater` instead.
+_Avoid_: concurrent update authorities, a persistent post-transition package
+hold, package inference from version alone
 
 **Accepted package switch**:
 A two-transaction package replacement that follows the preflight, ordering,
