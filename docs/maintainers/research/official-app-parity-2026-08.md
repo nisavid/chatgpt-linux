@@ -7,7 +7,8 @@ Date: 2026-08-17
 ## Decision
 
 Keep the validated native repackage as the active ChatGPT producer. The later
-[producer decision](https://github.com/nisavid/chatgpt-linux/issues/148) and
+[producer decision](https://github.com/nisavid/chatgpt-linux/issues/148#issuecomment-5325205785)
+and
 [sunsetting contract](https://github.com/nisavid/chatgpt-linux/issues/149#issuecomment-5325243686)
 adopted that disposition and retired the finishing fork. The OpenAI application
 payload provides the documented core product, project, local-file, and plugin
@@ -17,7 +18,8 @@ difference requires returning to the finishing fork.
 
 The material known omission is desktop-wide Computer Use on Linux. OpenAI's
 Linux preview guide says it is not yet available, while the fallback baseline
-contains a Linux Computer Use backend and integration patches
+contains a Linux Computer Use backend and a port integration that adapts the
+capability to the Linux port
 ([OpenAI Linux guide](https://learn.chatgpt.com/docs/linux/linux-app),
 [fallback Computer Use contract](https://github.com/nisavid/chatgpt-linux/blob/dd3d1397f544752ea1170af8393cd59379373f52/docs/maintainers/fork-divergences.md#12-linux-computer-use-integration-compatibility)).
 The host had the fallback's Computer Use UI flag enabled, but read-only
@@ -55,6 +57,8 @@ Linux support.
   [`chatgpt_26.810.52044_amd64.deb`](https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_26.810.52044_amd64.deb)
   and SHA-256
   `708a15a1bb76e2bb7f0e376e5145391fa277ad3a64057c1d32537bdc2a1b4e6e`.
+  Direct extraction of that SHA-bound artifact confirms that
+  `usr/lib/chatgpt/version` contains `42.3.0`.
   The recipe extracts that payload, adds the reviewed Arch launcher, relocates
   license material, and removes Debian-only metadata. The
   [accepted switch record](https://github.com/nisavid/arch-pkgs/issues/32#issuecomment-5315670607)
@@ -62,8 +66,8 @@ Linux support.
   recipe commit, installed payload, and host acceptance.
 - Both compared builds therefore carry the same product version and Electron
   generation. The comparison is between the official Linux payload and the
-  finishing fork's Linux adaptation and integrations, not between unrelated
-  ChatGPT releases.
+  finishing fork's Linux adaptation and port integrations, not between
+  unrelated ChatGPT releases.
 
 The host inspection was read-only. It checked package metadata and owned
 surfaces with pacman; launcher, desktop, and AppArmor declarations as text;
@@ -95,7 +99,7 @@ between documented capability and observed host behavior are intentional.
 OpenAI explicitly limits desktop-wide Computer Use to macOS and Windows during
 the Linux preview. The active official payload has no bundled
 `computer-use` plugin directory, while the fallback package carried a Linux
-backend, bundled plugin, and registration patches. The fallback still required
+backend, bundled plugin, and port integration. The fallback still required
 OpenAI eligibility, a fresh installed-and-enabled plugin record, app approval,
 and local readiness; installing it did not create an entitlement
 ([OpenAI Computer Use](https://learn.chatgpt.com/docs/computer-use),
@@ -111,30 +115,31 @@ becomes essential.
 
 OpenAI currently documents Remote for a connected Mac or Windows PC, not Linux
 ([Remote documentation](https://learn.chatgpt.com/docs/remote)). The fallback's
-saved integration selection included its Remote UI and mobile-host patches, but
-the retained device-key store had no enrolled key in the read-only 2026-08-17
-shape inspection. There is no evidence of an enrolled device or an exercised
-workflow. This is a discretionary capability unless the owner decides that
-starting, steering, or approving tasks from a phone is an essential Linux
+saved port integration selection included its Remote UI and mobile-host
+patches, but the retained device-key store had no enrolled key in the read-only
+2026-08-17 shape inspection. There is no evidence of an enrolled device or an
+exercised workflow. This is a discretionary capability unless the owner decides
+that starting, steering, or approving tasks from a phone is an essential Linux
 requirement.
 
 ### AppShots
 
 OpenAI documents AppShots as macOS-only
 ([AppShots documentation](https://learn.chatgpt.com/docs/appshots)). The fallback
-selected a Linux AppShots integration, but no durable use evidence was found.
+selected an AppShots port integration for Linux, but no durable use evidence was
+found.
 OpenAI documents ordinary file and artifact workflows, while the accepted
 browser path provides browser annotations. Those workflows were not driven in
 this audit. Treat Linux AppShots as a discretionary convenience.
 
-### Finishing-Fork Convenience Integrations
+### Finishing-Fork Convenience Port Integrations
 
-The saved fallback selection enabled Agent Workspaces, AppShots, wrapper
-updater UI, conversation mode, Copilot reasoning-effort defaults, open-target
-discovery, Read Aloud and its MCP, Remote UI and mobile control, and the Thorium
-adapter. Selection records desired build composition, not actual use. Apart
-from the populated browser profile, no evidence in this audit establishes any
-of those adapters as essential.
+The saved port integration selection enabled Agent Workspaces, AppShots,
+wrapper updater UI, conversation mode, Copilot reasoning-effort defaults,
+open-target discovery, Read Aloud and its MCP, Remote UI and mobile control,
+and the Thorium adapter. Selection records desired build composition, not
+actual use. Apart from the populated browser profile, no evidence in this audit
+establishes any of those adapters as essential.
 
 OpenAI documents first-party Voice for the desktop app generally and singles
 out only screen context as macOS-specific
@@ -206,28 +211,74 @@ Reopen them only if one of these occurs:
 Absent one of those conditions, optional finishing-fork adaptations do not
 justify maintaining a second ChatGPT producer.
 
-The repository's `CONTEXT.md` still describes the transition-only persistent
-`IgnorePkg` hold as active update policy. The operator has removed that hold
-and selected routine CachyOS upgrades. The
-[retirement closeout](https://github.com/nisavid/chatgpt-linux/issues/158) must
-retire that stale statement; it does not change this research result.
+`CONTEXT.md` and the official-app switch procedure now state the same update
+policy: the transition-only persistent `IgnorePkg` hold is retired, and routine
+signed CachyOS upgrades proceed through pacman. The
+[retirement closeout](https://github.com/nisavid/chatgpt-linux/issues/158) owns
+the remaining retirement guidance; it does not change this research result.
 
 ## Primary Sources
 
-- OpenAI: [ChatGPT desktop app for Linux](https://learn.chatgpt.com/docs/linux/linux-app),
-  [desktop app overview](https://learn.chatgpt.com/docs/app),
-  [Browser](https://learn.chatgpt.com/docs/browser),
-  [Computer Use](https://learn.chatgpt.com/docs/computer-use),
-  [Remote](https://learn.chatgpt.com/docs/remote),
-  [AppShots](https://learn.chatgpt.com/docs/appshots),
-  [Voice](https://learn.chatgpt.com/docs/features/voice), and
-  [Permissions](https://learn.chatgpt.com/docs/permission-modes).
-- CachyOS:
-  [`chatgpt-desktop-bin` recipe at `a09deb2`](https://github.com/CachyOS/cachyos-aur-derived/commit/a09deb22c33c5be84ce42e9fb2299e4f57326d68).
+Every external source cited in this audit was retrieved on 2026-08-18. For
+mutable OpenAI documentation, the recorded SHA-256 is over the decoded response
+body returned by `curl --location --compressed --fail --silent --show-error`;
+two consecutive retrievals produced the same digest. GitHub issue and comment
+hashes are over the UTF-8 Markdown body plus the trailing newline emitted by
+`gh api <endpoint> --jq .body`. Commit OIDs and artifact SHA-256 values are the
+immutable pins for repository and package evidence.
+
+- OpenAI documentation:
+  - [ChatGPT desktop app for Linux](https://learn.chatgpt.com/docs/linux/linux-app):
+    `4f5b7ade1e8b4e5e4707a9a99b05e656848ef145611f417bbb49eaf9f99afc02`
+  - [Desktop app overview](https://learn.chatgpt.com/docs/app):
+    `ac36a78a57a16699a55785d6841d82479021eeb4104175d1012aa24761972b85`
+  - [Browser](https://learn.chatgpt.com/docs/browser):
+    `0fc00f0f38ffcca064088141c5fa7393152a834c959fd9112a05c83fb6e7decf`
+  - [Computer Use](https://learn.chatgpt.com/docs/computer-use):
+    `2f9c196b09d5769744484902813cce27c48e2b70c95998152c4b6bafe6dc6572`
+  - [Remote](https://learn.chatgpt.com/docs/remote):
+    `fc17e71b4a47fa95a3239a2a8b664efb9820e11ec5bbbafa0caac10c01765f59`
+  - [AppShots](https://learn.chatgpt.com/docs/appshots):
+    `e8a57d90bab58354f4240269539dbccbdea0064b44e30a7ef23be0063950cac9`
+  - [Voice](https://learn.chatgpt.com/docs/features/voice):
+    `711fb128c4236fb25f51c84cd3c881d80d136243cfb6279d83e84980811d57c1`
+  - [Permissions](https://learn.chatgpt.com/docs/permission-modes):
+    `04da83cd7abac2d6aaca49ec66fed4425195ca57bf4e494a490c87d92d2a904d`
+  - [Artifact viewer](https://learn.chatgpt.com/docs/artifacts-viewer):
+    `8c64fac1ac0c69dbea10992954c5cd508dc0ee815d54d98e23a99725cc3ef2d3`
+  - [Skills and plugins](https://learn.chatgpt.com/docs/skills-and-plugins):
+    `1232377b5928d9d8dbe33d326ff09f5a669bfecccc85ba1e5bf9d910d8b2fc66`
+- Package evidence:
+  - The CachyOS
+    [`chatgpt-desktop-bin` recipe and launcher](https://github.com/CachyOS/cachyos-aur-derived/commit/a09deb22c33c5be84ce42e9fb2299e4f57326d68)
+    are pinned by commit
+    `a09deb22c33c5be84ce42e9fb2299e4f57326d68`.
+  - OpenAI's versioned
+    [`chatgpt_26.810.52044_amd64.deb`](https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_26.810.52044_amd64.deb)
+    is pinned by SHA-256
+    `708a15a1bb76e2bb7f0e376e5145391fa277ad3a64057c1d32537bdc2a1b4e6e`;
+    its `usr/lib/chatgpt/version` file is `42.3.0`.
 - Fallback baseline:
-  [`fallback-baseline-2026-08-16`](https://github.com/nisavid/chatgpt-linux/tree/fallback-baseline-2026-08-16),
-  [fork divergence inventory](https://github.com/nisavid/chatgpt-linux/blob/dd3d1397f544752ea1170af8393cd59379373f52/docs/maintainers/fork-divergences.md),
-  and
-  [runtime contract](https://github.com/nisavid/chatgpt-linux/blob/dd3d1397f544752ea1170af8393cd59379373f52/docs/maintainers/package-runtime-maintenance.md).
-- Accepted host evidence:
-  [fallback-to-official switch record](https://github.com/nisavid/arch-pkgs/issues/32#issuecomment-5315670607).
+  - The
+    [`fallback-baseline-2026-08-16`](https://github.com/nisavid/chatgpt-linux/tree/fallback-baseline-2026-08-16)
+    tag resolved to immutable commit
+    `dd3d1397f544752ea1170af8393cd59379373f52`.
+  - The [fork divergence inventory](https://github.com/nisavid/chatgpt-linux/blob/dd3d1397f544752ea1170af8393cd59379373f52/docs/maintainers/fork-divergences.md)
+    and [runtime contract](https://github.com/nisavid/chatgpt-linux/blob/dd3d1397f544752ea1170af8393cd59379373f52/docs/maintainers/package-runtime-maintenance.md)
+    are pinned by that commit.
+- Decision and host records:
+  - [Producer decision](https://github.com/nisavid/chatgpt-linux/issues/148#issuecomment-5325205785)
+    body SHA-256:
+    `1cb62052282d46964e1efb68cdd2cdbe7479f060f78d33eef81c52c07ae5634c`
+  - [Sunsetting contract](https://github.com/nisavid/chatgpt-linux/issues/149#issuecomment-5325243686)
+    body SHA-256:
+    `80f53554c177495ea149b8e9356273f1edb4daeae6542bb558d34e93a07574ef`
+  - [Fallback-to-official switch record](https://github.com/nisavid/arch-pkgs/issues/32#issuecomment-5315670607)
+    body SHA-256:
+    `1faf811c1c4241076c05666a3f5a3e83a92113cff2f814da76742dd5e27c4c26`
+  - [Switch contract](https://github.com/nisavid/chatgpt-linux/issues/137#issuecomment-5304506396)
+    body SHA-256:
+    `5939dcfc6d73d9326f83fd663a6c61388553ef9b4b171daa2bbe81ca88e95a7c`
+  - [Retirement closeout](https://github.com/nisavid/chatgpt-linux/issues/158)
+    body SHA-256:
+    `6557e1f83a0a213b83743bd827b434abee8afcaae31d5784be89428963f708ca`
