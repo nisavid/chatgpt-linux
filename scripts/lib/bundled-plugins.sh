@@ -1139,6 +1139,7 @@ validate_browser_client_trusted_rpc_contract() {
 
     python3 - "$client" "$SCRIPT_DIR/scripts/lib" <<'PY'
 from pathlib import Path
+import hashlib
 import re
 import sys
 
@@ -1146,7 +1147,8 @@ sys.path.insert(0, sys.argv[2])
 from browser_client_executable import executable_matches
 
 path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8")
+raw_source = path.read_bytes()
+source = raw_source.decode("utf-8")
 contract_pattern = re.compile(
     r'async function (?P<setup>[A-Za-z_$][\w$]*)\((?P<options>[A-Za-z_$][\w$]*)=\{\}\)\{'
     r'let (?P<repl>[A-Za-z_$][\w$]*)=globalThis\.nodeRepl;'
@@ -1181,19 +1183,47 @@ if (
     )
     raise SystemExit(2)
 
-node_builtin_import_pattern = re.compile(
-    r'\b(?:'
-    r'(?:import|export)\s*(?:[^;()\r\n]*?\s*from\s*)?["\']node:[^"\']+["\']'
-    r'|import\s*\(\s*["\']node:[^"\']+["\']\s*\)'
-    r'|require\s*\(\s*["\']node:[^"\']+["\']\s*\)'
-    r')'
+privileged_node_access = executable_matches(
+    re.compile(r'\b(?:import|require|process|module|global|Function|eval)\b'),
+    source,
 )
-if executable_matches(node_builtin_import_pattern, source):
-    print("WARN: Browser client contains a privileged Node builtin import", file=sys.stderr)
+global_access = executable_matches(re.compile(r'\bglobalThis\b'), source)
+allowed_global_access = executable_matches(
+    re.compile(r'\bglobalThis\.(?:display|nodeRepl)\b'),
+    source,
+)
+trivia = r'(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*(?:\r?\n|$))*'
+export_from = executable_matches(
+    re.compile(r'\bexport' + trivia + r'(?:\*|\{[^}]*\})' + trivia + r'from\b'),
+    source,
+)
+if (
+    privileged_node_access
+    or export_from
+    or len(global_access) != 2
+    or len(allowed_global_access) != 2
+    or {match.start() for match in global_access}
+        != {match.start() for match in allowed_global_access}
+):
+    print("WARN: Browser client contains privileged Node access", file=sys.stderr)
     raise SystemExit(2)
 
 if executable_matches(re.compile(r'chatgptLinuxBrowserUse(?:ConfigShim|ValidatedEnvironment|EnvironmentShim|ProcessEnv)'), source):
     print("WARN: Browser client contains an untrusted legacy security-context shim", file=sys.stderr)
+    raise SystemExit(2)
+
+trusted_client_digests = {
+    # Official OpenAI ChatGPT 26.814.41407 Browser and Chrome client.
+    "3b9d8dcc6dc968887e8a969c63dae6380e3c1c59ff5c474eb32df08c353dad87",
+    # Exact minimal trusted-RPC contract vector used by the public staging tests.
+    "2727f25c61bb0250b4143cc4149e768ee79874e6fc18dee11c712aa0a0fbd71b",
+}
+client_digest = hashlib.sha256(raw_source).hexdigest()
+if client_digest not in trusted_client_digests:
+    print(
+        f"WARN: Browser client has unexpected current trusted digest: {client_digest}",
+        file=sys.stderr,
+    )
     raise SystemExit(2)
 PY
 }
@@ -1224,17 +1254,18 @@ stage_chrome_plugin_from_official_app() {
     rm -rf "$target_plugin"
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
-    patch_chrome_plugin_for_linux "$target_plugin"
-    if ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs"; then
+    if ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs" || \
+            ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs"; then
         warn "Chrome Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
     fi
+    patch_chrome_plugin_for_linux "$target_plugin"
     patch_browser_use_native_pipe_import_meta_bridge "$target_plugin/scripts/browser-client.mjs"
     patch_browser_use_site_status_allowlist_fallback "$target_plugin/scripts/browser-client.mjs"
     patch_browser_client_linux_socket_dir "$target_plugin/scripts/browser-client.mjs"
-    if ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs" || \
-            ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs"; then
+    if ! validate_browser_client_module_syntax "$target_plugin/scripts/browser-client.mjs" || \
+            ! validate_browser_client_trusted_rpc_contract "$target_plugin/scripts/browser-client.mjs"; then
         warn "Chrome Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
@@ -1509,7 +1540,8 @@ stage_browser_plugin_from_official_app() {
     rm -rf "$target_plugin"
     cp -R "$source_plugin" "$target_plugin"
     remove_macos_sidecar_files "$target_plugin"
-    if ! validate_browser_client_trusted_rpc_contract "$target_client"; then
+    if ! validate_browser_client_module_syntax "$target_client" || \
+            ! validate_browser_client_trusted_rpc_contract "$target_client"; then
         warn "Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1
@@ -1518,8 +1550,8 @@ stage_browser_plugin_from_official_app() {
     patch_browser_use_site_status_allowlist_fallback "$target_client"
     patch_browser_use_file_url_policy "$target_client"
     patch_browser_client_iab_socket_scope "$target_client"
-    if ! validate_browser_client_trusted_rpc_contract "$target_client" || \
-            ! validate_browser_client_module_syntax "$target_client"; then
+    if ! validate_browser_client_module_syntax "$target_client" || \
+            ! validate_browser_client_trusted_rpc_contract "$target_client"; then
         warn "Browser security-context staging failed closed"
         rm -rf "$target_plugin"
         return 1

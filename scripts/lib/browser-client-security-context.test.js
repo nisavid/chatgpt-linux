@@ -14,6 +14,7 @@ const bundledPlugins = path.join(repoRoot, "scripts/lib/bundled-plugins.sh");
 
 const trustedRpcBrowserClientFixture = String.raw`
 function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}
+const Wu=async t=>{let e=globalThis.display;if(typeof e=="function"){await e(t);return}console.log(t)};
 async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
 `;
 
@@ -119,30 +120,57 @@ test("Browser and Chrome staging reject malformed final client syntax", () => {
   }
 });
 
-test("Browser and Chrome staging reject executable Node builtin imports", () => {
+test("Browser and Chrome staging reject executable ambient Node access", () => {
   const privilegedClients = [
+    `const Ub=globalThis["process"].env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=global["process"].env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=Reflect.get(globalThis,"process").env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=Function("return process")().env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=eval("process.env");${trustedRpcBrowserClientFixture}`,
     `import{env as Ub}from"node:process";${trustedRpcBrowserClientFixture}`,
+    `import/* comment */("node:process");${trustedRpcBrowserClientFixture}`,
+    `import"node:fs";${trustedRpcBrowserClientFixture}`,
+    `export/* comment */{env}from"node:process";${trustedRpcBrowserClientFixture}`,
     `const Ub=await import("node:process");${trustedRpcBrowserClientFixture}`,
     `const Ub=require("node:process");${trustedRpcBrowserClientFixture}`,
+    `const Ub=module.require("node:process");${trustedRpcBrowserClientFixture}`,
+    `const Ub=process.env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=globalThis.process.env;${trustedRpcBrowserClientFixture}`,
   ];
-  const nonExecutableDecoys = [
+  const dynamicBypasses = [
+    `const Ub=(()=>{}).constructor("return process")().env;${trustedRpcBrowserClientFixture}`,
+    `const Ub=pro\\u0063ess.env;${trustedRpcBrowserClientFixture}`,
+  ];
+  const inertDrift = [
+    trustedRpcBrowserClientFixture.replaceAll("\n", "\r\n"),
     `/* import{env as Ub}from"node:process"; */${trustedRpcBrowserClientFixture}`,
     `const decoy='import{env as Ub}from"node:process";';${trustedRpcBrowserClientFixture}`,
     `const decoy=\`import{env as Ub}from"node:process";\`;${trustedRpcBrowserClientFixture}`,
+    `const decoy='process.env module.require("node:process")';${trustedRpcBrowserClientFixture}`,
   ];
 
   for (const pluginName of ["browser", "chrome"]) {
     for (const source of privilegedClients) {
       const { result, targetExists } = stageDriftedPlugin(pluginName, source);
       assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
-      assert.match(result.stderr, /privileged Node builtin import/);
+      assert.match(result.stderr, /privileged Node access/);
       assert.match(result.stderr, /security-context staging failed closed/i);
       assert.equal(targetExists, false);
     }
-    for (const source of nonExecutableDecoys) {
+    for (const source of dynamicBypasses) {
       const { result, targetExists } = stageDriftedPlugin(pluginName, source);
-      assert.equal(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
-      assert.equal(targetExists, true);
+      assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.match(result.stderr, /unexpected current trusted digest/);
+      assert.match(result.stderr, /security-context staging failed closed/i);
+      assert.equal(targetExists, false);
+    }
+    for (const source of inertDrift) {
+      const { result, targetExists } = stageDriftedPlugin(pluginName, source);
+      assert.notEqual(result.status, 0, `${pluginName}: ${result.stderr || result.stdout}`);
+      assert.doesNotMatch(result.stderr, /privileged Node access/);
+      assert.match(result.stderr, /unexpected current trusted digest/);
+      assert.match(result.stderr, /security-context staging failed closed/i);
+      assert.equal(targetExists, false);
     }
   }
 });
