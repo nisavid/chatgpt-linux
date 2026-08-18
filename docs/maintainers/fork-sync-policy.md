@@ -1,15 +1,16 @@
 # Fork Sync Policy
 
 > [!WARNING]
-> Upstream synchronization is retired. This document preserves the former sync
-> contract for audit history; it does not authorize another sync. See
+> ChatGPT for Linux is retired and unsupported. This document preserves the
+> former sync contract for audit history. Do not use it to start or continue
+> maintenance or another sync. See
 > [Repository Retirement](../retirement.md).
 
-This is the current procedure for syncing changes from the Linux-port upstream
-into this fork. In this document, `upstream` means the `upstream` remote for
-`ilysenko/codex-desktop-linux` unless a sentence names another surface. Use this
-procedure with [Fork Divergences](fork-divergences.md), the canonical inventory
-of local contracts and terminology.
+This was the procedure for syncing changes from the Linux-port upstream into
+this fork. In this historical document, `upstream` means the `upstream` remote
+for `ilysenko/codex-desktop-linux` unless a sentence names another surface. The
+procedure was used with [Fork Divergences](fork-divergences.md), the canonical
+inventory of former local contracts and terminology.
 
 The local policy config is `.agents/fork-sync-policy.toml`. It exists for
 agents and maintainers; runtime code does not consume it.
@@ -23,51 +24,52 @@ fields, rename maps, and issue or backlog destinations, then migrate the common
 behavior into the user-global `syncing-forks-with-upstream` skill.
 -->
 
-## Required Workflow
+## Historical Required Workflow
 
-1. Create a task branch. `main` is protected.
-2. Fetch `origin` and `upstream`.
-3. Read [Fork Divergences](fork-divergences.md),
+Before retirement, a sync used this workflow:
+
+1. Maintainers created a task branch because `main` was protected.
+2. They fetched `origin` and `upstream`.
+3. They read [Fork Divergences](fork-divergences.md),
    `.agents/fork-sync-policy.toml`, and this document before resolving
    conflicts.
-4. Use the user-global `syncing-forks-with-upstream` skill before choosing a
+4. They used the user-global `syncing-forks-with-upstream` skill before choosing a
    merge method or pushing a sync branch. If that external skill is unavailable,
-   continue from this document and record the missing-skill fallback in the sync
-   ledger.
-5. Preserve upstream commit identity. If a PR is required, merge the sync with a
-   normal merge commit, not a rebase or squash merge.
-6. Preserve this fork's intentional contracts unless the PR intentionally
-   changes policy.
-7. Update the upstream baseline in [Fork Divergences](fork-divergences.md) after
-   the sync. The policy config points to that canonical inventory instead of
-   duplicating the mutable commit hash.
-8. Compare upstream user-facing docs against this fork's README and usage docs.
-   Classify relevant additions as adapted under local contracts, already
-   covered, intentionally omitted, or follow-up.
-9. Check [Renamed Path Reconciliation](#renamed-path-reconciliation) before
-   resolving missing-file, modify/delete, rename/delete, or add/add conflicts.
-10. Close any reusable policy gap found during the sync. If the sync reveals a
-   hazard that future agents could miss, update the narrowest durable policy
-   surface before handoff.
-11. Create or update an in-tree sync ledger entry under
+   they continued from this document and recorded the missing-skill fallback in
+   the sync ledger.
+5. They preserved upstream commit identity. A required PR merged the sync with
+   a normal merge commit, not a rebase or squash merge.
+6. They preserved this fork's intentional contracts unless the PR intentionally
+   changed policy.
+7. They updated the upstream baseline in
+   [Fork Divergences](fork-divergences.md) after the sync. The policy config
+   pointed to that canonical inventory instead of duplicating the mutable
+   commit hash.
+8. They compared upstream user-facing docs against this fork's README and usage
+   docs, classifying relevant additions as adapted under local contracts,
+   already covered, intentionally omitted, or follow-up.
+9. They checked [Renamed Path Reconciliation](#historical-renamed-path-reconciliation)
+   before resolving missing-file, modify/delete, rename/delete, or add/add
+   conflicts.
+10. They closed reusable policy gaps found during the sync by updating the
+    narrowest durable policy surface before handoff.
+11. They created or updated an in-tree sync ledger entry under
    [Fork Sync Ledger](fork-sync-ledger/) before closeout. The PR body may carry
    a concise summary, but the tracked ledger entry is the durable source.
-12. Run the required local gates before the first push that contains code
-   changes covered by [Local Gates](#local-gates).
-13. On the first push of any task branch, create a draft PR in the same
-   workflow turn.
-14. Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
-   checkout. Do not rely on GitHub CLI's inferred repository; it can target the
-   wrong repository in this fork checkout.
-15. Keep the PR in draft until local gates pass and the PR body records
-   verification evidence. For code-changing branches, the required lifecycle is:
-   local gates, first push, draft PR, PR verification notes, ready for review.
-16. Inspect GitHub blockers directly. Do not infer merge readiness from summary
-   status alone.
+12. They ran the required local gates before the first push containing code
+    changes covered by [Historical Local Gates](#historical-local-gates).
+13. They created a draft PR in the same workflow turn as the first task-branch
+    push.
+14. They used `--repo nisavid/chatgpt-linux` on every `gh pr` command in this
+    checkout instead of relying on GitHub CLI repository inference.
+15. They kept the PR in draft until local gates passed and the PR body recorded
+    verification evidence.
+16. They inspected GitHub blockers directly instead of inferring merge
+    readiness from summary status alone.
 
-## Sync Ledger
+## Historical Sync Ledger
 
-Every broad upstream sync needs a tracked ledger entry under
+Every broad upstream sync required a tracked ledger entry under
 [Fork Sync Ledger](fork-sync-ledger/) with:
 
 - upstream refs fetched and the baseline commit;
@@ -94,28 +96,28 @@ Every broad upstream sync needs a tracked ledger entry under
 - unresolved uncertainties escalated to the operator, or linked to a durable,
   discoverable follow-up when escalation is unavailable.
 
-Do not push while the ledger has unchecked divergence areas, untriaged
-uncertainty, or missing required local gates.
+A push remained blocked while the ledger had unchecked divergence areas,
+untriaged uncertainty, or missing required local gates.
 
-## Local Gates
+## Historical Local Gates
 
-Before pushing changes that affect the generated app, installer, ASAR patcher,
-package builders, package payload, updater rebuild flow, or bundled runtime
-helpers:
+Before retirement, a push affecting the generated app, installer, ASAR
+patcher, package builders, package payload, updater rebuild flow, or bundled
+runtime helpers required maintainers to:
 
-1. Refresh `ChatGPT.dmg`, or verify the cached DMG was refreshed within the last
+1. refresh `ChatGPT.dmg`, or verify the cached DMG was refreshed within the last
    24 hours.
-2. Run `make build-app` or `./install.sh` from current sources.
-3. If package contents changed, run the relevant package builder and inspect
+2. run `make build-app` or `./install.sh` from current sources.
+3. run the relevant package builder and inspect
    package metadata plus file listings.
-4. If release workflow changed, run the relevant release gate.
-5. Record exact commands and results in PR verification notes before marking the
+4. run the relevant release gate when release workflow changed.
+5. record exact commands and results in PR verification notes before marking the
    PR ready for review.
 
 CI is secondary evidence for these surfaces. It does not replace the local
 build gate.
 
-## Contract Review
+## Historical Contract Review
 
 Review incoming changes against every area in
 [Fork Divergences](fork-divergences.md#divergence-inventory). In particular,
@@ -140,7 +142,7 @@ requirements, feature gates, install/update commands, troubleshooting, or
 validation, but translate names, paths, service identifiers, package filenames,
 and commands to this fork's local contracts.
 
-## Policy Gap Closeout
+## Historical Policy Gap Closeout
 
 Treat discovered repeatable sync hazards as part of the sync, not as optional
 retrospective notes. If a conflict, missed change, review comment, local gate,
@@ -165,7 +167,7 @@ follow-up where the escalation would have happened, and keep the safest local
 guard that prevents dropped upstream changes, history replay, contract drift,
 or missing verification.
 
-## Renamed Path Reconciliation
+## Historical Renamed Path Reconciliation
 
 Git's merge strategy normally performs rename detection, but it is similarity
 based and can still surface an upstream edit as a missing old path,

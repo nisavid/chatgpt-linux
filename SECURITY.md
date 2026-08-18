@@ -9,8 +9,9 @@ Do not submit secrets, credentials, private exploit details, or personal data
 to this repository's public issue or pull-request tracker. Report a problem to
 the owner that currently maintains the affected software:
 
-- use OpenAI's published security-reporting route for an issue in OpenAI's
-  official ChatGPT app, Codex, account, or hosted services;
+- use [OpenAI's security disclosure policy](https://openai.com/security/disclosure)
+  for an issue in OpenAI's official ChatGPT app, Codex, account, or hosted
+  services;
 - use the Linux-port upstream's reporting policy for an issue that reproduces
   in [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux);
   or
