@@ -51,6 +51,87 @@ const historicalAgentEntryPoints = [
   "scripts/automation/upstream-dmg-watchdog/local-skill-adapter.md",
 ];
 
+const nonExecutableHistoricalEntryPoints = new Map([
+  [
+    ".agents/skills/maintaining-chatgpt-package/SKILL.md",
+    [
+      /^## Start Discovery$/m,
+      /^## Native Package Shape$/m,
+      /^## Verification$/m,
+      /make build-app/,
+      /\.\/install\.sh/,
+      /Before pushing/i,
+      /For native package changes/i,
+      /supported successor/i,
+      /distributed locally as `chatgpt-desktop-bin`/i,
+    ],
+  ],
+  [
+    "port-integrations/x11-ewmh-computer-use/README.md",
+    [
+      /^## Enable$/m,
+      /^## Staging modes$/m,
+      /^## Updater rebuilds$/m,
+      /CHATGPT_X11_COMPUTER_USE_/,
+      /make build-app/,
+      /integrations\.json/,
+    ],
+  ],
+  [
+    "scripts/automation/upstream-dmg-watchdog/SKILL.md",
+    [
+      /watchdog\.py\s+(?:probe|worker)/,
+      /PROCESS_UPSTREAM_DMG/,
+      /record-acceptance/,
+      /nix-preflight/,
+      /Open the repair PR/i,
+    ],
+  ],
+  [
+    "docs/agents/domain.md",
+    [
+      /Before exploring/i,
+      /Use the glossary vocabulary/i,
+      /Flag ADR conflicts/i,
+      /before doing ordinary work/i,
+      /Use the specific term/i,
+    ],
+  ],
+  [
+    "PRODUCT.md",
+    [
+      /ChatGPT for Linux serves/i,
+      /Success means/i,
+      /Future work should/i,
+      /The product should/i,
+      /should target WCAG/i,
+      /surfaces were[^.]*privacy-safe/i,
+      /They did not fabricate/i,
+    ],
+  ],
+  [
+    "docs/agents/generated-and-runtime-notes.md",
+    [
+      /Override only/i,
+      /should be idempotent/i,
+      /Do not fix/i,
+      /before changing/i,
+      /For current navigation/i,
+    ],
+  ],
+  [
+    "docs/agents/repository-map.md",
+    [
+      /Edit this/i,
+      /Current Route/i,
+      /Start here when/i,
+      /Use `port-integrations\//i,
+      /Read it before/i,
+      /Add new compositor/i,
+    ],
+  ],
+]);
+
 // This retired repository has no root Node dependency tree. These helpers
 // parse the block and flow forms GitHub Actions accepts for `on` and
 // `permissions`; unfamiliar syntax throws instead of silently bypassing the
@@ -727,6 +808,42 @@ test("direct agent and security entry points fail closed into retirement", () =>
     troubleshootingProse,
     /commands\s+below are historical reference only/i,
   );
+});
+
+test("historical maintenance entry points contain no executable work route", () => {
+  for (const [relativePath, forbiddenPatterns] of
+    nonExecutableHistoricalEntryPoints) {
+    const source = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+    const prose = source.replace(/^>\s?/gm, "");
+    assert.match(prose, /non-executable historical (?:record|context)/i, relativePath);
+    assert.doesNotMatch(source, /^```/m, relativePath);
+    for (const forbiddenPattern of forbiddenPatterns) {
+      assert.doesNotMatch(source, forbiddenPattern, relativePath);
+    }
+  }
+
+  const forkDivergences = fs.readFileSync(
+    path.join(repoRoot, "docs/maintainers/fork-divergences.md"),
+    "utf8",
+  );
+  assert.match(forkDivergences, /non-executable historical record/i);
+  assert.doesNotMatch(
+    forkDivergences,
+    /Use this inventory during upstream syncs/i,
+  );
+  assert.doesNotMatch(forkDivergences, /^## Sync Review Rule$/m);
+  assert.doesNotMatch(forkDivergences, /^\*\*Preservation checks:\*\*/m);
+
+  const securityBacklog = fs.readFileSync(
+    path.join(repoRoot, "docs/maintainers/security-backlog.md"),
+    "utf8",
+  );
+  assert.match(
+    securityBacklog,
+    /not a work\s+queue or remediation program/i,
+  );
+  assert.match(securityBacklog, /Historical security review workflow/i);
+  assert.doesNotMatch(securityBacklog, /current remediation workflow/i);
 });
 
 test("retired watchdog public CLI exposes status but rejects mutation", () => {
