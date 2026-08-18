@@ -167,6 +167,10 @@ block = text[
     text.index("mkChatGPTReleaseApp ="):
     text.index("chatgptReleaseApp = mkChatGPTReleaseApp")
 ]
+package_block = text[
+    text.index("buildChatGPT ="):
+    text.index("chatgpt = pkgs.lib.makeOverridable buildChatGPT")
+]
 release_source_info = text[
     text.index("flakeSourceDirty ="):
     text.index("releaseSandboxCanaryPathFile =")
@@ -223,6 +227,42 @@ assert text.count(
     'export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"'
 ) == 3
 assert 'export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"' not in text
+node_repl_probe = package_block.index(
+    'node_repl_interpreter="$(patchelf --print-interpreter '
+    '"$node_repl_binary" 2>/dev/null || true)"'
+)
+node_repl_needed_probe = package_block.index(
+    'node_repl_needed="$(patchelf --print-needed '
+    '"$node_repl_binary" 2>/dev/null || true)"',
+    node_repl_probe,
+)
+node_repl_dynamic_guard = package_block.index(
+    'if [ -n "$node_repl_interpreter" ]; then',
+    node_repl_needed_probe,
+)
+node_repl_patch = package_block.index(
+    'patchelf --set-interpreter',
+    node_repl_dynamic_guard,
+)
+node_repl_missing_interpreter_guard = package_block.index(
+    'elif [ -n "$node_repl_needed" ] || [ -n "$node_repl_rpath" ]; then',
+    node_repl_patch,
+)
+node_repl_guard_end = package_block.index("fi", node_repl_missing_interpreter_guard)
+assert (
+    node_repl_probe
+    < node_repl_needed_probe
+    < node_repl_dynamic_guard
+    < node_repl_patch
+    < node_repl_missing_interpreter_guard
+    < node_repl_guard_end
+)
+assert (
+    '''if [ -z "$node_repl_interpreter" ] \\
+                  && [ -z "$node_repl_rpath" ] \\
+                  && [ -z "$node_repl_needed" ]; then'''
+    in package_block
+)
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block
