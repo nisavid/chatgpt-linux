@@ -231,7 +231,7 @@ JSON
 {"name":"browser","version":"0.1.0-alpha2","interface":{"category":"Engineering"}}
 JSON
     cat > "$resources_dir/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" <<'JS'
-import{env as Ub}from"node:process";var Ur="BROWSER_USE_SECURITY_MODE",ws="BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED";function Zp(e){let t=Object.freeze({createElicitation:e.createElicitation,env:e.env,securityMode:e.env[Ur],enabled:e.env[ws]==="1"});return t}function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}async function cJ(t){let e=t.createElicitation.bind(t),r={...t,platform:"linux",setResponseMeta:t.setResponseMeta,get requestMeta(){return t.requestMeta},async createElicitation(o){return await e(o)}};return r}function th(){let e=import.meta.__codexNativePipe;return e==null||typeof e.createConnection!="function"?null:e}var I2=new Set(["about:blank"]);function Gb(e){if(I2.has(e))return!0;let t;try{t=new URL(e)}catch{return!1}return t.protocol==="http:"||t.protocol==="https:"}class Uf{async fetchBlocked(e,t){let r=await bS(e.endpoint,{method:"GET"});if(!r.ok)throw new Error(ae(`${t} cannot determine if ${e.displayUrl} is allowed. Please try again later or use another source.`));let n=await r.json();return TF(n)}}var ys=e=>e==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use",Q6=e=>e.platform==="win32"?t4(e):e4(e),e4=async e=>{let t=ys(e.platform);return(await BE(t)).map(n=>NE.resolve(t,n))},t4=async e=>[];export async function setupBrowserRuntime(){let e=Me();if(e==null)throw new Error("Browser use requires privileged node_repl capabilities");return Zp(await cJ(e))}
+function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
 JS
 }
 
@@ -5209,14 +5209,23 @@ test_port_validation_rejects_oversized_numeric_values() {
     chmod +x "$start_script"
 
     set +e
-    CHATGPT_WEBVIEW_PORT="$huge_port" bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
+    HOME="$workspace/home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/invalid-port-config" \
+        XDG_STATE_HOME="$workspace/state" \
+        CHATGPT_WEBVIEW_PORT="$huge_port" \
+        bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
     rc=$?
     set -e
     [ "$rc" -ne 0 ] || fail "Expected launcher validation to reject oversized CHATGPT_WEBVIEW_PORT"
     assert_contains "$launcher_stderr" "CHATGPT_LINUX_WEBVIEW_PORT must be between 1 and 65535"
     assert_not_contains "$launcher_stderr" "integer expected"
 
-    XDG_CONFIG_HOME="$workspace/help-config" bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
+    HOME="$workspace/home" \
+        XDG_CACHE_HOME="$workspace/cache" \
+        XDG_CONFIG_HOME="$workspace/help-config" \
+        XDG_STATE_HOME="$workspace/state" \
+        bash "$start_script" --help >"$launcher_stdout" 2>"$launcher_stderr"
     assert_contains "$launcher_stdout" "electron-flags.conf"
     assert_file_not_exists "$workspace/help-config/chatgpt/electron-flags.conf"
 
@@ -8815,8 +8824,8 @@ test_browser_use_node_repl_fallback_runtime() {
     assert_file_exists "$install_dir/resources/node_repl"
     assert_file_exists "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs"
     cmp -s "$true_bin" "$install_dir/resources/node_repl" || fail "Expected fallback node_repl to come from the runtime archive"
-    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
-    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "chatgptLinuxFileUrlPolicy"
+    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" "globalThis.nodeRepl"
+    assert_contains "$install_dir/resources/plugins/openai-bundled/plugins/browser/scripts/browser-client.mjs" 'o("browser",{method:"setup"'
     assert_contains "$output_log" "Browser Use node_repl runtime is not a Linux executable for x86_64; skipping"
     assert_not_contains "$output_log" "WARN.*Browser Use node_repl runtime is not a Linux executable"
     assert_contains "$output_log" "Downloading Browser Use node_repl fallback runtime"
@@ -9055,21 +9064,15 @@ test_browser_plugin_renamed_upstream_staging() {
 
     assert_file_exists "$browser_dir/scripts/browser-client.mjs"
     assert_contains "$browser_dir/.codex-plugin/plugin.json" '"name":"browser"'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" '"node:process"'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseDefineNodeReplMethod"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "addAfterSubmittedCodeHook"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "nativePipe??import.meta.__codexNativePipe"
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "let e=import.meta.__codexNativePipe;return"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxFileUrlPolicy"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxIabSocketScope"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxPerUserBrowserSocketDir"
-    assert_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseUserInfo"
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "process.env.CODEX_BROWSER_USE_SOCKET_DIR"
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" '"/tmp/codex-browser-use"'
-    assert_contains "$browser_dir/scripts/browser-client.mjs" 'protocol==="file:"'
-    assert_not_contains "$browser_dir/scripts/browser-client.mjs" 'protocol==="data:"'
+    assert_contains "$browser_dir/scripts/browser-client.mjs" "globalThis.nodeRepl"
+    assert_contains "$browser_dir/scripts/browser-client.mjs" 'typeof e.rpc!="function"'
+    assert_contains "$browser_dir/scripts/browser-client.mjs" 'o("browser",{method:"setup"'
+    assert_contains "$browser_dir/scripts/browser-client.mjs" 'o("browser",{method:"execute"'
+    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim"
+    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseValidatedEnvironment"
+    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseEnvironmentShim"
+    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
+    assert_not_contains "$browser_dir/scripts/browser-client.mjs" "node:process"
     assert_contains "$marketplace" '"name": "browser"'
     assert_contains "$marketplace" '"path": "./plugins/browser"'
     assert_contains "$output_log" "Browser plugin staged from official OpenAI DMG"
@@ -9705,9 +9708,7 @@ JSON
     cat > "$chrome_dir/scripts/browser-client.mjs" <<'JS'
 const browserPreference={};function preferredWindowIdFor(){}function getForUrl(){}const extensionInstanceId=null;
 var kE=t=>t==="win32"?"\\\\.\\pipe\\codex-browser-use":"/tmp/codex-browser-use";var Cb=kE(hV.platform()),EV=()=>_P()==="win32"?TV():CV(),CV=async()=>(await yP(Cb)).map(e=>wP.resolve(Cb,e)),TV=async()=>[];
-function Me(){let e=globalThis.nodeRepl;return e?.config==null?void 0:e}
-import{platform as yT}from"node:os";import{env as Ub}from"node:process";var Ur="BROWSER_USE_SECURITY_MODE",ws="BROWSER_USE_AUTOMATED_SAFETY_PRECHECKS_ENABLED";function Zp(e){let t=Object.freeze({createElicitation:e.createElicitation,env:e.env,securityMode:e.env[Ur],enabled:e.env[ws]==="1"});return t}async function cJ(t){let e=t.createElicitation.bind(t),r={...t,platform:"linux",setResponseMeta:t.setResponseMeta,get requestMeta(){return t.requestMeta},async createElicitation(o){return await e(o)}};return r}function eh(){return"privileged native pipe bridge is not available; browser-client is not trusted"}function th(){let e=globalThis.nodeRepl?.nativePipe;return e==null||typeof e.createConnection!="function"?null:e}var ml=class e{constructor(t){this.socket=t}static async create(t){let r=th();if(r!=null){let n=await r.createConnection(t);return new e(n)}throw new Error(eh())}};var chromeConfigHome=Ub.CHROME_CONFIG_HOME;
-class Uf{async fetchBlocked(e,t){let r=await bS(e.endpoint,{method:"GET"});if(!r.ok)throw new Error(ae(`${t} cannot determine if ${e.displayUrl} is allowed. Please try again later or use another source.`));let n=await r.json();return TF(n)}}export async function setupBrowserRuntime(){let e=Me();if(e==null)throw new Error("Browser use requires privileged node_repl capabilities");return Zp(await cJ(e))}
+function pc({apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}){return{apiManifest:t,disabledMemberIds:e,displayBridge:o,executeAgentCommand:a}}async function $x(t={}){let e=globalThis.nodeRepl;if(e==null||typeof e.rpc!="function")throw new Error("Browser use requires a trusted Node REPL browser service");let o=e.rpc,a={setup:c=>o("browser",{method:"setup",params:c}),execute:c=>o("browser",{method:"execute",params:c})},{apiManifest:n,disabledMemberIds:s}=await a.setup(t.environment??"codex-app");return pc({apiManifest:n,disabledMemberIds:new Set(s),displayBridge:{displayImage:c=>e.emitImage(c),displayValue:c=>console.log(c)},executeAgentCommand:a.execute})}export{$x as setupBrowserRuntime};
 JS
     cat > "$chrome_dir/scripts/check-native-host-manifest.js" <<'JS'
 #!/usr/bin/env node
@@ -9887,24 +9888,16 @@ test_chrome_plugin_staging() {
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "browserPreference"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "preferredWindowIdFor"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "getForUrl"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"node:process"'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "writeValue: chatgptLinuxBrowserUseIgnoreConfigWrite"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "batchWrite: chatgptLinuxBrowserUseIgnoreConfigWrite"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "writeFile"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseStringifyToml"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'Object.getPrototypeOf(repl)'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'Object.defineProperty(prototype, "config"'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseDefineNodeReplMethod"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "addAfterSubmittedCodeHook"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim();let e=globalThis.nodeRepl"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "nativePipe??import.meta.__codexNativePipe"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxNativePipeFallback"
-    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" 'await import("node:net")'
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxSiteStatusAllowlistFallback"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" "globalThis.nodeRepl"
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'typeof e.rpc!="function"'
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'o("browser",{method:"setup"'
+    assert_contains "$chrome_dir/scripts/browser-client.mjs" 'o("browser",{method:"execute"'
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseConfigShim"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseValidatedEnvironment"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseEnvironmentShim"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseProcessEnv"
+    assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "node:process"
     assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxPerUserBrowserSocketDir"
-    assert_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxBrowserUseUserInfo"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "process.env.CODEX_BROWSER_USE_SOCKET_DIR"
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" '"/tmp/codex-browser-use"'
     assert_not_contains "$chrome_dir/scripts/browser-client.mjs" "chatgptLinuxIabSocketScope"
@@ -10123,8 +10116,8 @@ JS
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_contains "$extracted/.vite/build/main-test.js" '(process.platform===`win32`||process.platform===`linux`)&&!this.isAppQuitting&&!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())'
     assert_contains "$extracted/.vite/build/main-test.js" 'r=chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))'
-    assert_contains "$extracted/.vite/build/main-test.js" 'isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'isReady(){if(process.platform!==`linux`)return r.S(this.tray);let e=this.tray;return typeof e.isReady==`function`?e.isReady():!0}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'async waitForReady(){if(process.platform!==`linux`)return r.W(this.tray);let e=this.tray;if(typeof e.whenReady!=`function`)return!0;try{return await e.whenReady(),!0}catch{return!1}}'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon.*app-test.png'
     assert_contains "$extracted/.vite/build/main-test.js" 'if(o.isEmpty()&&process.platform===`linux`)o=n.nativeImage.createFromPath'
     assert_contains "$extracted/.vite/build/main-test.js" 'updatePersistentTrayMenu(){process.platform===`linux`'
@@ -10222,8 +10215,8 @@ NODE
     node "$REPO_DIR/scripts/patch-linux-window-ui.js" "$extracted" >"$output_log" 2>&1
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray(new n.Tray(t.defaultIcon))' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" 'chatgpt-linux-project-tray-icon' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'isReady(){return process.platform===`linux`&&typeof this.tray.isReady!=`function`?!0:r.S(this.tray)}' '1'
-    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'waitForReady(){return process.platform===`linux`&&typeof this.tray.whenReady!=`function`?Promise.resolve(!0):r.W(this.tray)}' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'isReady(){if(process.platform!==`linux`)return r.S(this.tray);let e=this.tray;return typeof e.isReady==`function`?e.isReady():!0}' '1'
+    assert_occurrence_count "$extracted/.vite/build/main-test.js" 'async waitForReady(){if(process.platform!==`linux`)return r.W(this.tray);let e=this.tray;if(typeof e.whenReady!=`function`)return!0;try{return await e.whenReady(),!0}catch{return!1}}' '1'
     assert_occurrence_count "$extracted/.vite/build/main-test.js" '!(typeof chatgptLinuxIsQuitInProgress===`function`&&chatgptLinuxIsQuitInProgress())' '1'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxRegisterTray=e=>(chatgptLinuxTray=e,e)'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxDestroyTray=()=>{if(process.platform!==`linux`)return;'
@@ -10243,7 +10236,7 @@ test_linux_explicit_quit_patch_smoke() {
     bundle_body="$(cat <<'JS'
 const x={o:e=>e};let s=require(`node:url`),n=require(`electron`);n=x.o(n);let l=require(`node:os`);l=x.o(l);let i=require(`node:path`);i=x.o(i);let d=require(`node:util`),q=require(`node:crypto`),a=require(`node:fs`);a=x.o(a);
 var pb=class{getNativeTrayMenuItems(){return[{label:this.systemQuitMenuItemLabel,click:()=>{n.app.quit()}}]}};
-function qB(r,o){if(o.type===`quit-app`){n.app.quit();return}return o}
+function qB(e,o){if(o.type===`quit-app`){o.relaunch===!0&&(e.quitState?.allowQuitTemporarily(),n.app.relaunch()),n.app.quit();return}return o}
 n.app.on(`before-quit`,o=>{let s=BI(),c=t.sr().some(e=>e.status===`ACTIVE`);if(e||i.canQuitWithoutPrompt()||r||!s&&!c){g=!0,a.markAppQuitting();return}let l=n.app.getName();if(n.dialog.showMessageBoxSync({type:`warning`,buttons:[`Quit`,`Cancel`],defaultId:0,cancelId:1,noLink:!0,title:`Quit ${l}?`,message:`Quit ${l}?`,detail:vB({hasInProgressLocalConversation:s,hasEnabledAutomations:c})})!==0){o.preventDefault();return}i.markQuitApproved(),g=!0,a.markAppQuitting()});
 l.app.on(`will-quit`,e=>{if(y=!0,v)return;let t=()=>{U5(h,N5).then(()=>{g.dispose(),l.app.quit()})};if(r.shouldSkipDrainBeforeQuit()){e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([d.flush(),p(),m()]).then(t);return}e.preventDefault(),v=!0,c.dispose(),u.dispose(),Promise.allSettled([d.flush(),f.flush(),p(),m()]).then(t)});
 JS
@@ -10254,7 +10247,7 @@ JS
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxPrepareForExplicitQuit=()=>{chatgptLinuxExplicitQuitApproved=!0,chatgptLinuxMarkQuitInProgress()}'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxShouldBypassQuitPrompt=()=>chatgptLinuxExplicitQuitApproved===!0'
     assert_contains "$extracted/.vite/build/main-test.js" '{label:this.systemQuitMenuItemLabel,click:()=>{typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),n.app.quit()}}'
-    assert_contains "$extracted/.vite/build/main-test.js" 'if(o.type===`quit-app`){typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),n.app.quit();return}'
+    assert_contains "$extracted/.vite/build/main-test.js" 'if(o.type===`quit-app`){o.relaunch===!0&&(e.quitState?.allowQuitTemporarily(),n.app.relaunch()),typeof chatgptLinuxPrepareForExplicitQuit===`function`?chatgptLinuxPrepareForExplicitQuit():typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),n.app.quit();return}'
     assert_contains "$extracted/.vite/build/main-test.js" 'if((typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt())||e||i.canQuitWithoutPrompt()||r||!s&&!c){process.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),g=!0,a.markAppQuitting();return}'
     assert_contains "$extracted/.vite/build/main-test.js" 'process.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress(),i.markQuitApproved(),g=!0,a.markAppQuitting()'
     assert_contains "$extracted/.vite/build/main-test.js" 'chatgptLinuxLogQuitDrainResults=e=>{'
@@ -10283,7 +10276,7 @@ const helperStart = source.indexOf("let chatgptLinuxTray=null");
 const helperEnd = source.indexOf(";n.app.on(`before-quit`,()=>chatgptLinuxDestroyTray())", helperStart) + 1;
 const helperSnippet = helperStart === -1 || helperEnd === 0 ? null : source.slice(helperStart, helperEnd);
 const traySnippet = source.match(/\{label:this\.systemQuitMenuItemLabel,click:\(\)=>\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\)\}\}/)?.[0];
-const quitAppSnippet = source.match(/if\(o\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/)?.[0];
+const quitAppSnippet = source.match(/if\(o\.type===`quit-app`\)\{o\.relaunch===!0&&\(e\.quitState\?\.allowQuitTemporarily\(\),n\.app\.relaunch\(\)\),typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),n\.app\.quit\(\);return\}/)?.[0];
 const beforeQuitSnippet = source.match(/if\(\(typeof chatgptLinuxShouldBypassQuitPrompt===`function`&&chatgptLinuxShouldBypassQuitPrompt\(\)\)\|\|e\|\|i\.canQuitWithoutPrompt\(\)\|\|r\|\|!s&&!c\)\{process\.platform===`linux`&&typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),g=!0,a\.markAppQuitting\(\);return\}/)?.[0];
 if (!helperSnippet || !traySnippet || !quitAppSnippet || !beforeQuitSnippet) {
   throw new Error("Could not extract explicit quit snippets");
@@ -10305,19 +10298,24 @@ function runTrayQuit({ withHelper = true } = {}) {
   return state;
 }
 
-function runQuitApp({ withHelper = true } = {}) {
-  const state = { markCalls: 0, prepareCalls: 0, quitCalls: 0 };
-  const app = { quit() { state.quitCalls += 1; } };
+function runQuitApp({ relaunch = false, withHelper = true } = {}) {
+  const state = { allowCalls: 0, markCalls: 0, prepareCalls: 0, quitCalls: 0, relaunchCalls: 0 };
+  const app = {
+    quit() { state.quitCalls += 1; },
+    relaunch() { state.relaunchCalls += 1; },
+  };
+  const context = { quitState: { allowQuitTemporarily() { state.allowCalls += 1; } } };
   const mark = () => { state.markCalls += 1; };
   const prepare = withHelper ? () => { state.prepareCalls += 1; mark(); } : undefined;
   const handler = new Function(
     "n",
+    "e",
     "chatgptLinuxPrepareForExplicitQuit",
     "chatgptLinuxMarkQuitInProgress",
     "o",
     `${quitAppSnippet};return null;`,
   );
-  handler({ app }, prepare, mark, { type: "quit-app" });
+  handler({ app }, context, prepare, mark, { relaunch, type: "quit-app" });
   return state;
 }
 
@@ -10347,8 +10345,13 @@ if (state.prepareCalls !== 1 || state.markCalls !== 1 || state.quitCalls !== 1) 
 }
 
 state = runQuitApp();
-if (state.prepareCalls !== 1 || state.markCalls !== 1 || state.quitCalls !== 1) {
+if (state.prepareCalls !== 1 || state.markCalls !== 1 || state.quitCalls !== 1 || state.allowCalls !== 0 || state.relaunchCalls !== 0) {
   throw new Error("quit-app IPC should prepare explicit quit before quitting");
+}
+
+state = runQuitApp({ relaunch: true });
+if (state.prepareCalls !== 1 || state.markCalls !== 1 || state.quitCalls !== 1 || state.allowCalls !== 1 || state.relaunchCalls !== 1) {
+  throw new Error("quit-app IPC should preserve relaunch preparation before explicit quit");
 }
 
 state = runTrayQuit({ withHelper: false });
@@ -10357,7 +10360,7 @@ if (state.prepareCalls !== 0 || state.markCalls !== 1 || state.quitCalls !== 1) 
 }
 
 state = runQuitApp({ withHelper: false });
-if (state.prepareCalls !== 0 || state.markCalls !== 1 || state.quitCalls !== 1) {
+if (state.prepareCalls !== 0 || state.markCalls !== 1 || state.quitCalls !== 1 || state.allowCalls !== 0 || state.relaunchCalls !== 0) {
   throw new Error("quit-app IPC should still fall back to the quit-in-progress marker");
 }
 

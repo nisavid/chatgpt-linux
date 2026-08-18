@@ -257,22 +257,16 @@ function applyLinuxExplicitIpcQuitPatch(currentSource) {
 
   const quitMarkerExpression = linuxExplicitQuitExpression();
 
-  const quitAppNeedle = "if(o.type===`quit-app`){n.app.quit();return}";
-  const quitAppPatch = `if(o.type===\`quit-app\`){${quitMarkerExpression}n.app.quit();return}`;
   const quitAppRegex =
-    /if\(([A-Za-z_$][\w$]*)\.type===`quit-app`\)\{([A-Za-z_$][\w$]*)\.app\.quit\(\);return\}/g;
+    /if\(([A-Za-z_$][\w$]*)\.type===`quit-app`\)\{\1\.relaunch===!0&&\(([A-Za-z_$][\w$]*)\.quitState\?\.allowQuitTemporarily\(\),([A-Za-z_$][\w$]*)\.app\.relaunch\(\)\),\3\.app\.quit\(\);return\}/g;
   const patchedQuitAppRegex =
-    /if\([A-Za-z_$][\w$]*\.type===`quit-app`\)\{typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),[A-Za-z_$][\w$]*\.app\.quit\(\);return\}/;
+    /if\(([A-Za-z_$][\w$]*)\.type===`quit-app`\)\{\1\.relaunch===!0&&\(([A-Za-z_$][\w$]*)\.quitState\?\.allowQuitTemporarily\(\),([A-Za-z_$][\w$]*)\.app\.relaunch\(\)\),typeof chatgptLinuxPrepareForExplicitQuit===`function`\?chatgptLinuxPrepareForExplicitQuit\(\):typeof chatgptLinuxMarkQuitInProgress===`function`&&chatgptLinuxMarkQuitInProgress\(\),\3\.app\.quit\(\);return\}/;
   let patchedAny = false;
-  if (patchedSource.includes(quitAppNeedle)) {
-    patchedAny = true;
-    patchedSource = patchedSource.split(quitAppNeedle).join(quitAppPatch);
-  }
   patchedSource = patchedSource.replace(
     quitAppRegex,
-    (_match, messageVar, electronVar) => {
+    (_match, messageVar, contextVar, electronVar) => {
       patchedAny = true;
-      return `if(${messageVar}.type===\`quit-app\`){${quitMarkerExpression}${electronVar}.app.quit();return}`;
+      return `if(${messageVar}.type===\`quit-app\`){${messageVar}.relaunch===!0&&(${contextVar}.quitState?.allowQuitTemporarily(),${electronVar}.app.relaunch()),${quitMarkerExpression}${electronVar}.app.quit();return}`;
     },
   );
   if (!patchedAny && !patchedQuitAppRegex.test(patchedSource) && patchedSource.includes("type===`quit-app`")) {

@@ -12,18 +12,15 @@ const {
 } = require("../../scripts/lib/port-integrations.js");
 const {
   applyMainBundlePatchDescriptors,
-  applyWebviewAssetPatchDescriptors,
 } = require("../../scripts/patches/engine.js");
-const {
-  openGeneratedAppMutationRoot,
-} = require("../../scripts/patches/lib/generated-app-mutation-client.js");
 const {
   createPatchReport,
 } = require("../../scripts/lib/patch-report.js");
 const {
   MAX_WRAPPER_ARGS,
   applyMainBundlePatch,
-  applyWebviewPatch,
+  applyWebviewDataPatch,
+  applyWebviewSettingsPatch,
   descriptors,
   formatCommandWrapper,
   parseCommandWrapper,
@@ -31,16 +28,16 @@ const {
   wrapRemoteCommand,
 } = require("./patch.js");
 
-const managementCall = "n.Rn({args:[`ssh`,...cC(c),...uC(this.options.sshConnection),GS(e,s)],spawnInsideWsl:!1})";
-const proxyCall = "(0,x.spawn)(n.Wn.resolve(`ssh`)??`ssh`,[`-T`,...cC(this.options.getConnectTimeoutSeconds?.()),...uC(this.options.sshConnection),GS(r,a)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})";
+const managementCall = "n.Rn({args:[`ssh`,...iC(c),...oC(this.options.sshConnection),VS(e,s)],spawnInsideWsl:!1})";
+const proxyCall = "(0,x.spawn)(n.Wn.resolve(`ssh`)??`ssh`,[`-T`,...iC(this.options.getConnectTimeoutSeconds?.()),...oC(this.options.sshConnection),VS(r,a)],{env:i.t(process.env),stdio:[`pipe`,`pipe`,`pipe`]})";
 
 const mainFixture = [
   "const existingArraySchema=n.yl(n.jl())",
-  "function GS(e,t){return e+t}",
+  "function VS(e,t){return e+t}",
   `function management(){let u=${managementCall};return u}`,
   `function proxy(){let a=${proxyCall};return a}`,
   "function fC(e){let t=Dse(e);return t?{sshConnection:{alias:t.sshAlias,host:t.sshHost,port:t.sshPort,identity:t.identity}}:null}",
-  "function kse(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`:",
+  "function Xse(e){let t=e.alias?.trim();return t?`alias:${t}`:[`direct`,e.host,String(e.port??``),e.identity?.trim()??``].join(`:",
   "aliasLoad.then(t=>t==null?null:{...t,hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,autoConnect:!1})",
   "let direct=[{hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,source:`codex-managed`,autoConnect:!1,sshAlias:null,sshHost:e.hostname,sshPort:e.sshPort,identity:e.identity}]),...t.filter",
   "let current=e.alias==null?{hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,source:`codex-managed`,alias:null,hostname:e.hostname,sshPort:e.sshPort,identity:e.identity}:{hostId:e.hostId,connectionAnalyticsId:e.connectionAnalyticsId,displayName:e.displayName,source:`discovered`,alias:e.alias,hostname:null,sshPort:null,identity:null}",
@@ -51,14 +48,17 @@ const mainFixture = [
 ].join(";");
 
 const currentWebviewSettingsFieldTarget =
-  "let N;t[47]!==k||t[48]!==j||t[49]!==M?(N=(0,q.jsx)(ln,{children:(0,q.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[k,j,M]})}),t[47]=k,t[48]=j,t[49]=M,t[50]=N):N=t[50];";
+  "let P;t[47]!==A||t[48]!==M||t[49]!==N?(P=(0,J.jsx)(sr,{children:(0,J.jsxs)(`div`,{className:`grid grid-cols-1 gap-4`,children:[A,M,N]})}),t[47]=A,t[48]=M,t[49]=N,t[50]=P):P=t[50];";
 
-const webviewFixture = [
-  "function qi(){return{displayName:``,targetKind:`hostname`,sshHost:``,sshPort:``,authMode:`none`,identity:``}}",
-  "function Ji(e){return{displayName:e.displayName,targetKind:e.sshAlias?.trim()?`alias`:`hostname`,sshHost:e.sshAlias?.trim()||e.sshHost,sshPort:e.sshPort==null?``:String(e.sshPort),authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
-  "function Yi(e,{connectionAnalyticsId:t}={}){let n=e.displayName.trim(),r=e.sshHost.trim(),i=e.targetKind===`alias`?r:null;return i==null?{hostId:d(n),connectionAnalyticsId:t,displayName:n,source:`codex-managed`,alias:null,hostname:r,sshPort:Zi(e.sshPort),identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:ze(i),connectionAnalyticsId:t,displayName:n,source:`discovered`,alias:i,hostname:null,sshPort:null,identity:null}}function Xi({draft:e,editingHostId:t,existingConnections:n}){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
-  `function $i(e){let t=[],v,q,ln,k,j,M,ra,o,u;${currentWebviewSettingsFieldTarget}return N}`,
-  "function ia(e){switch(e){case`displayNameRequired`:return null}}",
+const webviewDataFixture = [
+  "function viu(){return{displayName:``,targetKind:`hostname`,sshHost:``,sshPort:``,authMode:`none`,identity:``}}",
+  "function yiu(e){return{displayName:e.displayName,targetKind:e.sshAlias?.trim()?`alias`:`hostname`,sshHost:e.sshAlias?.trim()||e.sshHost,sshPort:e.sshPort==null?``:String(e.sshPort),authMode:e.identity==null?`none`:`identity`,identity:e.identity??``}}",
+  "function biu(e,{connectionAnalyticsId:t}={}){let n=e.displayName.trim(),r=e.sshHost.trim(),i=e.targetKind===`alias`?r:null;return i==null?{hostId:d(n),connectionAnalyticsId:t,displayName:n,source:`codex-managed`,alias:null,hostname:r,sshPort:Siu(e.sshPort),identity:e.authMode===`identity`?e.identity.trim():null}:{hostId:ze(i),connectionAnalyticsId:t,displayName:n,source:`discovered`,alias:i,hostname:null,sshPort:null,identity:null}}function xiu({draft:e,editingHostId:t,existingConnections:n}){let r=[],i=e.displayName.trim();i.length===0&&r.push(`displayNameRequired`);return r}",
+].join("");
+
+const webviewSettingsFixture = [
+  `function Xi(e){let t=(0,na.c)(74),{isSaving:d}=e,y=e;let b=Ur(y);(0,J.jsx)(b.Field,{disabled:d}),(0,J.jsx)(ea,{label:(0,J.jsx)(r,{})});${currentWebviewSettingsFieldTarget}return P}`,
+  "function $i(e){return ta(e)}function ta(e){switch(e){case`displayNameRequired`:return null}}",
 ].join("");
 
 function withCapturedWarnings(callback) {
@@ -67,17 +67,6 @@ function withCapturedWarnings(callback) {
   console.warn = (message) => warnings.push(String(message));
   try {
     return { value: callback(), warnings };
-  } finally {
-    console.warn = originalWarn;
-  }
-}
-
-async function withCapturedWarningsAsync(callback) {
-  const warnings = [];
-  const originalWarn = console.warn;
-  console.warn = (message) => warnings.push(String(message));
-  try {
-    return { value: await callback(), warnings };
   } finally {
     console.warn = originalWarn;
   }
@@ -104,43 +93,6 @@ function withIntegrationConfig(enabled, callback) {
     if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
     else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
     fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-}
-
-async function withIntegrationConfigAsync(enabled, callback) {
-  const originalConfig = process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ssh-command-wrapper-integration-"));
-  process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = path.join(tempDir, "integrations.json");
-  fs.writeFileSync(process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG, `${JSON.stringify(integrationSelection(path.resolve(__dirname, ".."), enabled))}\n`);
-  try {
-    return await callback(path.resolve(__dirname, ".."));
-  } finally {
-    if (originalConfig == null) delete process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG;
-    else process.env.CHATGPT_PORT_INTEGRATIONS_CONFIG = originalConfig;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-}
-
-async function applyWebviewAssetPatchDescriptorsWithMutation(
-  root,
-  descriptors,
-  context,
-  report,
-) {
-  fs.chmodSync(root, 0o700);
-  const generatedAppMutation = await openGeneratedAppMutationRoot(root, {
-    brokerPath: process.env.CHATGPT_GENERATED_APP_MUTATION_BROKER_SOURCE,
-    verifiedPrivateRoot: true,
-  });
-  try {
-    return await applyWebviewAssetPatchDescriptors(
-      root,
-      descriptors,
-      { ...context, generatedAppMutation },
-      report,
-    );
-  } finally {
-    await generatedAppMutation.close();
   }
 }
 
@@ -214,9 +166,10 @@ test("patches all main-process transport and persistence paths idempotently", ()
   const patched = applyMainBundlePatch(mainFixture);
   assert.notEqual(patched, mainFixture);
   assert.equal(applyMainBundlePatch(patched), patched);
-  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(GS\(e,s\)/u);
-  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(GS\(r,a\)/u);
+  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(VS\(e,s\)/u);
+  assert.match(patched, /chatgptLinuxSshWrapRemoteCommand\(VS\(r,a\)/u);
   assert.match(patched, /chatgptLinuxSshCommandWrapperArgs\(e\.chatgptLinuxSshCommandWrapper\)/u);
+  assert.match(patched, /catch\{n=`\[\]`\}return t\?/u);
   assert.ok(patched.split("chatgptLinuxSshCommandWrapper").length > 10);
 });
 
@@ -272,8 +225,8 @@ test("main-process patch rejects duplicate owned SSH targets", () => {
 
 test("main-process helper-only partial state is reported as integration drift", () => {
   const partial = mainFixture.replace(
-    "function GS(",
-    "function chatgptLinuxSshCommandWrapperArgs(e){}function GS(",
+    "function VS(",
+    "function chatgptLinuxSshCommandWrapperArgs(e){}function VS(",
   );
   withIntegrationConfig(["ssh-command-wrapper"], (integrationsRoot) => {
     const descriptor = loadPortIntegrationPatchDescriptors({ integrationsRoot })
@@ -290,89 +243,90 @@ test("main-process helper-only partial state is reported as integration drift", 
 });
 
 test("patches the current compiler-memoized SSH connection editor for manual hosts and aliases", () => {
-  const patched = applyWebviewPatch(webviewFixture);
-  assert.notEqual(patched, webviewFixture);
-  assert.equal(applyWebviewPatch(patched), patched);
-  assert.equal(patched.includes(currentWebviewSettingsFieldTarget), false);
-  const fieldStart = patched.indexOf("let N=(0,q.jsx)(ln");
-  const fieldEnd = patched.indexOf("return N", fieldStart);
+  const patchedData = applyWebviewDataPatch(webviewDataFixture);
+  const patchedSettings = applyWebviewSettingsPatch(webviewSettingsFixture);
+  assert.notEqual(patchedData, webviewDataFixture);
+  assert.notEqual(patchedSettings, webviewSettingsFixture);
+  assert.equal(applyWebviewDataPatch(patchedData), patchedData);
+  assert.equal(applyWebviewSettingsPatch(patchedSettings), patchedSettings);
+  assert.equal(patchedSettings.includes(currentWebviewSettingsFieldTarget), false);
+  const fieldStart = patchedSettings.indexOf("let P=(0,J.jsx)(sr");
+  const fieldEnd = patchedSettings.indexOf("return P", fieldStart);
   assert.notEqual(fieldStart, -1);
   assert.notEqual(fieldEnd, -1);
-  const injectedField = patched.slice(fieldStart, fieldEnd);
-  assert.match(injectedField, /v\.Field/u);
+  const injectedField = patchedSettings.slice(fieldStart, fieldEnd);
+  assert.match(injectedField, /b\.Field/u);
   assert.match(injectedField, /name:`chatgptLinuxSshCommandWrapperText`/u);
-  assert.match(injectedField, /disabled:u/u);
-  assert.doesNotMatch(injectedField, /disabled:l/u);
-  assert.match(patched, /Remote command wrapper/u);
-  assert.match(patched, /ssh -T target-host --/u);
+  assert.match(injectedField, /disabled:d/u);
+  const patched = patchedData + patchedSettings;
+  assert.match(patchedSettings, /Remote command wrapper/u);
+  assert.match(patchedSettings, /ssh -T target-host --/u);
   assert.match(patched, /invalidSshCommandWrapper/u);
   assert.match(
-    patched,
-    /case`invalidSshCommandWrapper`:return\(0,q\.jsx\)\(o,\{id:`settings\.remoteConnections\.dialog\.field\.commandWrapper\.error`/u,
+    patchedSettings,
+    /case`invalidSshCommandWrapper`:return\(0,J\.jsx\)\(r,\{id:`settings\.remoteConnections\.dialog\.field\.commandWrapper\.error`/u,
   );
-  assert.match(patched, /chatgptLinuxSshCommandWrapper:chatgptLinuxParseSshCommandWrapper/u);
+  assert.match(patchedData, /chatgptLinuxSshCommandWrapper:chatgptLinuxParseSshCommandWrapper/u);
 });
 
 test("webview patch rejects a damaged injected helper implementation", () => {
-  const patched = applyWebviewPatch(webviewFixture);
+  const patched = applyWebviewDataPatch(webviewDataFixture);
   const damaged = patched.replace("t.length>64", "t.length>63");
   assert.notEqual(damaged, patched);
 
-  const { value, warnings } = withCapturedWarnings(() => applyWebviewPatch(damaged));
+  const { value, warnings } = withCapturedWarnings(() => applyWebviewDataPatch(damaged));
   assert.equal(value, damaged);
   assert.match(warnings.join("\n"), /helperSource=0/u);
 });
 
 test("webview patch rejects duplicate current settings layout targets", () => {
-  const duplicateTarget = `${webviewFixture}function duplicate(){${currentWebviewSettingsFieldTarget}}`;
-  const { value, warnings } = withCapturedWarnings(() => applyWebviewPatch(duplicateTarget));
+  const duplicateTarget = `${webviewSettingsFixture}function duplicate(){${currentWebviewSettingsFieldTarget}}`;
+  const { value, warnings } = withCapturedWarnings(() => applyWebviewSettingsPatch(duplicateTarget));
   assert.equal(value, duplicateTarget);
   assert.match(warnings.join("\n"), /partial, ambiguous, or drifted/u);
 });
 
-test("webview helper-only partial state is reported as integration drift", async () => {
-  const partial = webviewFixture.replace(
-    "function qi(){",
-    "function chatgptLinuxParseSshCommandWrapper(e){}function qi(){",
-  );
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ssh-command-wrapper-webview-"));
-  const assetsDir = path.join(tempDir, "webview", "assets");
-  const assetPath = path.join(assetsDir, "remote-connections-settings-current.js");
-  fs.mkdirSync(assetsDir, { recursive: true });
-  fs.writeFileSync(assetPath, partial);
-  try {
-    await withIntegrationConfigAsync(["ssh-command-wrapper"], async (integrationsRoot) => {
-      const descriptor = loadPortIntegrationPatchDescriptors({ integrationsRoot })
-        .find((item) => item.id === "integration:ssh-command-wrapper:webview-ssh-command-wrapper-settings");
-      const report = createPatchReport();
-      report.enabledIntegrations = ["ssh-command-wrapper"];
-      const { warnings } = await withCapturedWarningsAsync(() =>
-        applyWebviewAssetPatchDescriptorsWithMutation(
-          tempDir,
-          [descriptor],
-          {},
-          report,
-        ),
-      );
-      assert.equal(fs.readFileSync(assetPath, "utf8"), partial);
-      assert.match(warnings.join("\n"), /partial, ambiguous, or drifted/u);
-      assert.equal(report.patches[0].status, "skipped-optional");
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+test("webview settings patch rejects missing field and saving-state aliases", () => {
+  for (const [needle, replacement, decoy] of [
+    ["let b=Ur(y)", "let q=Ur(y)", "let b=Ur(y)"],
+    ["isSaving:d}=e", "isSaving:q}=e", "isSaving:d}=e"],
+    ["(0,J.jsx)(ea,{", "(0,J.jsx)(qa,{", "(0,J.jsx)(ea,{"],
+    ["(0,J.jsx)(r,{}", "(0,J.jsx)(qr,{}", "(0,J.jsx)(r,{}"],
+  ]) {
+    const drifted = webviewSettingsFixture.replace(
+      needle,
+      replacement,
+    ).replace(
+      "function Xi(e){",
+      `function Xi(e){let decoy=${JSON.stringify(decoy)};`,
+    );
+    const { value, warnings } = withCapturedWarnings(() => applyWebviewSettingsPatch(drifted));
+    assert.equal(value, drifted);
+    assert.match(warnings.join("\n"), /Could not uniquely resolve the current webview settings/u);
   }
 });
 
-test("exports main and settings descriptors for default-enabled builds", () => {
+test("webview settings patch does not inject unused data helpers", () => {
+  const patched = applyWebviewSettingsPatch(webviewSettingsFixture);
+  assert.doesNotMatch(patched, /function chatgptLinuxParseSshCommandWrapper/u);
+  assert.doesNotMatch(patched, /function chatgptLinuxFormatSshCommandWrapper/u);
+});
+
+test("exports main, data, and settings descriptors for default-enabled builds", () => {
   assert.deepEqual(
     descriptors.map(({ phase, ciPolicy }) => [phase, ciPolicy]),
     [
       ["main-bundle", "opt-in"],
       ["webview-asset", "opt-in"],
+      ["webview-asset", "opt-in"],
     ],
   );
   assert.equal(
-    descriptors[1].pattern.test("remote-connections-settings-current.js"),
+    descriptors[1].pattern.test("app-initial-current.js"),
+    true,
+  );
+  assert.equal(
+    descriptors[2].pattern.test("remote-connections-settings-current.js"),
     true,
   );
 });
@@ -388,6 +342,7 @@ test("integration is enabled by default and explicit config can disable it", () 
       loadPortIntegrationPatchDescriptors({ integrationsRoot }).map(({ id }) => id),
       [
         "integration:ssh-command-wrapper:main-bundle-ssh-command-wrapper",
+        "integration:ssh-command-wrapper:webview-ssh-command-wrapper-data",
         "integration:ssh-command-wrapper:webview-ssh-command-wrapper-settings",
       ],
     );

@@ -250,41 +250,106 @@ function executableRegexMatches(currentSource, pattern) {
 }
 
 function findLinuxComputerUsePluginConfigMutations(currentSource, patched) {
-  const directPattern = patched
-    ? /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)([^{}]*)\}=([A-Za-z_$][\w$]*);if\(\1===`computer-use@openai-bundled`&&\2!==!0\)await ([A-Za-z_$][\w$]*)\.dispatchMessage\(`chatgpt-linux-computer-use-disable-requested`,\{\}\);\/\*chatgpt-linux-computer-use-disable-before-write\*\/let ([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\);await ([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g
-    : /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)([^{}]*)\}=([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\);await ([A-Za-z_$][\w$]*)\(`batch-write-config-value`,/g;
+  const directPattern =
+    /let\{pluginId:([A-Za-z_$][\w$]*),enabled:([A-Za-z_$][\w$]*)([^{}]*)\}=([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\?\?([A-Za-z_$][\w$]*)\?\.plugin;/g;
   const results = [];
   for (const match of executableRegexMatches(currentSource, directPattern)) {
     if (match.index == null) continue;
-    const optionsStart = match.index + match[0].length;
-    if (currentSource[optionsStart] !== "{") continue;
-    const optionsEnd = findMatchingBrace(currentSource, optionsStart);
-    if (optionsEnd < optionsStart || currentSource[optionsEnd + 1] !== ")") continue;
-
     const idVar = match[1];
     const enabledVar = match[2];
-    const readResultVar = patched ? match[6] : match[5];
+    const destructuringSuffix = match[3];
+    const argumentVar = match[4];
+    const pluginStateVar = match[5];
+    const pluginVar = match[6];
+    const analyticsVar = match[7];
+    if (
+      !new RegExp(`(?:^|,)marketplaceAnalytics:${escapeRegExp(analyticsVar)}(?:,|$)`).test(
+        destructuringSuffix,
+      ) ||
+      !new RegExp(`(?:^|,)plugin:${escapeRegExp(pluginVar)}(?:,|$)`).test(
+        destructuringSuffix,
+      )
+    ) {
+      continue;
+    }
+
+    let branchStart = match.index + match[0].length;
+    let dispatchVar = null;
+    if (patched) {
+      const patchedPrefix = new RegExp(
+        `^if\\(${escapeRegExp(idVar)}===\\\`computer-use@openai-bundled\\\`&&${escapeRegExp(enabledVar)}!==!0\\)await ([A-Za-z_$][\\w$]*)\\.dispatchMessage\\(\\\`chatgpt-linux-computer-use-disable-requested\\\`,\\{\\}\\);/\\*${LINUX_COMPUTER_USE_DISABLE_ORDERING_MARKER}\\*/`,
+      );
+      const patchedMatch = currentSource.slice(branchStart).match(patchedPrefix);
+      if (patchedMatch == null) continue;
+      dispatchVar = patchedMatch[1];
+      branchStart += patchedMatch[0].length;
+    }
+
+    const containing = findContainingFunction(currentSource, match.index);
+    if (containing == null || branchStart >= containing.closeIndex) continue;
+    const remotePrefix = `if(${pluginStateVar}?.source.type===\`remote\`)await `;
+    if (currentSource.slice(branchStart, branchStart + remotePrefix.length) !== remotePrefix) {
+      continue;
+    }
+    let elseIndex = currentSource.indexOf(";else{", branchStart + remotePrefix.length);
+    while (
+      elseIndex >= 0 &&
+      elseIndex < containing.closeIndex &&
+      findExecutableJavaScriptSubstring(currentSource, ";else{", elseIndex) !== elseIndex
+    ) {
+      elseIndex = currentSource.indexOf(";else{", elseIndex + 1);
+    }
+    if (elseIndex < 0 || elseIndex >= containing.closeIndex) continue;
+    const remoteBranch = currentSource.slice(branchStart, elseIndex + 1);
+    const safePostIndex = currentSource.indexOf(
+      ".safePost(",
+      branchStart + remotePrefix.length,
+    );
+    if (
+      safePostIndex < 0 ||
+      safePostIndex >= elseIndex ||
+      findExecutableJavaScriptSubstring(currentSource, ".safePost(", safePostIndex) !== safePostIndex
+    ) {
+      continue;
+    }
+
+    const localStart = elseIndex + ";else{".length;
+    const localMatch = currentSource.slice(localStart).match(
+      /^let ([A-Za-z_$][\w$]*)=await ([A-Za-z_$][\w$]*)\(([^()]*)\);await ([A-Za-z_$][\w$]*)\(([^()]*)\)\.sendRequest\(`config\/batchWrite`,/,
+    );
+    if (localMatch == null) continue;
+    const readResultVar = localMatch[1];
+    const optionsStart = localStart + localMatch[0].length;
+    if (currentSource[optionsStart] !== "{") continue;
+    const optionsEnd = findMatchingBrace(currentSource, optionsStart);
+    if (
+      optionsEnd < optionsStart ||
+      currentSource.slice(optionsEnd + 1, optionsEnd + 9) !== ")}await "
+    ) {
+      continue;
+    }
+
     const options = currentSource.slice(optionsStart, optionsEnd + 1);
     const optionsPattern = new RegExp(
-      `^\\{hostId:[A-Za-z_$][\\w$]*,edits:[A-Za-z_$][\\w$]*\\(\\{pluginId:${escapeRegExp(idVar)},enabled:${escapeRegExp(enabledVar)}\\}\\),` +
+      `^\\{edits:[A-Za-z_$][\\w$]*\\(\\{pluginId:${escapeRegExp(idVar)},enabled:${escapeRegExp(enabledVar)}\\}\\),` +
       `filePath:${escapeRegExp(readResultVar)}\\?\\.filePath\\?\\?null,` +
       `expectedVersion:${escapeRegExp(readResultVar)}\\?\\.expectedVersion\\?\\?null,reloadUserConfig:!0\\}$`,
     );
     if (!optionsPattern.test(options)) continue;
 
     results.push({
-      argumentVar: match[4],
-      destructuringSuffix: match[3],
-      dispatchVar: patched ? match[5] : null,
+      argumentVar,
+      destructuringSuffix,
+      dispatchVar,
       enabledVar,
-      end: optionsEnd + 2,
+      end: match.index + match[0].length,
       idVar,
       index: match.index,
       options,
-      readArguments: patched ? match[8] : match[7],
-      readFunctionVar: patched ? match[7] : match[6],
+      readArguments: localMatch[3],
+      readFunctionVar: localMatch[2],
       readResultVar,
-      writeFunctionVar: patched ? match[9] : match[8],
+      writeFunctionVar: localMatch[4],
     });
   }
   return results;
@@ -328,15 +393,10 @@ function applyLinuxComputerUseDisableOrderingPatch(currentSource) {
     throw new Error("Required Linux Computer Use disable ordering patch failed: plugin config mutation unavailable or ambiguous");
   }
   const match = matches[0];
-  const destructuring =
-    `let{pluginId:${match.idVar},enabled:${match.enabledVar}${match.destructuringSuffix ?? ""}}=${match.argumentVar};`;
   const revoke =
     `if(${match.idVar}===\`computer-use@openai-bundled\`&&${match.enabledVar}!==!0)await ${dispatchVar}.dispatchMessage(\`chatgpt-linux-computer-use-disable-requested\`,{});` +
     `/*${LINUX_COMPUTER_USE_DISABLE_ORDERING_MARKER}*/`;
-  const mutation =
-    `let ${match.readResultVar}=await ${match.readFunctionVar}(${match.readArguments});await ${match.writeFunctionVar}(\`batch-write-config-value\`,${match.options})`;
-  const replacement = destructuring + revoke + mutation;
-  const result = currentSource.slice(0, match.index) + replacement +
+  const result = currentSource.slice(0, match.end) + revoke +
     currentSource.slice(match.end);
   if (!hasLinuxComputerUseDisableOrderingContract(result)) {
     throw new Error(
@@ -725,7 +785,7 @@ function findContainingFunction(source, targetIndex) {
   return containing;
 }
 
-function applyComputerUseSettings26803Contract(currentSource) {
+function applyCurrentComputerUseSettingsContract(currentSource) {
   const markerPattern =
     /let ([A-Za-z_$][\w$]*BundledMarketplaceDonor)=([A-Za-z_$][\w$]*)\.availablePlugins\.find\(e=>e\.marketplaceName===`openai-bundled`[\s\S]{0,600}?let ([A-Za-z_$][\w$]*OfficialPluginState)=\[\.\.\.\2\.availablePlugins,\.\.\.\(\2\.installedPlugins\?\?\[\]\)\]\.find\(e=>\1!=null&&e\.marketplaceName===`openai-bundled`&&e\.marketplacePath===\1\.marketplacePath&&e\.plugin\?\.id===`computer-use@openai-bundled`&&e\.plugin\?\.name===([A-Za-z_$][\w$]*)\);[\s\S]{0,500}?!\2\.availablePlugins\.some\(e=>e\.marketplaceName===`openai-bundled`&&e\.marketplacePath===\1\.marketplacePath&&e\.plugin\?\.id===`computer-use@openai-bundled`&&e\.plugin\?\.name===\4\)[\s\S]{0,800}?plugin:\{id:`computer-use@openai-bundled`,name:\4,installed:\3\?\.plugin\?\.installed===!0,enabled:\3\?\.plugin\?\.enabled===!0/;
   if (markerPattern.test(currentSource)) return currentSource;
@@ -782,10 +842,6 @@ function applyComputerUseSettings26803Contract(currentSource) {
   const patchedSource =
     currentSource.slice(0, selection.index) + insertion + currentSource.slice(selection.index);
   return markerPattern.test(patchedSource) ? patchedSource : null;
-}
-
-function applyCurrentComputerUseSettingsContract(currentSource) {
-  return applyComputerUseSettings26803Contract(currentSource);
 }
 
 function matchesLinuxComputerUseRendererAvailabilityContract(currentSource) {
@@ -879,42 +935,86 @@ function applyLinuxComputerUseHostPlatformPatch(currentSource) {
 }
 
 function applyCurrentComputerUseInstallFlowContract(currentSource) {
-  if (currentSource.includes("plugin detail query requires pluginName")) {
-    const markerPattern =
-      /let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)&&([A-Za-z_$][\w$]*)!==`computer-use`,([A-Za-z_$][\w$]*);/;
-    if (markerPattern.test(currentSource)) {
-      return currentSource;
-    }
-
-    const needlePattern =
-      /let ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*),([A-Za-z_$][\w$]*);/g;
-    let changed = false;
-    const patchedSource = currentSource.replace(
-      needlePattern,
-      (match, gateVar, gateValueVar, nextVar, offset) => {
-        const lookback = currentSource.slice(Math.max(0, offset - 900), offset);
-        const nextSource = currentSource.slice(offset + match.length, offset + match.length + 1800);
-        const pluginNameVar = lookback.match(/pluginName:([A-Za-z_$][\w$]*)/)?.[1];
-        if (
-          pluginNameVar == null ||
-          !new RegExp(
-            String.raw`&&\(!${gateVar}\|\|[A-Za-z_$][\w$]*\.available\)`,
-          ).test(nextSource) ||
-          !nextSource.includes("`read-plugin`")
-        ) {
-          return match;
-        }
-        changed = true;
-        return `let ${gateVar}=${gateValueVar}&&${pluginNameVar}!==\`computer-use\`,${nextVar};`;
-      },
-    );
-
-    if (changed && markerPattern.test(patchedSource)) {
-      return patchedSource;
-    }
+  if (
+    !currentSource.includes("plugin detail query requires pluginName") ||
+    !currentSource.includes(".sendRequest(`plugin/read`,")
+  ) {
+    return null;
   }
 
-  return null;
+  const gatePattern =
+    /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)!=null&&([A-Za-z_$][\w$]*)\(\2\),([A-Za-z_$][\w$]*)\[\d+\]=\2,\4\[\d+\]=\1\);(let ([A-Za-z_$][\w$]*)=\1(?:&&([A-Za-z_$][\w$]*)!==`computer-use`)?,([A-Za-z_$][\w$]*);)/g;
+  const candidates = [];
+  for (const match of executableRegexMatches(currentSource, gatePattern)) {
+    if (match.index == null) continue;
+    const containing = findContainingFunction(currentSource, match.index);
+    if (containing == null) continue;
+    const paramsVar = containing.match[2].trim();
+    if (!/^[A-Za-z_$][\w$]*$/.test(paramsVar)) continue;
+    const destructuringMatches = executableRegexMatches(
+      containing.text,
+      new RegExp(
+        String.raw`\{[^{}]*pluginName:([A-Za-z_$][\w$]*)[^{}]*\}=${paramsVar}`,
+      ),
+    );
+    const pluginNameVar = destructuringMatches.length === 1
+      ? destructuringMatches[0][1]
+      : null;
+    if (pluginNameVar == null || pluginNameVar !== match[2]) continue;
+    const predicateVar = match[3];
+    const predicateMatches = executableRegexMatches(
+      currentSource,
+      new RegExp(
+        String.raw`function ${escapeRegExp(predicateVar)}\(([A-Za-z_$][\w$]*)\)\{return [A-Za-z_$][\w$]*\(\1\)===([A-Za-z_$][\w$]*)\}`,
+      ),
+    );
+    const predicate = predicateMatches.length === 1 ? predicateMatches[0] : null;
+    const pluginNameAssignments = predicate == null
+      ? []
+      : executableRegexMatches(
+        currentSource,
+        new RegExp(`${escapeRegExp(predicate[2])}=\`computer-use\``),
+      );
+    const availabilityMatches = executableRegexMatches(
+      containing.text,
+      new RegExp(
+        String.raw`&&\(!${escapeRegExp(match[6])}\|\|[A-Za-z_$][\w$]*\.available\)`,
+      ),
+    );
+    const detailInvocationMatches = executableRegexMatches(
+      containing.text,
+      new RegExp(
+        String.raw`[A-Za-z_$][\w$]*\(\{scope:[A-Za-z_$][\w$]*,accountId:null,hostId:[A-Za-z_$][\w$]*,marketplacePath:[A-Za-z_$][\w$]*,pluginName:${escapeRegExp(pluginNameVar)},queryClient:[A-Za-z_$][\w$]*,remoteMarketplaceName:[A-Za-z_$][\w$]*\}\)`,
+      ),
+    );
+    if (
+      predicate == null ||
+      pluginNameAssignments.length !== 1 ||
+      availabilityMatches.length !== 1 ||
+      detailInvocationMatches.length !== 1 ||
+      (match[7] != null && match[7] !== pluginNameVar)
+    ) {
+      continue;
+    }
+    candidates.push({
+      gateValueVar: match[1],
+      gateVar: match[6],
+      index: match.index + match[0].length - match[5].length,
+      length: match[5].length,
+      nextVar: match[8],
+      patched: match[7] === pluginNameVar,
+      predicateVar,
+      pluginNameVar,
+    });
+  }
+
+  if (candidates.length !== 1) return null;
+  const candidate = candidates[0];
+  if (candidate.patched) return currentSource;
+  const replacement =
+    `let ${candidate.gateVar}=${candidate.gateValueVar}&&${candidate.pluginNameVar}!==\`computer-use\`,${candidate.nextVar};`;
+  return currentSource.slice(0, candidate.index) + replacement +
+    currentSource.slice(candidate.index + candidate.length);
 }
 
 function matchesLinuxComputerUseInstallFlowContract(currentSource) {

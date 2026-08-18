@@ -715,16 +715,16 @@ test("patches an unassigned Computer Use plugin write without dropping extra bin
   const source = [
     "let order=[];let dp={dispatchMessage:async e=>{order.push(e)}};",
     "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function w_n(){return null}async function cm(){order.push(`persist`)}async function ipa(){}function I2n(e){return[e]}",
-    "function Kfa(e){let n=e?.hostId??`local`,r={},i={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
+    "async function q2t(){order.push(`read`);return null}function KHn(e){return[e]}let Hv={safePost:async()=>{order.push(`remote`)}};function Qg(){return{sendRequest:async e=>{order.push(e)}}}async function Rzr(){order.push(`refresh`)}",
+    "function Tzr(e){let r={},i={},n=e?.hostId??`local`,s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=c??s?.plugin;if(l?.source.type===`remote`)await Hv.safePost(`/remote`,{});else{let e=await q2t(r,i,n);await Qg(r,n).sendRequest(`config/batchWrite`,{edits:KHn({pluginId:t,enabled:a}),filePath:e?.filePath??null,expectedVersion:e?.expectedVersion??null,reloadUserConfig:!0})}await Rzr({scope:r,hostId:n,queryClient:i})};return s}",
   ].join("");
 
   const patched = applyLinuxComputerUseDisableOrderingPatch(source);
-  const api = vm.runInNewContext(`${patched};({mutate:Kfa({}),order})`);
+  const api = vm.runInNewContext(`${patched};({mutate:Tzr({}),order})`);
 
   assert.match(
     patched,
-    /let\{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c\}=e;/,
+    /let\{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c\}=e,l=c\?\?s\?\.plugin;/,
   );
   assert.equal(matchesLinuxComputerUseDisableOrderingContract(patched), true);
   assert.equal(applyLinuxComputerUseDisableOrderingPatch(patched), patched);
@@ -732,29 +732,39 @@ test("patches an unassigned Computer Use plugin write without dropping extra bin
   await api.mutate({
     enabled: false,
     marketplaceAnalytics: {},
-    plugin: {},
+    plugin: { source: { type: "local" } },
     pluginId: "computer-use@openai-bundled",
   });
   assert.deepEqual(Array.from(api.order), [
     "chatgpt-linux-computer-use-disable-requested",
-    "persist",
+    "read",
+    "config/batchWrite",
+    "refresh",
   ]);
   api.order.length = 0;
   await api.mutate({
     enabled: true,
     marketplaceAnalytics: {},
-    plugin: {},
+    plugin: { source: { type: "local" } },
     pluginId: "computer-use@openai-bundled",
   });
-  assert.deepEqual(Array.from(api.order), ["persist"]);
+  assert.deepEqual(Array.from(api.order), ["read", "config/batchWrite", "refresh"]);
+  api.order.length = 0;
+  await api.mutate({
+    enabled: false,
+    marketplaceAnalytics: {},
+    plugin: { source: { type: "remote" } },
+    pluginId: "unrelated-plugin",
+  });
+  assert.deepEqual(Array.from(api.order), ["remote", "refresh"]);
 });
 
 test("disable-before-write rejects marker-only state and ignores marker decoys", () => {
   const mutationSource = [
     "let dp={dispatchMessage:async()=>{}};",
     "async function feature(){return dp.dispatchMessage(`electron-desktop-features-changed`,{})}",
-    "async function w_n(){}async function cm(){}async function ipa(){}function I2n(e){return[e]}",
-    "function Kfa(e){let n=e?.hostId??`local`,i={},r={},o={},s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=await w_n(i,n);await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0}),await ipa({scope:r,hostId:n,intl:o,queryClient:i})};return s}",
+    "async function q2t(){}function KHn(e){return[e]}let Hv={safePost:async()=>{}};function Qg(){return{sendRequest:async()=>{}}}async function Rzr(){}",
+    "function Tzr(e){let r={},i={},n=e?.hostId??`local`,s=async e=>{let{pluginId:t,enabled:a,marketplaceAnalytics:s,plugin:c}=e,l=c??s?.plugin;if(l?.source.type===`remote`)await Hv.safePost(`/remote`,{});else{let e=await q2t(r,i,n);await Qg(r,n).sendRequest(`config/batchWrite`,{edits:KHn({pluginId:t,enabled:a}),filePath:e?.filePath??null,expectedVersion:e?.expectedVersion??null,reloadUserConfig:!0})}await Rzr({scope:r,hostId:n,queryClient:i})};return s}",
   ].join("");
   const markerOnly =
     "/*chatgpt-linux-computer-use-disable-before-write*/" + mutationSource;
@@ -810,8 +820,8 @@ test("disable-before-write rejects marker-only state and ignores marker decoys",
   );
 
   const persistenceCommentDecoy = mutationSource.replace(
-    "await cm(`batch-write-config-value`,{hostId:n,edits:I2n({pluginId:t,enabled:a}),filePath:l?.filePath??null,expectedVersion:l?.expectedVersion??null,reloadUserConfig:!0})",
-    "await cm(`unrelated`,{});/*`batch-write-config-value`,{reloadUserConfig:!0}*/",
+    "await Qg(r,n).sendRequest(`config/batchWrite`,{edits:KHn({pluginId:t,enabled:a}),filePath:e?.filePath??null,expectedVersion:e?.expectedVersion??null,reloadUserConfig:!0})",
+    "await Qg(r,n).sendRequest(`unrelated`,{});/*`config/batchWrite`,{reloadUserConfig:!0}*/",
   );
   assert.equal(
     matchesLinuxComputerUseDisableOrderingContract(persistenceCommentDecoy),
@@ -819,6 +829,16 @@ test("disable-before-write rejects marker-only state and ignores marker decoys",
   );
   assert.throws(
     () => applyLinuxComputerUseDisableOrderingPatch(persistenceCommentDecoy),
+    /unavailable or ambiguous/,
+  );
+
+  const mutationStart = mutationSource.indexOf("function Tzr");
+  const ambiguousMutation = mutationSource + mutationSource
+    .slice(mutationStart)
+    .replace("function Tzr", "function Uzr");
+  assert.equal(matchesLinuxComputerUseDisableOrderingContract(ambiguousMutation), false);
+  assert.throws(
+    () => applyLinuxComputerUseDisableOrderingPatch(ambiguousMutation),
     /unavailable or ambiguous/,
   );
 });

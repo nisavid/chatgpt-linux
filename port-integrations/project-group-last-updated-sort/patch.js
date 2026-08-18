@@ -1,14 +1,14 @@
 "use strict";
 
 const currentGroupSorter =
-  "function ROn({groups:e,items:t,projectOrder:n}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return bEn(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e),n)}";
+  "function von({groups:e,projectOrder:t}){return sin(e,t)}";
 const patchedGroupSorter =
-  "function ROn({groups:e,items:t,projectOrder:n,sortMode:chatgptLinuxProjectSortMode}){let r=new Map(t.map(e=>[e.task.key,e.recencyAt]));return((chatgptLinuxRecencySortedGroups)=>chatgptLinuxProjectSortMode===`updated_at`?chatgptLinuxRecencySortedGroups:bEn(chatgptLinuxRecencySortedGroups,n))(e.map((e,t)=>({group:e,index:t,recencyAt:e.threadKeys.reduce((e,t)=>Math.max(e,r.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e))}";
+  "function von({groups:e,projectOrder:t,items:n,sortMode:r}){if(r!==`updated_at`)return sin(e,t);let i=new Map;for(let e of n??[]){let t=e.task?.key;t!=null&&i.set(t,Math.max(i.get(t)??0,e.recencyAt??0))}return e.map((e,t)=>({group:e,index:t,recencyAt:(e.threadKeys??[]).reduce((e,t)=>Math.max(e,i.get(t)??0),e.projectUpdatedAt??0)})).sort((e,t)=>t.recencyAt-e.recencyAt||e.index-t.index).map(({group:e})=>e)}";
 
 const currentGroupSorterCall =
-  "M=ROn({groups:k,items:f,projectOrder:cm(t,ru.PROJECT_ORDER)})";
+  "M=von({groups:k,projectOrder:im(t,tu.PROJECT_ORDER)})";
 const patchedGroupSorterCall =
-  "M=ROn({groups:k,items:f,projectOrder:cm(t,ru.PROJECT_ORDER),sortMode:j})";
+  "M=von({groups:k,projectOrder:im(t,tu.PROJECT_ORDER),items:f,sortMode:j})";
 
 function countOccurrences(source, needle) {
   return source.split(needle).length - 1;
