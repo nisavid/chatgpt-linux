@@ -134,7 +134,7 @@
 
         chatgptDmg = pkgs.fetchurl {
           url = "https://persistent.oaistatic.com/codex-app-prod/ChatGPT.dmg";
-          hash = "sha256-7P+2/AIXozb8zrh1jwpUzDoGSBFWGKhr3czByxj7SKQ=";
+          hash = "sha256-QF22NyzBPHnSkcIaMRWXcmMhXC28uoOMdsk1JC1GxKA=";
         };
 
         chatgptVersion = "26.814.41407";
