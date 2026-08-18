@@ -83,8 +83,6 @@ test("preserves unrelated plugin detail availability gates", () => {
 });
 
 test("ignores non-executable current install-flow anchors", () => {
-  const gateDecoy =
-    "p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;";
   const driftedGate = currentComputerUseInstallFlowFixture().replace(
     "p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;",
     "p=i!=null&&isAvailabilityGated(i),t[3]=i,t[4]=p);let m=p,h;",
@@ -92,11 +90,11 @@ test("ignores non-executable current install-flow anchors", () => {
   const cases = [
     driftedGate.replace(
       "function currentPluginDetail(e){",
-      `function currentPluginDetail(e){let decoy=${JSON.stringify(gateDecoy)};`,
+      'function currentPluginDetail(e){let decoy="p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;";',
     ),
     driftedGate.replace(
       "function currentPluginDetail(e){",
-      `function currentPluginDetail(e){/*${gateDecoy}*/`,
+      "function currentPluginDetail(e){/*p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;*/",
     ),
     currentComputerUseInstallFlowFixture()
       .replace(
@@ -122,11 +120,9 @@ test("ignores non-executable current install-flow anchors", () => {
 });
 
 test("accepts the executable install-flow contract alongside non-executable decoys", () => {
-  const gateDecoy =
-    "p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;";
   const source = currentComputerUseInstallFlowFixture().replace(
     "function currentPluginDetail(e){",
-    `function currentPluginDetail(e){let decoy=${JSON.stringify(gateDecoy)};/*${gateDecoy}*/`,
+    'function currentPluginDetail(e){let decoy="p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;";/*p=i!=null&&isComputerUsePlugin(i),t[3]=i,t[4]=p);let m=p,h;*/',
   );
 
   assert.equal(matchesLinuxComputerUseInstallFlowContract(source), true);
