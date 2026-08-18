@@ -79,15 +79,16 @@ create maintenance work:
 | Official DMG acceptance | The workflow remains only as read-only pull-request validation. Its hourly schedule, manual dispatch, main-branch trigger, and drift-issue reconciliation job are removed. |
 | Nix DMG hash refresh | The write-capable dispatch workflow is removed. The historical refresh scripts remain source evidence, not an active campaign. |
 | Cachix population | The cache-writing workflow is removed. Existing cache and workflow-run history are not deleted. |
-| CodeQL and Rust Clippy scanning | Scheduled, security-event-writing workflows are removed. Existing alerts and run history remain unresolved evidence. |
+| CodeQL and Rust Clippy scanning | Required pull-request scanners remain with no schedule, push, or manual trigger. Their only write permission publishes code-scanning results required by protected `main`; existing alerts and run history remain unresolved evidence. |
 | Computer Use sync reminder | The issue-writing workflow is removed. Any bounded source export is handled during tracker closeout, without a standing reminder producer. |
 | Contributor PR limiting and label management | Pull-request- and issue-mutating workflows are removed because this repository no longer accepts a maintenance queue. |
 | Upstream sync | No scheduled upstream-sync workflow was active at retirement. Agent policy now prohibits starting another sync or maintenance campaign without a new owner decision that explicitly reverses retirement. |
 
 The remaining GitHub Actions workflows have no schedule and no repository,
-issue, pull-request, action, or security-event write permission. Historical
-workflow definitions and runs remain available through Git history and the
-Actions record.
+issue, pull-request, or Actions write permission. CodeQL and Rust Clippy retain
+only the `security-events: write` permission needed to publish required
+pull-request scan results. Historical workflow definitions and runs remain
+available through Git history and the Actions record.
 
 ## Unresolved retired security risk
 

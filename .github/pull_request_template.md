@@ -1,23 +1,31 @@
-**IMPORTANT: Please keep only one pull request open at a time. The default maximum is two active pull requests from the same contributor, and even that should be reserved for exceptional circumstances. Maintainers may configure a different per-contributor limit for explicit exceptions. Do not open several pull requests at once; finish or close existing work before submitting more. An automated bot will close pull requests that exceed the effective limit.**
+> [!IMPORTANT]
+> ChatGPT for Linux is retired and unsupported. This repository does not accept
+> maintenance contributions, bug fixes, features, package work, dependency
+> updates, or security remediation. Pull requests are limited to
+> owner-directed retirement closeout authorized by an existing tracker item.
 
-<!-- Complete this template before requesting review or merge. -->
+<!-- Complete this template only for authorized retirement closeout. -->
+
+## Closeout authority
+
+<!-- Link the existing owner-directed retirement issue and name its bounded scope. -->
 
 ## Summary
 
-<!-- What changed, why, and which issue it resolves. -->
-<!--
-Repository labels are assigned by maintainers and authorized collaborators
-during triage. Describe the facts and scope; do not self-classify.
--->
+<!-- Explain what retirement record or closeout state changes. -->
+
+## Preservation boundary
+
+<!-- Identify historical evidence and private or downstream state that remains untouched. -->
 
 ## Validation
 
-<!-- List the tests and checks you ran. Mention anything not tested or any known risk. -->
+<!-- List the exact checks run and any remaining hosted or owner gate. -->
 
 ## Checklist
 
-- [ ] This pull request is ready for review and is no longer a draft.
-- [ ] I followed [CONTRIBUTING.md](https://github.com/nisavid/chatgpt-linux/blob/main/CONTRIBUTING.md), kept the change focused, edited source files rather than generated output, and removed unrelated changes.
-- [ ] If this fixes official-app drift, it targets only the latest `ChatGPT.dmg` and removes obsolete fallback code and tests from the affected area.
-- [ ] I added or updated relevant tests, ran the validation listed above, and confirmed that required CI checks pass.
-- [ ] I reviewed the final diff with my coding agent using maximum reasoning effort, addressed all findings, and reran the relevant tests.
+- [ ] This change is authorized by an existing retirement-closeout ticket.
+- [ ] It does not resume maintenance or create replacement work.
+- [ ] It preserves historical attribution, runs, and unresolved-risk status.
+- [ ] It does not mutate packages, host or user state, credentials, or private rollback evidence.
+- [ ] The final immutable diff and required checks have been reviewed.

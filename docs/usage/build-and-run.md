@@ -152,17 +152,16 @@ Or enter a development shell:
 nix develop github:nisavid/chatgpt-linux
 ```
 
-The flake pins the SRI hash of the official OpenAI `ChatGPT.dmg`. OpenAI
-republishes the DMG at the same URL for each release, so the hash can
-temporarily lag. A GitHub Actions job refreshes the hash on `main` once every
-24 hours. If you see:
+The flake pinned the SRI hash of the official OpenAI `ChatGPT.dmg`. OpenAI
+republished the DMG at the same URL for each release, so the hash could lag.
+The retired project no longer refreshes it. Historical builds can therefore
+fail with:
 
 ```text
 error: hash mismatch in fixed-output derivation
 ```
 
-retry after the scheduled job has had time to run. If the mismatch remains,
-open an issue.
+There is no supported repair or issue-reporting path for this repository.
 
 ## Generate The Local App
 

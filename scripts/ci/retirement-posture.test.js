@@ -8,16 +8,31 @@ const workflowRoot = path.join(repoRoot, ".github/workflows");
 
 const retiredWorkflowFiles = [
   "cachix.yml",
-  "codeql.yml",
   "computer-use-sync-reminder.yml",
   "contributor-pr-limit.yml",
   "manage-labels.yml",
-  "rust-clippy.yml",
   "update-chatgpt-hash.yml",
 ];
 
+const requiredPullRequestScannerFiles = ["codeql.yml", "rust-clippy.yml"];
+
 test("retirement posture replaces install and support entry points", () => {
   const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
+  const contributing = fs.readFileSync(
+    path.join(repoRoot, "CONTRIBUTING.md"),
+    "utf8",
+  );
+  const security = fs.readFileSync(path.join(repoRoot, "SECURITY.md"), "utf8");
+  const pullRequestTemplate = fs.readFileSync(
+    path.join(repoRoot, ".github/pull_request_template.md"),
+    "utf8",
+  );
+  const pullRequestTemplateProse = pullRequestTemplate.replace(/^>\s?/gm, "");
+  const backlog = fs.readFileSync(path.join(repoRoot, "docs/backlog.md"), "utf8");
+  const issueTracker = fs.readFileSync(
+    path.join(repoRoot, "docs/agents/issue-tracker.md"),
+    "utf8",
+  );
   const retirement = fs.readFileSync(
     path.join(repoRoot, "docs/retirement.md"),
     "utf8",
@@ -29,6 +44,32 @@ test("retirement posture replaces install and support entry points", () => {
   assert.match(readme, /unofficial community project/i);
   assert.doesNotMatch(readme, /^## Quick Start$/m);
   assert.doesNotMatch(readme, /^## Local Updater$/m);
+
+  assert.match(contributing, /retired and unsupported/i);
+  assert.match(contributing, /not accepting\s+contributions/i);
+  assert.doesNotMatch(contributing, /Contributions of all sizes are welcome/i);
+  assert.doesNotMatch(contributing, /^## Development Setup$/m);
+
+  assert.match(security, /retired and unsupported/i);
+  assert.match(security, /does not accept vulnerability reports/i);
+  assert.doesNotMatch(security, /^## Supported Versions$/m);
+  assert.doesNotMatch(security, /maintainers coordinate the fix/i);
+
+  assert.match(pullRequestTemplate, /owner-directed retirement closeout/i);
+  assert.match(
+    pullRequestTemplateProse,
+    /does not accept\s+maintenance contributions/i,
+  );
+  assert.doesNotMatch(pullRequestTemplate, /automated bot will close/i);
+  assert.doesNotMatch(pullRequestTemplate, /latest `ChatGPT\.dmg`/i);
+
+  assert.match(backlog, /closed to new work/i);
+  assert.doesNotMatch(backlog, /Keep new durable work items/i);
+  assert.doesNotMatch(backlog, /active queue/i);
+
+  assert.match(issueTracker, /retirement closeout/i);
+  assert.doesNotMatch(issueTracker, /gh issue create/);
+  assert.doesNotMatch(issueTracker, /Create a GitHub issue/i);
 
   assert.match(retirement, /official-app-parity-2026-08\.md/);
   assert.match(retirement, /rollback-evidence-retention-boundary-2026-08\.md/);
@@ -52,6 +93,22 @@ test("retirement posture disables dependency and maintenance producers", () => {
       `${workflow} must remain retired`,
     );
   }
+
+  for (const workflow of requiredPullRequestScannerFiles) {
+    const source = fs.readFileSync(path.join(workflowRoot, workflow), "utf8");
+    assert.match(source, /^\s*pull_request:\s*$/m, workflow);
+    assert.doesNotMatch(
+      source,
+      /^\s*(push|schedule|workflow_dispatch):/m,
+      workflow,
+    );
+    assert.doesNotMatch(
+      source,
+      /^\s*(contents|issues|pull-requests):\s*write\s*$/m,
+      workflow,
+    );
+    assert.match(source, /^\s*security-events:\s*write\s*$/m, workflow);
+  }
 });
 
 test("remaining workflows cannot schedule or mutate repository maintenance state", () => {
@@ -63,7 +120,18 @@ test("remaining workflows cannot schedule or mutate repository maintenance state
   for (const workflow of workflows) {
     const source = fs.readFileSync(path.join(workflowRoot, workflow), "utf8");
     assert.doesNotMatch(source, /^\s*schedule:\s*$/m, workflow);
-    assert.doesNotMatch(source, /^\s*(actions|contents|issues|pull-requests|security-events):\s*write\s*$/m, workflow);
+    assert.doesNotMatch(
+      source,
+      /^\s*(actions|contents|issues|pull-requests):\s*write\s*$/m,
+      workflow,
+    );
+    if (!requiredPullRequestScannerFiles.includes(workflow)) {
+      assert.doesNotMatch(
+        source,
+        /^\s*security-events:\s*write\s*$/m,
+        workflow,
+      );
+    }
   }
 
   const officialDmg = fs.readFileSync(
