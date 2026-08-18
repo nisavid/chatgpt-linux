@@ -52,7 +52,7 @@ if [ "$pidfd_probe_status" -ne 0 ]; then
 fi
 
 TMP_DIR="$(mktemp -d)"
-APP_DIR="$TMP_DIR/app"
+APP_DIR="$TMP_DIR/immutable-parent/app"
 HOME_DIR="$TMP_DIR/home"
 RUNTIME_DIR="$TMP_DIR/runtime"
 STATE_DIR="$HOME_DIR/.local/state/chatgpt"
@@ -60,6 +60,7 @@ SOCKET_PATH="$RUNTIME_DIR/chatgpt/launch-action.sock"
 HANDOFF_RESULT="$TMP_DIR/handoff.json"
 FIRST_LOG="$TMP_DIR/first-launch.log"
 SECOND_LOG="$TMP_DIR/second-launch.log"
+THIRD_LOG="$TMP_DIR/third-launch.log"
 APP_LOG="$HOME_DIR/.cache/chatgpt/launcher.log"
 LAUNCHER_PID=""
 SECOND_LAUNCHER_PID=""
@@ -205,6 +206,7 @@ cleanup() {
         arg0=""
         revalidated_arg0=""
     done
+    chmod -R u+rwX "$TMP_DIR" 2>/dev/null || cleanup_failed=1
     rm -rf "$TMP_DIR" || cleanup_failed=1
     if [ "$cleanup_failed" -ne 0 ]; then
         printf '%s\n' 'launcher window-reopen behavior cleanup failed' >&2
@@ -225,10 +227,24 @@ fail() {
     sed -n '1,200p' "$FIRST_LOG" >&2 2>/dev/null || true
     printf '%s\n' '--- second launch ---' >&2
     sed -n '1,240p' "$SECOND_LOG" >&2 2>/dev/null || true
+    printf '%s\n' '--- third launch ---' >&2
+    sed -n '1,240p' "$THIRD_LOG" >&2 2>/dev/null || true
     printf '%s\n' '--- app launcher log ---' >&2
     sed -n '1,300p' "$APP_LOG" >&2 2>/dev/null || true
     exit 1
 }
+
+if grep -q '^webview_integrity_asset_snapshot_digest()' \
+    "$REPO_DIR/launcher/start.sh.template"; then
+    fail "warm integrity cache still defines a full content snapshot"
+fi
+if ! grep -q '^webview_integrity_asset_metadata_snapshot_digest()' \
+    "$REPO_DIR/launcher/start.sh.template"; then
+    fail "warm integrity cache lost the asset metadata snapshot"
+fi
+if grep -q 'cat "\$WEBVIEW_PID_FILE"' "$REPO_DIR/launcher/start.sh.template"; then
+    fail "launcher still reads the webview pid file without a bound"
+fi
 
 mutation_detected() {
     FINAL_ELECTRON_PID="$(read_live_app_pid 2>/dev/null || true)"
@@ -373,11 +389,14 @@ cp "$REPO_DIR/launcher/cli-launch-path.py" "$APP_DIR/.chatgpt-linux/cli-launch-p
 cp "$REPO_DIR/launcher/state-migration.py" "$APP_DIR/.chatgpt-linux/state-migration.py"
 chmod 0755 "$APP_DIR/.chatgpt-linux/state-migration.py"
 ln -s "$(command -v node)" "$APP_DIR/resources/node-runtime/bin/node"
+mkdir -p "$APP_DIR/content/webview/assets"
 printf '%s\n' '<!doctype html><title>Codex</title><div id="startup-loader"></div>' \
     > "$APP_DIR/content/webview/index.html"
+printf '%s\n' "console.log('trusted startup asset');" \
+    > "$APP_DIR/content/webview/assets/app-test.js"
 (
     cd "$APP_DIR/content/webview"
-    sha256sum index.html > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
+    sha256sum index.html assets/app-test.js > "$APP_DIR/.chatgpt-linux/webview-integrity.sha256"
 )
 
 g++ -x c++ -O2 -o "$APP_DIR/electron" - <<'CPP'
@@ -407,6 +426,8 @@ int main(int argc, char **argv) {
 }
 CPP
 cp "$APP_DIR/electron" "$TMP_DIR/decoy-electron"
+chmod -R a-w "$APP_DIR"
+chmod a-w "$(dirname "$APP_DIR")"
 "$TMP_DIR/decoy-electron" --app-id=chatgpt &
 DECOY_PID=$!
 
@@ -426,6 +447,10 @@ wait_for "first launcher lock release" launcher_lock_is_available
 FIRST_ELECTRON_PID="$(read_live_app_pid)"
 wait_for "first Electron environment scrub" pid_environment_is_scrubbed
 wait_for "first Electron command-line rewrite" pid_cmdline_is_rewritten
+[ -s "$STATE_DIR/webview-integrity-verified" ] \
+    || fail "cold start did not persist the webview integrity attestation"
+[ "$(awk 'NR == 1 { print NF }' "$STATE_DIR/webview-integrity-verified")" -eq 5 ] \
+    || fail "webview integrity attestation lost the asset metadata snapshot"
 
 python3 - "$SOCKET_PATH" "$HANDOFF_RESULT" <<'PY' &
 import json
@@ -519,6 +544,23 @@ PY
     || fail "reopen handoff left more than one controlled Electron process"
 [ -s "$STATE_DIR/webview.pid" ] \
     || fail "webview runtime marker disappeared during reopen handoff"
+grep -q "Reusing cached webview integrity verification" "$APP_LOG" \
+    || fail "warm reopen did not reuse the webview integrity attestation"
+[ "$(grep -c "Webview integrity manifest verified for webview server pid=" "$APP_LOG")" -eq 1 ] \
+    || fail "warm reopen repeated the full webview integrity manifest verification"
+chmod u+w "$APP_DIR/content/webview/assets/app-test.js"
+printf '%s\n' "console.log('tampered startup asset');" \
+    > "$APP_DIR/content/webview/assets/app-test.js"
+chmod a-w "$APP_DIR/content/webview/assets/app-test.js"
+set +e
+timeout 8s "${COMMON_ENV[@]}" "$APP_DIR/start.sh" --new-chat > "$THIRD_LOG" 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "warm reopen accepted a changed manifest-listed webview asset"
+grep -q "digest mismatch" "$APP_LOG" \
+    || fail "changed manifest-listed asset did not trigger full integrity validation"
+kill -0 "$FIRST_ELECTRON_PID" 2>/dev/null \
+    || fail "integrity failure terminated the healthy resident Electron process"
 kill -0 "$DECOY_PID" 2>/dev/null \
     || fail "launcher signalled a decoy process outside the isolated app identity"
 if grep -Eqi 'notify-send|zenity|could not safely|failed to' "$SECOND_LOG" "$APP_LOG" 2>/dev/null; then

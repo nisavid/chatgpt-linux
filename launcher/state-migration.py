@@ -619,12 +619,19 @@ def run_migration(direction: str) -> None:
     completed_this_run = 0
     operations = journal["operations"]
     replacement_pairs = rewrite_pairs(operations, direction)
+    # A journal containing only skipped operations represents an already
+    # canonical state. Completed or in-flight operations still mean that a
+    # resumed migration may need to rewrite references in skipped roots.
+    rewrite_skipped_operations = any(
+        operation["status"] != "skipped" for operation in operations
+    )
     for operation in operations:
         if operation["status"] == "complete":
             continue
         if operation["status"] == "skipped":
             _, destination = direction_paths(operation, direction)
-            rewrite_known_paths(destination, replacement_pairs)
+            if rewrite_skipped_operations:
+                rewrite_known_paths(destination, replacement_pairs)
             continue
         source, destination = direction_paths(operation, direction)
         kind = operation_kind(operation)

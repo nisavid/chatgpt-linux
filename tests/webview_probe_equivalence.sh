@@ -116,6 +116,11 @@ load_new_impls() {
     eval "$(declare -f verify_webview_origin_with_python | sed '1s/^verify_webview_origin_with_python /verify_webview_origin_with_python__new /')"
     eval "$(declare -f verify_webview_origin | sed '1s/^verify_webview_origin /verify_webview_origin__new /')"
     unset -f webview_port_is_open verify_webview_origin
+
+    # The extracted origin verifier now records a launcher-level attestation.
+    # Keep this probe focused on origin verdict equivalence rather than the
+    # process-bound cache, which is covered by launcher_window_reopen_behavior.
+    record_webview_integrity_verification() { :; }
 }
 
 # webview_port_is_open__new reads the global $CHATGPT_LINUX_WEBVIEW_PORT.
