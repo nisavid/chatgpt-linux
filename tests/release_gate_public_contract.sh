@@ -23,6 +23,7 @@ CHATGPT_RELEASE_GATE_LIBRARY=1
 
 PROVENANCE_HELPER="$REPO_DIR/scripts/lib/package-provenance.py"
 SHEBANG_HELPER="$REPO_DIR/scripts/lib/normalize-portable-shebangs.py"
+NIX_NODE_REPL_ELF_HELPER="$REPO_DIR/scripts/lib/nix-node-repl-elf.sh"
 
 CLEAN_SOURCE_ROOT="$TEST_TMP/clean-source"
 CLEAN_SOURCE_INFO_ROOT="$TEST_TMP/clean-source-info"
@@ -59,6 +60,85 @@ assert source_info["dirty"] is None
 PY
 REPO_DIR="$ORIGINAL_REPO_DIR"
 unset CHATGPT_PACKAGE_NODE_SOURCE SOURCE_DATE_EPOCH
+
+NODE_REPL_ELF_ROOT="$TEST_TMP/node-repl-elf"
+mkdir -p "$NODE_REPL_ELF_ROOT"
+cat > "$NODE_REPL_ELF_ROOT/fixture.c" <<'C'
+#include <stdio.h>
+
+int main(void) {
+    return puts("node-repl-elf-fixture") < 0;
+}
+C
+cat > "$NODE_REPL_ELF_ROOT/no-needed.c" <<'C'
+int node_repl_marker;
+C
+cc "$NODE_REPL_ELF_ROOT/fixture.c" -o "$NODE_REPL_ELF_ROOT/dynamic"
+cc -static-pie "$NODE_REPL_ELF_ROOT/fixture.c" -o "$NODE_REPL_ELF_ROOT/static-pie"
+cc -shared -fPIC "$NODE_REPL_ELF_ROOT/fixture.c" -o "$NODE_REPL_ELF_ROOT/no-interpreter-needed.so"
+cc -shared -fPIC -nostdlib \
+    "$NODE_REPL_ELF_ROOT/no-needed.c" \
+    -o "$NODE_REPL_ELF_ROOT/no-interpreter-no-needed.so"
+cp "$NODE_REPL_ELF_ROOT/dynamic" "$NODE_REPL_ELF_ROOT/interpreter-probe-failure"
+printf '\177ELFmalformed' > "$NODE_REPL_ELF_ROOT/malformed"
+
+# shellcheck source=scripts/lib/nix-node-repl-elf.sh
+. "$NIX_NODE_REPL_ELF_HELPER"
+
+static_before="$(sha256sum "$NODE_REPL_ELF_ROOT/static-pie")"
+patch_node_repl_elf_for_nix \
+    "$NODE_REPL_ELF_ROOT/static-pie" \
+    /nix/store/test-dynamic-linker \
+    /nix/store/test-rpath
+static_after="$(sha256sum "$NODE_REPL_ELF_ROOT/static-pie")"
+[ "$static_before" = "$static_after" ] || \
+    fail "Nix node_repl ELF helper changed a static PIE binary"
+
+dynamic_interpreter=/nix/store/test-dynamic-linker
+patch_node_repl_elf_for_nix \
+    "$NODE_REPL_ELF_ROOT/dynamic" \
+    "$dynamic_interpreter" \
+    /nix/store/test-rpath
+[ "$(patchelf --print-interpreter "$NODE_REPL_ELF_ROOT/dynamic")" = "$dynamic_interpreter" ] || \
+    fail "Nix node_repl ELF helper did not preserve the requested interpreter"
+[ "$(patchelf --print-rpath "$NODE_REPL_ELF_ROOT/dynamic")" = /nix/store/test-rpath ] || \
+    fail "Nix node_repl ELF helper did not install the requested RPATH"
+
+if patch_node_repl_elf_for_nix \
+    "$NODE_REPL_ELF_ROOT/no-interpreter-needed.so" \
+    /nix/store/test-dynamic-linker \
+    /nix/store/test-rpath; then
+    fail "Nix node_repl ELF helper accepted dynamic dependencies without an interpreter"
+fi
+if patch_node_repl_elf_for_nix \
+    "$NODE_REPL_ELF_ROOT/no-interpreter-no-needed.so" \
+    /nix/store/test-dynamic-linker \
+    /nix/store/test-rpath; then
+    fail "Nix node_repl ELF helper accepted a dependency-free shared object"
+fi
+mkdir -p "$NODE_REPL_ELF_ROOT/fake-bin"
+cat > "$NODE_REPL_ELF_ROOT/fake-bin/patchelf" <<'SH'
+#!/bin/bash
+if [ "$1" = --print-interpreter ]; then
+    exit 42
+fi
+exec "$CHATGPT_TEST_REAL_PATCHELF" "$@"
+SH
+chmod 0755 "$NODE_REPL_ELF_ROOT/fake-bin/patchelf"
+if PATH="$NODE_REPL_ELF_ROOT/fake-bin:$PATH" \
+    CHATGPT_TEST_REAL_PATCHELF="$(command -v patchelf)" \
+    patch_node_repl_elf_for_nix \
+        "$NODE_REPL_ELF_ROOT/interpreter-probe-failure" \
+        /nix/store/test-dynamic-linker \
+        /nix/store/test-rpath; then
+    fail "Nix node_repl ELF helper ignored an interpreter probe failure"
+fi
+if patch_node_repl_elf_for_nix \
+    "$NODE_REPL_ELF_ROOT/malformed" \
+    /nix/store/test-dynamic-linker \
+    /nix/store/test-rpath; then
+    fail "Nix node_repl ELF helper accepted malformed ELF"
+fi
 
 # This assertion intentionally matches the literal shell variables in the release gate.
 # shellcheck disable=SC2016
@@ -227,42 +307,18 @@ assert text.count(
     'export CHATGPT_MANAGED_NODE_SOURCE="${managedNixNode}"'
 ) == 3
 assert 'export CHATGPT_MANAGED_NODE_SOURCE="${pkgs.nodejs}"' not in text
-node_repl_probe = package_block.index(
-    'node_repl_interpreter="$(patchelf --print-interpreter '
-    '"$node_repl_binary" 2>/dev/null || true)"'
-)
-node_repl_needed_probe = package_block.index(
-    'node_repl_needed="$(patchelf --print-needed '
-    '"$node_repl_binary" 2>/dev/null || true)"',
-    node_repl_probe,
-)
-node_repl_dynamic_guard = package_block.index(
-    'if [ -n "$node_repl_interpreter" ]; then',
-    node_repl_needed_probe,
+node_repl_helper_source = package_block.index(
+    ". ${sourceRoot}/scripts/lib/nix-node-repl-elf.sh"
 )
 node_repl_patch = package_block.index(
-    'patchelf --set-interpreter',
-    node_repl_dynamic_guard,
+    "patch_node_repl_elf_for_nix",
+    node_repl_helper_source,
 )
-node_repl_missing_interpreter_guard = package_block.index(
-    'elif [ -n "$node_repl_needed" ] || [ -n "$node_repl_rpath" ]; then',
+node_repl_app_patch = package_block.index(
+    '${patchNixInstalledApp "$out/opt/chatgpt"}',
     node_repl_patch,
 )
-node_repl_guard_end = package_block.index("fi", node_repl_missing_interpreter_guard)
-assert (
-    node_repl_probe
-    < node_repl_needed_probe
-    < node_repl_dynamic_guard
-    < node_repl_patch
-    < node_repl_missing_interpreter_guard
-    < node_repl_guard_end
-)
-assert (
-    '''if [ -z "$node_repl_interpreter" ] \\
-                  && [ -z "$node_repl_rpath" ] \\
-                  && [ -z "$node_repl_needed" ]; then'''
-    in package_block
-)
+assert node_repl_helper_source < node_repl_patch < node_repl_app_patch
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${nixElectronZip}"' in payload_block
 assert 'export CHATGPT_ELECTRON_ZIP_SOURCE="${electronZip}"' not in block
