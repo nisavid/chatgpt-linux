@@ -1196,6 +1196,7 @@ PY
 
           nativeBuildInputs = [
             pkgs.asar
+            pkgs.binutils
             pkgs.makeWrapper
             pkgs.patchelf
           ];
@@ -1248,47 +1249,19 @@ PY
               "$out/lib/udev/rules.d/70-codex-micro.rules"
             ''}
 
+            . ${sourceRoot}/scripts/lib/nix-node-repl-elf.sh
+            node_repl_nix_interpreter="$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)"
+            node_repl_nix_rpath="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}"
             for node_repl_binary in \
               "$resources_dir/node_repl" \
               "$resources_dir/node_repl.chatgpt-linux-original"; do
-              if [ -f "$node_repl_binary" ] \
-                  && [ "$(dd if="$node_repl_binary" bs=1 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
-                node_repl_interpreter="$(patchelf --print-interpreter "$node_repl_binary" 2>/dev/null || true)"
-                node_repl_rpath="$(patchelf --print-rpath "$node_repl_binary" 2>/dev/null || true)"
-                node_repl_needed="$(patchelf --print-needed "$node_repl_binary" 2>/dev/null || true)"
-                if [ -n "$node_repl_interpreter" ]; then
-                  patchelf --set-interpreter "$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)" \
-                    --set-rpath "${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}" \
-                    "$node_repl_binary"
-                elif [ -n "$node_repl_needed" ] || [ -n "$node_repl_rpath" ]; then
-                  echo "node_repl has dynamic dependencies without an interpreter: $node_repl_binary" >&2
-                  exit 1
-                fi
+              if [ -f "$node_repl_binary" ]; then
+                patch_node_repl_elf_for_nix \
+                  "$node_repl_binary" \
+                  "$node_repl_nix_interpreter" \
+                  "$node_repl_nix_rpath"
               fi
             done
-
-            if [ -f "$resources_dir/node_repl.chatgpt-linux-original" ]; then
-              node_repl_interpreter="$(patchelf --print-interpreter \
-                "$resources_dir/node_repl.chatgpt-linux-original" 2>/dev/null || true)"
-              node_repl_rpath="$(patchelf --print-rpath \
-                "$resources_dir/node_repl.chatgpt-linux-original" 2>/dev/null || true)"
-              node_repl_needed="$(patchelf --print-needed \
-                "$resources_dir/node_repl.chatgpt-linux-original" 2>/dev/null || true)"
-              if [ -z "$node_repl_interpreter" ] \
-                  && [ -z "$node_repl_rpath" ] \
-                  && [ -z "$node_repl_needed" ]; then
-                : # The signed runtime is static PIE and needs no Nix ELF rewrite.
-              else
-                case "$node_repl_interpreter" in
-                  /nix/store/*) ;;
-                  *) echo "node_repl backup has non-Nix interpreter: $node_repl_interpreter" >&2; exit 1 ;;
-                esac
-                case "$node_repl_rpath" in
-                  *"/nix/store/"*) ;;
-                  *) echo "node_repl backup has non-Nix RPATH: $node_repl_rpath" >&2; exit 1 ;;
-                esac
-              fi
-            fi
 
             ${patchNixInstalledApp "$out/opt/chatgpt"}
 
