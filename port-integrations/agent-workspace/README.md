@@ -1,5 +1,10 @@
 # Agent Workspaces port integration
 
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../../docs/retirement.md).
+
 `agent-workspace` is a default-enabled ChatGPT port integration that adds the
 `agent-workspace-linux` control surface to the app settings UI.
 

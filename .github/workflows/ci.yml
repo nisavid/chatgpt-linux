@@ -246,8 +246,8 @@ jobs:
       - name: Configure Cachix for Nix build substitutions
         uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
-          # Retain the existing external cache until the post-merge repository
-          # and Cachix migration in issue #123 is complete.
+          # Retain the historical external cache only for read-only substitutions.
+          # Retirement keeps writes disabled; no namespace migration is pending.
           name: codex-desktop-linux
           skipPush: true
 
@@ -316,8 +316,8 @@ jobs:
               {
                 echo "## Nix Pin Validation"
                 echo ""
-                echo "- Skipped package-output builds because the official \`ChatGPT.dmg\` metadata is ahead of the committed flake pins during rollout."
-                echo "- This is PR-only; main-branch validation still fails so the scheduled hash-refresh workflow can open a full pin-refresh PR from the current official DMG."
+                echo "- Skipped package-output builds because the official \`ChatGPT.dmg\` metadata is ahead of this retired repository's historical flake pins."
+                echo "- This is PR-only; push validation remains fail-closed. Retirement removed automated pin refresh, so there is no maintenance producer for this drift."
               } >> "$GITHUB_STEP_SUMMARY"
               echo "skip_package_outputs=true" >> "$GITHUB_OUTPUT"
               rm -f "$validation_log"
@@ -359,7 +359,7 @@ jobs:
                   echo ""
                   echo "- Skipped package-output builds after \`$output\` because the official \`ChatGPT.dmg\` is rolling between fixed-output hashes."
                   echo "- This does not mask non-DMG Nix failures; main-branch builds still fail on this condition."
-                  echo "- The scheduled hash-refresh workflow owns updating the committed DMG pin from the current official DMG."
+                  echo "- Retirement removed automated pin refresh; there is no maintenance producer for this drift."
                 } >> "$GITHUB_STEP_SUMMARY"
                 exit 0
               fi

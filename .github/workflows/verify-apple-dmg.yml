@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       dispatch_id:
-        description: Unique caller-provided identifier for correlating hash-refresh verification runs
+        description: Unique caller-provided identifier for correlating read-only verification runs
         required: false
         default: ""
       require_dmg_gatekeeper:

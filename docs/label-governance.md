@@ -1,21 +1,23 @@
 # Issue and pull request label governance
 
-Repository labels are a maintainer-owned triage layer. They give people a
-quick view of what an item is, where it belongs, what is holding it up, and how
-carefully a pull request must be reviewed. They also give repository
-automation a small, deterministic vocabulary without exposing internal job
-states in the issue and pull request lists.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](retirement.md).
+
+Before retirement, repository labels formed a maintainer-owned triage layer.
+This document preserves that classification and migration contract for the
+historical tracker record.
 
 [`.github/labels.json`](../.github/labels.json) is the machine-readable source
 of truth for names, colors, descriptions, groups, migrations, and retirements.
 This document defines how those labels are selected and who may change them.
 
-## Authority
+## Historical authority
 
-Label decisions belong to the repository owner and collaborators who have the
-GitHub permission required to manage labels. Contributors without that
-permission provide evidence; they do not choose, apply, remove, or rename
-labels for their own work.
+Before retirement, label decisions belonged to the repository owner and
+collaborators with label-management permission. Contributors supplied evidence
+but did not choose, apply, remove, or rename labels for their own work.
 
 The same boundary applies to coding agents and automation:
 
@@ -24,12 +26,12 @@ The same boundary applies to coding agents and automation:
 | Reporter or pull request author without label permission | Supply reproduction details, scope, affected paths, and validation results. Do not self-classify. |
 | Maintainer or authorized collaborator | Make the final classification and apply or remove labels. |
 | Agent without delegated label authority | Read labels and native GitHub state. It may propose a classification to authorized staff, but must not mutate labels. |
-| Authorized repository workflow or agent operation | Apply a reviewed deterministic plan from the trusted default branch, with the permissions and confirmation required by the manual workflow. |
+| Authorized repository workflow or agent operation | Applied a reviewed deterministic plan from the trusted default branch, with the permissions and confirmation required by the former manual workflow. |
 
-A proposal from an agent is not a repository decision. The label changes only
-when authorized staff accepts it or explicitly runs the staff-controlled
-workflow. Authors must never be asked to add a label themselves. An unlabeled
-new item is awaiting triage, not rejected.
+This authority model is retained only to interpret the historical tracker. The
+retired repository has no current label workflow or maintenance-triage intake.
+Owner-directed closeout follows `AGENTS.md` and
+[Issue Tracker](agents/issue-tracker.md).
 
 ## Classification contract
 
@@ -185,34 +187,21 @@ public label. `resolution: duplicate` is applied only after an authorized human
 or explicitly authorized staff operation verifies and links the canonical
 item.
 
-## Agent and automation rules
+## Historical agent and automation rules
 
-An agent classifying an item must read the body, linked discussion, changed
-files, checks, review state, and the current label policy. A title alone is not
-enough. When evidence is missing, preserve that uncertainty with
-`status: needs triage`, `status: needs information`, or
-`status: needs reproduction`; do not guess a stronger state.
+Before retirement, an agent proposing a classification read the body, linked
+discussion, changed files, checks, review state, and label policy rather than
+classifying from a title alone. Missing evidence remained explicit through
+triage, information, or reproduction states.
 
-Without explicit delegated staff authority, the output is a proposal only.
-With delegated authority, the operation must still use the trusted manual
-workflow or the repository script, show its plan first, and keep the typed
-confirmation boundary. A fork pull request never receives a write token for
-label governance.
+The former manual label workflow, Computer Use reminder, official-DMG issue
+reconciler, and contributor pull-request limiter are removed. The retained
+label script is historical source and is not an authorized mutation path.
 
-The `workflow: manual only` label overrides every item-specific automation
-path. The only exception is an owner-approved catalog migration declared in
-`.github/labels.json`; it may rename a label or transfer the same existing
-classification, but it may not infer a new classification or change the item
-itself. A low-risk classification does not authorize automatic merge. Branch
-protection, review requirements, and the contributor workflow in
-`CONTRIBUTING.md` remain in force.
-
-Repository-owned issue producers must read their labels from the policy and
-apply a complete deterministic classification. The Computer Use sync reminder
-and official-DMG drift reconciler follow this rule. Existing item automation,
-including the contributor pull request limit, must inspect
-`workflow: manual only` before any comment, edit, classification, close, or
-merge operation and leave that item for staff.
+The `workflow: manual only` rules and deterministic producer classifications
+below explain prior tracker state. They do not authorize restoring deleted
+automation, accepting new maintenance work, or mutating closeout items outside
+the owner-directed retirement process.
 
 ## Color system
 
@@ -231,66 +220,13 @@ scannable:
 Color never carries meaning by itself. Every label has an English name and a
 short description for accessibility, search, and API consumers.
 
-## Safe synchronization and migration
+## Historical synchronization and migration
 
-The manual [Manage repository labels](../.github/workflows/manage-labels.yml)
-workflow is the only repository-supplied bulk mutation path. It checks out the
-trusted default branch even if another ref is selected in the dispatch UI.
-Only a user with the repository permission required to run the workflow can
-start it.
-
-The migration is intentionally split:
-
-1. Merge the reviewed policy, documentation, script, tests, and workflow.
-2. Update or disable any external automation that still writes retired names.
-   The committed Computer Use and official-DMG issue producers read their
-   classifications from the policy.
-3. Run `plan`. It is read-only and needs no confirmation text.
-   It also reports open items whose migrated labels still need a required
-   staff classification; these are triage notices, not inferred labels.
-4. Run `apply` with confirmation `APPLY`. This creates or updates desired
-   labels, renames the primary legacy labels, and transfers associations from
-   secondary legacy labels. It does not delete labels outside the explicit
-   retirement list.
-5. Resolve every open-item retirement blocker. An old label can be removed
-   from an open item only when its governed replacement is already attached;
-   labels without a direct replacement must be reviewed by staff first.
-6. Run `retire` with confirmation `RETIRE`. The workflow captures and uploads
-   a pre-change snapshot before deletion. It aborts if the live labels or their
-   associations change after that snapshot.
-
-The script is idempotent. A failed apply can be rerun: completed renames are
-recognized, existing desired labels are updated in place, and already migrated
-associations are skipped. Convergence stops before its first write if projected
-labels would violate an exclusive group or apply to the wrong item type.
-Open migrated items with an incomplete required classification are listed for
-staff triage instead of being guessed by the migration.
-Retirement is fail-closed; it checks every blocker before deleting the first
-label. An interrupted retirement can resume from the same snapshot: already
-absent retired labels count as completed, while every remaining source and
-migration target must still match the snapshot. Unknown labels are never
-pruned.
-
-For a local read-only plan:
-
-```bash
-GITHUB_TOKEN="$(gh auth token)" node scripts/ci/manage-labels.js \
-  --repo nisavid/chatgpt-linux
-```
-
-Keep tokens in the environment, not in command arguments. For an emergency
-non-destructive restore, download a workflow snapshot and run:
-
-```bash
-GITHUB_TOKEN="$(gh auth token)" node scripts/ci/manage-labels.js \
-  --repo nisavid/chatgpt-linux \
-  --restore /path/to/repository-labels-before.json \
-  --confirm RESTORE
-```
-
-Restore recreates only labels in the policy's explicit retirement list and
-reapplies their saved issue and pull request associations. It does not remove
-the new taxonomy or alter native GitHub state.
+The removed `manage-labels` workflow was the repository's only supplied bulk
+mutation path. Its guarded plan/apply/retire sequence, snapshots, fail-closed
+checks, and restore behavior remain available in Git history. Retirement does
+not authorize running the retained script directly, restoring that workflow,
+or starting another label migration.
 
 ## Examples
 

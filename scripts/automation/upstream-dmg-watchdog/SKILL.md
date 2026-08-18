@@ -1,13 +1,17 @@
 ---
 name: upstream-dmg-watchdog
-description: Run the versioned official OpenAI ChatGPT DMG probe, repair worker, guarded PR, and sequential Nix refresh flow.
+description: Historical watchdog reference for the retired and unsupported ChatGPT for Linux repository; do not use it to start or continue maintenance.
 ---
 
-# Upstream DMG watchdog
+# Historical upstream DMG watchdog
 
-Read and follow `docs/upstream-dmg-watchdog.md` and repository `AGENTS.md`.
-Use `scripts/automation/upstream-dmg-watchdog/watchdog.py` for every state
-transition. Never edit state directly.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [`docs/retirement.md`](../../../docs/retirement.md).
+
+The contract below records how the watchdog operated before retirement. Do not
+run its probe, worker, repair, PR, or Nix-refresh flows.
 
 Probe mode runs only:
 

@@ -14,6 +14,18 @@ import unittest
 
 
 SCRIPT = Path(__file__).with_name("watchdog.py")
+HISTORICAL_TEST_DRIVER = """\
+import importlib.util
+from pathlib import Path
+import sys
+
+script = Path(sys.argv.pop(1))
+spec = importlib.util.spec_from_file_location("historical_upstream_dmg_watchdog", script)
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+raise SystemExit(module.historical_main())
+"""
 
 
 class WatchdogTests(unittest.TestCase):
@@ -112,6 +124,24 @@ class WatchdogTests(unittest.TestCase):
 
     def run_cli(self, *args: str, check: bool = True, env: dict | None = None):
         return subprocess.run(
+            [
+                "python3",
+                "-c",
+                HISTORICAL_TEST_DRIVER,
+                str(SCRIPT),
+                *args,
+                "--state-dir",
+                str(self.state),
+            ],
+            check=check,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**os.environ, **(env or {})},
+        )
+
+    def run_public_cli(self, *args: str, check: bool = True, env: dict | None = None):
+        return subprocess.run(
             ["python3", str(SCRIPT), *args, "--state-dir", str(self.state)],
             check=check,
             text=True,
@@ -119,6 +149,19 @@ class WatchdogTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             env={**os.environ, **(env or {})},
         )
+
+    def test_retired_public_cli_allows_only_read_only_status(self):
+        scenario, env = self.write_scenario({})
+
+        rejected = self.run_public_cli("probe", check=False, env=env)
+        self.assertEqual(rejected.returncode, 6)
+        self.assertIn("watchdog is retired", rejected.stderr)
+        self.assertFalse(scenario.with_suffix(".calls.jsonl").exists())
+        self.assertFalse(self.state.exists())
+
+        status = self.run_public_cli("status")
+        self.assertEqual(json.loads(status.stdout)["schema"], 2)
+        self.assertFalse(self.state.exists())
 
     def probe(self, headers: Path, source: Path, now: float = 1000, check: bool = True):
         return self.run_cli(

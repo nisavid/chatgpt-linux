@@ -1,5 +1,10 @@
 # X11/EWMH Computer Use Port Integration
 
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../../docs/retirement.md).
+
 This optional port integration stages the standalone
 `chatgpt-computer-use-x11` MCP plugin into ChatGPT for Linux. It stays disabled
 by default.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomic local state and cheap upstream DMG probe for ChatGPT for Linux."""
+"""Historical upstream-DMG state reader for retired ChatGPT for Linux."""
 
 from __future__ import annotations
 
@@ -54,6 +54,10 @@ PROTECTED_CAMPAIGN_PHASES = {
     "completed",
 }
 STATE_SCHEMA = 2
+RETIRED_EXIT_STATUS = 6
+RETIRED_MESSAGE = (
+    "the upstream DMG watchdog is retired; only the read-only status command is available"
+)
 
 
 def utc_iso(now: float | None = None) -> str:
@@ -2199,8 +2203,7 @@ def command_campaign_complete(args: argparse.Namespace, store: Store) -> int:
 
 
 def command_status(args: argparse.Namespace, store: Store) -> int:
-    with store.locked():
-        print(json.dumps(status_projection(store.load()), indent=2, sort_keys=True))
+    print(json.dumps(status_projection(store.load()), indent=2, sort_keys=True))
     return 0
 
 
@@ -2323,14 +2326,26 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def dispatch(args: argparse.Namespace) -> int:
     store = Store(state_root(args.state_dir))
     try:
         return args.handler(args, store)
     except RuntimeError as error:
         print(f"ERROR {error}", file=sys.stderr)
         return 5
+
+
+def historical_main() -> int:
+    """Exercise the preserved pre-retirement command contract in unit tests."""
+    return dispatch(build_parser().parse_args())
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    if args.command != "status":
+        print(f"ERROR {RETIRED_MESSAGE}", file=sys.stderr)
+        return RETIRED_EXIT_STATUS
+    return dispatch(args)
 
 
 if __name__ == "__main__":
