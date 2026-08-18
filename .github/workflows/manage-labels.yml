@@ -36,7 +36,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Check out trusted governance code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -85,7 +85,7 @@ jobs:
       # A write-capable dispatch must run only code already reviewed on the
       # default branch, even when the dispatcher selects another ref in the UI.
       - name: Check out trusted governance code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
