@@ -8,16 +8,15 @@ This note inventories the rollback and historical value that remains after the
 accepted switch from the tagged ChatGPT for Linux fallback to CachyOS's
 validated native repackage. It distinguishes unique recovery data from compact
 evidence and records release milestones for the accepted staged sunsetting
-contract. It
-does not authorize deletion, package changes, service changes, or repository
-archival.
+contract. It does not authorize deletion, package changes, service changes, or
+repository archival.
 
 The mechanical switch is accepted: the validated native repackage is the only
-active ChatGPT producer, while the separately installed Nativefier wrapper
-remains a redundant cleanup target. The preserved profile and account state
-were accepted, the canonical desktop launcher relaunched successfully, pacman
-is the only package-update authority, and the independent Codex CLI continued
-through the switch. The accepted host evidence is recorded in the
+accepted native ChatGPT producer, while the separately installed Nativefier
+wrapper remains a redundant cleanup target. The preserved profile and account
+state were accepted, the canonical desktop launcher relaunched successfully,
+pacman is the only package-update authority, and the independent Codex CLI
+continued through the switch. The accepted host evidence is recorded in the
 [`arch-pkgs` switch report](https://github.com/nisavid/arch-pkgs/issues/32#issuecomment-5315670607).
 
 Host inventory below is deliberately sanitized. It records categories, sizes,
@@ -64,10 +63,10 @@ release contract-held rollback evidence or weaken this gate.
 
 The [current Wayfinder contract](https://github.com/nisavid/chatgpt-linux/issues/145)
 expressly removed the persistent `IgnorePkg` hold and permits routine CachyOS
-upgrades. That owner decision supersedes the older pinned-candidate prose in
-`CONTEXT.md` and the package-runtime maintenance procedure for this evaluation.
-Repository closeout must update or retire the older prose so it does not remain
-as conflicting operator guidance.
+upgrades. [`CONTEXT.md`](../../../CONTEXT.md) and the
+[package-runtime maintenance procedure](../package-runtime-maintenance.md) now
+carry the same steady-state policy, so no conflicting pinned-candidate operator
+guidance remains.
 
 ## Retention matrix
 
