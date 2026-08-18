@@ -60,7 +60,12 @@ function sha256(bytes) {
 function assertRetainedWorkflowDigest(workflow, bytes) {
   const expected = retainedWorkflowDigests.get(workflow);
   assert.ok(expected, `${workflow} has no frozen retirement workflow digest`);
-  assert.equal(sha256(bytes), expected, `${workflow} changed after retirement`);
+  assert.equal(
+    sha256(bytes),
+    expected,
+    `${workflow} changed after retirement; ` +
+      "if this edit is authorized, review and update retainedWorkflowDigests",
+  );
 }
 
 function assertRetainedWorkflowFile(workflow, workflowPath) {
@@ -207,7 +212,7 @@ test("retained retirement workflows match the exact reviewed bytes", () => {
     assert.notEqual(mutation, ciSource);
     assert.throws(
       () => assertRetainedWorkflowDigest("ci.yml", Buffer.from(mutation)),
-      /changed after retirement/,
+      /changed after retirement;.*retainedWorkflowDigests/,
     );
   }
 
