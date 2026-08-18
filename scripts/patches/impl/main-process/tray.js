@@ -3,6 +3,7 @@
 const {
   escapeRegExp,
   findExecutableJavaScriptSubstring,
+  findMatchingBrace,
   requireName,
 } = require("../../lib/minified-js.js");
 
@@ -91,36 +92,6 @@ function findTrayConstructor(source) {
   }
 
   return candidates.length === 1 ? candidates[0] : null;
-}
-
-function findMatchingBrace(source, openIndex) {
-  let depth = 0;
-  let quote = null;
-  let escaped = false;
-
-  for (let index = openIndex; index < source.length; index += 1) {
-    const char = source[index];
-    if (quote != null) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === "'" || char === '"' || char === "`") {
-      quote = char;
-    } else if (char === "{") {
-      depth += 1;
-    } else if (char === "}") {
-      depth -= 1;
-      if (depth === 0) return index;
-    }
-  }
-
-  return -1;
 }
 
 function findContainingTrayFactory(source, constructorMatch) {

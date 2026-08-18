@@ -44,7 +44,11 @@ function stageBrowserClient(sourcePath) {
     /[A-Za-z_$][\w$]*\("browser",\{method:"execute",params:[A-Za-z_$][\w$]*\}\)/u,
     /export\{[A-Za-z_$][\w$]* as setupBrowserRuntime\};/u,
   ]) {
-    assert.equal(source.match(new RegExp(contract.source, contract.flags + "g"))?.length, 1);
+    assert.equal(
+      source.match(new RegExp(contract.source, contract.flags + "g"))?.length,
+      1,
+      `staged Browser client must contain exactly one ${contract} match: ${sourcePath}`,
+    );
   }
   assert.doesNotMatch(
     source,

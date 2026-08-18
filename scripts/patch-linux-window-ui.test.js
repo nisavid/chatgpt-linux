@@ -10484,7 +10484,7 @@ test("rejects non-executable and ambiguous Browser trusted-service producers", (
   for (const source of cases) {
     assert.throws(
       () => applyBrowserUseNodeReplSecurityContextPatch(source),
-      /Browser Use node_repl trusted-service producer/,
+      /Browser Use node_repl trusted-service producer.*environment key bindings/,
     );
   }
 });
@@ -10492,21 +10492,39 @@ test("rejects non-executable and ambiguous Browser trusted-service producers", (
 test("rejects drift in each Browser trusted-service security boundary", () => {
   const current = currentBrowserUseSecurityContextBuilderFixture();
   const cases = [
-    current.replace("/scripts/browser-service.mjs", "/scripts/browser-client.mjs"),
-    current.replace("Ye([t,i],s)", "Ye([t],s)"),
-    current.replace("...h===a.a.Dev?ea(rte):{}", "...ea(rte)"),
-    current.replace("nte=[jr,oee,see,cee,lee]", "nte=[jr,oee,see,cee,lee,uee]"),
-    current.replace("[aee]:e", "[aee]:`unknown`"),
-    current.replace("extraEnv:b,nodeModuleDirs:p", "extraEnv:{},nodeModuleDirs:p"),
-    current.replace("nodeModuleDirs:p,nodePath:u.nodePath", "nodeModuleDirs:`other`,nodePath:u.nodePath"),
-    current.replace("nodePath:u.nodePath", "nodePath:`node`"),
+    [
+      current.replace("/scripts/browser-service.mjs", "/scripts/browser-client.mjs"),
+      "browser service path",
+    ],
+    [current.replace("Ye([t,i],s)", "Ye([t],s)"), "trusted code paths assignment"],
+    [
+      current.replace("...h===a.a.Dev?ea(rte):{}", "...ea(rte)"),
+      "development environment forwarding",
+    ],
+    [
+      current.replace("nte=[jr,oee,see,cee,lee]", "nte=[jr,oee,see,cee,lee,uee]"),
+      "security mode restricted to development",
+    ],
+    [current.replace("[aee]:e", "[aee]:`unknown`"), "boundary environment fields"],
+    [
+      current.replace("extraEnv:b,nodeModuleDirs:p", "extraEnv:{},nodeModuleDirs:p"),
+      "runtime builder call",
+    ],
+    [
+      current.replace(
+        "nodeModuleDirs:p,nodePath:u.nodePath",
+        "nodeModuleDirs:`other`,nodePath:u.nodePath",
+      ),
+      "runtime builder call",
+    ],
+    [current.replace("nodePath:u.nodePath", "nodePath:`node`"), "runtime builder call"],
   ];
 
-  for (const source of cases) {
+  for (const [source, failedCheck] of cases) {
     assert.notEqual(source, current);
     assert.throws(
       () => applyBrowserUseNodeReplSecurityContextPatch(source),
-      /Browser Use node_repl trusted-service producer/,
+      new RegExp(`Browser Use node_repl trusted-service producer.*${failedCheck}`),
     );
   }
 });

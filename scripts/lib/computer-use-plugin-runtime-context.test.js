@@ -14,11 +14,13 @@ test("Computer Use declares the runtime context required by its authorization cl
   const server = manifest.mcpServers?.["computer-use"];
 
   assert.ok(server, "Computer Use MCP server manifest is missing");
-  assert.deepEqual(server.env_vars, [
+  assert.ok(Array.isArray(server.env_vars), "Computer Use MCP server declares no env_vars");
+  const requiredEnvVars = [
     "CODEX_HOME",
     "XDG_RUNTIME_DIR",
     "CHATGPT_LINUX_APP_ID",
     "CHATGPT_APP_ID",
     "CHATGPT_LINUX_INSTANCE_ID",
-  ]);
+  ];
+  assert.deepEqual([...server.env_vars].sort(), [...requiredEnvVars].sort());
 });

@@ -724,7 +724,10 @@ function applyLinuxRemoteMobileConversationHydrationPatch(source) {
         console.warn(`WARN: Could not find ${message} - skipping remote mobile hydration patch`);
       }
     }
-    if (hydrationComplete && patched.includes(REMOTE_MOBILE_UNKNOWN_TURN_MARKER)) {
+    if (!hydrationComplete) {
+      return source;
+    }
+    if (patched.includes(REMOTE_MOBILE_UNKNOWN_TURN_MARKER)) {
       patched = patched.replace(
         `/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*/`,
         `/*${REMOTE_MOBILE_UNKNOWN_TURN_MARKER}*//*${REMOTE_MOBILE_NOTIFICATION_QUEUE_MARKER}*//*${REMOTE_MOBILE_IN_FLIGHT_HYDRATION_MARKER}*/`,

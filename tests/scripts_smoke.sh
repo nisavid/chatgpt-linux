@@ -8771,6 +8771,10 @@ test_browser_use_node_repl_fallback_runtime() {
         info "Skipping x86_64-only Browser Use fallback runtime test"
         return 0
     fi
+    if ! command -v ar >/dev/null 2>&1; then
+        info "Skipping Browser Use fallback runtime test because ar (binutils) is unavailable"
+        return 0
+    fi
 
     local workspace="$TMP_DIR/browser-use-node-repl-fallback"
     local app_dir="$workspace/ChatGPT.app"

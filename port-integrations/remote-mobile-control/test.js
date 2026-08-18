@@ -2286,9 +2286,8 @@ test("Linux remote mobile conversation hydration patch warns when only part of t
   );
   const { result, warnings } = captureWarnings(() => applyLinuxRemoteMobileConversationHydrationPatch(source));
 
-  assert.notEqual(result, source);
-  assert.match(result, /chatgptLinuxRemoteMobileHydrateUnknownTurn/);
-  assert.doesNotMatch(result, /chatgptLinuxRemoteMobileNotificationQueue/);
+  assert.equal(result, source);
+  assert.doesNotMatch(result, /chatgptLinuxRemoteMobileHydrateUnknownTurn/);
   assert.ok(warnings.some((warning) => warning.includes("unknown turn/completed needle")));
 });
 

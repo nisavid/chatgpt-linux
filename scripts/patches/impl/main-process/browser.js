@@ -460,7 +460,7 @@ function enclosingObjectAssignment(source, index, range) {
   return assignments.length === 1 ? assignments[0] : null;
 }
 
-function hasBrowserUseSecurityContextProducerContract(source) {
+function browserUseSecurityContextProducerContractFailure(source) {
   const trustedCodePathsKey = executableStringBinding(
     source,
     "NODE_REPL_TRUSTED_CODE_PATHS",
@@ -484,7 +484,7 @@ function hasBrowserUseSecurityContextProducerContract(source) {
       appVersionKey,
       securityModeKey,
     ].some((value) => value == null)
-  ) return false;
+  ) return "environment key bindings";
 
   const runtimeBuilders = executableFunctionMatches(
     source,
@@ -493,7 +493,7 @@ function hasBrowserUseSecurityContextProducerContract(source) {
       "g",
     ),
   );
-  if (runtimeBuilders.length !== 1) return false;
+  if (runtimeBuilders.length !== 1) return "runtime builder signature";
   const runtimeBuilder = runtimeBuilders[0];
   const [
     ,
@@ -515,13 +515,13 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     ),
     runtimeBuilder,
   );
-  if (trustedPathMatches.length !== 1) return false;
+  if (trustedPathMatches.length !== 1) return "trusted code paths assignment";
   const runtimeEnvAssignment = enclosingObjectAssignment(
     source,
     trustedPathMatches[0].index,
     runtimeBuilder,
   );
-  if (runtimeEnvAssignment == null) return false;
+  if (runtimeEnvAssignment == null) return "runtime environment assignment";
   const runtimeEnvVar = runtimeEnvAssignment.match[1];
   const extraEnvCopies = executableMatchesInside(
     source,
@@ -539,7 +539,8 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     ),
     runtimeBuilder,
   );
-  if (extraEnvCopies.length !== 1 || nodeReplConfigs.length !== 1) return false;
+  if (extraEnvCopies.length !== 1) return "runtime extra environment copy";
+  if (nodeReplConfigs.length !== 1) return "node_repl runtime configuration";
 
   const producers = executableFunctionMatches(
     source,
@@ -548,7 +549,7 @@ function hasBrowserUseSecurityContextProducerContract(source) {
       "g",
     ),
   );
-  if (producers.length !== 1) return false;
+  if (producers.length !== 1) return "browser producer signature";
   const producer = producers[0];
   const [, , appVersionArg, backendsArg, computerUseArg, , runtimePathsArg, wslArg] =
     producer.match;
@@ -560,7 +561,7 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     ),
     producer,
   );
-  if (serviceMatches.length !== 1) return false;
+  if (serviceMatches.length !== 1) return "browser service path";
   const [, moduleDirsVar, codexHomeVar, buildFlavorVar, serviceVar] = serviceMatches[0];
 
   const boundaryParts = [
@@ -572,20 +573,22 @@ function hasBrowserUseSecurityContextProducerContract(source) {
       "g",
     ),
   ].map((pattern) => executableMatchesInside(source, pattern, producer));
-  if (boundaryParts.some((matches) => matches.length !== 1)) return false;
+  if (boundaryParts.some((matches) => matches.length !== 1)) {
+    return "boundary environment fields";
+  }
   const extraEnvAssignment = enclosingObjectAssignment(
     source,
     boundaryParts[0][0].index,
     producer,
   );
-  if (extraEnvAssignment == null) return false;
+  if (extraEnvAssignment == null) return "producer extra environment assignment";
   const extraEnvVar = extraEnvAssignment.match[1];
   if (
     boundaryParts.some(
       ([match]) => match.index < extraEnvAssignment.openIndex ||
         match.index > extraEnvAssignment.closeIndex,
     )
-  ) return false;
+  ) return "boundary fields scoped to producer extra environment";
 
   const devForwarding = executableMatchesInside(
     source,
@@ -598,9 +601,11 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     (match) => match.index > extraEnvAssignment.openIndex &&
       match.index < extraEnvAssignment.closeIndex,
   );
-  if (devForwarding.length !== 1) return false;
+  if (devForwarding.length !== 1) return "development environment forwarding";
   const [, , commonEnvKeys, , devEnvKeys] = devForwarding[0];
-  if (commonEnvKeys === devEnvKeys) return false;
+  if (commonEnvKeys === devEnvKeys) {
+    return "distinct common and development environment keys";
+  }
 
   const securityModeArrays = executableRegexMatches(
     source,
@@ -610,7 +615,7 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     ),
   );
   if (securityModeArrays.length !== 1 || securityModeArrays[0][1] !== devEnvKeys) {
-    return false;
+    return "security mode restricted to development";
   }
 
   const runtimeCalls = executableMatchesInside(
@@ -621,13 +626,17 @@ function hasBrowserUseSecurityContextProducerContract(source) {
     ),
     producer,
   );
-  return runtimeCalls.length === 1;
+  return runtimeCalls.length === 1 ? null : "runtime builder call";
 }
 
+// This required patch intentionally leaves source unchanged. It is a fail-closed
+// assertion of the current Browser Use node_repl trusted-service producer contract.
 function applyBrowserUseNodeReplSecurityContextPatch(currentSource) {
-  if (!hasBrowserUseSecurityContextProducerContract(currentSource)) {
+  const failure = browserUseSecurityContextProducerContractFailure(currentSource);
+  if (failure != null) {
     throw new Error(
-      "Required Browser Use node_repl trusted-service producer contract was not found exactly once",
+      "Required Browser Use node_repl trusted-service producer contract " +
+        `was not found exactly once: ${failure}`,
     );
   }
   return currentSource;

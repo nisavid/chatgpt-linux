@@ -3008,6 +3008,7 @@ recover_stale_computer_use_sockets() {
         return 0
     fi
     if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        echo "Skipping Computer Use socket recovery because XDG_RUNTIME_DIR is unset"
         return 0
     fi
 
