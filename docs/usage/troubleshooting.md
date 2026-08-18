@@ -1,12 +1,15 @@
 # Troubleshooting
 
 > [!WARNING]
-> This page preserves troubleshooting knowledge for retired, unsupported
-> source. No new support or compatibility fixes are provided. See
+> This page preserves troubleshooting knowledge for retired and unsupported
+> source. Do not use this to start or continue maintenance. The commands
+> below are historical reference only, not current install, update,
+> troubleshooting, or repair instructions. No new support or compatibility
+> fixes are provided. See
 > [Repository Retirement](../retirement.md).
 
-This guide lists the fastest checks for common ChatGPT for Linux launch,
-package, CLI, and updater problems.
+Before retirement, this guide listed checks for common ChatGPT for Linux
+launch, package, CLI, and updater problems.
 
 ## Start With Logs
 

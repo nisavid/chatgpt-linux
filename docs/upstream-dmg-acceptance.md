@@ -1,16 +1,18 @@
 # Official DMG Acceptance
 
 > [!WARNING]
-> Official-DMG maintenance is retired. This acceptance profile is preserved as
-> historical release evidence, not as a current build or issue-producing lane.
-> See [Repository Retirement](retirement.md).
+> ChatGPT for Linux is retired and unsupported. This acceptance profile is
+> preserved as historical release evidence. Do not use it to start or continue
+> maintenance, builds, or issue production. See
+> [Repository Retirement](retirement.md).
 
-Local installs, updater rebuilds, and the scheduled official-DMG workflow use the
-same release profile from `scripts/lib/upstream-dmg-release-profile.js`. Shell
-and workflow entrypoints produce reports; `scripts/validate-upstream-dmg.js`
-is the only component that decides whether the candidate can be promoted.
+Before retirement, local installs, updater rebuilds, and the scheduled
+official-DMG workflow used the same release profile from
+`scripts/lib/upstream-dmg-release-profile.js`. Shell and workflow entrypoints
+produced reports; `scripts/validate-upstream-dmg.js` was the only component
+that decided whether a candidate could be promoted.
 
-## Verdicts
+## Historical Verdicts
 
 | Verdict | Meaning | Local promotion | Scheduled issue |
 |---|---|---:|---:|
@@ -19,13 +21,13 @@ is the only component that decides whether the candidate can be promoted.
 | `rejected` | A required core/integrity check or an enabled port integration drifted | no | create or update the current fingerprint issue |
 | `inconclusive` | Reports are missing or an infrastructure failure prevented a decision | no | no change |
 
-The profile derives required core patches from patch descriptors and reads the
-enabled port integration set from the candidate's patch report. It never enables an
-integration for diagnostics. Disabled integrations are not checked; any patch drift in
-a user-enabled integration rejects the candidate so the working installation keeps
-that integration intact. The user can disable the integration and retry the update.
+The profile derived required core patches from patch descriptors and read the
+enabled port integration set from the candidate's patch report. It never
+enabled an integration for diagnostics. Disabled integrations were not
+checked; patch drift in a user-enabled integration rejected the candidate so
+the working installation kept that integration intact.
 
-## Transactional Local Install
+## Historical Transactional Local Install
 
 `install.sh` builds into a hidden sibling candidate directory. It evaluates the
 candidate patch report and writes
@@ -66,26 +68,27 @@ Cleanup keeps the state-referenced DMG and removes older managed hashes plus
 temporary files abandoned by an interrupted download; unrelated files and
 symlinks are ignored.
 
-## Drift Issue Lifecycle
+## Historical Drift Issue Lifecycle
 
-Scheduled runs use the DMG SHA-256 as the identity and the app version only as
-a display value. One `area: upstream dmg` issue is kept per rejected fingerprint.
-When a new fingerprint arrives, open issues for older DMGs are closed as
-superseded. An accepted new DMG closes all remaining drift issues. Before any
-mutation, the issue job compares the tested HTTP identity with the current DMG
-headers so rerunning an obsolete workflow cannot reopen an old issue. The
-identity must contain an ETag or both Last-Modified and Content-Length. If
-either the tested or current identity is unavailable, reconciliation makes no
-issue changes. The reconciler reads its classification from
-`.github/labels.json` and leaves any issue carrying `workflow: manual only`
-untouched.
-Only issues carrying both the label and a valid hidden 64-character fingerprint
-marker are managed. Manually created labeled issues and malformed markers are
-never updated, reopened, superseded, or closed by the workflow.
+Scheduled runs used the DMG SHA-256 as the identity and the app version only as
+a display value. One `area: upstream dmg` issue was kept per rejected fingerprint.
+When a new fingerprint arrived, open issues for older DMGs were closed as
+superseded. An accepted new DMG closed all remaining drift issues. Before any
+mutation, the issue job compared the tested HTTP identity with the current DMG
+headers so rerunning an obsolete workflow could not reopen an old issue. The
+identity had to contain an ETag or both Last-Modified and Content-Length. If
+either identity was unavailable, reconciliation made no issue changes. The
+reconciler read its classification from `.github/labels.json` and left issues
+carrying `workflow: manual only` untouched. Only issues carrying both the label
+and a valid hidden 64-character fingerprint marker were managed. Manually
+created labeled issues and malformed markers were never updated, reopened,
+superseded, or closed by the workflow.
 
-## Manual Validation
+## Historical Manual Validation
 
-Normal local builds run acceptance automatically:
+The commands below are historical evidence and are no longer run for
+maintenance or release validation. Before retirement, normal local builds ran
+acceptance automatically:
 
 ```bash
 ./install.sh /path/to/ChatGPT.dmg
