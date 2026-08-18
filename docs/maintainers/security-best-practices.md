@@ -1,8 +1,13 @@
 # Security Best Practices
 
-This document projects the repository threat model into secure-by-default review
-guidance for maintainer changes. Use it with [Threat Model](threat-model.md)
-and [Security Backlog](security-backlog.md).
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This document records the secure-by-default review guidance used before
+retirement. Read it with [Threat Model](threat-model.md) and
+[Security Backlog](security-backlog.md) when interpreting historical work.
 
 The current default-enabled port integration set makes generated Electron,
 webview, and helper-process boundaries the main day-to-day security surface.

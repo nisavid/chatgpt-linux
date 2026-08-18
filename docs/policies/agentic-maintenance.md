@@ -1,8 +1,13 @@
 # Agentic Maintenance Policy
 
-This repository is a small package-and-updater project. Leave enough durable
-state in tracked files that a future maintainer or agent can continue without
-chat history.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This document records how the former package-and-updater project persisted
+maintenance state. The sections below are historical policy, not authority to
+resume work.
 
 ## What To Persist
 

@@ -2,9 +2,10 @@
 
 ChatGPT for Linux is retired and unsupported. The repository is preserved as a
 read-only source, research, and review record while its remaining tracker items
-are dispositioned and the GitHub repository is archived. Retirement does not
-turn this community fork into an OpenAI-supported product, and it does not make
-the Linux-port upstream responsible for this fork's local changes.
+are dispositioned. The GitHub repository will be archived only after that
+closeout. Retirement does not turn this community fork into an OpenAI-supported
+product, and it does not make the Linux-port upstream responsible for this
+fork's local changes.
 
 ## Current user route
 
@@ -96,10 +97,11 @@ available through Git history and the Actions record.
 Retirement does not remediate or dismiss the repository's open alerts. A live
 inventory on 2026-08-18 recorded 10 open Dependabot alerts:
 
-- high severity: #23 (`undici`) and #33 (`extract-zip`);
-- medium severity: #24 through #30 (`undici`) and #32 (`electron`).
+- high severity: alerts 23 (`undici`) and 33 (`extract-zip`);
+- medium severity: alerts 24 through 30 (`undici`) and 32 (`electron`).
 
-It also recorded high-severity CodeQL alert #163,
+It also recorded high-severity
+[CodeQL alert #163](https://github.com/nisavid/chatgpt-linux/security/code-scanning/163),
 `actions/cache-poisoning/poisonable-step`.
 
 These alerts are unresolved retired risk. No assertion is made that the

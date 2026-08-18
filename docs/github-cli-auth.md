@@ -1,5 +1,10 @@
 # GitHub CLI auth in app-launched shells
 
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](retirement.md).
+
 ChatGPT can launch successfully while shell commands inside the app still
 see a different desktop session environment than a normal terminal. One common
 symptom is that `gh auth status` works in the user's terminal, but commands run

@@ -1,11 +1,15 @@
 ---
 name: upstream-dmg-watchdog
-description: Monitor and repair the current official OpenAI ChatGPT DMG through the repository-owned watchdog state machine.
+description: Historical watchdog adapter for the retired and unsupported ChatGPT for Linux repository; do not use it to start or continue maintenance.
 ---
 
-# Upstream DMG watchdog adapter
+# Historical upstream DMG watchdog adapter
 
-Resolve the target of `scripts/watchdog.py`, then read the `SKILL.md` beside
-that repository-owned implementation completely and follow it. The executable
-in this installed skill directory is a symlink to that implementation. Never
-maintain a second copy or edit watchdog state directly.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [`docs/retirement.md`](../../../docs/retirement.md).
+
+This adapter records how installed watchdog entry points resolved the
+repository-owned implementation before retirement. Do not execute or restore
+that maintenance path.

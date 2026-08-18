@@ -1,8 +1,12 @@
 # Agent Validation Playbook
 
-Run the smallest validation set that matches the touched surface, then broaden
-when the change crosses package formats, launcher/runtime behavior, updater
-state, or patch drift handling.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This playbook preserves the validation commands used before retirement. Use it
+only to interpret historical changes or an owner-authorized closeout task.
 
 ## Shell, Launcher, And Package Scripts
 

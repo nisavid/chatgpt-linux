@@ -1,7 +1,12 @@
 # Agent Repository Map
 
-This map keeps the detailed file ownership notes out of `AGENTS.md` while
-preserving the source-of-truth routing agents need before editing.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This map preserves the source routing used before retirement. It supports
+historical interpretation, not new editing or maintenance work.
 
 ## Repo Orchestration
 
@@ -27,7 +32,8 @@ preserving the source-of-truth routing agents need before editing.
   `record-replay-linux`, and `updater`.
 - `flake.nix` / `flake.lock`
   Nix flake that pins the official DMG, Cargo dependency, and Node dependency
-  hashes. Use `scripts/ci/update-nix-hashes.sh` to refresh pins.
+  hashes. `scripts/ci/update-nix-hashes.sh` is retained as historical source;
+  retirement removed the pin-refresh producer.
 - `nix/`
   Nix integration modules: `home-manager-module.nix`, `nixos-module.nix`, and
   `native-modules/` rebuild support for the flake.
@@ -300,8 +306,9 @@ plus a native `chatgpt` package and `chatgpt-updater`.
   Local containerized CI runner. Targets include `pr`, `all`, `core`, `deb`,
   `rpm`, `pacman`, `install-deps[:image]`, `nix`, and `official-dmg`.
 - `.github/workflows/`
-  GitHub Actions for CI, Official DMG app builds, install-deps, Cachix, Nix hash
-  refreshes, and Computer Use sync reminders.
+  Historical workflow sources plus the read-only and protected-review checks
+  retained by the retirement posture. Scheduled and write-capable maintenance
+  producers are removed.
 
 ## Docs
 
@@ -343,7 +350,7 @@ plus a native `chatgpt` package and `chatgpt-updater`.
 - `docs/upstream-dmg-intelligence.md`
   Protected-surface inspection and official-app drift intelligence.
 - `docs/upstream-dmg-watchdog.md`
-  Scheduled Official DMG campaign and issue lifecycle.
+  Historical Official DMG campaign and issue lifecycle.
 - `docs/label-governance.md`
   Staff-managed issue and pull request label policy.
 - `docs/github-cli-auth.md`

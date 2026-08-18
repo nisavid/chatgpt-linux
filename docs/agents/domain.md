@@ -1,17 +1,23 @@
 # Domain Docs
 
-This is a single-context repo. Engineering skills should use one repo-wide domain context and one repo-wide ADR directory when those files exist.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This was a single-context repository. The anchors below preserve the domain
+model used before retirement for source interpretation only.
 
 ## Before exploring, read these
 
 - `AGENTS.md` for always-loaded repository policy.
-- `docs/README.md` to choose the smallest maintained document for the task.
+- `docs/README.md` to choose the smallest historical document for the surface.
 - `CONTEXT.md` at the repo root when it exists.
 - `docs/adr/` when it exists, reading ADRs that touch the area about to change.
 
 If `CONTEXT.md` or `docs/adr/` does not exist, proceed silently. Do not request those files before doing ordinary work.
 
-## Current domain anchors
+## Historical domain anchors
 
 - `docs/maintainers/fork-divergences.md` is the canonical inventory of intentional fork differences.
 - `docs/maintainers/fork-sync-policy.md` defines upstream sync policy for this

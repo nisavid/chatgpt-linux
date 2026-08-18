@@ -1,13 +1,22 @@
 ---
 name: maintaining-chatgpt-package
-description: Use when changing native package metadata or payload, installer-generated launcher behavior, packaged runtime helper behavior, updater service or install behavior, or native package shape in this repository.
+description: Historical package-maintenance reference for the retired and unsupported ChatGPT for Linux repository; do not use it to start or continue maintenance.
 ---
 
 # Maintaining ChatGPT Package
 
-Use this skill for package and runtime maintenance in this repository.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [`docs/retirement.md`](../../../docs/retirement.md).
 
-Do not use it for README-only, policy-only, review-only, or generated-output-only turns unless the change also affects native package behavior, launcher generation, packaged runtime behavior, or updater install/service behavior.
+## Historical contract
+
+This skill records the package and runtime maintenance contract used before
+retirement. The remaining recipes support source interpretation only.
+
+It is not an active routing surface for package, updater, installer, launcher,
+or generated-output work.
 
 ## Start Discovery
 

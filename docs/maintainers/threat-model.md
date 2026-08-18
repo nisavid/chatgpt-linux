@@ -2,16 +2,15 @@
 
 Date: 2026-07-31
 
-This repository adapts the official OpenAI `ChatGPT.dmg` into a Linux Electron
-app, builds native Linux packages, and ships `chatgpt-updater` to check,
-rebuild, and install local updates. This threat model is repository-scoped and
-feeds future `@codex-security` reviews. Track actionable implementation work in
-[Security Backlog](security-backlog.md).
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
 
-Use this document to scope security scans and reviews. Use the security backlog
-for implementation tickets, and use
-[Package and Runtime Maintenance](package-runtime-maintenance.md) for package,
-launcher, updater, and validation procedures.
+This threat model records the trust boundaries of the former DMG conversion,
+native packages, and `chatgpt-updater`. Use it to interpret historical scans
+and unresolved retired risk. The [Security Backlog](security-backlog.md) is a
+historical inventory, not an implementation queue.
 
 ## Executive Summary
 
@@ -1002,9 +1001,9 @@ still contain arbitrary sensitive values.
   environment, filesystem access.
 - `packaging/linux/chatgpt-packaged-runtime.sh`: systemd environment import,
   service startup, launch-time update checks.
-- `.github/workflows/update-chatgpt-hash.yml` and
-  `.github/workflows/verify-apple-dmg.yml`: trust-root update and Apple
-  verification evidence.
+- `.github/workflows/verify-apple-dmg.yml`: retained read-only Apple
+  verification evidence. The former write-capable
+  `.github/workflows/update-chatgpt-hash.yml` remains only in Git history.
 - `flake.nix`: fixed-output DMG hash, Electron patching, Nix-specific runtime
   behavior.
 
@@ -1019,6 +1018,7 @@ still contain arbitrary sensitive values.
   public artifacts.
 - Attacker-controlled inputs are listed separately from findings.
 - Threats are repository-context classes, not findings about a current diff.
-- Current mitigations and gaps match the maintained security backlog.
+- The recorded mitigations and gaps match the historical unresolved-risk
+  inventory.
 - Maintainer policy remains in maintainer docs; this file is the threat model,
-  not a replacement for validation instructions or implementation tickets.
+  not a current validation procedure or implementation queue.

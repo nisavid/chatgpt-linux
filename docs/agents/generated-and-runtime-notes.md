@@ -1,7 +1,12 @@
 # Generated Artifacts And Runtime Notes
 
-This document collects the detailed generated-output and runtime-state notes
-that agents need without keeping them in the main quick-start.
+> [!IMPORTANT]
+> This is historical source for a retired and unsupported repository. Do not
+> use it to start or continue maintenance. Follow
+> [Repository Retirement](../retirement.md).
+
+This document preserves the generated-output and runtime-state notes used
+before retirement for source interpretation only.
 
 ## Generated Artifacts
 

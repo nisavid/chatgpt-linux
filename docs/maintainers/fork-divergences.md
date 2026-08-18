@@ -535,8 +535,8 @@ that inherited supply chain.
 ChatGPT DMG URL. Release and updater work must leave reviewable evidence and
 avoid presenting unverified artifacts as trusted.
 
-**Current paths:** `.github/workflows/update-chatgpt-hash.yml`,
-`.github/workflows/verify-apple-dmg.yml`, `.github/workflows/ci.yml`,
+**Retained source paths:** `.github/workflows/verify-apple-dmg.yml`,
+`.github/workflows/ci.yml`,
 `.github/workflows/updater.yml`, `Makefile`, `flake.nix`,
 `scripts/release-gate.sh`, `scripts/verify-apple-dmg.sh`,
 `scripts/inspect-electron-security.js`, `scripts/lib/package-provenance.py`,
@@ -545,6 +545,8 @@ avoid presenting unverified artifacts as trusted.
 `updater/trusted-dmg-manifest.json`, `updater/src/trust.rs`,
 `updater/src/dmg_source.rs`, `updater/src/app.rs`,
 `docs/maintainers/security-backlog.md`, `docs/maintainers/threat-model.md`.
+The former `.github/workflows/update-chatgpt-hash.yml` write-capable producer
+was removed at retirement and remains available only in Git history.
 
 **Preservation checks:** `make help` must show `apple-dmg-verify` and
 `release-gate`. Run `tests/package_provenance.sh`,
