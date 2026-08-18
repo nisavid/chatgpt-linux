@@ -1,46 +1,20 @@
 ---
 name: upstream-dmg-watchdog
-description: Historical watchdog reference for the retired and unsupported ChatGPT for Linux repository; do not use it to start or continue maintenance.
+description: Non-executable historical record for the retired and unsupported ChatGPT for Linux repository; do not use it to start or continue maintenance.
 ---
 
-# Historical upstream DMG watchdog
+# Historical Official DMG Watchdog Skill
 
 > [!IMPORTANT]
-> This is historical source for a retired and unsupported repository. Do not
-> use it to start or continue maintenance. Follow
-> [`docs/retirement.md`](../../../docs/retirement.md).
+> This repository is retired and unsupported. Do not run this skill to start
+> or continue probing, worker dispatch, repair, pull-request, or Nix refresh
+> work. See [Repository Retirement](../../../docs/retirement.md).
 
-The contract below records how the watchdog operated before retirement. Do not
-run its probe, worker, repair, PR, or Nix-refresh flows.
+This file is a non-executable historical record. The former watchdog compared
+the mutable official DMG with an accepted identity, coordinated one bounded
+worker campaign, recorded acceptance, and reconciled drift issues.
 
-Probe mode runs only:
-
-```bash
-python3 scripts/automation/upstream-dmg-watchdog/watchdog.py probe
-```
-
-For `CHANGE_READY SHA EVENT_ID=ID` send `PROCESS_UPSTREAM_DMG SHA` to the
-dedicated Worker without model/thinking overrides, then acknowledge `ID`.
-For `NIX_REPAIR_READY SHA RUN_ID EVENT_ID=ID` send the complete event to that
-same Worker, then acknowledge `ID`. Keep `UNCHANGED`, `WORKER_ACTIVE`,
-`NIX_ACTIVE`, and `CAMPAIGN_WAITING` quiet.
-
-Worker mode follows the complete worker flow in the documentation. In
-particular, it must use immutable `sync-integrations`, commit before
-`record-acceptance`, pass `nix-preflight`, require all six named repair gates,
-call `validate-repair-pr` immediately before merge, and use `advance-to-nix`
-instead of `campaign-complete` after an accepted main or confirmed repair merge.
-
-Classify the changed paths before validation. When every changed path belongs
-to the affected `port-integrations/<id>/` directories, use the documented
-integration-only fast path: run only their Node tests, current-DMG acceptance, and
-`nix-preflight --target .#checks.x86_64-linux.nix-port-integrations-multi-integration`.
-Open the repair PR after these focused checks and let the six GitHub gates run
-in parallel. Do not run `ci-local.sh pr` or local Debian/RPM/pacman builds for a
-integration-only drift repair. Use the full local matrix for core, shared loader,
-installer, updater, packaging, or mixed-scope changes.
-
-Use the user's primary checkout as `sync-integrations --source-checkout`, not the
-managed repair worktree; this is how its gitignored `integrations.json` and enabled
-local integration trees enter the immutable round snapshot. When acceptance reports
-an unchanged source head, skip Nix preflight and call `advance-to-nix` directly.
+Retirement removed its schedules, write-capable workflows, repair producer,
+and package-refresh path. The retained public watchdog program exposes only
+read-only status; former mutating modes fail closed. Git history preserves the
+last operational protocol and its validation evidence.

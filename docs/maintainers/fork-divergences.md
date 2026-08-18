@@ -1,22 +1,23 @@
 # Fork Divergences
 
 > [!NOTE]
-> This inventory records the final maintained divergence state. The repository
-> is retired, so the sync and build rules below are historical. See
+> This inventory is a non-executable historical record of the final maintained
+> divergence state. The repository is retired and unsupported. Do not use it to
+> start or continue sync, build, package, release, or security work. See
 > [Repository Retirement](../retirement.md).
 
 This reference records the intentional differences between this fork and the
 last synced ref from the Linux-port upstream. In this document, `upstream` means
-that remote unless a sentence names another surface. Use this inventory during
-upstream syncs to preserve local contracts and keep divergence claims grounded
-in the synced baseline. Treat these differences as a finishing layer: upstream
-owns the primary Linux app conversion and much of the runtime support, while
-this fork preserves local names, paths, updater policy, hardening, security
-review, packaging polish, and maintainer policy.
+that remote unless a sentence names another surface. The inventory was used
+during upstream syncs to preserve local contracts and keep divergence claims
+grounded in the synced baseline. These differences formed a finishing layer:
+upstream owned the primary Linux app conversion and much of the runtime
+support, while this fork preserved local names, paths, updater policy,
+hardening, security review, packaging polish, and maintainer policy.
 
 ## Upstream Terminology
 
-Use the same terms as `AGENTS.md`:
+The final maintained documentation used these terms from `AGENTS.md`:
 
 - `Linux-port upstream`: `ilysenko/codex-desktop-linux`, the git remote named
   `upstream`, and sync work that imports that repository's Linux conversion
@@ -28,61 +29,44 @@ Use the same terms as `AGENTS.md`:
 - `OpenAI-hosted services`: account, rollout, entitlement, remote-control, and
   other service-side behavior outside this fork's local packaging path.
 
-Use the specific term when a reader could confuse the Linux-port upstream with
-the official OpenAI app, DMG, app bundle, or hosted services. Once the surface
-is clear, concise terms such as `upstream`, `DMG`, or `app bundle` are fine.
+Specific terms distinguished the Linux-port upstream from the official OpenAI
+app, DMG, app bundle, and hosted services. Once a surface was clear, concise
+terms such as `upstream`, `DMG`, or `app bundle` appeared in the record.
 
-The current comparison baseline is upstream commit
+The final comparison baseline is upstream commit
 `efe491761d9075341fe79f564631a6dd9aafd291` (2026-07-30). Claims below describe
 the current tree's diff against that baseline, with current source files taking
 precedence over generated output.
 
-## Post-Baseline Source Decision
+## Final Source Decision
 
 After this baseline, the Linux-port upstream switched its app input to OpenAI's
-signed Linux APT package. This fork intentionally remains a DMG-based
-maintenance fallback while that official Linux app is evaluated. Both native
-packages own the `chatgpt` identity and are mutually exclusive on one host;
-follow the accepted switch and rollback procedure in
-[Package and Runtime Maintenance](package-runtime-maintenance.md#official-app-evaluation-switch).
-Do not import the source transition or claim co-installation without a new
-explicit decision covering source, package ownership, conflicts, upgrades, and
-update authority together.
+signed Linux APT package. This fork remained a DMG-based maintenance fallback
+until the signed Linux package was accepted as its successor. Both native
+packages owned the `chatgpt` identity and were mutually exclusive on one host.
+The accepted switch, rollback evidence, and delayed cleanup boundary are
+recorded in [Repository Retirement](../retirement.md).
 
-## Sync Review Rule
+## Historical Sync Review Record
 
-For each upstream sync:
-
-1. Read this inventory before editing or resolving conflicts.
-2. Compare incoming changes against every divergence area below.
-3. Preserve local names, paths, versioning, updater boundaries, package shape,
-   and security gates unless the PR intentionally changes this policy.
-4. Describe each divergence as the current local finishing-layer delta against
-   the synced upstream baseline: naming, layout, hardening, packaging,
-   compatibility, security review, or documentation.
-5. Escalate uncertain conflicts to the operator when the session allows. If
-   escalation is unavailable or the operator requested an uninterrupted run,
-   record a durable, discoverable follow-up where the escalation would have
-   happened, and link it from the sync ledger.
-6. Run the local build gate before pushing when generated-app, package, updater
-   rebuild, or bundled runtime behavior is touched. The minimum gate is
-   `make build-app` or `./install.sh` after the DMG freshness check; package
-   payload changes also need the relevant package builder, and release workflow
-   changes also need the relevant release-gate command.
+Before retirement, sync reviews compared incoming changes with every
+divergence area below. They preserved local naming, layout, versioning, updater,
+package, and security boundaries; recorded uncertain conflicts in the sync
+ledger; and bound generated-app or package changes to local build evidence.
+This record no longer defines a sync procedure.
 
 The layout rules for this fork follow, in order, the XDG Base Directory
 Specification, the Filesystem Hierarchy Standard, and common distro conventions
 for modern Electron-style app bundles.
 
-## Current Local Rename And Compatibility Map
+## Final Maintained Rename And Compatibility Map
 
-Use this map during upstream syncs. If upstream edits an old path or token,
-reconcile the change into the current local path or token before deleting the
-old target from the merge result.
+This map recorded the rename and compatibility relationships applied during
+the final maintained syncs. It is retained for provenance only.
 
-| Old target or token | Current local target or token | Source and sync relevance |
+| Old target or token | Final local target or token | Historical sync relevance |
 | --- | --- | --- |
-| Former repository slug `nisavid/codex-app-linux` | Canonical repository `nisavid/chatgpt-linux` | The in-place rename preserved repository and fork identity. GitHub redirects the former web and Git endpoints; use only the canonical slug for new operations and durable links. |
+| Former repository slug `nisavid/codex-app-linux` | Canonical repository `nisavid/chatgpt-linux` | The in-place rename preserved repository and fork identity. New operations and durable links used the canonical slug. |
 | Local package, command, desktop, and app/XDG identity `codex-app` | `chatgpt` | Native package metadata replaces/conflicts with the old package, but no executable, desktop, service, or filesystem shim is installed. Wrapper-owned XDG directories move through the journaled state migration. |
 | Local updater crate, command, service, and XDG identity `codex-app-updater` | `chatgpt-updater` | Package lifecycle hooks disable the old service and enable the canonical service when policy permits. Updater config, state, and cache move through the same migration; no service alias is installed. |
 | Generated metadata root `.codex-linux/` and local setting keys beginning `codex-linux-` | `.chatgpt-linux/` and `chatgpt-linux-` | The migration rewrites known wrapper-owned text files and moves the CLI quarantine directory. Generated output uses only canonical names. |
@@ -90,25 +74,25 @@ old target from the merge result.
 | Port-owned `CODEX_*` environment variables | Corresponding `CHATGPT_*` names | Old port-owned names are rejected or ignored rather than treated as compatibility aliases. Inherited OpenAI Codex CLI, app-server, plugin, browser-use, Node REPL, bundle, skill, and protocol variables retain `CODEX_*`. |
 | Port-owned `CODEX_MICRO_NODE_HID_ARCHIVE` | `CHATGPT_MICRO_NODE_HID_ARCHIVE` | The Nix build override belongs to the Linux-port integration, not the official Codex Micro protocol. Old installer or launcher input is rejected. |
 | Port-owned `CODEX_PRIMARY_RUNTIME_ROOT` and `CODEX_RUNTIME_ROOT` | `CHATGPT_PRIMARY_RUNTIME_ROOT` and `CHATGPT_RUNTIME_ROOT` | The Nix launcher overrides were introduced by the Linux port. The underlying OpenAI runtime artifact and `codex-runtimes/codex-primary-runtime` cache path keep their upstream names. |
-| `.github/workflows/upstream-build-app.yml` | `.github/workflows/official-dmg-build-app.yml` | Exists in `upstream/main`; port incoming workflow edits here. |
-| `updater/src/upstream.rs` | `updater/src/dmg_source.rs` | Exists in `upstream/main`; port incoming updater source edits here. |
-| patch `ciPolicy: "required-upstream"` | `ciPolicy: "required-official-dmg"`; the old value is accepted only as a legacy alias | Exists in `upstream/main`; port incoming required-patch policy edits to the current token unless intentionally preserving compatibility aliases. |
-| patch-report profile `upstream-build` | `official-dmg-build`; the old profile is accepted only as a legacy alias | Exists in `upstream/main`; port incoming validation-profile edits to the current profile name. |
-| CI job or local CI target `upstream` for official DMG validation | `official-dmg`; the old target is accepted only as a legacy alias | Exists in `upstream/main`; port incoming official DMG validation job/target changes to the current name. |
-| `UPSTREAM_DMG_URL`, `UPSTREAM_DMG_PATH`, `UPSTREAM_DMG_CACHE_HIT` | `OFFICIAL_DMG_URL`, `OFFICIAL_DMG_PATH`, `OFFICIAL_DMG_CACHE_HIT`; old variables are legacy aliases | Exists in `upstream/main`; port incoming official DMG environment changes to the current variables and preserve legacy fallbacks only for compatibility. |
-| Port integration hook `CODEX_UPSTREAM_APP_DIR` | `CHATGPT_OFFICIAL_APP_DIR`; the old port-owned variable is obsolete | Exists in `upstream/main`; port incoming stage-hook environment changes to the current variable; do not restore the obsolete port-owned alias. |
-| Make target `inspect-upstream` | `inspect-dmg`; the old target is a legacy alias | Exists in `upstream/main`; port incoming inspect-target behavior to `inspect-dmg` and keep the old target as an alias only while useful. |
-| `packaging/appimage/codex-desktop.desktop` | `packaging/appimage/chatgpt.desktop` | Exists in `upstream/main`; port incoming AppImage desktop-entry edits to the current local AppImage desktop entry. |
-| `packaging/linux/codex-desktop.spec`, `packaging/linux/codex-desktop.install`, `packaging/linux/codex-desktop.desktop`, and `packaging/linux/codex-desktop-entry-doctor.sh` | `packaging/linux/chatgpt.spec`, `packaging/linux/chatgpt.install`, `packaging/linux/chatgpt.desktop`, and `packaging/linux/chatgpt-desktop-entry-doctor.sh` | Exists in `upstream/main`; port incoming native package identity and desktop-integration edits to the current local package files. |
-| `packaging/linux/codex-update-manager.service`, `packaging/linux/codex-update-manager-user-service.sh`, `packaging/linux/codex-update-manager.postinst`, `packaging/linux/codex-update-manager.postrm`, and `packaging/linux/codex-update-manager.prerm` | `packaging/linux/chatgpt-updater.service`, `packaging/linux/chatgpt-updater-user-service.sh`, `packaging/linux/chatgpt-updater.postinst`, `packaging/linux/chatgpt-updater.postrm`, and `packaging/linux/chatgpt-updater.prerm` | Exists in `upstream/main`; port incoming updater service and maintainer-script edits under the local updater identity. |
-| `packaging/linux/com.github.ilysenko.codex-desktop-linux.update.policy` | `packaging/linux/com.github.nisavid.chatgpt.update.policy` | Exists in `upstream/main`; port incoming privileged install policy edits to the local policy file and preserve the local action identifiers. |
-| `contrib/user-local-install/files/.config/systemd/user/codex-desktop-update.service`, `contrib/user-local-install/files/.config/systemd/user/codex-desktop-update.timer`, `contrib/user-local-install/files/.local/bin/codex-desktop*`, `contrib/user-local-install/files/.local/share/applications/codex-desktop.desktop`, and `contrib/user-local-install/files/.local/lib/codex-desktop-linux/common.sh` | `contrib/user-local-install/files/.config/systemd/user/chatgpt-update.service`, `contrib/user-local-install/files/.config/systemd/user/chatgpt-update.timer`, `contrib/user-local-install/files/.local/bin/chatgpt*`, `contrib/user-local-install/files/.local/share/applications/chatgpt.desktop`, and `contrib/user-local-install/files/share/common.sh` | Exists in `upstream/main`; port incoming user-local install experiment edits to the current local names and layout. |
-| `linux-features/` | `port-integrations/`; the old root is accepted only as a legacy override target | Exists in the Linux-port upstream's old registry naming; port incoming registry edits to `port-integrations/`. |
-| `linux-features/*/feature.json` | `port-integrations/*/integration.json`; old manifests are accepted only for legacy roots | Exists in the Linux-port upstream's old registry naming; port incoming manifest edits to the current manifest path. |
-| `linux-features/features.example.json` and `linux-features/features.json` | `port-integrations/integrations.example.json` and `port-integrations/integrations.json`; old names are compatibility fallbacks | Exists in the Linux-port upstream's old registry naming; port incoming config-shape changes to the current config names. |
-| `scripts/lib/linux-features.js` and `scripts/lib/linux-features.sh` | `scripts/lib/port-integrations.js` and `scripts/lib/port-integrations.sh` | Exists in the Linux-port upstream's old registry naming; port incoming helper changes to the current helper names. |
-| `CHATGPT_LINUX_FEATURES_ROOT`, `CHATGPT_LINUX_FEATURES_CONFIG`, `CHATGPT_LINUX_FEATURES`, `CHATGPT_LINUX_DISABLE_FEATURES`, `CHATGPT_LINUX_FEATURES_DIR`, and `CHATGPT_LINUX_FEATURE_HOOK_PHASE` | `CHATGPT_PORT_INTEGRATIONS_ROOT`, `CHATGPT_PORT_INTEGRATIONS_CONFIG`, `CHATGPT_PORT_INTEGRATIONS`, `CHATGPT_DISABLE_PORT_INTEGRATIONS`, `CHATGPT_PORT_INTEGRATIONS_DIR`, and `CHATGPT_PORT_INTEGRATION_HOOK_PHASE`; old variables are rejected with the exact current replacement | Exists in the Linux-port upstream's old registry naming; port incoming environment handling to the current variables without compatibility aliases. |
-| `CHATGPT_BOOTSTRAP_CLEANUP_FEATURES` | `CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS`; the old variable is rejected with the exact current replacement | Exists in earlier local setup helper behavior; use only the current variable in source, docs, and normal tests. |
+| `.github/workflows/upstream-build-app.yml` | `.github/workflows/official-dmg-build-app.yml` | Final syncs ported incoming workflow edits here. |
+| `updater/src/upstream.rs` | `updater/src/dmg_source.rs` | Final syncs ported incoming updater source edits here. |
+| patch `ciPolicy: "required-upstream"` | `ciPolicy: "required-official-dmg"`; the old value is accepted only as a legacy alias | Final syncs ported incoming required-patch policy edits to the current token unless intentionally preserving compatibility aliases. |
+| patch-report profile `upstream-build` | `official-dmg-build`; the old profile is accepted only as a legacy alias | Final syncs ported incoming validation-profile edits to the current profile name. |
+| CI job or local CI target `upstream` for official DMG validation | `official-dmg`; the old target is accepted only as a legacy alias | Final syncs ported incoming official DMG validation job/target changes to the current name. |
+| `UPSTREAM_DMG_URL`, `UPSTREAM_DMG_PATH`, `UPSTREAM_DMG_CACHE_HIT` | `OFFICIAL_DMG_URL`, `OFFICIAL_DMG_PATH`, `OFFICIAL_DMG_CACHE_HIT`; old variables are legacy aliases | Final syncs ported incoming official DMG environment changes to the current variables and preserved legacy fallbacks only for compatibility. |
+| Port integration hook `CODEX_UPSTREAM_APP_DIR` | `CHATGPT_OFFICIAL_APP_DIR`; the old port-owned variable is obsolete | Final syncs ported stage-hook environment changes to the current variable; the obsolete alias remained absent. |
+| Make target `inspect-upstream` | `inspect-dmg`; the old target is a legacy alias | Final syncs ported inspect-target behavior to `inspect-dmg`; the old target remained only as a legacy alias. |
+| `packaging/appimage/codex-desktop.desktop` | `packaging/appimage/chatgpt.desktop` | Final syncs ported incoming AppImage desktop-entry edits to the current local AppImage desktop entry. |
+| `packaging/linux/codex-desktop.spec`, `packaging/linux/codex-desktop.install`, `packaging/linux/codex-desktop.desktop`, and `packaging/linux/codex-desktop-entry-doctor.sh` | `packaging/linux/chatgpt.spec`, `packaging/linux/chatgpt.install`, `packaging/linux/chatgpt.desktop`, and `packaging/linux/chatgpt-desktop-entry-doctor.sh` | Final syncs ported incoming native package identity and desktop-integration edits to the current local package files. |
+| `packaging/linux/codex-update-manager.service`, `packaging/linux/codex-update-manager-user-service.sh`, `packaging/linux/codex-update-manager.postinst`, `packaging/linux/codex-update-manager.postrm`, and `packaging/linux/codex-update-manager.prerm` | `packaging/linux/chatgpt-updater.service`, `packaging/linux/chatgpt-updater-user-service.sh`, `packaging/linux/chatgpt-updater.postinst`, `packaging/linux/chatgpt-updater.postrm`, and `packaging/linux/chatgpt-updater.prerm` | Final syncs ported incoming updater service and maintainer-script edits under the local updater identity. |
+| `packaging/linux/com.github.ilysenko.codex-desktop-linux.update.policy` | `packaging/linux/com.github.nisavid.chatgpt.update.policy` | Final syncs ported incoming privileged install policy edits to the local policy file and preserved the local action identifiers. |
+| `contrib/user-local-install/files/.config/systemd/user/codex-desktop-update.service`, `contrib/user-local-install/files/.config/systemd/user/codex-desktop-update.timer`, `contrib/user-local-install/files/.local/bin/codex-desktop*`, `contrib/user-local-install/files/.local/share/applications/codex-desktop.desktop`, and `contrib/user-local-install/files/.local/lib/codex-desktop-linux/common.sh` | `contrib/user-local-install/files/.config/systemd/user/chatgpt-update.service`, `contrib/user-local-install/files/.config/systemd/user/chatgpt-update.timer`, `contrib/user-local-install/files/.local/bin/chatgpt*`, `contrib/user-local-install/files/.local/share/applications/chatgpt.desktop`, and `contrib/user-local-install/files/share/common.sh` | Final syncs ported incoming user-local install experiment edits to the current local names and layout. |
+| `linux-features/` | `port-integrations/`; the old root is accepted only as a legacy override target | Final syncs ported incoming registry edits to `port-integrations/`. |
+| `linux-features/*/feature.json` | `port-integrations/*/integration.json`; old manifests are accepted only for legacy roots | Final syncs ported incoming manifest edits to the current manifest path. |
+| `linux-features/features.example.json` and `linux-features/features.json` | `port-integrations/integrations.example.json` and `port-integrations/integrations.json`; old names are compatibility fallbacks | Final syncs ported incoming config-shape changes to the current config names. |
+| `scripts/lib/linux-features.js` and `scripts/lib/linux-features.sh` | `scripts/lib/port-integrations.js` and `scripts/lib/port-integrations.sh` | Final syncs ported incoming helper changes to the current helper names. |
+| `CHATGPT_LINUX_FEATURES_ROOT`, `CHATGPT_LINUX_FEATURES_CONFIG`, `CHATGPT_LINUX_FEATURES`, `CHATGPT_LINUX_DISABLE_FEATURES`, `CHATGPT_LINUX_FEATURES_DIR`, and `CHATGPT_LINUX_FEATURE_HOOK_PHASE` | `CHATGPT_PORT_INTEGRATIONS_ROOT`, `CHATGPT_PORT_INTEGRATIONS_CONFIG`, `CHATGPT_PORT_INTEGRATIONS`, `CHATGPT_DISABLE_PORT_INTEGRATIONS`, `CHATGPT_PORT_INTEGRATIONS_DIR`, and `CHATGPT_PORT_INTEGRATION_HOOK_PHASE`; old variables are rejected with the exact current replacement | Final syncs ported incoming environment handling to the current variables without compatibility aliases. |
+| `CHATGPT_BOOTSTRAP_CLEANUP_FEATURES` | `CHATGPT_BOOTSTRAP_CLEANUP_INTEGRATIONS`; the old variable is rejected with the exact current replacement | Final source, docs, and normal tests used only the current variable. |
 
 ## Divergence Inventory
 
@@ -124,11 +108,11 @@ binary, service, config, state, cache, and logs as `chatgpt-updater`.
 model come from upstream. The fork-specific contract is the local identity and
 compatibility handling around that inherited model.
 
-**Why it matters:** These names are user-visible package and runtime contracts.
+**Why it mattered:** These names are user-visible package and runtime contracts.
 Adopting upstream names during a sync breaks upgrade paths, service state,
 desktop integration, docs, and user commands.
 
-**Current paths:** `Cargo.toml`, `updater/Cargo.toml`, `Makefile`,
+**Final maintained paths:** `Cargo.toml`, `updater/Cargo.toml`, `Makefile`,
 `install.sh`, `launcher/start.sh.template`, `launcher/state-migration.py`,
 `packaging/linux/`, `scripts/build-deb.sh`, `scripts/build-rpm.sh`,
 `scripts/build-pacman.sh`, `scripts/lib/package-common.sh`, `updater/`,
@@ -144,12 +128,11 @@ quarantine directories. The migration is journaled and resumable, discards only
 known volatile runtime files, fails closed on collisions and unsafe path shapes,
 and supports `chatgpt migrate-state --reverse`.
 
-**Preservation checks:** Search user-facing docs, package metadata, desktop
-entries, services, updater paths, and launcher commands for upstream or former
-local names. Keep `codex-app`, `codex-desktop`, `codex-app-updater`, and
-`codex-update-manager` only in package transition metadata, migration logic,
-tests of legacy input, or explicit history/compatibility prose. Keep inherited
-OpenAI Codex interfaces unchanged.
+**Former preservation evidence:** Reviews searched user-facing docs, package
+metadata, desktop entries, services, updater paths, and launcher commands for
+former local names. Those names remained only in transition metadata,
+migration logic, legacy-input tests, or explicit history; inherited OpenAI
+Codex interfaces remained unchanged.
 
 ### 2. Linux Filesystem Layout And Package Payload Contract
 
@@ -163,20 +146,20 @@ under XDG base directories. The update-builder bundle is deliberately under
 update-builder payload. This fork changes the installed names and payload
 placement, and keeps those choices aligned with XDG/FHS criteria.
 
-**Why it matters:** This layout matches distro expectations for package-managed
+**Why it mattered:** This layout matches distro expectations for package-managed
 Electron app bundles and keeps mutable user state out of system package roots.
 
-**Current paths:** `packaging/linux/PKGBUILD.template`,
+**Final maintained paths:** `packaging/linux/PKGBUILD.template`,
 `packaging/linux/control`, `packaging/linux/chatgpt.spec`,
 `packaging/linux/chatgpt.install`, Debian/RPM maintainer scripts,
 `packaging/linux/chatgpt-packaged-runtime.sh`, `scripts/lib/package-common.sh`,
 `launcher/start.sh.template`, `updater/src/config.rs`, `updater/src/app.rs`,
 `updater/src/builder.rs`, `contrib/user-local-install/`.
 
-**Preservation checks:** Inspect package file lists and source templates for
-`/opt/chatgpt`, `/usr/lib/chatgpt`, `/usr/bin/chatgpt`,
-`/usr/bin/chatgpt-updater`, and XDG paths. Do not adopt `~/.local/opt`,
-`/opt/codex-desktop`, or upstream support-bundle paths during a sync.
+**Former preservation evidence:** Package file lists and source templates were
+checked for `/opt/chatgpt`, `/usr/lib/chatgpt`, `/usr/bin/chatgpt`,
+`/usr/bin/chatgpt-updater`, and XDG paths. The final payload did not adopt
+`~/.local/opt`, `/opt/codex-desktop`, or upstream support-bundle paths.
 
 ### 3. Package Versioning From The OpenAI DMG Bundle
 
@@ -190,18 +173,19 @@ candidates from official OpenAI ChatGPT DMG metadata. This fork changes native
 package versioning and updater comparison helpers so package upgrades track the
 DMG-contained app version.
 
-**Why it matters:** Package upgrades, updater comparisons, release notes, and
-user expectations should track the official app version, not local build time.
+**Why it mattered:** Package upgrades, updater comparisons, release notes, and
+user expectations tracked the official app version rather than local build
+time.
 
-**Current paths:** `install.sh`, `scripts/lib/dmg.sh`,
+**Final maintained paths:** `install.sh`, `scripts/lib/dmg.sh`,
 `scripts/lib/package-common.sh`, package builders, `updater/src/app.rs`,
 `updater/src/builder.rs`, `updater/src/package_version.rs`,
 `updater/src/dmg_source.rs`, `README.md`, `docs/usage/build-and-run.md`,
 `tests/scripts_smoke.sh`.
 
-**Preservation checks:** Run `make help` and package docs checks to ensure
-plain `make deb`, `make rpm`, and `make pacman` are the normal path. Keep
-`PACKAGE_VERSION=...` documented only as a deliberate override.
+**Former preservation evidence:** `make help` and package-document checks
+verified that the plain native-package targets were the normal path and that
+`PACKAGE_VERSION` appeared only as a deliberate override.
 
 ### 4. Package Builder Hardening
 
@@ -218,20 +202,20 @@ payload.
 and now carries a local AppImage target. This fork adds hardening, local
 identity, and payload consistency constraints.
 
-**Why it matters:** Native packages must install with package-manager-owned
+**Why it mattered:** Native packages installed with package-manager-owned
 system paths, predictable modes, and aligned payloads across formats.
 
-**Current paths:** `scripts/build-deb.sh`, `scripts/build-rpm.sh`,
+**Final maintained paths:** `scripts/build-deb.sh`, `scripts/build-rpm.sh`,
 `scripts/build-pacman.sh`, `scripts/build-appimage.sh`,
 `scripts/lib/package-common.sh`, `packaging/linux/control`,
 `packaging/linux/chatgpt.spec`, `packaging/linux/PKGBUILD.template`,
 `packaging/linux/chatgpt.install`, `packaging/appimage/`,
 `tests/scripts_smoke.sh`.
 
-**Preservation checks:** Build the affected package format and inspect metadata
-plus the first file-listing page. For pacman, check that package ownership is
-not inherited from the local build user. For AppImage, check that updater-only
-service and polkit files are absent.
+**Former preservation evidence:** Reviews built affected package formats and
+inspected their metadata and file lists. Pacman packages did not inherit the
+local build user's ownership, and AppImage payloads omitted updater-only
+service and Polkit files.
 
 ### 5. Updater Privilege Boundary And Install Hardening
 
@@ -244,18 +228,18 @@ stage private copies, and then invoke the package manager through `pkexec`.
 manager and privileged package install path. This fork tightens the boundary and
 renames the service, policy, and package identities.
 
-**Why it matters:** The updater handles mutable network inputs and local build
-work. Privilege must stay isolated to the smallest install surface.
+**Why it mattered:** The updater handled mutable network inputs and local build
+work. Privilege stayed isolated to the smallest install surface.
 
-**Current paths:** `updater/src/install.rs`, `updater/src/app.rs`,
+**Final maintained paths:** `updater/src/install.rs`, `updater/src/app.rs`,
 `updater/src/config.rs`, `updater/src/builder.rs`,
 `packaging/linux/com.github.nisavid.chatgpt.update.policy`,
 `packaging/linux/chatgpt-updater.service`, maintainer scripts,
 `docs/maintainers/security-backlog.md`, `docs/maintainers/threat-model.md`.
 
-**Preservation checks:** Run updater install tests or targeted review for
-state/install changes. Route new trust-boundary work through the security
-backlog and `@codex-security` workflow.
+**Former preservation evidence:** Updater install tests or targeted review
+covered state and install changes. Trust-boundary work was routed through the
+security backlog and the `@codex-security` workflow.
 
 ### 6. Updater State, Config Overlay, And Failure Recovery
 
@@ -268,16 +252,16 @@ production builder redirection requires `developer_mode = true`.
 daemon. This fork changes the local names, persisted config surface, recovery
 rules, and developer-mode guardrails.
 
-**Why it matters:** The updater runs continuously and needs stable persisted
+**Why it mattered:** The updater runs continuously and needs stable persisted
 state across package upgrades, crashes, and user configuration changes.
 
-**Current paths:** `updater/src/app.rs`, `updater/src/config.rs`,
+**Final maintained paths:** `updater/src/app.rs`, `updater/src/config.rs`,
 `updater/src/dmg_source.rs`, `updater/src/builder.rs`, `updater/src/install.rs`,
 `updater/src/package_version.rs`, `updater/src/codex_cli.rs`,
 `.github/workflows/updater.yml`, `docs/usage/troubleshooting.md`.
 
-**Preservation checks:** Run full updater tests for state, install, CLI
-preflight, liveness, or daemon control-flow changes.
+**Former preservation evidence:** Full updater tests covered state, install,
+CLI preflight, liveness, and daemon control-flow changes.
 
 ### 7. Codex CLI Discovery And Preflight
 
@@ -293,17 +277,18 @@ but preserves `codex` as the invocation name for multicall binaries.
 preflight. This fork refines discovery precedence, config integration, and
 best-effort behavior under the `chatgpt-updater` identity.
 
-**Why it matters:** The app needs a reliable Codex CLI path without blocking
+**Why it mattered:** The app needs a reliable Codex CLI path without blocking
 Electron startup on registry or install work that can run later.
 
-**Current paths:** `launcher/start.sh.template`, `install.sh`,
+**Final maintained paths:** `launcher/start.sh.template`, `install.sh`,
 `updater/src/codex_cli.rs`, `updater/src/config.rs`, `updater/src/app.rs`,
 `updater/src/main.rs`, `updater/src/state.rs`,
 `docs/usage/troubleshooting.md`, `.github/workflows/updater.yml`.
 
-**Preservation checks:** Keep synchronous path resolution separate from
-background npm registry/update checks in docs and tests. Invalid configured
-paths should fail loudly; stale persisted paths should not block fallback.
+**Former preservation evidence:** Documentation and tests kept synchronous path
+resolution separate from background npm registry and update checks. Invalid
+configured paths failed loudly, while stale persisted paths did not block
+fallback.
 
 ### 8. Generated Launcher And Packaged Runtime Behavior
 
@@ -320,18 +305,18 @@ trigger update checks after Electron PID recording.
 runtime pattern. This fork changes the package-only helper location, service
 names, environment import policy, and lifecycle details.
 
-**Why it matters:** Package-specific service orchestration must not leak into
+**Why it mattered:** Package-specific service orchestration did not leak into
 checkout builds or race pending updater install state.
 
-**Current paths:** `launcher/start.sh.template`, `install.sh`,
+**Final maintained paths:** `launcher/start.sh.template`, `install.sh`,
 `packaging/linux/chatgpt-packaged-runtime.sh`,
 `packaging/linux/chatgpt-updater.service`,
 `packaging/linux/chatgpt-updater-user-service.sh`,
 `scripts/lib/package-common.sh`, `tests/scripts_smoke.sh`.
 
-**Preservation checks:** Change package-only launcher behavior in
-`packaging/linux/chatgpt-packaged-runtime.sh`, then inspect regenerated
-`chatgpt/start.sh`.
+**Former preservation evidence:** Package-only launcher changes were owned by
+`packaging/linux/chatgpt-packaged-runtime.sh` and checked in regenerated
+`chatgpt/start.sh` output.
 
 ### 9. ASAR, Port Integration, And Linux UI Patch Behavior
 
@@ -355,18 +340,18 @@ material under
 maintains local patch safety and selected Linux behavior changes on top of that
 patching system.
 
-**Naming policy:** Durable docs call configurable modules port integrations.
-The source path is `port-integrations/`, manifests are `integration.json`,
-configs are `integrations.json` or `port-integrations.json`, and environment
-variables use `CHATGPT_PORT_INTEGRATIONS_*`. If upstream changes a module under
-the old `linux-features/` naming scheme, port the change to the current local
-path and preserve the docs terminology.
+**Final naming record:** Durable docs called configurable modules port
+integrations. The source path was `port-integrations/`, manifests were
+`integration.json`, configs were `integrations.json` or
+`port-integrations.json`, and environment variables used
+`CHATGPT_PORT_INTEGRATIONS_*`. Final syncs reconciled the older
+`linux-features/` naming into that local vocabulary.
 
-**Why it matters:** Official app minified bundle shapes change often. Linux
-behavior should degrade with actionable warnings instead of breaking app
-generation unless a required invariant fails.
+**Why it mattered:** Official app minified bundle shapes changed often. Linux
+behavior degraded with actionable warnings instead of breaking app generation
+unless a required invariant failed.
 
-**Current paths:** `scripts/patch-linux-window-ui.js`,
+**Final maintained paths:** `scripts/patch-linux-window-ui.js`,
 `scripts/patch-linux-window-ui.test.js`, `scripts/lib/asar-patch.sh`,
 `scripts/lib/port-integrations.js`, `port-integrations/open-target-discovery/`,
 `port-integrations/remote-control-ui/`, `port-integrations/remote-mobile-control/`,
@@ -374,8 +359,8 @@ generation unless a required invariant fails.
 `launcher/start.sh.template`, `tests/scripts_smoke.sh`,
 `docs/usage/troubleshooting.md`.
 
-**Preservation checks:** Run the Node patch tests and shell smoke tests when
-ASAR patchers or launch flags change.
+**Former preservation evidence:** Node patch tests and shell smoke tests
+covered ASAR patcher and launch-flag changes.
 
 ### 10. Generated-App Mutation Integrity
 
@@ -410,12 +395,12 @@ pipeline and transactional promotion model. This fork adds the central mutation
 capability, build-only delivery contract, poison propagation, and private
 candidate lifecycle.
 
-**Why it matters:** Generated official-app files are untrusted build inputs.
+**Why it mattered:** Generated official-app files are untrusted build inputs.
 Capability mediation prevents pathname escape and stale-read replacement from
 becoming accepted package content, while private candidates preserve the
 exclusive-writer premise until acceptance.
 
-**Current paths:** `generated-app-mutation-broker/`,
+**Final maintained paths:** `generated-app-mutation-broker/`,
 `scripts/patches/lib/generated-app-mutation-client.js`,
 `scripts/patches/lib/assets.js`, `scripts/patches/engine.js`,
 `scripts/patches/runner.js`, `scripts/lib/generated-app-mutation-broker.sh`,
@@ -425,15 +410,13 @@ exclusive-writer premise until acceptance.
 The gate contract is documented in
 `docs/maintainers/research/generated-app-mutation-integrity-boundary.md`.
 
-**Preservation checks:** Keep the broker out of runtime payloads; bind packaged
-prebuilt use to the generated app's exact digest; require the external
-broker/app/build-info receipt before native package staging; retain poison/fail-closed
-handling and private-root checks. Run `tests/generated_app_mutation_broker.sh`
-and `tests/package_release_gate.sh deb`, `tests/package_release_gate.sh rpm`,
-and `tests/package_release_gate.sh pacman` for the formats available on the
-host. Extracted-app descriptor callbacks,
-declarative resource copies, and shell staging hooks remain future Gates 3 and
-4; do not describe them as capability-mediated yet.
+**Former preservation evidence:** The broker stayed outside runtime payloads;
+packaged prebuilt use was bound to the generated app digest; native package
+staging required the external broker/app/build-info receipt; and poison,
+fail-closed, and private-root checks remained intact. Broker and package-release
+tests covered the available native formats. Extracted-app descriptor callbacks,
+declarative resource copies, and shell staging hooks remained outside the
+capability-mediated claim.
 
 ### 11. Webview Server Lifecycle
 
@@ -446,16 +429,16 @@ assets plus `.chatgpt-linux/webview-integrity.sha256` before Electron launch.
 much of the launcher lifecycle. This fork preserves and renames that behavior
 while maintaining the local XDG/path contract.
 
-**Why it matters:** ChatGPT expects webview assets at a local origin, while Linux
-launches must avoid LAN exposure, stale servers, and PID ownership races.
+**Why it mattered:** ChatGPT expected webview assets at a local origin, while
+Linux launches avoided LAN exposure, stale servers, and PID ownership races.
 
-**Current paths:** `launcher/start.sh.template`,
+**Final maintained paths:** `launcher/start.sh.template`,
 `launcher/webview-server.py`, `scripts/lib/webview-install.sh`, `install.sh`,
 `docs/webview-server-evaluation.md`, `docs/usage/troubleshooting.md`,
 `tests/scripts_smoke.sh`, `tests/webview_probe_equivalence.sh`.
 
-**Preservation checks:** Use `docs/webview-server-evaluation.md` before
-changing the local server model, port behavior, or warm-start adoption.
+**Former preservation evidence:** Webview server changes were reviewed against
+`docs/webview-server-evaluation.md`.
 
 ### 12. Linux Computer Use Integration Compatibility
 
@@ -480,25 +463,26 @@ related config write or plugin reconciliation, so stale and late results deny.
 accessibility tree capture, screenshot paths, and input automation come from
 upstream in the synced baseline.
 
-**Why it matters:** The package can stage local Computer Use support and register
+**Why it mattered:** The package can stage local Computer Use support and register
 the backend on Linux, but this does not create a grant or server-side
 entitlement. Codex tool approval, sandboxing, auto-approval, allowed-app
 selection, and local action validation remain in force. Host accessibility,
 screenshot, and input readiness can make an authorized action fail; they are
 not additional grants.
 
-**Current paths:** `computer-use-linux/src/`,
+**Final maintained paths:** `computer-use-linux/src/`,
 `plugins/openai-bundled/plugins/computer-use/`,
 `scripts/patch-linux-window-ui.js`, `scripts/patch-linux-window-ui.test.js`,
 `scripts/lib/package-common.sh`, `launcher/start.sh.template`, `README.md`,
 `docs/usage/build-and-run.md`, `CHANGELOG.md`.
 
-**Preservation checks:** Keep native package staging and README wording scoped to the
-local compatibility delta. Preserve the three live authority inputs, fresh
-plugin read, generation/token rotation, revoke-before-write/reconcile ordering,
-and existing Codex/allowed-app controls. Make clear that local installation does
-not bypass OpenAI feature flags. Do not add a fork-owned Computer Use grant,
-consent setting, or recurring prompt.
+**Former preservation evidence:** Native package staging and README wording
+remained scoped to the local compatibility delta. The three live authority
+inputs, fresh plugin read, generation and token rotation,
+revoke-before-write/reconcile ordering, and existing Codex and allowed-app
+controls remained intact. The final implementation did not add a fork-owned
+grant, consent setting, or recurring prompt, and did not claim to bypass OpenAI
+feature flags.
 
 ### 13. Release, Security, And Supply-Chain Verification
 
@@ -524,16 +508,16 @@ host matches `linux-x64-glibc` on `x86_64`, `linux-arm64-glibc` on `aarch64` or
 `arm64`, or `linux-arm-glibc` on ARMv7 hard-float `armv7l`; unsupported hosts
 fail before npm or module load. Public native packages require
 `PACKAGE_WITH_UPDATER=1` and are verified only against the independent immutable
-Nix app reference. The release signer must match the exact
+Nix app reference. The release signer matched the exact
 `CHATGPT_RELEASE_GPG_FINGERPRINT`.
 
 **Upstream baseline:** Upstream already downloads and converts the official
 OpenAI ChatGPT DMG. This fork adds extra verification and review gates around
 that inherited supply chain.
 
-**Why it matters:** This fork rebuilds a package from a mutable official OpenAI
-ChatGPT DMG URL. Release and updater work must leave reviewable evidence and
-avoid presenting unverified artifacts as trusted.
+**Why it mattered:** This fork rebuilt packages from a mutable official OpenAI
+ChatGPT DMG URL. Release and updater work left reviewable evidence and avoided
+presenting unverified artifacts as trusted.
 
 **Retained source paths:** `.github/workflows/verify-apple-dmg.yml`,
 `.github/workflows/ci.yml`,
@@ -548,22 +532,16 @@ avoid presenting unverified artifacts as trusted.
 The former `.github/workflows/update-chatgpt-hash.yml` write-capable producer
 was removed at retirement and remains available only in Git history.
 
-**Preservation checks:** `make help` must show `apple-dmg-verify` and
-`release-gate`. Run `tests/package_provenance.sh`,
-`tests/package_release_gate.sh` for each available native format,
-`tests/release_gate_public_contract.sh`, `tests/updater_reproducibility.sh`, and
-`tests/parcel_watcher_trust.sh` when release/package ingress changes. Run
-`node --test scripts/lib/parcel-watcher-target.test.js` when host selection
-changes. Build
-`.#chatgpt-release-app` and `.#release-helpers`, and exercise the public
-updater-enabled signed release path, before publication. Security
-backlog items that change trust boundaries should use the `@codex-security`
-workflow before review-ready handoff.
+**Former preservation evidence:** The release surface exposed the Apple DMG
+and release gates. Package provenance, public release, updater reproducibility,
+Parcel watcher trust, host selection, independent Nix outputs, and the signed
+updater-enabled publication path were covered by dedicated tests and builds.
+Security backlog work used `@codex-security` before review-ready handoff.
 
-The Nix release app must discard the install-time receipt before ELF, mode, and
-post-install mutation, then publish a new receipt only after those mutations
-finish. Keep the separate flake check that validates the receipt from the final
-imported `/nix/store` output.
+The Nix release app discarded the install-time receipt before ELF, mode, and
+post-install mutation, then published a new receipt only after those mutations
+finished. A separate flake check validated the receipt from the final imported
+`/nix/store` output.
 
 ### 14. User-Local Install Experiment Identity And Layout
 
@@ -576,18 +554,18 @@ layout.
 This fork renames it and adjusts path choices so it does not reintroduce
 upstream names or non-XDG roots.
 
-**Why it matters:** The rootless experiment should not reintroduce upstream
-names or non-XDG paths while testing a different install model.
+**Why it mattered:** The rootless experiment did not reintroduce upstream names
+or non-XDG paths while testing a different install model.
 
-**Current paths:** `contrib/user-local-install/README.md`,
+**Final maintained paths:** `contrib/user-local-install/README.md`,
 `contrib/user-local-install/install-user-local.sh`,
 `contrib/user-local-install/files/.config/systemd/user/`,
 `contrib/user-local-install/files/.local/bin/`,
 `contrib/user-local-install/files/.local/share/applications/`,
 `contrib/user-local-install/files/share/common.sh`.
 
-**Preservation checks:** Keep the payload under
-`${XDG_DATA_HOME:-~/.local/share}/chatgpt`; do not use `~/.local/opt`.
+**Former preservation evidence:** The user-local payload stayed under the XDG
+data directory and did not use `~/.local/opt`.
 
 ### 15. Maintainer Policy, Docs, And Agent Workflow
 
@@ -596,25 +574,25 @@ part of upstream: always-loaded agent rules, a repo-local maintenance skill,
 maintainer references, security backlog, threat model, usage docs, README
 feature status, and the divergence inventory itself.
 
-**Upstream baseline:** These docs should preserve clear credit for upstream's
+**Upstream baseline:** The final docs preserved clear credit for upstream's
 primary Linux work while describing the local policy and documentation layer as
 fork finishing work.
 
-**Why it matters:** This fork is intentionally divergent from its upstream.
-Future maintainers and agents need durable, discoverable policy without turning
+**Why it mattered:** This fork intentionally diverged from its upstream.
+Durable, discoverable policy supported maintainers and agents without turning
 the README or `AGENTS.md` into large maintenance manuals.
 
-**Current paths:** `AGENTS.md`,
+**Final maintained paths:** `AGENTS.md`,
 `.agents/skills/maintaining-chatgpt-package/SKILL.md`, `docs/README.md`,
 `docs/backlog.md`, `docs/maintainers/package-runtime-maintenance.md`,
 `docs/maintainers/security-backlog.md`, `docs/maintainers/threat-model.md`,
 `docs/policies/agentic-maintenance.md`, `docs/usage/`, `README.md`,
 `CHANGELOG.md`.
 
-**Preservation checks:** Keep `AGENTS.md` short and route details to maintainer
-docs or repo-local skills. Check README audience, clone URLs, maintainer-only
-material, upstream credit, and divergence accuracy before merging
-sync PRs.
+**Former preservation evidence:** `AGENTS.md` stayed concise while detailed
+contracts lived in maintainer docs or repo-local skills. Sync reviews checked
+README audience, clone URLs, maintainer-only material, upstream credit, and
+divergence accuracy.
 
 ## Layout Triage
 
@@ -624,16 +602,15 @@ Electron-style app bundles.
 
 | Surface | Decision | Rationale |
 | --- | --- | --- |
-| Generated native app bundle | Keep `/opt/chatgpt`. | The extracted DMG/Electron tree is a self-contained add-on app bundle. `/opt/<package>` is the conventional location for that shape. |
-| User-facing launchers | Keep `/usr/bin/chatgpt` and `/usr/bin/chatgpt-updater`. | Package-managed commands belong on the normal system command path. |
-| Update builder bundle | Use `/usr/lib/chatgpt/update-builder`. | The builder is package-private support used by `chatgpt-updater`, not part of the app bundle or user data. |
-| Packaged runtime helper | Use `/usr/lib/chatgpt/packaged-runtime.sh`. | The helper is package-private launcher support sourced by the generated launcher only in native package installs. |
-| Desktop entry and icon | Keep `/usr/share/applications/chatgpt.desktop` and `/usr/share/icons/hicolor/256x256/apps/chatgpt.png`. | Freedesktop desktop integration is shared, package-managed data. |
-| Updater config, state, cache, logs | Keep XDG paths: `~/.config/chatgpt-updater`, `~/.local/state/chatgpt-updater`, `~/.cache/chatgpt-updater`, and `~/.cache/chatgpt/launcher.log`. | These are per-user mutable files and should follow XDG base directories. |
-| App PID, webview PID, launch-action socket | Keep `~/.local/state/chatgpt` for persistent state and `$XDG_RUNTIME_DIR/chatgpt` for runtime sockets when available. | Persistent restart state belongs in XDG state; sockets and runtime objects belong in XDG runtime. |
-| User-local non-package app payloads | Use `${XDG_DATA_HOME:-~/.local/share}/chatgpt`. Do not use `~/.local/opt`. | XDG has no `~/.local/opt`; user-specific app data should start from the XDG data base directory. |
+| Generated native app bundle | Retained `/opt/chatgpt`. | The extracted DMG/Electron tree was a self-contained add-on app bundle. `/opt/<package>` was the conventional location for that shape. |
+| User-facing launchers | Retained `/usr/bin/chatgpt` and `/usr/bin/chatgpt-updater`. | Package-managed commands lived on the normal system command path. |
+| Update builder bundle | Used `/usr/lib/chatgpt/update-builder`. | The builder was package-private updater support rather than app-bundle or user data. |
+| Packaged runtime helper | Used `/usr/lib/chatgpt/packaged-runtime.sh`. | The helper was package-private launcher support sourced only by native package installs. |
+| Desktop entry and icon | Retained `/usr/share/applications/chatgpt.desktop` and `/usr/share/icons/hicolor/256x256/apps/chatgpt.png`. | Freedesktop desktop integration was shared, package-managed data. |
+| Updater config, state, cache, logs | Retained XDG paths under the user config, state, and cache roots. | These were per-user mutable files governed by XDG base directories. |
+| App PID, webview PID, launch-action socket | Retained XDG state for persistent liveness and XDG runtime for sockets. | Persistent restart state and ephemeral runtime objects stayed separate. |
+| User-local non-package app payloads | Used `${XDG_DATA_HOME:-~/.local/share}/chatgpt`, not `~/.local/opt`. | XDG supplied the user-specific application data root. |
 
-No path ambiguity remains for the native package payload after this triage. The
-experimental unprivileged install uses XDG user paths and should stay aligned
-with this table unless a more specific distro convention is adopted
-deliberately.
+No path ambiguity remained for the native package payload after this triage.
+The experimental unprivileged install used XDG user paths and stayed aligned
+with this table at the final maintained state.
