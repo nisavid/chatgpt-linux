@@ -409,29 +409,11 @@ test("writeSnapshot uses private permissions and never overwrites an audit snaps
   }
 });
 
-test("label management workflow keeps writes manual, trusted, and snapshotted", async () => {
-  const workflow = await fs.readFile(
-    path.resolve(__dirname, "../../.github/workflows/manage-labels.yml"),
-    "utf8",
+test("label management workflow remains retired", async () => {
+  await assert.rejects(
+    fs.access(path.resolve(__dirname, "../../.github/workflows/manage-labels.yml")),
+    (error) => error?.code === "ENOENT",
   );
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /Plan triage and catalog changes/);
-  assert.doesNotMatch(workflow, /pull_request(?:_target)?:/);
-  assert.match(workflow, /^permissions: \{\}$/m);
-  assert.equal(
-    (workflow.match(/ref: \$\{\{ github\.event\.repository\.default_branch \}\}/g) || []).length,
-    2,
-  );
-  assert.match(workflow, /issues: read\n\s+pull-requests: read/);
-  assert.match(workflow, /issues: write\n\s+pull-requests: write/);
-  assert.match(workflow, /apply:APPLY\|retire:RETIRE/);
-  assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d/);
-
-  const snapshot = workflow.indexOf("Capture the pre-change audit snapshot");
-  const artifact = workflow.indexOf("Preserve the pre-change audit snapshot");
-  const apply = workflow.indexOf("Converge desired labels and migrate associations");
-  const retire = workflow.indexOf("Retire obsolete labels");
-  assert.ok(snapshot > 0 && snapshot < artifact && artifact < apply && apply < retire);
 });
 
 test("buildRestorePlan restores only explicitly retired labels and their saved associations", () => {

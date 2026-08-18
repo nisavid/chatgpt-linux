@@ -1,5 +1,9 @@
 # Build and Run Guide
 
+> [!WARNING]
+> This is a historical reference for retired, unsupported source. Do not use it
+> as a current installation or update path. See [Repository Retirement](../retirement.md).
+
 This guide is for users who want to run ChatGPT on Linux or build a native
 package from this repository.
 

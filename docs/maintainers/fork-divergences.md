@@ -1,5 +1,10 @@
 # Fork Divergences
 
+> [!NOTE]
+> This inventory records the final maintained divergence state. The repository
+> is retired, so the sync and build rules below are historical. See
+> [Repository Retirement](../retirement.md).
+
 This reference records the intentional differences between this fork and the
 last synced ref from the Linux-port upstream. In this document, `upstream` means
 that remote unless a sentence names another surface. Use this inventory during

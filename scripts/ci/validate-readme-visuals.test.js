@@ -33,45 +33,38 @@ test("accepts the project hero logo and shields.io badges", () => {
   assert.deepEqual(errorsFor(markdown), []);
 });
 
-test("keeps the real README project hero and shield set", () => {
+test("keeps the real README project hero and retirement boundary", () => {
   assert.deepEqual(validateReadmeVisualsContent(readme).errors, []);
   assert.match(
     readme,
     /<img src="assets\/chatgpt\.png" alt="ChatGPT for Linux project logo" width="128" height="128">/,
   );
   assert.match(readme, /ChatGPT for Linux is an unofficial community project/);
-  assert.match(readme, /OpenAI has released its official ChatGPT app for Linux in preview/);
-  assert.match(readme, /If the official release is acceptable, ChatGPT for Linux\s*> will be sunset/);
-  assert.match(readme, /this project remains a maintained\s*> fallback/);
+  assert.match(readme, /ChatGPT for Linux is retired and unsupported/);
+  assert.match(readme, /Do not install or update ChatGPT from this repository/);
+  assert.doesNotMatch(readme, /remains a maintained\s*> fallback/);
   assert.match(readme, /`chatgpt-desktop-bin` native repackage/);
-  assert.match(readme, /both use the `chatgpt` package and command name, so they are mutually\s*exclusive/);
-  assert.match(readme, /For that CachyOS\/pacman path/);
   assert.match(
     readme,
-    /\[official-app evaluation switch procedure\]\(docs\/maintainers\/package-runtime-maintenance\.md#official-app-evaluation-switch\)/,
+    /\[official-app parity audit\]\(docs\/maintainers\/research\/official-app-parity-2026-08\.md\)/,
   );
-  assert.match(readme, /OpenAI's official Linux package is\s*not this fork's\s*current build source/);
   assert.match(
     readme,
-    /git clone https:\/\/github\.com\/nisavid\/chatgpt-linux\.git chatgpt-linux\ncd chatgpt-linux/,
+    /\[rollback-retention boundary\]\(docs\/maintainers\/research\/rollback-evidence-retention-boundary-2026-08\.md\)/,
   );
   assert.doesNotMatch(readme, /nisavid\/codex-app-linux/);
   assert.match(
     readme,
-    /not affiliated\s*> with, endorsed by, sponsored by, or supported by OpenAI/,
+    /not affiliated\s*with, endorsed by, sponsored by, or supported by OpenAI/,
   );
-  assert.match(readme, /Larry Ewing and\s*> The GIMP, Garrett LeSage, and IFo Hancroft/);
+  assert.match(readme, /Larry Ewing and The GIMP, Garrett LeSage, and IFo\s*Hancroft/);
   assert.match(
     readme,
     /\[project-logo rights record\]\(docs\/maintainers\/project-logo-rights-research\.md\)/,
   );
   const shields = [...readme.matchAll(/<img alt="([^"]+)" src="(https:\/\/img\.shields\.io\/[^"]+)">/g)]
     .map((match) => [match[1], match[2]]);
-  assert.deepEqual(shields, [
-    ["Packages: deb, rpm, pacman", "https://img.shields.io/badge/packages-deb%20%7C%20rpm%20%7C%20pacman-2f81f7?style=flat-square"],
-    ["Updater: chatgpt-updater", "https://img.shields.io/badge/updater-chatgpt--updater-1f883d?style=flat-square"],
-    ["Focus: hardening and polish", "https://img.shields.io/badge/focus-hardening%20%2B%20polish-8250df?style=flat-square"],
-  ]);
+  assert.deepEqual(shields, []);
 });
 
 test("keeps the approved project SVG and raster logo assets distinct", () => {

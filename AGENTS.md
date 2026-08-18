@@ -2,266 +2,125 @@
 
 ## Repository Role
 
-This repository is a downstream maintenance fork of
-`ilysenko/codex-desktop-linux`. The git remote named `upstream` is the
-Linux-port upstream. This fork's synced baseline carries that upstream's
-primary Linux conversion from the official OpenAI ChatGPT DMG and much of its
-Linux runtime enablement; current upstream development has since moved to
-OpenAI's signed Linux package. This fork remains the DMG-based finishing layer
-until that source transition is decided explicitly. It preserves the local
-`chatgpt` identity, distro-shaped install layout, updater policy, hardening,
-security review, and packaging/runtime polish.
+This repository is the retired, unsupported source record for ChatGPT for
+Linux. It is a local hardening and finishing fork layered over the Linux-port
+upstream, [`ilysenko/codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).
+It is not the primary Linux port and is not affiliated with, endorsed by,
+sponsored by, or supported by OpenAI.
 
-Do not describe this repository as "the Linux fork" in durable docs or PR text.
-Describe it as a local hardening and finishing fork layered over the Linux-port
-upstream's work.
+The validated native repackage is the settled producer. The authoritative
+current boundary is [Repository Retirement](docs/retirement.md). The
+[official-app parity record](docs/maintainers/research/official-app-parity-2026-08.md)
+and
+[rollback-evidence retention record](docs/maintainers/research/rollback-evidence-retention-boundary-2026-08.md)
+preserve the accepted evidence.
 
-Use explicit upstream terminology where it prevents ambiguity. `Linux-port
-upstream` means `ilysenko/codex-desktop-linux` or the git remote named
-`upstream`. `Official OpenAI ChatGPT DMG`, `official OpenAI app bundle`, and
-`OpenAI-hosted services` mean the OpenAI-distributed macOS app artifact,
-generated bundle behavior, and service/account surfaces. Once a section,
-document, or sentence clearly scopes the relevant surface, concise terms such
-as `upstream`, `DMG`, or `app bundle` are fine. Do not use plain
-`upstream` when both meanings are plausible.
+## Retirement Boundary
 
-Use `port integration` in durable docs for configurable build-time modules that
-adapt official app behavior or local runtime helpers to this Linux port. The
-implementation path is `port-integrations/`. Checkout config uses
-`port-integrations/integrations.json`; packaged installs use
-`${XDG_CONFIG_HOME:-$HOME/.config}/<app-id>/port-integrations.json`, with
-`chatgpt` as the default app id. Environment variables use
-`CHATGPT_PORT_INTEGRATIONS_*`. Use those exact names only for source paths, file
-paths, and environment variables. Do not describe these integrations as
-features of Linux.
+Work in this repository is limited to the explicitly authorized retirement
+route:
 
-Treat this file as always-loaded agent policy. Keep detailed package recipes, runtime notes, and validation matrices in maintainer docs when those docs exist.
+- correct or preserve the public record;
+- disposition existing issues and pull requests transparently;
+- export a bounded, still-useful source improvement when its owning closeout
+  ticket authorizes that export; and
+- complete the repository archive ticket after its gates pass.
 
-## Agent skills
+Do not start or resume builds, releases, dependency refreshes, upstream syncs,
+DMG or hash campaigns, package or updater maintenance, support work, feature
+work, compatibility work, or security remediation. Do not recreate, enable, or
+dispatch retired automation. A new owner initiative must explicitly reverse
+retirement before any of those activities can begin.
 
-### Issue tracker
+Open Dependabot and code-scanning alerts are unresolved retired risk. Do not
+close them as fixed, describe them as remediated, or start a maintenance cycle
+to address them.
 
-Engineering skills publish issues and PRDs to GitHub Issues for the live
-repository named in `docs/agents/issue-tracker.md`.
+The delayed M3 package-lifecycle check and M4 deletion of private fallback and
+recovery evidence belong to `nisavid/arch-pkgs` issues
+[#76](https://github.com/nisavid/arch-pkgs/issues/76) and
+[#77](https://github.com/nisavid/arch-pkgs/issues/77). Do not inspect, move,
+delete, or publish that private evidence from this repository.
 
-### Triage labels
+## Language
 
-The triage vocabulary uses the five default engineering-skill labels. See `docs/agents/triage-labels.md`.
+- The project prose name is **ChatGPT for Linux**. The repository and checkout
+  name is `chatgpt-linux`; the historical runtime and package identity is
+  `chatgpt`.
+- `Linux-port upstream` means `ilysenko/codex-desktop-linux`. Do not call this
+  repository “the Linux fork.”
+- Preserve `Codex` for inherited OpenAI interfaces such as the Codex CLI,
+  protocols, packages, skills, bundle identifiers, and explicit historical
+  discussion. Do not use it as this application or project's name.
+- Use `port integration` for the historical configurable modules under
+  `port-integrations/`. Do not present them as maintained Linux features.
+- Use `CHATGPT_*` for variables introduced by this fork or the Linux-port
+  upstream. Keep inherited OpenAI `CODEX_*` interfaces unchanged.
 
-### Label governance
+## Git And Pull Requests
 
-`.github/labels.json` is the source of truth for repository labels. Follow
-`docs/label-governance.md` before proposing or applying classifications. Labels
-are staff-managed, and `workflow: manual only` blocks item-specific mutation.
+- `main` is protected. Create a task branch before editing.
+- Use `checkpointing-and-publishing-git-work` for every Git-backed task and
+  commit only task-owned paths.
+- The first push of a task branch must create a draft pull request in the same
+  workflow turn.
+- Use `publishing-reviewable-prs` for every PR creation, title/body mutation,
+  and draft/ready transition. Use `writing-reviewable-pr-descriptions` for the
+  complete reviewer-facing title and body. Never use `gh pr create --fill` or
+  its variants.
+- Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this checkout.
+- Use Conventional Commits and prefer rebase merge when repository policy
+  permits it.
+- Do not merge or archive until the active ticket's exact checks, reviews,
+  tracker prerequisites, and ownership gates pass.
 
-### Domain docs
+## Tracker And Archive Work
 
-This is a single-context repo. See `docs/agents/domain.md`.
+- Read an issue or pull request's operator-owned checklist before mutation.
+  Update only checklist items owned by the operator and authorized by the
+  active task.
+- Preserve contributor credit and distinguish “retired without fix” from
+  “fixed.”
+- Do not open replacement maintenance tasks. Route delayed rollback cleanup to
+  the existing `arch-pkgs` owners.
+- Repository archival is owned by the dedicated archive ticket. Archival must
+  preserve the Git history, fallback tag, research, issue and PR record, and
+  historical Actions runs.
 
-## Operating Policy
+## Source And State Safety
 
-- This repository uses agentic engineering and operations. Agents should perform
-  assigned tasks autonomously until they reach a boundary that requires
-  stakeholder policy or an unavailable control surface.
-- The user reserves authority over project initiatives and over initiation or
-  continuation of work sessions. Within an active user-directed session, agents
-  should drive execution, review loops, commits, publication steps, and cleanup
-  unless escalation is required.
-- Escalate when a decision or action impacts stakeholder concerns and the
-  stakeholder's policy is unknown or uncertain.
-- Escalate when an action must be taken but the agent lacks an autonomous
-  control surface for it.
-- When escalating a decision and a set of plausible, distinct choices is known,
-  use a multiple-choice input tool if one is available in the interactive
-  context. Include a way for the human operator to provide custom input.
-- When escalating an action with a known prescribed path, present the steps
-  clearly for the human operator to perform. Prefer fewer steps; present
-  commands in easily copyable blocks, and prefer a single one-line command when
-  practical.
-- For every escalation, make the return contract clear: state exactly what
-  result, confirmation, artifact, or output is needed to hand control back to
-  the agent, and make it easy to validate.
-- Prefer verified repository facts over guesses or aspirational guidance.
-- When adding new agent-facing instructions, ask whether the information is
-  durable, non-obvious, and useful before scouting a task.
-- Remove guidance that becomes redundant with ordinary file discovery.
+Treat `chatgpt/`, side-by-side `*-app/` output, `dist/`, `ChatGPT.dmg`, updater
+paths, XDG application state, caches, logs, profiles, and recovery material as
+generated or user-owned state. Retirement documentation and tracker work does
+not authorize mutating any of it.
 
-## Hard Rules
+Do not build or hand-edit generated app output. Do not mutate installed
+packages, host services, package repositories, user state, private rollback
+evidence, or credentials from this repository's closeout tasks unless a
+separate task names the exact target and grants that authority.
 
-- `main` is protected. Before starting work, create and switch to a task branch.
-- The first time a task branch is pushed, create a draft PR in the same workflow
-  turn. Mark it ready only after local readiness gates pass and the PR body
-  records verification evidence.
-- Use `--repo nisavid/chatgpt-linux` on every `gh pr` command in this checkout,
-  including `create`, `view`, `ready`, `checks`, `merge`, and `status`. Do not
-  rely on GitHub CLI's inferred repository; it can target the wrong repository
-  in this fork checkout.
-- Commit completed work before handoff. For long tasks, also commit at staged,
-  functional cutoff points. Each commit must pass the normal checks for the
-  changed surface before it is created.
-- Before pushing changes that affect the generated app, installer, ASAR patcher,
-  package builders, package payload, updater rebuild flow, or bundled runtime
-  helpers, run a local app generation/build gate first. The minimum gate is a
-  successful `./install.sh` or `make build-app` from the current sources plus the
-  relevant local package builder when package contents are affected. Refresh
-  `ChatGPT.dmg` first unless the cached DMG was refreshed within the last 24
-  hours. Record the exact DMG refresh or age-check command and build command in
-  the verification notes.
-- Use Conventional Commits. Commit messages must accurately describe the
-  committed change.
-- Support the latest official `ChatGPT.dmg` and its current `ChatGPT.app`
-  bundle shape. When official-app drift is repaired, remove obsolete fallback
-  patch paths and version-specific compatibility branches in the same change.
-- Treat updater, package-builder, launcher, and port-integration framework
-  changes as cross-format unless the implementation explicitly scopes them.
-- Keep app generation transactional: build and validate a sibling candidate,
-  preserve the working app on rejected or inconclusive acceptance, and promote
-  with atomic directory exchange plus the recovery journal.
-- Do not hand-edit generated app output as the durable fix. Change `install.sh`, launcher templates, package templates, updater code, or shared helpers, then regenerate or inspect generated output as needed.
-- Treat `chatgpt/`, side-by-side `*-app/` output, `dist/`, `ChatGPT.dmg`, and XDG updater config/state/cache paths as generated or runtime artifacts unless the task explicitly targets them.
-- Do not assume `chatgpt/` is pristine. If it disagrees with source scripts, source scripts win.
-- Keep Linux package behavior in `packaging/linux/`, `scripts/build-deb.sh`, `scripts/build-rpm.sh`, `scripts/build-pacman.sh`, and `scripts/lib/package-common.sh`.
-- Use `CHATGPT_*` for environment variables introduced by this fork or by the
-  Linux-port upstream. Keep inherited OpenAI `CODEX_*` interfaces unchanged,
-  including Codex CLI, app-server, plugin, browser-use, Node REPL, and bundle
-  contracts. Do not add legacy aliases for renamed port-owned variables; tests
-  may name rejected variables only when they verify fail-closed migration.
-- Preserve `Codex` in current prose and identifiers only for inherited OpenAI
-  interfaces such as the Codex CLI, npm packages, URL schemes, skills, bundle
-  identifiers, or explicit compatibility and historical discussion.
-- Native packages replace and conflict with the former `codex-app` and
-  `codex-desktop` packages. Do not ship compatibility commands, desktop files,
-  service aliases, or other runtime shims. Migrate wrapper-owned XDG state to
-  `chatgpt` and `chatgpt-updater` with the journaled migration helper; fail
-  closed on collisions and preserve the explicit reverse-migration command.
-- Preserve this fork's intentional names when syncing from `upstream`:
-  the app, install roots, launchers, package names, desktop files, and XDG app
-  state use `chatgpt`; the updater crate, binary, service, config, state,
-  cache, and logs use `chatgpt-updater`. Integrate incoming behavior under
-  the local names instead of adopting upstream names.
-- Preserve this fork's intentional layout when syncing from `upstream`.
-  Path decisions follow these criteria in order: the XDG Base Directory
-  Specification, the Filesystem Hierarchy Standard, then common conventions
-  used by mainstream Linux distros for modern Electron-style apps. Native
-  packages keep the generated app bundle under `/opt/chatgpt`, private
-  package support under `/usr/lib/chatgpt`, system launch and desktop
-  integration under `/usr/bin` and `/usr/share`, and user runtime/config/cache
-  and state under the appropriate XDG base directories. Do not adopt upstream
-  `codex-desktop-linux` or `~/.local/opt` install roots as part of a sync.
-- Preserve this fork's package version contract. Native package versions come
-  from the official OpenAI app bundle's `CFBundleShortVersionString`, written
-  to `chatgpt/chatgpt-version.env` during app generation. Do not replace
-  that with timestamp-based package versions during upstream syncs.
-- When syncing from `upstream`, use the user-global
-  `syncing-forks-with-upstream` skill and the repo-local policy in
-  `.agents/fork-sync-policy.toml`. Read
-  `docs/maintainers/fork-divergences.md`,
-  `.agents/fork-sync-policy.toml`, and
-  `docs/maintainers/fork-sync-policy.md` before resolving conflicts. If the
-  external skill is unavailable, follow the maintainer policy directly and
-  record the missing-skill fallback in the sync ledger. Compare upstream
-  user-facing docs against this fork's docs, adapting relevant facts under
-  local names, paths, and policy. Escalate uncertain sync decisions to the
-  operator when the session allows. If escalation is unavailable or the operator
-  requested an uninterrupted run, record a durable, discoverable follow-up and
-  link it from the sync ledger; do not rely on the PR body alone.
-- During upstream syncs, reconcile renamed local files explicitly.
-  Git's merge machinery may follow renames automatically when similarity is
-  high enough, but agents must still check the rename map in
-  `docs/maintainers/fork-divergences.md`. If upstream changes an old path that
-  this fork renamed, port those hunks to the current local path and record the
-  reconciliation in the sync ledger. Do not drop changes only because the
-  original path is absent here.
-- During upstream syncs, close reusable policy gaps before handoff.
-  If the sync reveals a hazard that future agents could miss, update the
-  narrowest durable policy surface and record the change in the sync ledger.
-- Keep native-package-only launcher behavior in `packaging/linux/chatgpt-packaged-runtime.sh`; `install.sh` should stay generic and load that helper only when packaging requires it.
-- Keep package builders and `scripts/lib/package-common.sh` aligned when adding, removing, or moving packaged files.
-- Preserve the unprivileged updater boundary. Escalation belongs only at install time through the updater's privileged install subcommands.
-- If the updater crate version changes, update `updater/Cargo.toml`, `README.md`, `AGENTS.md`, and maintainer versioning docs in the same change.
+## Documentation
 
-## Source Pointers
+- `README.md` is the user-facing retirement landing page.
+- `docs/retirement.md` is the current maintainer and support boundary.
+- `docs/README.md` separates the current retirement record from historical
+  build, package, updater, DMG, sync, and architecture documents.
+- Historical instructions may remain for source interpretation, but must be
+  labeled historical and must not compete with the retirement route.
+- In committed docs and PR text, use repository-relative paths and public URLs,
+  never machine-local absolute paths.
 
-- Installer, ASAR patching, Electron runtime setup, generated launcher: `install.sh`
-- Launcher template, webview helper, and runtime behavior:
-  `launcher/start.sh.template` and `launcher/webview-server.py`
-- Debian package builder: `scripts/build-deb.sh`
-- RPM package builder: `scripts/build-rpm.sh`
-- pacman package builder: `scripts/build-pacman.sh`
-- Shared package staging helpers: `scripts/lib/package-common.sh`
-- Linux Computer Use backend and bundled plugin: `computer-use-linux/` and `plugins/openai-bundled/plugins/computer-use/`
-- Host dependency bootstrap: `scripts/install-deps.sh`
-- Linux patch registry and port integration descriptors: `scripts/patches/`,
-  `scripts/lib/port-integrations.js`, and `port-integrations/`
-- Linux package templates, maintainer scripts, desktop entry, service unit, packaged runtime helper: `packaging/linux/`
-- AppImage-only runtime behavior: `packaging/appimage/chatgpt-appimage-runtime.sh`
-- Shared build pipeline: `scripts/lib/*.sh`
-- Official DMG automation: `scripts/automation/upstream-dmg-watchdog/` and
-  `docs/upstream-dmg-watchdog.md`
-- Nix package and modules: `flake.nix`, `flake.lock`, and `nix/`
-- Rust updater service and CLI: `updater/`
-- Updater crate version and versioning policy: `updater/Cargo.toml` and
-  `docs/maintainers/package-runtime-maintenance.md` (current version: `0.10.4`)
-- User-facing overview and install guidance: `README.md`
-- Webview server design decision and acceptance criteria: `docs/webview-server-evaluation.md`
-- Fork-specific contracts and upstream sync review inventory: `docs/maintainers/fork-divergences.md`
-- Upstream sync policy, local gates, and sync ledger requirements:
-  `docs/maintainers/fork-sync-policy.md` and `.agents/fork-sync-policy.toml`
-- Security follow-up and `@codex-security` review routing: `docs/maintainers/security-backlog.md`
-- Additional maintainer notes: prefer `docs/maintainers/` over expanding this file.
+## Validation
 
-## Patch And Integration Rules
+Choose the smallest checks that cover the closeout change. Retirement posture
+or automation changes must run:
 
-- Treat `scripts/patch-linux-window-ui.js` as a build-facing CLI. Use the
-  descriptor, runner, and helper APIs under `scripts/patches/` for patch work.
-- Keep ASAR patches fail-soft and idempotent unless a descriptor is deliberately
-  marked `required-official-dmg`.
-- Do not recreate deleted compatibility barrels such as
-  `scripts/patches/main-process.js`, `webview-assets.js`, or `shared.js`.
-- Port integrations patch through `entrypoints.patchDescriptors`. Prefer
-  declarative `resources`, `runtimeHooks`, and `packageHooks` to ad hoc
-  staging, and keep resource targets inside the app directory.
+```bash
+node --test scripts/ci/retirement-posture.test.js
+bash -n tests/scripts_smoke.sh
+git diff --check
+```
 
-## Triggered Guidance
-
-- Changing launcher behavior: edit `launcher/start.sh.template`; if install-time launcher identity or orchestration is involved, edit `install.sh`; if package-only behavior is involved, edit `packaging/linux/chatgpt-packaged-runtime.sh`; then regenerate or inspect `chatgpt/start.sh`.
-- Changing ASAR patches or Linux window behavior: edit the patching path from `install.sh` and `scripts/patch-linux-window-ui.js`; keep patches fail-soft when they target volatile official app bundles.
-- Changing webview serving: read `docs/webview-server-evaluation.md` before changing the local server model or port behavior.
-- Changing package contents: update the relevant file under `packaging/linux/`, the affected package builder, and `scripts/lib/package-common.sh` together.
-- Changing updater behavior: work in `updater/`, preserve persisted-state compatibility unless intentionally versioned, and check service/install behavior around failed, cancelled, or interrupted privileged installs.
-- Changing updater service lifecycle: inspect `packaging/linux/chatgpt-updater.service` and the package maintainer scripts for Debian, RPM, and pacman effects.
-- Changing runtime CLI discovery or install behavior: keep the launcher best-effort; warnings may not block Electron startup unless the task explicitly changes that policy.
-- Changing dependencies or supported runtime requirements: update `scripts/install-deps.sh`, `README.md`, and package metadata or maintainer docs as needed.
-- Syncing from `upstream`: use the user-global
-  `syncing-forks-with-upstream` skill, read
-  `docs/maintainers/fork-divergences.md`, `.agents/fork-sync-policy.toml`, and
-  `docs/maintainers/fork-sync-policy.md`, then triage incoming changes against
-  the intentional fork contracts before pushing. If the external skill is
-  unavailable, follow the maintainer policy directly and record that fallback in
-  the sync ledger.
-
-## Generated And Runtime Artifacts
-
-- `chatgpt/` and side-by-side `*-app/` directories: generated Linux app trees and launcher output.
-- `chatgpt/chatgpt-version.env`: generated package-version metadata read
-  from the official OpenAI app bundle.
-- `dist/`: native package output.
-- `ChatGPT.dmg`: cached official OpenAI ChatGPT DMG.
-- `~/.config/chatgpt-updater/config.toml`: updater runtime config.
-- `~/.local/state/chatgpt-updater/`: updater state and service logs.
-- `~/.cache/chatgpt-updater/`: downloaded DMGs, rebuild workspaces, staged packages, and build logs.
-- `~/.cache/chatgpt/launcher.log` and `~/.local/state/chatgpt/app.pid`: launcher diagnostics and app liveness state.
-
-Inspect generated artifacts to verify behavior, but do not make them the only source of a durable fix.
-
-## Validation Policy
-
-Choose the smallest validation set that covers the changed behavior.
-
-- Shell changes: run `bash -n` on edited shell scripts.
-- Updater changes: run `cargo check -p chatgpt-updater` and targeted updater tests; run full updater tests for state, install, or CLI changes.
-- Package changes: build the affected package format when practical and inspect package metadata plus the first package file listing.
-- Launcher or installer changes: regenerate or inspect `chatgpt/start.sh` and check launcher logs when runtime behavior is involved.
-- Webview changes: verify the local server still serves expected ChatGPT webview startup assets before Electron launch.
-
-If a preferred validation cannot run because a host tool is missing, state the missing tool and run the closest useful static or targeted check.
+Run the broader relevant Node or documentation checks when changed files share
+their surface. Before finalization, review the exact immutable diff and refresh
+thread-aware pull request state.

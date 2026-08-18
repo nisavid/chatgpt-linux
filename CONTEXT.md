@@ -32,14 +32,20 @@ This repository's hardening, packaging, policy, and runtime-polish layer over
 the Linux-port upstream.
 _Avoid_: Linux fork, primary Linux port
 
+**Retired finishing fork**:
+The unsupported, read-only project record after the validated native repackage
+became the settled producer. It preserves source and evidence but performs no
+new build, release, update, sync, support, or security-remediation work.
+_Avoid_: maintained fallback, supported package source, active Linux port
+
 **Fallback baseline**:
 The finishing fork at its tagged, fully verified rename-completion commit,
-retained with exact package evidence as a reinstallable alternative while
-OpenAI's official Linux app is evaluated.
+retained with exact private package evidence through downstream M3 and released
+only through the target-specific M4 cleanup gate.
 _Avoid_: co-installed fallback, permanent parallel distribution
 
 **Evaluation transition**:
-The period in which one Linux host may alternate between mutually exclusive
+The completed period in which one Linux host could alternate between mutually exclusive
 official and finishing-fork `chatgpt` installations while the inherited
 `codex` CLI remains available as a continuity harness.
 _Avoid_: co-installation, dual ChatGPT installation
@@ -93,9 +99,9 @@ _Avoid_: entire-home archive, cache backup, worktree migration
 
 **Retained fallback artifact**:
 The exact verified finishing-fork package, digest, source revision, payload
-manifest, and verification record kept outside the package-manager cache until
-the sunsetting decision. Rollback installs this artifact rather than rebuilding
-or selecting a nominally equivalent version.
+manifest, and verification record kept outside the package-manager cache
+through downstream M3. M4 owns its final disposition; repository retirement
+does not rebuild, publish, or delete it.
 _Avoid_: pacman-cache-only fallback, version-only rollback
 
 **Active update authority**:
@@ -118,20 +124,17 @@ evaluated after switch acceptance.
 _Avoid_: in-place package upgrade, parity decision as installation failure
 
 **Maintenance fallback**:
-The fallback baseline's interim posture: latest-DMG compatibility, security,
-packaging, and essential parity repairs without discretionary feature growth.
-The rename-completion package remains the designated rollback artifact until a
-later repair produces its own tagged, fully verified package, digest, source
-revision, payload manifest, and verification record and is explicitly promoted
-as the new rollback target. “Latest-DMG” identifies the verified official DMG
-used to build that maintenance candidate; it does not change the retained
-artifact by itself.
-_Avoid_: feature expansion, frozen archive
+The historical interim posture that allowed latest-DMG, security, packaging,
+and essential-parity repairs while the official Linux producer was evaluated.
+The retirement decision ended this posture; it must not be used to start a new
+repair or fallback build.
+_Avoid_: current support policy, authorization to rebuild
 
 **Sunsetting decision**:
-The later owner decision to retire or retain the finishing fork after the
-official Linux app has been evaluated against the project's essential goals.
-_Avoid_: automatic retirement, rename-completion decision
+The completed owner decision to retire and archive the finishing fork after the
+validated native repackage passed the essential-goal audit. Repository archival
+does not wait for downstream M3/M4 evidence cleanup.
+_Avoid_: automatic retirement, unresolved evaluation, M3/M4 archive blocker
 
 **Linux-port upstream**:
 `ilysenko/codex-desktop-linux`, the direct upstream whose synced baseline

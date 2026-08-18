@@ -1,5 +1,10 @@
 # Official OpenAI DMG Intelligence
 
+> [!WARNING]
+> Routine DMG inspection is retired. The commands and report format below are
+> historical source references, not an active maintenance procedure. See
+> [Repository Retirement](retirement.md).
+
 Use this lane when OpenAI ships a new macOS `ChatGPT.dmg` and Linux parity work
 needs to know what moved before accepting the build.
 

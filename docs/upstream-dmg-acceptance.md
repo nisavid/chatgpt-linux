@@ -1,5 +1,10 @@
 # Official DMG Acceptance
 
+> [!WARNING]
+> Official-DMG maintenance is retired. This acceptance profile is preserved as
+> historical release evidence, not as a current build or issue-producing lane.
+> See [Repository Retirement](retirement.md).
+
 Local installs, updater rebuilds, and the scheduled official-DMG workflow use the
 same release profile from `scripts/lib/upstream-dmg-release-profile.js`. Shell
 and workflow entrypoints produce reports; `scripts/validate-upstream-dmg.js`

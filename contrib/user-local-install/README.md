@@ -1,5 +1,10 @@
 # User-Local Desktop Integration
 
+> [!WARNING]
+> This installer is retained only as historical source for the retired,
+> unsupported project. Do not use it as a current ChatGPT installation or
+> update path. See [Repository Retirement](../../docs/retirement.md).
+
 This folder packages this fork's user-local install layout for ChatGPT.
 
 It adds:

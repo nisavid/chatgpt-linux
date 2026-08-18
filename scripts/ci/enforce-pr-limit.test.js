@@ -452,37 +452,11 @@ test("enforcePullRequestLimits retries closing before failing", async () => {
   assert.equal(harness.messages.warning.length, 3);
 });
 
-test("workflow uses the trusted pull_request_target configuration", () => {
-  const workflow = fs.readFileSync(
-    path.resolve(__dirname, "../../.github/workflows/contributor-pr-limit.yml"),
-    "utf8",
+test("contributor pull-request mutation workflow remains retired", () => {
+  assert.equal(
+    fs.existsSync(
+      path.resolve(__dirname, "../../.github/workflows/contributor-pr-limit.yml"),
+    ),
+    false,
   );
-
-  assert.match(workflow, /pull_request_target:\n\s+types: \[opened, reopened\]/);
-  assert.match(workflow, /contents: read\n\s+pull-requests: write/);
-  assert.doesNotMatch(workflow, /issues: write/);
-  assert.doesNotMatch(workflow, /pr-limit-pending|addLabels|queue-event/);
-  assert.match(
-    workflow,
-    /group: contributor-pr-limit\n\s+cancel-in-progress: false/,
-  );
-  assert.match(workflow, /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/);
-  assert.match(workflow, /persist-credentials: false/);
-  assert.match(
-    workflow,
-    /actions\/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7\.0\.0/,
-  );
-  assert.match(
-    workflow,
-    /actions\/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9\.0\.0/,
-  );
-  assert.match(
-    workflow,
-    /MAX_OPEN_PRS_PER_CONTRIBUTOR: \$\{\{ vars\.MAX_OPEN_PRS_PER_CONTRIBUTOR \}\}/,
-  );
-  assert.match(
-    workflow,
-    /MAX_OPEN_PRS_PER_CONTRIBUTOR_OVERRIDES: \$\{\{ vars\.MAX_OPEN_PRS_PER_CONTRIBUTOR_OVERRIDES \}\}/,
-  );
-  assert.doesNotMatch(workflow, /github\.event\.pull_request\.head/);
 });

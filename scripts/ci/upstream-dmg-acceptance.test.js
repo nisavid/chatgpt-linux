@@ -237,58 +237,42 @@ test("HTTP identity requires an ETag or Last-Modified plus Content-Length", () =
   assert.ok(httpIdentity({ lastModified: "today", contentLength: 42 })?.key);
 });
 
-test("official DMG workflow concurrency is isolated per PR or ref", () => {
+test("official DMG workflow is read-only pull-request validation after retirement", () => {
   const workflow = fs.readFileSync(
     path.resolve(__dirname, "../../.github/workflows/official-dmg-build-app.yml"),
     "utf8",
   );
-  assert.match(workflow, /cron: '30 \* \* \* \*'/);
+  assert.doesNotMatch(workflow, /schedule:/);
+  assert.doesNotMatch(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s*push:/m);
   assert.match(
     workflow,
     /group: official-dmg-acceptance-\$\{\{ github\.event_name \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/,
   );
   assert.doesNotMatch(workflow, /group: official-dmg-acceptance-\$\{\{ github\.event_name \}\}\s*$/m);
-  assert.equal((workflow.match(/- port-integrations\/\*\*/g) ?? []).length, 2);
-  assert.equal((workflow.match(/- scripts\/lib\/port-integrations\.js/g) ?? []).length, 2);
+  assert.equal((workflow.match(/- port-integrations\/\*\*/g) ?? []).length, 1);
+  assert.equal((workflow.match(/- scripts\/lib\/port-integrations\.js/g) ?? []).length, 1);
   assert.doesNotMatch(workflow, /uses:\s+[^\s]+@v\d/);
-  assert.match(workflow, /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/);
-  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /issues:\s*write/);
+  assert.doesNotMatch(workflow, /reconcileUpstreamDmgIssue/);
 });
 
-test("Nix refresh serializes campaigns and deduplicates refresh and exact-head CI", () => {
-  const workflow = fs.readFileSync(
-    path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
-    "utf8",
+test("Nix DMG hash refresh workflow remains retired", () => {
+  assert.equal(
+    fs.existsSync(
+      path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
+    ),
+    false,
   );
-
-  assert.match(workflow, /expected_main_sha:/);
-  assert.match(workflow, /expected_dmg_sha256:/);
-  assert.match(workflow, /run-name: Nix refresh \$\{\{ inputs\.expected_main_sha \}\}:\$\{\{ inputs\.expected_dmg_sha256 \}\}/);
-  assert.match(workflow, /ref: \$\{\{ inputs\.expected_main_sha \}\}/);
-  assert.equal((workflow.match(/required: true/g) ?? []).length, 2);
-  assert.doesNotMatch(workflow, /schedule:/);
-  assert.doesNotMatch(workflow, /cron:/);
-  assert.match(workflow, /group: update-nix-official-dmg-hashes/);
-  assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /Source-Main-SHA:/);
-  assert.match(workflow, /Source-Main-SHA: \$EXPECTED_MAIN_SHA/);
-  assert.match(workflow, /Upstream-DMG-SHA256:/);
-  assert.match(workflow, /git push --force-with-lease origin "\$REFRESH_BRANCH"/);
-  assert.match(workflow, /Exact-head CI already exists/);
-  assert.doesNotMatch(workflow, /git push --force origin "\$REFRESH_BRANCH"/);
 });
 
-test("Nix hash refresh accepts a validated focused output override", () => {
+test("historical Nix hash tooling retains its focused output validation", () => {
   const script = fs.readFileSync(
     path.resolve(__dirname, "update-nix-hashes.sh"),
     "utf8",
   );
   const workflow = fs.readFileSync(
     path.resolve(__dirname, "../../.github/workflows/ci.yml"),
-    "utf8",
-  );
-  const refreshWorkflow = fs.readFileSync(
-    path.resolve(__dirname, "../../.github/workflows/update-chatgpt-hash.yml"),
     "utf8",
   );
   const watchdogProfile = JSON.parse(fs.readFileSync(
@@ -314,8 +298,6 @@ test("Nix hash refresh accepts a validated focused output override", () => {
   assert.match(script, /NIX_VERIFY_OUTPUTS/);
   assert.match(script, /NIX_COMPARE_REF/);
   assert.match(workflow, /\.#checks\.x86_64-linux\.watchdog-port-integrations/);
-  assert.match(refreshWorkflow, /NIX_VERIFY_OUTPUTS/);
-  assert.match(refreshWorkflow, /\.#checks\.x86_64-linux\.watchdog-port-integrations/);
   assert.match(script, /Invalid Nix verification output/);
   assert.match(script, /run_nix_build "\$VERIFY_LOG" "\$\{PACKAGE_OUTPUTS\[@\]\}"/);
 });

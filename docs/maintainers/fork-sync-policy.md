@@ -1,5 +1,10 @@
 # Fork Sync Policy
 
+> [!WARNING]
+> Upstream synchronization is retired. This document preserves the former sync
+> contract for audit history; it does not authorize another sync. See
+> [Repository Retirement](../retirement.md).
+
 This is the current procedure for syncing changes from the Linux-port upstream
 into this fork. In this document, `upstream` means the `upstream` remote for
 `ilysenko/codex-desktop-linux` unless a sentence names another surface. Use this

@@ -1,8 +1,6 @@
 name: Official DMG Build App
 
 on:
-  schedule:
-    - cron: '30 * * * *'
   pull_request:
     paths:
       - install.sh
@@ -17,23 +15,6 @@ on:
       - notification-actions-linux/**
       - scripts/**
       - .github/workflows/official-dmg-build-app.yml
-  push:
-    branches:
-      - main
-    paths:
-      - install.sh
-      - Makefile
-      - launcher/**
-      - computer-use-linux/**
-      - plugins/**
-      - packaging/**
-      - port-integrations/**
-      - scripts/lib/port-integrations.js
-      - global-dictation-linux/**
-      - notification-actions-linux/**
-      - scripts/**
-      - .github/workflows/official-dmg-build-app.yml
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -199,70 +180,3 @@ jobs:
             accepted|accepted_with_warnings) exit 0 ;;
             *) echo "Official DMG verdict: $verdict" >&2; exit 1 ;;
           esac
-
-  reconcile-official-dmg-issue:
-    name: Reconcile Official DMG Drift Issue
-    needs: build-app-official-dmg
-    if: always() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      issues: write
-
-    steps:
-      - name: Check out trusted reconciliation code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-
-      - name: Download acceptance artifact
-        id: download
-        continue-on-error: true
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: official-dmg-metadata
-          path: acceptance-artifact
-
-      - name: Capture current official DMG identity
-        id: current-identity
-        if: steps.download.outcome == 'success' && hashFiles('acceptance-artifact/official-dmg-decision.json') != ''
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          headers_file="$(mktemp)"
-          trap 'rm -f "$headers_file"' EXIT
-          curl -fsSLI "$OFFICIAL_DMG_URL" > "$headers_file"
-          node - "$headers_file" > current-official-dmg-identity.json <<'NODE'
-          const fs = require("node:fs");
-          const headers = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/);
-          const metadata = {};
-          for (const line of headers) {
-            const match = line.match(/^([^:]+):\s*(.*)$/);
-            if (!match) continue;
-            const key = match[1].toLowerCase();
-            if (key === "etag") metadata.etag = match[2].replace(/^"|"$/g, "");
-            if (key === "last-modified") metadata.last_modified = match[2];
-            if (key === "content-length") metadata.content_length = match[2];
-          }
-          process.stdout.write(`${JSON.stringify(metadata, null, 2)}\n`);
-          NODE
-
-      - name: Create, update, or close the drift issue
-        if: steps.current-identity.outcome == 'success'
-        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            const { httpIdentity } = require('./scripts/lib/upstream-dmg-acceptance.js');
-            const { reconcileUpstreamDmgIssue } = require('./scripts/ci/upstream-dmg-issue.js');
-            const decision = JSON.parse(fs.readFileSync('acceptance-artifact/official-dmg-decision.json', 'utf8'));
-            const currentMetadata = JSON.parse(fs.readFileSync('current-official-dmg-identity.json', 'utf8'));
-            const result = await reconcileUpstreamDmgIssue({
-              github,
-              repo: context.repo,
-              decision,
-              currentHttpIdentityKey: httpIdentity(currentMetadata)?.key ?? null,
-            });
-            core.info(`Official DMG issue reconciliation: ${JSON.stringify(result)}`);
