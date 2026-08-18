@@ -13,9 +13,10 @@ does not authorize deletion, package changes, service changes, or repository
 archival.
 
 The mechanical switch is accepted: the validated native repackage is the only
-installed ChatGPT package, the preserved profile and account state were
-accepted, the canonical desktop launcher relaunched successfully, pacman is
-the only package-update authority, and the independent Codex CLI continued
+active ChatGPT producer, while the separately installed Nativefier wrapper
+remains a redundant cleanup target. The preserved profile and account state
+were accepted, the canonical desktop launcher relaunched successfully, pacman
+is the only package-update authority, and the independent Codex CLI continued
 through the switch. The accepted host evidence is recorded in the
 [`arch-pkgs` switch report](https://github.com/nisavid/arch-pkgs/issues/32#issuecomment-5315670607).
 
@@ -44,7 +45,8 @@ identifiers, credentials, or profile contents.
   [`arch-pkgs` M3 ticket](https://github.com/nisavid/arch-pkgs/issues/76).
   The recipe advanced repeatedly during the days before this review, so this
   should be observable without an artificial hold
-  ([package history](https://github.com/CachyOS/cachyos-aur-derived/commits/master/chatgpt-desktop-bin)).
+  ([package history through `a09deb2`](https://github.com/CachyOS/cachyos-aur-derived/commits/a09deb22c33c5be84ce42e9fb2299e4f57326d68/chatgpt-desktop-bin),
+  retrieved 2026-08-18).
 - **M4 — explicit evidence release and fork-state cleanup:** after M3, execute
   the downstream
   [`arch-pkgs` cleanup ticket](https://github.com/nisavid/arch-pkgs/issues/77)
@@ -172,8 +174,8 @@ cleanup target.
 
 The sanitized host inventory found four classes of port-owned material:
 
-1. Small user-authored settings for port integrations, Electron flags, and
-   local feature configuration. These are cheap to retain until M4 and are the
+1. Small user-authored settings for port integration modules, Electron flags,
+   and local feature configuration. These are cheap to retain until M4 and are the
    only fork settings worth an optional encrypted personal export.
 2. A fork-created remote-control device-key file. It is sensitive and unique,
    but it is not historical evidence. Revoke any corresponding enrollment and
