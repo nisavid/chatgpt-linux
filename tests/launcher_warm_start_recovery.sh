@@ -65,6 +65,22 @@ wait_for() {
     fail "timed out waiting for $description"
 }
 
+unix_socket_is_connectable() {
+    python3 - "$1" 2>/dev/null <<'PY'
+import socket
+import sys
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+    client.settimeout(0.2)
+    client.connect(sys.argv[1])
+    try:
+        client.sendall(b"\n")
+        client.recv(1)
+    except (BrokenPipeError, ConnectionResetError):
+        pass
+PY
+}
+
 read_live_app_pid() {
     local pid
     pid="$(cat "$STATE_DIR/app.pid" 2>/dev/null || true)"
@@ -197,7 +213,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
             client.sendall(b"ok\n")
 PY
 SOCKET_PID=$!
-wait_for "launch-action socket" test -S "$SOCKET_PATH"
+wait_for "launch-action socket" unix_socket_is_connectable "$SOCKET_PATH"
 
 python3 - "$COMPUTER_USE_AUTHORITY_SOCKET" <<'PY'
 import os
@@ -229,7 +245,8 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
         client.close()
 PY
     COMPUTER_USE_SOCKET_PID=$!
-    wait_for "live Computer Use cursor socket" test -S "$COMPUTER_USE_CURSOR_SOCKET"
+    wait_for "live Computer Use cursor socket" \
+        unix_socket_is_connectable "$COMPUTER_USE_CURSOR_SOCKET"
 else
     python3 - "$COMPUTER_USE_CURSOR_SOCKET" <<'PY'
 import os

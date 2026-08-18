@@ -180,6 +180,8 @@ test("Browser and Chrome staging reject non-executable trusted RPC decoys", () =
     `/*${trustedRpcBrowserClientFixture}*/`,
     `const decoy=${JSON.stringify(trustedRpcBrowserClientFixture)};`,
     `const decoy=\`outer \${\`${trustedRpcBrowserClientFixture}\`} tail\`;`,
+    `const decoy=/${trustedRpcBrowserClientFixture.replaceAll("\n", "").replaceAll("/", "\\/")}/;`,
+    `#!${trustedRpcBrowserClientFixture.replaceAll("\n", "")}\n`,
   ];
 
   for (const pluginName of ["browser", "chrome"]) {

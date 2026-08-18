@@ -286,6 +286,14 @@ test("webview patch rejects duplicate current settings layout targets", () => {
   assert.match(warnings.join("\n"), /partial, ambiguous, or drifted/u);
 });
 
+test("webview settings patch rejects duplicate executable settings functions", () => {
+  const duplicateTarget = `${webviewSettingsFixture}function Xi(e){return e}`;
+  const { value, warnings } = withCapturedWarnings(() => applyWebviewSettingsPatch(duplicateTarget));
+
+  assert.equal(value, duplicateTarget);
+  assert.match(warnings.join("\n"), /Could not uniquely resolve the current webview settings/u);
+});
+
 test("webview settings patch rejects missing field and saving-state aliases", () => {
   const driftedFixtures = [
     webviewSettingsFixture

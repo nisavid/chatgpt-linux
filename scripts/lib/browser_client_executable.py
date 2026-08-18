@@ -1,4 +1,8 @@
-"""Minimal JavaScript executable-range filtering for bundled Browser patch anchors."""
+"""Minimal JavaScript executable-range filtering for bundled Browser patch anchors.
+
+Keep shared literal, comment, template, and hashbang classifications aligned with
+``findExecutableJavaScriptSubstring`` in ``scripts/patches/lib/minified-js.js``.
+"""
 
 _REGEX_PREFIX_KEYWORDS = {
     "await", "break", "case", "continue", "debugger", "default", "delete", "do",
@@ -16,7 +20,6 @@ def executable_offsets(source):
     pending_break_or_continue = False
     pending_break_or_continue_label = False
     paren_contexts = []
-    brace_contexts = []
     next_brace_is_statement = False
     template_contexts = []
     while index < len(source):
@@ -201,7 +204,6 @@ def executable_offsets(source):
             index += 3
             continue
         if char == "{" and template_contexts and template_contexts[-1][0]:
-            brace_contexts.append("statement" if next_brace_is_statement else "expression")
             next_brace_is_statement = False
             template_contexts[-1][1] += 1
             can_start_regex = True
@@ -215,21 +217,16 @@ def executable_offsets(source):
                 can_start_regex = False
             else:
                 template_contexts[-1][1] -= 1
-                if brace_contexts:
-                    brace_contexts.pop()
                 next_brace_is_statement = True
                 can_start_regex = True
             index += 1
             continue
         if char == "{":
-            brace_contexts.append("statement" if next_brace_is_statement else "expression")
             next_brace_is_statement = False
             can_start_regex = True
             index += 1
             continue
         if char == "}":
-            if brace_contexts:
-                brace_contexts.pop()
             next_brace_is_statement = True
             can_start_regex = True
             index += 1
