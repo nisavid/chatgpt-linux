@@ -259,6 +259,7 @@
 
           nativeBuildInputs = [ pkgs.binutils pkgs.xz ];
 
+          dontUnpack = true;
           dontConfigure = true;
           dontBuild = true;
 
