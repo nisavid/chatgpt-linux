@@ -287,19 +287,22 @@ test("webview patch rejects duplicate current settings layout targets", () => {
 });
 
 test("webview settings patch rejects missing field and saving-state aliases", () => {
-  for (const [needle, replacement, decoy] of [
-    ["let b=Ur(y)", "let q=Ur(y)", "let b=Ur(y)"],
-    ["isSaving:d}=e", "isSaving:q}=e", "isSaving:d}=e"],
-    ["(0,J.jsx)(ea,{", "(0,J.jsx)(qa,{", "(0,J.jsx)(ea,{"],
-    ["(0,J.jsx)(r,{}", "(0,J.jsx)(qr,{}", "(0,J.jsx)(r,{}"],
-  ]) {
-    const drifted = webviewSettingsFixture.replace(
-      needle,
-      replacement,
-    ).replace(
-      "function Xi(e){",
-      `function Xi(e){let decoy=${JSON.stringify(decoy)};`,
-    );
+  const driftedFixtures = [
+    webviewSettingsFixture
+      .replace("let b=Ur(y)", "let q=Ur(y)")
+      .replace("function Xi(e){", 'function Xi(e){let decoy="let b=Ur(y)";'),
+    webviewSettingsFixture
+      .replace("isSaving:d}=e", "isSaving:q}=e")
+      .replace("function Xi(e){", 'function Xi(e){let decoy="isSaving:d}=e";'),
+    webviewSettingsFixture
+      .replace("(0,J.jsx)(ea,{", "(0,J.jsx)(qa,{")
+      .replace("function Xi(e){", 'function Xi(e){let decoy="(0,J.jsx)(ea,{";'),
+    webviewSettingsFixture
+      .replace("(0,J.jsx)(r,{}", "(0,J.jsx)(qr,{}")
+      .replace("function Xi(e){", 'function Xi(e){let decoy="(0,J.jsx)(r,{}";'),
+  ];
+
+  for (const drifted of driftedFixtures) {
     const { value, warnings } = withCapturedWarnings(() => applyWebviewSettingsPatch(drifted));
     assert.equal(value, drifted);
     assert.match(warnings.join("\n"), /Could not uniquely resolve the current webview settings/u);
